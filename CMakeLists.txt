@@ -13,25 +13,10 @@ include(PamplejuceMacOS)
 # Couple tweaks that IMO should be JUCE defaults
 include(JUCEDefaults)
 
-# Change me!
-# This is the internal name of the project and the name of JUCE's shared code target
-# Note: This cannot have spaces (it may be 2024, but you can't have it all!)
-# Worry not, JUCE's PRODUCT_NAME can have spaces (and is what DAWs display)
-set(PROJECT_NAME "Pamplejuce")
-
-# Worry not, JUCE's PRODUCT_NAME can have spaces (and is what DAWs will display)
-# You can also just have it be the same thing as PROJECT_NAME
-# You may want to append the major version on the end of this (and PROJECT_NAME) ala:
-#   set(PROJECT_NAME "MyPlugin_v${MAJOR_VERSION}")
-# Doing so enables major versions to show up in IDEs and DAWs as separate plugins
-# allowing you to change parameters and behavior without breaking existing user projects
-set(PRODUCT_NAME "Pamplejuce Demo")
-
-# Change me! Used for the MacOS bundle name and Installers
-set(COMPANY_NAME "Pamplejuce Company")
-
-# Change me! Used for the MacOS bundle identifier (and signing)
-set(BUNDLE_ID "com.pamplejuce.pamplejuce")
+set(PROJECT_NAME "MidiPhrases")
+set(PRODUCT_NAME "MIDI Phrases")
+set(COMPANY_NAME "ofsound")
+set(BUNDLE_ID "com.ofsound.midiphrases")
 
 # Change me! Set the plugin formats you want built
 # Valid choices: AAX Unity VST VST3 AU AUv3 Standalone
@@ -75,16 +60,13 @@ juce_add_plugin("${PROJECT_NAME}"
     # On MacOS, plugin is copied to /Users/yourname/Library/Audio/Plug-Ins/
     COPY_PLUGIN_AFTER_BUILD TRUE
 
-    # Change me!
-    # A four-character plugin id
-    # First character MUST be uppercase for AU formats
-    PLUGIN_MANUFACTURER_CODE Pamp
-
-    # Change me!
-    # A unique four-character plugin id
-    # Note: this must have at least one upper-case character
-    PLUGIN_CODE P001
+    PLUGIN_MANUFACTURER_CODE Osnd
+    PLUGIN_CODE MPhr
     FORMATS "${FORMATS}"
+
+    IS_SYNTH FALSE
+    NEEDS_MIDI_INPUT TRUE
+    IS_MIDI_EFFECT TRUE
 
     # The name of your final executable
     # This is how it's listed in the DAW
@@ -98,7 +80,7 @@ add_library(SharedCode INTERFACE)
 
 clap_juce_extensions_plugin(TARGET "${PROJECT_NAME}"
     CLAP_ID "${BUNDLE_ID}"
-    CLAP_FEATURES audio-effect)
+    CLAP_FEATURES midi-effect)
 
 # Enable fast math, C++20 and a few other target defaults
 include(SharedCodeDefaults)
@@ -135,7 +117,7 @@ target_compile_definitions(SharedCode
     VERSION="${CURRENT_VERSION}"
 
     # JucePlugin_Name is for some reason doesn't use the nicer PRODUCT_NAME
-    PRODUCT_NAME_WITHOUT_VERSION="Pamplejuce"
+    PRODUCT_NAME_WITHOUT_VERSION="MIDI Phrases"
 )
 
 # Link to any other modules you added (with juce_add_module) here!
@@ -159,8 +141,8 @@ target_link_libraries(SharedCode
 # Link the JUCE plugin targets our SharedCode target
 target_link_libraries("${PROJECT_NAME}" PRIVATE SharedCode)
 
-# IPP support, comment out to disable
-include(PamplejuceIPP)
+# IPP support (SIMD DSP) — not needed for MIDI Phrases
+# include(PamplejuceIPP)
 
 # Everything related to the tests target
 include(Tests)
