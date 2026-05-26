@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 # This tells cmake we have goodies in the /cmake folder
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" "${CMAKE_CURRENT_SOURCE_DIR}/cmake_project")
 include (PamplejuceVersion)
 
 # Modern concise way to add dependencies to your project
@@ -45,9 +45,6 @@ add_subdirectory(modules/clap-juce-extensions EXCLUDE_FROM_ALL)
 # Add any other modules you want modules here, before the juce_add_plugin call
 # juce_add_module(modules/my_module)
 
-# This adds the melatonin inspector module
-add_subdirectory (modules/melatonin_inspector)
-
 # See `docs/CMake API.md` in the JUCE repo for all config options
 juce_add_plugin("${PROJECT_NAME}"
     # Icons for the standalone app
@@ -59,6 +56,9 @@ juce_add_plugin("${PROJECT_NAME}"
 
     # On MacOS, plugin is copied to /Users/yourname/Library/Audio/Plug-Ins/
     COPY_PLUGIN_AFTER_BUILD TRUE
+
+    NEEDS_WEB_BROWSER TRUE
+    NEEDS_WEBVIEW2 TRUE
 
     PLUGIN_MANUFACTURER_CODE Osnd
     PLUGIN_CODE MPhr
@@ -95,8 +95,14 @@ include(SharedCodeDefaults)
 file(GLOB_RECURSE SourceFiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/source/*.h")
 target_sources(SharedCode INTERFACE ${SourceFiles})
 
+include(WebViewUI)
+
 # Adds a BinaryData target for embedding assets into the binary
 include(Assets)
+
+if (TARGET WebViewUIBuild)
+    add_dependencies(Assets WebViewUIBuild)
+endif()
 
 # MacOS only: Cleans up folder and target organization on Xcode.
 include(XcodePrettify)
@@ -105,9 +111,8 @@ include(XcodePrettify)
 target_compile_definitions(SharedCode
     INTERFACE
 
-    # JUCE_WEB_BROWSER and JUCE_USE_CURL off by default
-    JUCE_WEB_BROWSER=0  # If you set this to 1, add `NEEDS_WEB_BROWSER TRUE` to the `juce_add_plugin` call
-    JUCE_USE_CURL=0     # If you set this to 1, add `NEEDS_CURL TRUE` to the `juce_add_plugin` call
+    JUCE_WEB_BROWSER=1
+    JUCE_USE_CURL=1
     JUCE_VST3_CAN_REPLACE_VST2=0
 
     # Uncomment if you are paying for a an Indie/Pro license or releasing under GPLv3
@@ -129,7 +134,6 @@ target_compile_definitions(SharedCode
 target_link_libraries(SharedCode
     INTERFACE
     Assets
-    melatonin_inspector
     juce_audio_utils
     juce_audio_processors
     juce_dsp

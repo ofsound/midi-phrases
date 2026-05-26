@@ -45,6 +45,24 @@ On macOS for universal binary: add `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"` to
 
 Built plugins are copied to `~/Library/Audio/Plug-Ins/` when `COPY_PLUGIN_AFTER_BUILD` is on (Debug builds too).
 
+## WebView UI (Svelte + Vite + Tailwind)
+
+The plugin editor is a JUCE 8 `WebBrowserComponent` ([overview](https://juce.com/blog/juce-8-feature-overview-webview-uis/)). Frontend lives in `ui/`.
+
+```bash
+# Hot reload (Debug plugin loads http://localhost:5173)
+cd ui && npm install && npm run dev
+
+# Production bundle → assets/webview/ui.zip (embedded via BinaryData)
+cd ui && npm run build
+```
+
+`cmake --build Builds` runs the UI build automatically when `ui/` sources change (requires `npm`).
+
+JUCE JS helpers: `JUCE/modules/juce_gui_extra/native/javascript/` (Vite alias `@juce`).
+
+Melatonin Inspector was removed — it only applies to native JUCE widgets, not WebView UIs.
+
 ## Agent workflow (rebuild every time)
 
 After any change to `source/`, `CMakeLists.txt`, or plugin-related CMake modules:
@@ -61,7 +79,8 @@ Run `./Builds/Tests` when test or processor behavior changes.
 - `tests/` - Catch2 test files
 - `benchmarks/` - Catch2 benchmark files
 - `cmake/` - CMake modules (Tests.cmake, Benchmarks.cmake, Assets.cmake, etc.)
-- `modules/` - Git submodules: clap-juce-extensions, melatonin_inspector
+- `ui/` - Svelte/Vite/Tailwind WebView frontend
+- `modules/` - Git submodules: clap-juce-extensions
 - `JUCE/` - JUCE framework (git submodule)
 - `assets/` - Binary resources (auto-included via juce_add_binary_data)
 - `packaging/` - Installer resources and scripts
@@ -125,7 +144,6 @@ For anything in the audio thread / hot DSP path (e.g. `processBlock`):
 
 **JUCE Modules** live in `modules/` as git submodules. Add with `git submodule add`, then `add_subdirectory` and link to `SharedCode` in `CMakeLists.txt`. Some useful ones:
 
-- [melatonin_inspector](https://github.com/sudara/melatonin_inspector) — runtime component debugger (already included)
 - [melatonin_blur](https://github.com/sudara/melatonin_blur) — fast cross-platform blurs for C++ UI (shadows, glows, frosted glass)
 - [melatonin_perfetto](https://github.com/sudara/melatonin_perfetto) — performance tracing with Perfetto, great for profiling `processBlock` and paint calls
 - [gin](https://github.com/FigBug/gin) — large collection of utilities (DSP, UI components, LookAndFeel, etc.)
