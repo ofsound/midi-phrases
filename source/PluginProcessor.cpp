@@ -1,13 +1,27 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#include <cmath>
+
+PluginProcessor::BusesProperties PluginProcessor::createBusesProperties()
+{
+  #if JucePlugin_IsMidiEffect
+    // Dummy stereo out only (silent). Logic AU stays in the MIDI FX slot (aumi).
+    // Ableton: stereo *in* classifies the VST3 as an audio effect (right of the instrument);
+    // out-only matches JUCE's MidiLogger demo and loads in the instrument area instead.
+    return BusesProperties().withOutput ("Out", juce::AudioChannelSet::stereo(), true);
+  #else
+    return BusesProperties().withInput ("Input", juce::AudioChannelSet::stereo(), true)
+                            .withOutput ("Output", juce::AudioChannelSet::stereo(), true);
+  #endif
+}
+
 //==============================================================================
 PluginProcessor::PluginProcessor()
-     : AudioProcessor (BusesProperties()
-                       // Silent pass-through buses: Ableton/Logic reject MIDI-only VST3/AU layouts.
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+     : AudioProcessor (createBusesProperties())
 {
+    for (auto& note : phraseNotes)
+        note.store (60);
 }
 
 PluginProcessor::~PluginProcessor()
@@ -82,9 +96,18 @@ void PluginProcessor::changeProgramName (int index, const juce::String& newName)
 //==============================================================================
 void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
-    juce::ignoreUnused (sampleRate, samplesPerBlock);
+    juce::ignoreUnused (samplesPerBlock);
+    sampleRateHz = sampleRate;
+    lastEmittedQuarter = -1;
+    wasPlaying = false;
+}
+
+void PluginProcessor::setPhraseNote (int index, int noteNumber)
+{
+    if (index < 0 || index >= phraseNoteCount)
+        return;
+
+    phraseNotes[static_cast<size_t> (index)].store (juce::jlimit (0, 127, noteNumber));
 }
 
 void PluginProcessor::releaseResources()
@@ -95,6 +118,18 @@ void PluginProcessor::releaseResources()
 
 bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
+  #if JucePlugin_IsMidiEffect
+    const auto out = layouts.getMainOutputChannelSet();
+    const auto in = layouts.getMainInputChannelSet();
+
+    if (out != juce::AudioChannelSet::mono() && out != juce::AudioChannelSet::stereo())
+        return false;
+
+    if (in.isDisabled())
+        return true;
+
+    return in == out;
+  #else
     const auto out = layouts.getMainOutputChannelSet();
     const auto in = layouts.getMainInputChannelSet();
 
@@ -105,16 +140,73 @@ bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
         return false;
 
     return true;
+  #endif
 }
 
 void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                                               juce::MidiBuffer& midiMessages)
 {
-    juce::ignoreUnused (midiMessages);
-
     buffer.clear();
 
-    // MIDI effect: phrase interleaving / sequencing logic goes here (realtime-safe).
+   #if ! JucePlugin_ProducesMidiOutput
+    juce::ignoreUnused (midiMessages);
+    return;
+   #endif
+
+    const auto* playHead = getPlayHead();
+
+    if (playHead == nullptr)
+        return;
+
+    const auto position = playHead->getPosition();
+
+    if (! position.hasValue() || ! position->getIsPlaying())
+    {
+        if (wasPlaying)
+        {
+            for (int ch = 1; ch <= 16; ++ch)
+                midiMessages.addEvent (juce::MidiMessage::allNotesOff (ch), 0);
+        }
+
+        wasPlaying = false;
+        lastEmittedQuarter = -1;
+        return;
+    }
+
+    wasPlaying = true;
+
+    const auto ppqStart = position->getPpqPosition().orFallback (0.0);
+    const auto bpm = position->getBpm().orFallback (120.0);
+    const auto ppqPerSample = (bpm / 60.0) / sampleRateHz;
+    const auto ppqEnd = ppqStart + static_cast<double> (buffer.getNumSamples()) * ppqPerSample;
+
+    const auto qStart = static_cast<int> (std::ceil (ppqStart - 1.0e-9));
+    const auto qEnd = static_cast<int> (std::floor (ppqEnd + 1.0e-9));
+
+    if (qEnd < lastEmittedQuarter)
+        lastEmittedQuarter = qEnd - 1;
+
+    const auto noteGateSamples = juce::jmax (1, static_cast<int> (sampleRateHz * 0.15));
+
+    for (int quarter = qStart; quarter <= qEnd; ++quarter)
+    {
+        if (quarter <= lastEmittedQuarter)
+            continue;
+
+        lastEmittedQuarter = quarter;
+
+        const auto slot = ((quarter % phraseNoteCount) + phraseNoteCount) % phraseNoteCount;
+        const auto note = phraseNotes[static_cast<size_t> (slot)].load();
+        const auto sampleOffset = juce::jlimit (
+            0,
+            buffer.getNumSamples() - 1,
+            static_cast<int> (std::lround ((static_cast<double> (quarter) - ppqStart) / ppqPerSample)));
+
+        midiMessages.addEvent (juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (100)),
+                               sampleOffset);
+        midiMessages.addEvent (juce::MidiMessage::noteOff (1, note),
+                               juce::jmin (buffer.getNumSamples() - 1, sampleOffset + noteGateSamples));
+    }
 }
 
 //==============================================================================

@@ -67,7 +67,9 @@ juce_add_plugin("${PROJECT_NAME}"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
-    # IS_MIDI_EFFECT breaks Ableton VST3 and AU registration (aumi); use Music Effect (aumf) instead.
+    IS_MIDI_EFFECT TRUE
+    # Live treats VST3 "Fx" + audio inputs as post-instrument audio FX; Fx|Instrument loads like Cthulhu/Scaler.
+    VST3_CATEGORIES Fx Instrument
 
     # The name of your final executable
     # This is how it's listed in the DAW
@@ -81,7 +83,7 @@ add_library(SharedCode INTERFACE)
 
 clap_juce_extensions_plugin(TARGET "${PROJECT_NAME}"
     CLAP_ID "${BUNDLE_ID}"
-    CLAP_FEATURES note-effect)
+    CLAP_FEATURES midi-effect)
 
 # Enable fast math, C++20 and a few other target defaults
 include(SharedCodeDefaults)

@@ -4,7 +4,9 @@ This file provides guidance for AI coding agents working in this repository. See
 
 ## About This Project
 
-**MIDI Phrases** by **ofsound** — a MIDI effect (no audio DSP) that sequences and interleaves separate phrases into a composition. Built on the [Pamplejuce](https://github.com/sudara/pamplejuce) template with JUCE 8, CMake, C++23, Catch2 tests, and CLAP/AU/VST3/AUv3/Standalone formats.
+**MIDI Phrases** by **ofsound** — a MIDI effect (no audio DSP; dummy audio out bus for host compatibility) that sequences and interleaves separate phrases into a composition. Built on the [Pamplejuce](https://github.com/sudara/pamplejuce) template with JUCE 8, CMake, C++23, Catch2 tests, and CLAP/AU/VST3/AUv3/Standalone formats.
+
+**Hosts:** Logic — load the **AU** in the top **MIDI FX** slot (before the instrument). **Ableton** — use **VST3** only (Live does not expose AU MIDI-out). Live cannot place third-party plugins in the built-in MIDI-effects row; load **MIDI Phrases** in the **instrument** slot on one MIDI track, put your synth on a second track, and set **MIDI From** → first track → **MIDI Phrases** (Monitor **In**) — [Ableton guide](https://help.ableton.com/hc/en-us/articles/209070189-Accessing-the-MIDI-output-of-a-VST-plug-in).
 
 Plugin-specific logic lives in `source/`. CI is macOS-only for now; code signing is disabled until release.
 

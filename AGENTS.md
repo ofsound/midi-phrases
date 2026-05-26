@@ -8,6 +8,8 @@ This file provides guidance for AI coding agents working in this repository. See
 
 Plugin-specific logic lives in `source/`. CI is macOS-only for now; code signing is disabled until release.
 
+**Hosts:** Logic — load the **AU** in the top **MIDI FX** slot (before the instrument). **Ableton** — use **VST3** only (Live does not expose AU MIDI-out). Live cannot place third-party plugins in the built-in MIDI-effects row; load **MIDI Phrases** in the **instrument** slot on one MIDI track, put your synth on a second track, and set **MIDI From** → first track → **MIDI Phrases** (Monitor **In**) — [Ableton guide](https://help.ableton.com/hc/en-us/articles/209070189-Accessing-the-MIDI-output-of-a-VST-plug-in).
+
 ## Build Commands (VS Code / Cursor)
 
 Use the **CMake Tools** extension (`.vscode/settings.json` points at `Builds/` and Ninja).

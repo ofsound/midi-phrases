@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include <atomic>
+
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #if (MSVC)
@@ -38,6 +41,17 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    void setPhraseNote (int index, int noteNumber);
+
 private:
+    static BusesProperties createBusesProperties();
+
+    static constexpr int phraseNoteCount = 4;
+
+    std::array<std::atomic<int>, phraseNoteCount> phraseNotes {};
+    double sampleRateHz = 44100.0;
+    int lastEmittedQuarter = -1;
+    bool wasPlaying = false;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };

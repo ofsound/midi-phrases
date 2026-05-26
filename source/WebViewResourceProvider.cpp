@@ -1,6 +1,7 @@
 #include "WebViewResourceProvider.h"
 
 #include "BinaryData.h"
+#include "PluginProcessor.h"
 
 #include <cstring>
 #include <memory>
@@ -92,7 +93,7 @@ std::optional<juce::WebBrowserComponent::Resource> WebViewResources::getResource
     return resource;
 }
 
-juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions()
+juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginProcessor& processor)
 {
     using Options = juce::WebBrowserComponent::Options;
 
@@ -100,6 +101,18 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions()
                        .withNativeIntegrationEnabled()
                        .withInitialisationData ("pluginName", juce::var { PRODUCT_NAME_WITHOUT_VERSION })
                        .withInitialisationData ("version", juce::var { VERSION })
+                       .withNativeFunction (
+                           "setPhraseNote",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 2)
+                               {
+                                   processor.setPhraseNote (static_cast<int> (args[0]),
+                                                            static_cast<int> (args[1]));
+                               }
+
+                               complete (juce::var {});
+                           })
                        .withUserScript (juce::String { R"(
                            document.documentElement.classList.add('juce-ready');
                        )" });

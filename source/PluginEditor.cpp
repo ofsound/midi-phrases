@@ -8,7 +8,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     juce::ignoreUnused (processorRef);
 
 #if JUCE_WEB_BROWSER
-    webView = std::make_unique<juce::WebBrowserComponent> (WebViewResources::makeBrowserOptions());
+    webView = std::make_unique<juce::WebBrowserComponent> (WebViewResources::makeBrowserOptions (processorRef));
     addAndMakeVisible (*webView);
 
    #if JUCE_DEBUG
