@@ -100,6 +100,8 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     sampleRateHz = sampleRate;
     lastEmittedQuarter = -1;
     wasPlaying = false;
+    pendingNoteOffNote = -1;
+    pendingNoteOffSamples = 0;
 }
 
 void PluginProcessor::setPhraseNote (int index, int noteNumber)
@@ -170,10 +172,27 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
         wasPlaying = false;
         lastEmittedQuarter = -1;
+        pendingNoteOffNote = -1;
+        pendingNoteOffSamples = 0;
         return;
     }
 
     wasPlaying = true;
+
+    if (pendingNoteOffNote >= 0)
+    {
+        if (pendingNoteOffSamples < buffer.getNumSamples())
+        {
+            midiMessages.addEvent (juce::MidiMessage::noteOff (1, pendingNoteOffNote),
+                                   pendingNoteOffSamples);
+            pendingNoteOffNote = -1;
+            pendingNoteOffSamples = 0;
+        }
+        else
+        {
+            pendingNoteOffSamples -= buffer.getNumSamples();
+        }
+    }
 
     const auto ppqStart = position->getPpqPosition().orFallback (0.0);
     const auto bpm = position->getBpm().orFallback (120.0);
@@ -186,7 +205,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     if (qEnd < lastEmittedQuarter)
         lastEmittedQuarter = qEnd - 1;
 
-    const auto noteGateSamples = juce::jmax (1, static_cast<int> (sampleRateHz * 0.15));
+    const auto noteGateSamples = juce::jmax (1, static_cast<int> (sampleRateHz * noteGateSeconds));
 
     for (int quarter = qStart; quarter <= qEnd; ++quarter)
     {
@@ -202,10 +221,27 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             buffer.getNumSamples() - 1,
             static_cast<int> (std::lround ((static_cast<double> (quarter) - ppqStart) / ppqPerSample)));
 
+        if (pendingNoteOffNote >= 0)
+        {
+            midiMessages.addEvent (juce::MidiMessage::noteOff (1, pendingNoteOffNote), sampleOffset);
+            pendingNoteOffNote = -1;
+            pendingNoteOffSamples = 0;
+        }
+
         midiMessages.addEvent (juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (100)),
                                sampleOffset);
-        midiMessages.addEvent (juce::MidiMessage::noteOff (1, note),
-                               juce::jmin (buffer.getNumSamples() - 1, sampleOffset + noteGateSamples));
+
+        const auto samplesUntilOff = sampleOffset + noteGateSamples;
+
+        if (samplesUntilOff < buffer.getNumSamples())
+        {
+            midiMessages.addEvent (juce::MidiMessage::noteOff (1, note), samplesUntilOff);
+        }
+        else
+        {
+            pendingNoteOffNote = note;
+            pendingNoteOffSamples = samplesUntilOff - buffer.getNumSamples();
+        }
     }
 }
 

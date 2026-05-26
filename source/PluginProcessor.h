@@ -47,11 +47,14 @@ private:
     static BusesProperties createBusesProperties();
 
     static constexpr int phraseNoteCount = 4;
+    static constexpr double noteGateSeconds = 0.1;
 
     std::array<std::atomic<int>, phraseNoteCount> phraseNotes {};
     double sampleRateHz = 44100.0;
     int lastEmittedQuarter = -1;
     bool wasPlaying = false;
+    int pendingNoteOffNote = -1;
+    int pendingNoteOffSamples = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };
