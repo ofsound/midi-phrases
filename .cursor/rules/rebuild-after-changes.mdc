@@ -1,0 +1,15 @@
+---
+description: Rebuild and install plugins after code changes
+alwaysApply: true
+---
+
+# Rebuild after changes
+
+After editing plugin source (`source/`), `CMakeLists.txt`, or tests that affect the plugin target:
+
+1. If `CMakeLists.txt` changed: `cmake -B Builds -G Ninja -DCMAKE_BUILD_TYPE=Debug`
+2. Always run: `cmake --build Builds`
+3. Prefer building install targets so DAWs get fresh copies: `MidiPhrases_VST3`, `MidiPhrases_AU`, and `MidiPhrases_Standalone` (full `cmake --build Builds` is fine).
+4. Report build success or errors; do not ask the user to rebuild manually unless the build environment is broken.
+
+Plugins install to `~/Library/Audio/Plug-Ins/` (VST3, AU) via `COPY_PLUGIN_AFTER_BUILD`. Remind the user to rescan in the DAW only when plugin binaries change, not for every edit.

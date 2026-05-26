@@ -45,6 +45,16 @@ On macOS for universal binary: add `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"` to
 
 Built plugins are copied to `~/Library/Audio/Plug-Ins/` when `COPY_PLUGIN_AFTER_BUILD` is on (Debug builds too).
 
+## Agent workflow (rebuild every time)
+
+After any change to `source/`, `CMakeLists.txt`, or plugin-related CMake modules:
+
+1. Reconfigure only if CMake changed: `cmake -B Builds -G Ninja -DCMAKE_BUILD_TYPE=Debug`
+2. Build: `cmake --build Builds` (installs VST3, AU, Standalone, CLAP to system plugin folders)
+3. Fix compile errors before finishing the task; do not leave rebuilds to the user unless their toolchain is missing (cmake/ninja/Xcode).
+
+Run `./Builds/Tests` when test or processor behavior changes.
+
 ## Project Structure
 
 - `source/` - Plugin source code (PluginProcessor, PluginEditor)

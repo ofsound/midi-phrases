@@ -66,7 +66,8 @@ juce_add_plugin("${PROJECT_NAME}"
 
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT TRUE
-    IS_MIDI_EFFECT TRUE
+    NEEDS_MIDI_OUTPUT TRUE
+    # IS_MIDI_EFFECT breaks Ableton VST3 and AU registration (aumi); use Music Effect (aumf) instead.
 
     # The name of your final executable
     # This is how it's listed in the DAW
@@ -80,7 +81,7 @@ add_library(SharedCode INTERFACE)
 
 clap_juce_extensions_plugin(TARGET "${PROJECT_NAME}"
     CLAP_ID "${BUNDLE_ID}"
-    CLAP_FEATURES midi-effect)
+    CLAP_FEATURES note-effect)
 
 # Enable fast math, C++20 and a few other target defaults
 include(SharedCodeDefaults)
