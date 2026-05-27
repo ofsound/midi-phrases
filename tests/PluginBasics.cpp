@@ -17,6 +17,36 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK_THAT (testPlugin.getName().toStdString(),
             Catch::Matchers::Equals ("MIDI Phrases"));
     }
+
+    SECTION ("row mute")
+    {
+        CHECK_FALSE (testPlugin.isPhraseRowMuted (0));
+
+        testPlugin.setPhraseRowMuted (0, true);
+        testPlugin.setPhraseRowMuted (1, false);
+
+        CHECK (testPlugin.isPhraseRowMuted (0));
+        CHECK_FALSE (testPlugin.isPhraseRowMuted (1));
+
+        testPlugin.setPhraseRowMuted (0, false);
+        CHECK_FALSE (testPlugin.isPhraseRowMuted (0));
+    }
+
+    SECTION ("row timing offset")
+    {
+        CHECK (testPlugin.getPhraseRowTimingOffset (0) == PluginProcessor::defaultRowTimingOffsetIndex);
+
+        testPlugin.setPhraseRowTimingOffset (0, 1);
+        testPlugin.setPhraseRowTimingOffset (1, 6);
+
+        CHECK (testPlugin.getPhraseRowTimingOffset (0) == 1);
+        CHECK (testPlugin.getPhraseRowTimingOffset (1) == 6);
+        CHECK (PluginProcessor::rowTimingOffsetForIndex (0)
+               < PluginProcessor::rowTimingOffsetForIndex (6));
+
+        testPlugin.setPhraseRowTimingOffset (0, 99);
+        CHECK (testPlugin.getPhraseRowTimingOffset (0) == PluginProcessor::rowTimingOffsetCount - 1);
+    }
 }
 
 

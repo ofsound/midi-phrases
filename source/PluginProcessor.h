@@ -47,13 +47,24 @@ public:
     void setPhraseNote (int row, int step, int noteNumber);
     int getPhraseNote (int row, int step) const;
 
+    void setPhraseRowMuted (int row, bool muted);
+    bool isPhraseRowMuted (int row) const;
+
+    static constexpr int rowTimingOffsetCount = 7;
+    static constexpr int defaultRowTimingOffsetIndex = 3;
+
+    void setPhraseRowTimingOffset (int row, int offsetIndex);
+    int getPhraseRowTimingOffset (int row) const;
+    static double rowTimingOffsetForIndex (int offsetIndex);
+
 private:
     static BusesProperties createBusesProperties();
 
-    static constexpr double noteGateSeconds = 0.1;
+    static constexpr double noteGateQuarterFraction = 0.99;
 
     static int defaultNoteForRow (int row);
     void resetPendingNoteOffs();
+    void resetLastEmittedQuarters();
 
     struct PendingNoteOff
     {
@@ -62,9 +73,12 @@ private:
     };
 
     std::array<std::array<std::atomic<int>, phraseStepCount>, phraseRowCount> phraseNotes {};
+    std::array<std::atomic<int>, phraseRowCount> phraseRowMuted {};
+    std::array<std::atomic<int>, phraseRowCount> phraseRowTimingOffset {};
+    std::array<std::atomic<int>, phraseRowCount> phraseRowFlushNoteOff {};
     std::array<PendingNoteOff, phraseRowCount> pendingNoteOffs {};
+    std::array<int, phraseRowCount> lastEmittedQuarter {};
     double sampleRateHz = 44100.0;
-    int lastEmittedQuarter = -1;
     bool wasPlaying = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)

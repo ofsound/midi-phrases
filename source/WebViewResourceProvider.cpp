@@ -10,6 +10,23 @@
 
 namespace
 {
+int varToInt (const juce::var& value)
+{
+    if (value.isBool())
+        return static_cast<bool> (value) ? 1 : 0;
+
+    if (value.isInt())
+        return static_cast<int> (value);
+
+    if (value.isInt64())
+        return static_cast<int> (value);
+
+    if (value.isDouble())
+        return static_cast<int> (static_cast<double> (value));
+
+    return static_cast<int> (value);
+}
+
 std::unique_ptr<juce::ZipFile> uiZip;
 
 juce::ZipFile* getUiZip()
@@ -98,6 +115,8 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
     using Options = juce::WebBrowserComponent::Options;
 
     juce::Array<juce::var> phraseRows;
+    juce::Array<juce::var> phraseRowMuted;
+    juce::Array<juce::var> phraseRowTimingOffset;
 
     for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
     {
@@ -107,6 +126,8 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
             steps.add (processor.getPhraseNote (row, step));
 
         phraseRows.add (steps);
+        phraseRowMuted.add (processor.isPhraseRowMuted (row));
+        phraseRowTimingOffset.add (processor.getPhraseRowTimingOffset (row));
     }
 
     auto options = Options{}
@@ -114,15 +135,41 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("pluginName", juce::var { PRODUCT_NAME_WITHOUT_VERSION })
                        .withInitialisationData ("version", juce::var { VERSION })
                        .withInitialisationData ("phraseNotes", phraseRows)
+                       .withInitialisationData ("phraseRowMuted", phraseRowMuted)
+                       .withInitialisationData ("phraseRowTimingOffset", phraseRowTimingOffset)
                        .withNativeFunction (
                            "setPhraseNote",
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
                                if (args.size() >= 3)
                                {
-                                   processor.setPhraseNote (static_cast<int> (args[0]),
-                                                            static_cast<int> (args[1]),
-                                                            static_cast<int> (args[2]));
+                                   processor.setPhraseNote (varToInt (args[0]),
+                                                            varToInt (args[1]),
+                                                            varToInt (args[2]));
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setPhraseRowMuted",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 2)
+                               {
+                                   processor.setPhraseRowMuted (varToInt (args[0]),
+                                                                varToInt (args[1]) != 0);
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setPhraseRowTimingOffset",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 2)
+                               {
+                                   processor.setPhraseRowTimingOffset (varToInt (args[0]),
+                                                                       varToInt (args[1]));
                                }
 
                                complete (juce::var {});

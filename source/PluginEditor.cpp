@@ -23,9 +23,9 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addAndMakeVisible (fallbackLabel);
 #endif
 
-    setResizeLimits (640, 480, 1600, 1200);
+    setResizeLimits (900, 480, 1800, 1200);
     setResizable (true, true);
-    setSize (900, 640);
+    setSize (1180, 640);
 }
 
 PluginEditor::~PluginEditor() = default;

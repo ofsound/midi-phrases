@@ -6,6 +6,7 @@
 namespace
 {
 constexpr int defaultRowNotes[] = { 60, 64, 67, 72 };
+constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
 } // namespace
 
 void PluginProcessor::resetPendingNoteOffs()
@@ -15,6 +16,12 @@ void PluginProcessor::resetPendingNoteOffs()
         pending.note = -1;
         pending.samplesRemaining = 0;
     }
+}
+
+void PluginProcessor::resetLastEmittedQuarters()
+{
+    for (auto& lastQuarter : lastEmittedQuarter)
+        lastQuarter = -1;
 }
 
 PluginProcessor::BusesProperties PluginProcessor::createBusesProperties()
@@ -40,7 +47,13 @@ PluginProcessor::PluginProcessor()
 
         for (int step = 0; step < phraseStepCount; ++step)
             phraseNotes[static_cast<size_t> (row)][static_cast<size_t> (step)].store (defaultNote);
+
+        phraseRowMuted[static_cast<size_t> (row)].store (0);
+        phraseRowTimingOffset[static_cast<size_t> (row)].store (defaultRowTimingOffsetIndex);
+        phraseRowFlushNoteOff[static_cast<size_t> (row)].store (0);
     }
+
+    resetLastEmittedQuarters();
 }
 
 PluginProcessor::~PluginProcessor()
@@ -53,6 +66,12 @@ int PluginProcessor::defaultNoteForRow (int row)
         return 60;
 
     return defaultRowNotes[row];
+}
+
+double PluginProcessor::rowTimingOffsetForIndex (const int offsetIndex)
+{
+    const auto index = juce::jlimit (0, rowTimingOffsetCount - 1, offsetIndex);
+    return rowTimingOffsetValues[static_cast<size_t> (index)];
 }
 
 //==============================================================================
@@ -125,7 +144,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     juce::ignoreUnused (samplesPerBlock);
     sampleRateHz = sampleRate;
-    lastEmittedQuarter = -1;
+    resetLastEmittedQuarters();
     wasPlaying = false;
     resetPendingNoteOffs();
 }
@@ -145,6 +164,42 @@ int PluginProcessor::getPhraseNote (int row, int step) const
         return 60;
 
     return phraseNotes[static_cast<size_t> (row)][static_cast<size_t> (step)].load();
+}
+
+void PluginProcessor::setPhraseRowMuted (int row, bool muted)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return;
+
+    phraseRowMuted[static_cast<size_t> (row)].store (muted ? 1 : 0);
+
+    if (muted)
+        phraseRowFlushNoteOff[static_cast<size_t> (row)].store (1);
+}
+
+bool PluginProcessor::isPhraseRowMuted (int row) const
+{
+    if (row < 0 || row >= phraseRowCount)
+        return false;
+
+    return phraseRowMuted[static_cast<size_t> (row)].load() != 0;
+}
+
+void PluginProcessor::setPhraseRowTimingOffset (const int row, const int offsetIndex)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return;
+
+    phraseRowTimingOffset[static_cast<size_t> (row)].store (
+        juce::jlimit (0, rowTimingOffsetCount - 1, offsetIndex));
+}
+
+int PluginProcessor::getPhraseRowTimingOffset (const int row) const
+{
+    if (row < 0 || row >= phraseRowCount)
+        return defaultRowTimingOffsetIndex;
+
+    return phraseRowTimingOffset[static_cast<size_t> (row)].load();
 }
 
 void PluginProcessor::releaseResources()
@@ -204,7 +259,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         }
 
         wasPlaying = false;
-        lastEmittedQuarter = -1;
+        resetLastEmittedQuarters();
         resetPendingNoteOffs();
         return;
     }
@@ -212,6 +267,21 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     wasPlaying = true;
 
     const auto bufferSamples = buffer.getNumSamples();
+
+    for (int row = 0; row < phraseRowCount; ++row)
+    {
+        if (phraseRowFlushNoteOff[static_cast<size_t> (row)].exchange (0) == 0)
+            continue;
+
+        auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
+
+        if (pending.note >= 0)
+        {
+            midiMessages.addEvent (juce::MidiMessage::noteOff (1, pending.note), 0);
+            pending.note = -1;
+            pending.samplesRemaining = 0;
+        }
+    }
 
     for (auto& pending : pendingNoteOffs)
     {
@@ -236,29 +306,44 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const auto ppqPerSample = (bpm / 60.0) / sampleRateHz;
     const auto ppqEnd = ppqStart + static_cast<double> (bufferSamples) * ppqPerSample;
 
-    const auto qStart = static_cast<int> (std::ceil (ppqStart - 1.0e-9));
-    const auto qEnd = static_cast<int> (std::floor (ppqEnd + 1.0e-9));
+    const auto noteGateSamples = juce::jmax (
+        1,
+        static_cast<int> (std::lround (noteGateQuarterFraction / ppqPerSample)));
 
-    if (qEnd < lastEmittedQuarter)
-        lastEmittedQuarter = qEnd - 1;
-
-    const auto noteGateSamples = juce::jmax (1, static_cast<int> (sampleRateHz * noteGateSeconds));
-
-    for (int quarter = qStart; quarter <= qEnd; ++quarter)
+    for (int row = 0; row < phraseRowCount; ++row)
     {
-        if (quarter <= lastEmittedQuarter)
+        if (phraseRowMuted[static_cast<size_t> (row)].load (std::memory_order_relaxed) != 0)
             continue;
 
-        lastEmittedQuarter = quarter;
+        const auto offset = rowTimingOffsetForIndex (
+            phraseRowTimingOffset[static_cast<size_t> (row)].load (std::memory_order_relaxed));
 
-        const auto slot = ((quarter % phraseStepCount) + phraseStepCount) % phraseStepCount;
-        const auto sampleOffset = juce::jlimit (
-            0,
-            bufferSamples - 1,
-            static_cast<int> (std::lround ((static_cast<double> (quarter) - ppqStart) / ppqPerSample)));
+        const auto qMin = static_cast<int> (std::ceil (ppqStart - offset - 1.0e-9));
+        const auto qMax = static_cast<int> (std::floor (ppqEnd - offset - 1.0e-9));
 
-        for (int row = 0; row < phraseRowCount; ++row)
+        auto& lastQuarter = lastEmittedQuarter[static_cast<size_t> (row)];
+
+        if (qMax < lastQuarter)
+            lastQuarter = qMax - 1;
+
+        for (int quarter = qMin; quarter <= qMax; ++quarter)
         {
+            if (quarter <= lastQuarter)
+                continue;
+
+            const auto triggerPpq = static_cast<double> (quarter) + offset;
+
+            if (triggerPpq < ppqStart - 1.0e-9 || triggerPpq >= ppqEnd + 1.0e-9)
+                continue;
+
+            lastQuarter = quarter;
+
+            const auto slot = ((quarter % phraseStepCount) + phraseStepCount) % phraseStepCount;
+            const auto sampleOffset = juce::jlimit (
+                0,
+                bufferSamples - 1,
+                static_cast<int> (std::lround ((triggerPpq - ppqStart) / ppqPerSample)));
+
             auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
 
             if (pending.note >= 0)
@@ -315,6 +400,8 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
             rowTree.setProperty (propName, getPhraseNote (row, step), nullptr);
         }
 
+        rowTree.setProperty ("muted", isPhraseRowMuted (row), nullptr);
+        rowTree.setProperty ("timingOffset", getPhraseRowTimingOffset (row), nullptr);
         state.appendChild (rowTree, nullptr);
     }
 
@@ -356,6 +443,11 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             const auto note = static_cast<int> (rowTree.getProperty (propName, defaultNoteForRow (row)));
             setPhraseNote (row, step, note);
         }
+
+        setPhraseRowMuted (row, static_cast<bool> (rowTree.getProperty ("muted", false)));
+        setPhraseRowTimingOffset (row,
+                                  static_cast<int> (rowTree.getProperty ("timingOffset",
+                                                                         defaultRowTimingOffsetIndex)));
     }
 }
 
