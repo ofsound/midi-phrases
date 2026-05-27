@@ -27,6 +27,37 @@ void PluginProcessor::resetLastEmittedTriggers()
         lastTrigger = -1.0;
 }
 
+void PluginProcessor::resetPhraseStepGateEnds()
+{
+    for (auto& rowGates : phraseStepGateStartPpq)
+    {
+        for (auto& gateStart : rowGates)
+            gateStart.store (-1.0, std::memory_order_relaxed);
+    }
+
+    for (auto& rowGates : phraseStepGateEndPpq)
+    {
+        for (auto& gateEnd : rowGates)
+            gateEnd.store (-1.0, std::memory_order_relaxed);
+    }
+}
+
+void PluginProcessor::resetPhraseStepGateEndsForRow (const int row)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return;
+
+    for (int step = 0; step < phraseStepCount; ++step)
+    {
+        phraseStepGateStartPpq[static_cast<size_t> (row)][static_cast<size_t> (step)].store (
+            -1.0,
+            std::memory_order_relaxed);
+        phraseStepGateEndPpq[static_cast<size_t> (row)][static_cast<size_t> (step)].store (
+            -1.0,
+            std::memory_order_relaxed);
+    }
+}
+
 PluginProcessor::BusesProperties PluginProcessor::createBusesProperties()
 {
   #if JucePlugin_IsMidiEffect
@@ -280,6 +311,42 @@ int PluginProcessor::getPhraseStepVelocity (const int row, const int step) const
     return phraseStepVelocity[static_cast<size_t> (row)][static_cast<size_t> (step)].load();
 }
 
+juce::Array<juce::var> PluginProcessor::getPhraseStepPlaybackActivity() const
+{
+    juce::Array<juce::var> rows;
+
+    const auto currentPpq = currentPlaybackPpq.load (std::memory_order_relaxed);
+    const auto isPlaying = currentPpq >= 0.0;
+
+    for (int row = 0; row < phraseRowCount; ++row)
+    {
+        juce::Array<juce::var> steps;
+
+        for (int step = 0; step < phraseStepCount; ++step)
+        {
+            auto active = false;
+
+            if (isPlaying)
+            {
+                const auto gateStart = phraseStepGateStartPpq[static_cast<size_t> (row)][static_cast<size_t> (step)].load (
+                    std::memory_order_relaxed);
+                const auto gateEnd = phraseStepGateEndPpq[static_cast<size_t> (row)][static_cast<size_t> (step)].load (
+                    std::memory_order_relaxed);
+
+                active = gateEnd > gateStart + 1.0e-9
+                         && currentPpq >= gateStart - 1.0e-9
+                         && currentPpq < gateEnd - 1.0e-9;
+            }
+
+            steps.add (active);
+        }
+
+        rows.add (steps);
+    }
+
+    return rows;
+}
+
 void PluginProcessor::releaseResources()
 {
 }
@@ -339,6 +406,8 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         wasPlaying = false;
         resetLastEmittedTriggers();
         resetPendingNoteOffs();
+        resetPhraseStepGateEnds();
+        currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
         return;
     }
 
@@ -383,6 +452,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const auto bpm = position->getBpm().orFallback (120.0);
     const auto ppqPerSample = (bpm / 60.0) / sampleRateHz;
     const auto ppqEnd = ppqStart + static_cast<double> (bufferSamples) * ppqPerSample;
+    currentPlaybackPpq.store (ppqEnd, std::memory_order_relaxed);
 
     for (int row = 0; row < phraseRowCount; ++row)
     {
@@ -451,7 +521,10 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         auto& lastTrigger = lastEmittedTriggerPpq[static_cast<size_t> (row)];
 
         if (ppqStart < lastTrigger - cycleLengthQuarters - 1.0e-9)
+        {
             lastTrigger = ppqStart - cycleLengthQuarters - 1.0;
+            resetPhraseStepGateEndsForRow (row);
+        }
 
         for (int triggerIndex = 0; triggerIndex < triggerCount; ++triggerIndex)
         {
@@ -496,6 +569,13 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             midiMessages.addEvent (
                 juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (velocity)),
                 sampleOffset);
+
+            phraseStepGateStartPpq[static_cast<size_t> (row)][static_cast<size_t> (slot)].store (
+                triggerPpq,
+                std::memory_order_relaxed);
+            phraseStepGateEndPpq[static_cast<size_t> (row)][static_cast<size_t> (slot)].store (
+                triggerPpq + gateQuarters,
+                std::memory_order_relaxed);
 
             const auto samplesUntilOff = sampleOffset + noteGateSamples;
 

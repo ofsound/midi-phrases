@@ -76,12 +76,16 @@ public:
     void setPhraseStepVelocity (int row, int step, int velocity);
     int getPhraseStepVelocity (int row, int step) const;
 
+    juce::Array<juce::var> getPhraseStepPlaybackActivity() const;
+
 private:
     static BusesProperties createBusesProperties();
 
     static int defaultNoteForRow (int row);
     void resetPendingNoteOffs();
     void resetLastEmittedTriggers();
+    void resetPhraseStepGateEnds();
+    void resetPhraseStepGateEndsForRow (int row);
 
     struct PendingNoteOff
     {
@@ -98,6 +102,9 @@ private:
     std::array<std::atomic<int>, phraseRowCount> phraseRowFlushNoteOff {};
     std::array<PendingNoteOff, phraseRowCount> pendingNoteOffs {};
     std::array<double, phraseRowCount> lastEmittedTriggerPpq {};
+    std::array<std::array<std::atomic<double>, phraseStepCount>, phraseRowCount> phraseStepGateStartPpq {};
+    std::array<std::array<std::atomic<double>, phraseStepCount>, phraseRowCount> phraseStepGateEndPpq {};
+    std::atomic<double> currentPlaybackPpq { -1.0 };
     double sampleRateHz = 44100.0;
     bool wasPlaying = false;
 

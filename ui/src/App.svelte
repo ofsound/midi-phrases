@@ -26,6 +26,10 @@
   let stepTimingMultiplier = defaultStepTimingMultiplierGrid();
   /** @type {number[][]} */
   let stepVelocity = defaultStepVelocityGrid();
+  /** @type {boolean[][]} */
+  let activeGates = defaultPhraseGrid().map((row) => row.map(() => false));
+
+  let playbackPollFrameId = 0;
 
   const timingOffsetOptions = [
     { index: 0, label: "-.75" },
@@ -61,6 +65,11 @@
     active
       ? "bg-emerald-950 text-emerald-300"
       : "bg-transparent text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200";
+
+  const stepCellPlaybackClass = (active) =>
+    active
+      ? "border-emerald-300 ring-2 ring-emerald-400/90"
+      : "border-zinc-700";
 
   /** JUCE wraps each withInitialisationData value as [payload]. */
   function unwrapJuceInit(key) {
@@ -316,6 +325,44 @@
     await pushStepVelocity(row, step);
   }
 
+  function applyPlaybackActivity(result) {
+    if (!Array.isArray(result)) return;
+
+    let changed = false;
+
+    for (let row = 0; row < 4; row += 1) {
+      const rowData = result[row];
+
+      if (!Array.isArray(rowData)) continue;
+
+      for (let step = 0; step < 4; step += 1) {
+        const active = Boolean(rowData[step]);
+
+        if (activeGates[row][step] !== active) {
+          activeGates[row][step] = active;
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) activeGates = activeGates;
+  }
+
+  async function pollPlaybackActivity() {
+    if (nativeFunctionAvailable("getPhraseStepPlaybackActivity")) {
+      const getPhraseStepPlaybackActivity = getNativeFunction("getPhraseStepPlaybackActivity");
+
+      try {
+        const result = await getPhraseStepPlaybackActivity();
+        applyPlaybackActivity(result);
+      } catch {
+        // WebView bridge may be unavailable during teardown.
+      }
+    }
+
+    playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
+  }
+
   onMount(() => {
     loadGridFromInitialisation();
     loadRowMutedFromInitialisation();
@@ -323,6 +370,11 @@
     loadStepDurationFromInitialisation();
     loadStepTimingMultiplierFromInitialisation();
     loadStepVelocityFromInitialisation();
+    playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
+
+    return () => {
+      cancelAnimationFrame(playbackPollFrameId);
+    };
   });
 </script>
 
@@ -371,7 +423,9 @@
             </div>
             {#each grid[row] as _note, step}
               <div
-                class="flex min-w-0 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 outline-none focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500"
+                class="flex min-w-0 overflow-hidden rounded-lg border bg-zinc-900 outline-none transition-[border-color,box-shadow] duration-75 {stepCellPlaybackClass(
+                  activeGates[row][step],
+                )} focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500"
               >
                 <label class="flex shrink-0 items-center border-r border-zinc-800">
                   <input

@@ -230,6 +230,12 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
 
                                complete (juce::var {});
                            })
+                       .withNativeFunction (
+                           "getPhraseStepPlaybackActivity",
+                           [&processor] (const juce::Array<juce::var>&,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               complete (processor.getPhraseStepPlaybackActivity());
+                           })
                        .withUserScript (juce::String { R"(
                            document.documentElement.classList.add('juce-ready');
                        )" });
