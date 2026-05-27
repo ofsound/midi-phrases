@@ -11,6 +11,9 @@
   import DiscreteSlider from "./DiscreteSlider.svelte";
   import ContinuousSlider from "./ContinuousSlider.svelte";
   import NoteDragInput from "./NoteDragInput.svelte";
+  import StepInsertZone from "./StepInsertZone.svelte";
+
+  const maxPhraseSteps = 4;
 
   let pluginName = "MIDI Phrases";
   let version = "0.0.1";
@@ -323,6 +326,32 @@
     await removePhraseStep(row, step);
   }
 
+  async function insertStep(row, step) {
+    if (grid[row].length >= maxPhraseSteps) return;
+
+    const defaults = defaultPhraseGrid();
+    const defaultDurations = defaultStepDurationGrid();
+    const defaultMultipliers = defaultStepTimingMultiplierGrid();
+    const defaultVelocities = defaultStepVelocityGrid();
+
+    grid[row].splice(step, 0, defaults[row][0]);
+    stepDurationFraction[row].splice(step, 0, defaultDurations[row][0]);
+    stepTimingMultiplier[row].splice(step, 0, defaultMultipliers[row][0]);
+    stepVelocity[row].splice(step, 0, defaultVelocities[row][0]);
+    activeGates[row].splice(step, 0, false);
+
+    grid = grid;
+    stepDurationFraction = stepDurationFraction;
+    stepTimingMultiplier = stepTimingMultiplier;
+    stepVelocity = stepVelocity;
+    activeGates = activeGates;
+
+    if (!nativeFunctionAvailable("insertPhraseStep")) return;
+
+    const insertPhraseStep = getNativeFunction("insertPhraseStep");
+    await insertPhraseStep(row, step);
+  }
+
   function applyPlaybackActivity(result) {
     if (!Array.isArray(result)) return;
 
@@ -410,7 +439,10 @@
                 <SpeakerIcon class="h-4 w-4" />
               </button>
             </div>
-            <div class="flex min-w-0 flex-1 gap-2 pt-2 pl-2">
+            <div class="flex min-w-0 flex-1 pt-2 pl-2">
+              {#if grid[row].length < maxPhraseSteps}
+                <StepInsertZone onInsert={() => insertStep(row, 0)} />
+              {/if}
               {#each grid[row] as _note, step}
                 <div
                   style:flex="{stepTimingMultiplierValue(stepTimingMultiplier[row][step])} 1 0"
@@ -475,6 +507,9 @@
                     </div>
                   </div>
                 </div>
+                {#if grid[row].length < maxPhraseSteps}
+                  <StepInsertZone onInsert={() => insertStep(row, step + 1)} />
+                {/if}
               {/each}
             </div>
           </div>

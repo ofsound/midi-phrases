@@ -121,6 +121,24 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseNote (0, 0) == 55);
         CHECK (testPlugin.getPhraseNote (0, 1) == 77);
     }
+
+    SECTION ("insert phrase step")
+    {
+        testPlugin.removePhraseStep (0, 3);
+        testPlugin.removePhraseStep (0, 2);
+
+        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::phraseStepCount - 2);
+
+        testPlugin.setPhraseNote (0, 0, 55);
+        testPlugin.setPhraseNote (0, 1, 77);
+
+        testPlugin.insertPhraseStep (0, 1);
+
+        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::phraseStepCount - 1);
+        CHECK (testPlugin.getPhraseNote (0, 0) == 55);
+        CHECK (testPlugin.getPhraseNote (0, 1) == 60);
+        CHECK (testPlugin.getPhraseNote (0, 2) == 77);
+    }
 }
 
 

@@ -368,6 +368,35 @@ void PluginProcessor::removePhraseStep (const int row, const int step)
     resetPhraseStepGateEndsForRow (row);
 }
 
+void PluginProcessor::insertPhraseStep (const int row, const int step)
+{
+    if (row < 0 || row >= phraseRowCount || step < 0)
+        return;
+
+    const auto count = getPhraseRowStepCount (row);
+
+    if (count >= phraseStepCount || step > count)
+        return;
+
+    for (int index = count; index > step; --index)
+    {
+        const auto prevIndex = index - 1;
+
+        phraseNotes[static_cast<size_t> (row)][static_cast<size_t> (index)].store (
+            phraseNotes[static_cast<size_t> (row)][static_cast<size_t> (prevIndex)].load());
+        phraseStepTimingMultiplier[static_cast<size_t> (row)][static_cast<size_t> (index)].store (
+            phraseStepTimingMultiplier[static_cast<size_t> (row)][static_cast<size_t> (prevIndex)].load());
+        phraseStepDurationFraction[static_cast<size_t> (row)][static_cast<size_t> (index)].store (
+            phraseStepDurationFraction[static_cast<size_t> (row)][static_cast<size_t> (prevIndex)].load());
+        phraseStepVelocity[static_cast<size_t> (row)][static_cast<size_t> (index)].store (
+            phraseStepVelocity[static_cast<size_t> (row)][static_cast<size_t> (prevIndex)].load());
+    }
+
+    resetPhraseStepToDefaults (row, step);
+    phraseRowStepCount[static_cast<size_t> (row)].store (count + 1);
+    resetPhraseStepGateEndsForRow (row);
+}
+
 juce::Array<juce::var> PluginProcessor::getPhraseStepPlaybackActivity() const
 {
     juce::Array<juce::var> rows;

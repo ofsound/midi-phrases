@@ -77,6 +77,7 @@ public:
     int getPhraseStepVelocity (int row, int step) const;
 
     void removePhraseStep (int row, int step);
+    void insertPhraseStep (int row, int step);
     int getPhraseRowStepCount (int row) const;
 
     juce::Array<juce::var> getPhraseStepPlaybackActivity() const;

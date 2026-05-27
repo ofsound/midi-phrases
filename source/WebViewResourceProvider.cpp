@@ -243,6 +243,18 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                complete (juce::var {});
                            })
                        .withNativeFunction (
+                           "insertPhraseStep",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 2)
+                               {
+                                   processor.insertPhraseStep (varToInt (args[0]),
+                                                                 varToInt (args[1]));
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
                            "getPhraseStepPlaybackActivity",
                            [&processor] (const juce::Array<juce::var>&,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
