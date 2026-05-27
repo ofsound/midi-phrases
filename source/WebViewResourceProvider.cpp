@@ -97,18 +97,32 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
 {
     using Options = juce::WebBrowserComponent::Options;
 
+    juce::Array<juce::var> phraseRows;
+
+    for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
+    {
+        juce::Array<juce::var> steps;
+
+        for (int step = 0; step < PluginProcessor::phraseStepCount; ++step)
+            steps.add (processor.getPhraseNote (row, step));
+
+        phraseRows.add (steps);
+    }
+
     auto options = Options{}
                        .withNativeIntegrationEnabled()
                        .withInitialisationData ("pluginName", juce::var { PRODUCT_NAME_WITHOUT_VERSION })
                        .withInitialisationData ("version", juce::var { VERSION })
+                       .withInitialisationData ("phraseNotes", phraseRows)
                        .withNativeFunction (
                            "setPhraseNote",
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
-                               if (args.size() >= 2)
+                               if (args.size() >= 3)
                                {
                                    processor.setPhraseNote (static_cast<int> (args[0]),
-                                                            static_cast<int> (args[1]));
+                                                            static_cast<int> (args[1]),
+                                                            static_cast<int> (args[2]));
                                }
 
                                complete (juce::var {});

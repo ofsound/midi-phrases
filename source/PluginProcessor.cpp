@@ -3,6 +3,20 @@
 
 #include <cmath>
 
+namespace
+{
+constexpr int defaultRowNotes[] = { 60, 64, 67, 72 };
+} // namespace
+
+void PluginProcessor::resetPendingNoteOffs()
+{
+    for (auto& pending : pendingNoteOffs)
+    {
+        pending.note = -1;
+        pending.samplesRemaining = 0;
+    }
+}
+
 PluginProcessor::BusesProperties PluginProcessor::createBusesProperties()
 {
   #if JucePlugin_IsMidiEffect
@@ -20,12 +34,25 @@ PluginProcessor::BusesProperties PluginProcessor::createBusesProperties()
 PluginProcessor::PluginProcessor()
      : AudioProcessor (createBusesProperties())
 {
-    for (auto& note : phraseNotes)
-        note.store (60);
+    for (int row = 0; row < phraseRowCount; ++row)
+    {
+        const auto defaultNote = defaultNoteForRow (row);
+
+        for (int step = 0; step < phraseStepCount; ++step)
+            phraseNotes[static_cast<size_t> (row)][static_cast<size_t> (step)].store (defaultNote);
+    }
 }
 
 PluginProcessor::~PluginProcessor()
 {
+}
+
+int PluginProcessor::defaultNoteForRow (int row)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return 60;
+
+    return defaultRowNotes[row];
 }
 
 //==============================================================================
@@ -100,22 +127,28 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     sampleRateHz = sampleRate;
     lastEmittedQuarter = -1;
     wasPlaying = false;
-    pendingNoteOffNote = -1;
-    pendingNoteOffSamples = 0;
+    resetPendingNoteOffs();
 }
 
-void PluginProcessor::setPhraseNote (int index, int noteNumber)
+void PluginProcessor::setPhraseNote (int row, int step, int noteNumber)
 {
-    if (index < 0 || index >= phraseNoteCount)
+    if (row < 0 || row >= phraseRowCount || step < 0 || step >= phraseStepCount)
         return;
 
-    phraseNotes[static_cast<size_t> (index)].store (juce::jlimit (0, 127, noteNumber));
+    phraseNotes[static_cast<size_t> (row)][static_cast<size_t> (step)].store (
+        juce::jlimit (0, 127, noteNumber));
+}
+
+int PluginProcessor::getPhraseNote (int row, int step) const
+{
+    if (row < 0 || row >= phraseRowCount || step < 0 || step >= phraseStepCount)
+        return 60;
+
+    return phraseNotes[static_cast<size_t> (row)][static_cast<size_t> (step)].load();
 }
 
 void PluginProcessor::releaseResources()
 {
-    // When playback stops, you can use this as an opportunity to free up any
-    // spare memory, etc.
 }
 
 bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -172,32 +205,36 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
         wasPlaying = false;
         lastEmittedQuarter = -1;
-        pendingNoteOffNote = -1;
-        pendingNoteOffSamples = 0;
+        resetPendingNoteOffs();
         return;
     }
 
     wasPlaying = true;
 
-    if (pendingNoteOffNote >= 0)
+    const auto bufferSamples = buffer.getNumSamples();
+
+    for (auto& pending : pendingNoteOffs)
     {
-        if (pendingNoteOffSamples < buffer.getNumSamples())
+        if (pending.note < 0)
+            continue;
+
+        if (pending.samplesRemaining < bufferSamples)
         {
-            midiMessages.addEvent (juce::MidiMessage::noteOff (1, pendingNoteOffNote),
-                                   pendingNoteOffSamples);
-            pendingNoteOffNote = -1;
-            pendingNoteOffSamples = 0;
+            midiMessages.addEvent (juce::MidiMessage::noteOff (1, pending.note),
+                                   pending.samplesRemaining);
+            pending.note = -1;
+            pending.samplesRemaining = 0;
         }
         else
         {
-            pendingNoteOffSamples -= buffer.getNumSamples();
+            pending.samplesRemaining -= bufferSamples;
         }
     }
 
     const auto ppqStart = position->getPpqPosition().orFallback (0.0);
     const auto bpm = position->getBpm().orFallback (120.0);
     const auto ppqPerSample = (bpm / 60.0) / sampleRateHz;
-    const auto ppqEnd = ppqStart + static_cast<double> (buffer.getNumSamples()) * ppqPerSample;
+    const auto ppqEnd = ppqStart + static_cast<double> (bufferSamples) * ppqPerSample;
 
     const auto qStart = static_cast<int> (std::ceil (ppqStart - 1.0e-9));
     const auto qEnd = static_cast<int> (std::floor (ppqEnd + 1.0e-9));
@@ -214,33 +251,39 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
         lastEmittedQuarter = quarter;
 
-        const auto slot = ((quarter % phraseNoteCount) + phraseNoteCount) % phraseNoteCount;
-        const auto note = phraseNotes[static_cast<size_t> (slot)].load();
+        const auto slot = ((quarter % phraseStepCount) + phraseStepCount) % phraseStepCount;
         const auto sampleOffset = juce::jlimit (
             0,
-            buffer.getNumSamples() - 1,
+            bufferSamples - 1,
             static_cast<int> (std::lround ((static_cast<double> (quarter) - ppqStart) / ppqPerSample)));
 
-        if (pendingNoteOffNote >= 0)
+        for (int row = 0; row < phraseRowCount; ++row)
         {
-            midiMessages.addEvent (juce::MidiMessage::noteOff (1, pendingNoteOffNote), sampleOffset);
-            pendingNoteOffNote = -1;
-            pendingNoteOffSamples = 0;
-        }
+            auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
 
-        midiMessages.addEvent (juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (100)),
-                               sampleOffset);
+            if (pending.note >= 0)
+            {
+                midiMessages.addEvent (juce::MidiMessage::noteOff (1, pending.note), sampleOffset);
+                pending.note = -1;
+                pending.samplesRemaining = 0;
+            }
 
-        const auto samplesUntilOff = sampleOffset + noteGateSamples;
+            const auto note = phraseNotes[static_cast<size_t> (row)][static_cast<size_t> (slot)].load();
 
-        if (samplesUntilOff < buffer.getNumSamples())
-        {
-            midiMessages.addEvent (juce::MidiMessage::noteOff (1, note), samplesUntilOff);
-        }
-        else
-        {
-            pendingNoteOffNote = note;
-            pendingNoteOffSamples = samplesUntilOff - buffer.getNumSamples();
+            midiMessages.addEvent (juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (100)),
+                                   sampleOffset);
+
+            const auto samplesUntilOff = sampleOffset + noteGateSamples;
+
+            if (samplesUntilOff < bufferSamples)
+            {
+                midiMessages.addEvent (juce::MidiMessage::noteOff (1, note), samplesUntilOff);
+            }
+            else
+            {
+                pending.note = note;
+                pending.samplesRemaining = samplesUntilOff - bufferSamples;
+            }
         }
     }
 }
@@ -248,7 +291,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 //==============================================================================
 bool PluginProcessor::hasEditor() const
 {
-    return true; // (change this to false if you choose to not supply an editor)
+    return true;
 }
 
 juce::AudioProcessorEditor* PluginProcessor::createEditor()
@@ -259,21 +302,64 @@ juce::AudioProcessorEditor* PluginProcessor::createEditor()
 //==============================================================================
 void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
-    juce::ignoreUnused (destData);
+    juce::ValueTree state ("MidiPhrases");
+
+    for (int row = 0; row < phraseRowCount; ++row)
+    {
+        juce::ValueTree rowTree ("Row");
+        rowTree.setProperty ("index", row, nullptr);
+
+        for (int step = 0; step < phraseStepCount; ++step)
+        {
+            const auto propName = "step" + juce::String (step);
+            rowTree.setProperty (propName, getPhraseNote (row, step), nullptr);
+        }
+
+        state.appendChild (rowTree, nullptr);
+    }
+
+    if (auto xml = state.createXml())
+    {
+        juce::MemoryOutputStream stream;
+        xml->writeTo (stream);
+        destData.replaceAll (stream.getData(), stream.getDataSize());
+    }
 }
 
 void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
-    juce::ignoreUnused (data, sizeInBytes);
+    if (data == nullptr || sizeInBytes <= 0)
+        return;
+
+    const auto xml = juce::parseXML (juce::String::createStringFromData (data, sizeInBytes));
+
+    if (xml == nullptr)
+        return;
+
+    const auto state = juce::ValueTree::fromXml (*xml);
+
+    if (! state.isValid() || ! state.hasType ("MidiPhrases"))
+        return;
+
+    for (int i = 0; i < state.getNumChildren(); ++i)
+    {
+        const auto rowTree = state.getChild (i);
+
+        if (! rowTree.hasType ("Row"))
+            continue;
+
+        const auto row = static_cast<int> (rowTree.getProperty ("index", i));
+
+        for (int step = 0; step < phraseStepCount; ++step)
+        {
+            const auto propName = "step" + juce::String (step);
+            const auto note = static_cast<int> (rowTree.getProperty (propName, defaultNoteForRow (row)));
+            setPhraseNote (row, step, note);
+        }
+    }
 }
 
 //==============================================================================
-// This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new PluginProcessor();

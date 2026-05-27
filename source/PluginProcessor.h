@@ -41,20 +41,31 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    void setPhraseNote (int index, int noteNumber);
+    static constexpr int phraseRowCount = 4;
+    static constexpr int phraseStepCount = 4;
+
+    void setPhraseNote (int row, int step, int noteNumber);
+    int getPhraseNote (int row, int step) const;
 
 private:
     static BusesProperties createBusesProperties();
 
-    static constexpr int phraseNoteCount = 4;
     static constexpr double noteGateSeconds = 0.1;
 
-    std::array<std::atomic<int>, phraseNoteCount> phraseNotes {};
+    static int defaultNoteForRow (int row);
+    void resetPendingNoteOffs();
+
+    struct PendingNoteOff
+    {
+        int note = -1;
+        int samplesRemaining = 0;
+    };
+
+    std::array<std::array<std::atomic<int>, phraseStepCount>, phraseRowCount> phraseNotes {};
+    std::array<PendingNoteOff, phraseRowCount> pendingNoteOffs {};
     double sampleRateHz = 44100.0;
     int lastEmittedQuarter = -1;
     bool wasPlaying = false;
-    int pendingNoteOffNote = -1;
-    int pendingNoteOffSamples = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };
