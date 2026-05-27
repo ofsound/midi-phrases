@@ -117,17 +117,27 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
     juce::Array<juce::var> phraseRows;
     juce::Array<juce::var> phraseRowMuted;
     juce::Array<juce::var> phraseRowTimingOffset;
+    juce::Array<juce::var> phraseStepDurationFraction;
+    juce::Array<juce::var> phraseStepVelocity;
 
     for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
     {
         juce::Array<juce::var> steps;
+        juce::Array<juce::var> stepDurations;
+        juce::Array<juce::var> stepVelocities;
 
         for (int step = 0; step < PluginProcessor::phraseStepCount; ++step)
+        {
             steps.add (processor.getPhraseNote (row, step));
+            stepDurations.add (processor.getPhraseStepDurationFraction (row, step));
+            stepVelocities.add (processor.getPhraseStepVelocity (row, step));
+        }
 
         phraseRows.add (steps);
         phraseRowMuted.add (processor.isPhraseRowMuted (row));
         phraseRowTimingOffset.add (processor.getPhraseRowTimingOffset (row));
+        phraseStepDurationFraction.add (stepDurations);
+        phraseStepVelocity.add (stepVelocities);
     }
 
     auto options = Options{}
@@ -137,6 +147,8 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("phraseNotes", phraseRows)
                        .withInitialisationData ("phraseRowMuted", phraseRowMuted)
                        .withInitialisationData ("phraseRowTimingOffset", phraseRowTimingOffset)
+                       .withInitialisationData ("phraseStepDurationFraction", phraseStepDurationFraction)
+                       .withInitialisationData ("phraseStepVelocity", phraseStepVelocity)
                        .withNativeFunction (
                            "setPhraseNote",
                            [&processor] (const juce::Array<juce::var>& args,
@@ -170,6 +182,32 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                {
                                    processor.setPhraseRowTimingOffset (varToInt (args[0]),
                                                                        varToInt (args[1]));
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setPhraseStepDurationFraction",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 3)
+                               {
+                                   processor.setPhraseStepDurationFraction (varToInt (args[0]),
+                                                                            varToInt (args[1]),
+                                                                            varToInt (args[2]));
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setPhraseStepVelocity",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 3)
+                               {
+                                   processor.setPhraseStepVelocity (varToInt (args[0]),
+                                                                    varToInt (args[1]),
+                                                                    varToInt (args[2]));
                                }
 
                                complete (juce::var {});

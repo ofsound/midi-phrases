@@ -57,10 +57,20 @@ public:
     int getPhraseRowTimingOffset (int row) const;
     static double rowTimingOffsetForIndex (int offsetIndex);
 
+    static constexpr int stepDurationFractionCount = 4;
+    static constexpr int defaultStepDurationFractionIndex = 3;
+
+    void setPhraseStepDurationFraction (int row, int step, int fractionIndex);
+    int getPhraseStepDurationFraction (int row, int step) const;
+    static double stepDurationFractionForIndex (int fractionIndex);
+
+    static constexpr int defaultStepVelocity = 100;
+
+    void setPhraseStepVelocity (int row, int step, int velocity);
+    int getPhraseStepVelocity (int row, int step) const;
+
 private:
     static BusesProperties createBusesProperties();
-
-    static constexpr double noteGateQuarterFraction = 0.99;
 
     static int defaultNoteForRow (int row);
     void resetPendingNoteOffs();
@@ -73,6 +83,8 @@ private:
     };
 
     std::array<std::array<std::atomic<int>, phraseStepCount>, phraseRowCount> phraseNotes {};
+    std::array<std::array<std::atomic<int>, phraseStepCount>, phraseRowCount> phraseStepDurationFraction {};
+    std::array<std::array<std::atomic<int>, phraseStepCount>, phraseRowCount> phraseStepVelocity {};
     std::array<std::atomic<int>, phraseRowCount> phraseRowMuted {};
     std::array<std::atomic<int>, phraseRowCount> phraseRowTimingOffset {};
     std::array<std::atomic<int>, phraseRowCount> phraseRowFlushNoteOff {};

@@ -44,3 +44,17 @@ export const defaultPhraseGrid = () => [
   [67, 67, 67, 67],
   [72, 72, 72, 72],
 ];
+
+export const defaultStepDurationGrid = () => [
+  [3, 3, 3, 3],
+  [3, 3, 3, 3],
+  [3, 3, 3, 3],
+  [3, 3, 3, 3],
+];
+
+export const defaultStepVelocityGrid = () => [
+  [100, 100, 100, 100],
+  [100, 100, 100, 100],
+  [100, 100, 100, 100],
+  [100, 100, 100, 100],
+];

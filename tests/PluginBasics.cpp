@@ -47,6 +47,47 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPhraseRowTimingOffset (0, 99);
         CHECK (testPlugin.getPhraseRowTimingOffset (0) == PluginProcessor::rowTimingOffsetCount - 1);
     }
+
+    SECTION ("step duration fraction")
+    {
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 0)
+               == PluginProcessor::defaultStepDurationFractionIndex);
+
+        testPlugin.setPhraseStepDurationFraction (0, 1, 0);
+        testPlugin.setPhraseStepDurationFraction (2, 3, 2);
+
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 1) == 0);
+        CHECK (testPlugin.getPhraseStepDurationFraction (2, 3) == 2);
+        CHECK (PluginProcessor::stepDurationFractionForIndex (0)
+               < PluginProcessor::stepDurationFractionForIndex (3));
+
+        testPlugin.setPhraseStepDurationFraction (0, 0, 99);
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 0)
+               == PluginProcessor::stepDurationFractionCount - 1);
+    }
+
+    SECTION ("step velocity")
+    {
+        CHECK (testPlugin.getPhraseStepVelocity (0, 0) == PluginProcessor::defaultStepVelocity);
+
+        testPlugin.setPhraseStepVelocity (0, 1, 64);
+        testPlugin.setPhraseStepVelocity (2, 3, 127);
+
+        CHECK (testPlugin.getPhraseStepVelocity (0, 1) == 64);
+        CHECK (testPlugin.getPhraseStepVelocity (2, 3) == 127);
+
+        testPlugin.setPhraseStepVelocity (0, 0, 200);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 0) == 127);
+
+        testPlugin.setPhraseStepVelocity (0, 0, -5);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 0) == 0);
+    }
+
+    SECTION ("step velocity zero is stored for silent steps")
+    {
+        testPlugin.setPhraseStepVelocity (1, 2, 0);
+        CHECK (testPlugin.getPhraseStepVelocity (1, 2) == 0);
+    }
 }
 
 
