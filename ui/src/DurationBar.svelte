@@ -1,5 +1,6 @@
 <script>
   export let value = 1;
+  export let velocity = 127;
   export let ariaLabel = "Step duration";
   /** @type {(value: number) => void | Promise<void>} */
   export let onValueChange = () => {};
@@ -11,6 +12,7 @@
   let dragging = false;
 
   $: fillPercent = Math.min(100, Math.max(0, value * 100));
+  $: fillOpacity = 0.2 + (Math.min(127, Math.max(0, velocity)) / 127) * 0.8;
 
   function clampFraction(fraction) {
     return Math.min(1, Math.max(0, fraction));
@@ -94,8 +96,11 @@
     }}
   >
     <div
-      class="absolute inset-y-0 left-0 rounded-full bg-emerald-500 {dragging ? '' : 'transition-[width] duration-75'}"
+      class="absolute inset-y-0 left-0 rounded-full bg-emerald-400 {dragging
+        ? ''
+        : 'transition-[width,opacity] duration-75'}"
       style:width="{fillPercent}%"
+      style:opacity={fillOpacity}
     ></div>
   </div>
 

@@ -1,27 +1,27 @@
 <script>
-  import { midiToNoteName } from "./midiNoteNames.js";
-
   export let value;
-  export let ariaLabel = "Note";
+  export let min = 0;
+  export let max = 127;
+  export let ariaLabel = "Velocity";
   /** @type {(value: number) => void | Promise<void>} */
   export let onValueChange = () => {};
 
-  const pixelsPerStep = 10;
+  const pixelsPerStep = 4;
 
   let dragging = false;
   let dragStartY = 0;
   let dragStartValue = 0;
 
-  $: displayName = midiToNoteName(value);
+  $: displayValue = String(Math.round(value));
 
-  function clampMidi(note) {
-    return Math.min(127, Math.max(0, Math.round(note)));
+  function clampVelocity(velocity) {
+    return Math.min(max, Math.max(min, Math.round(velocity)));
   }
 
-  function noteFromDrag(clientY) {
+  function velocityFromDrag(clientY) {
     const steps = Math.round((dragStartY - clientY) / pixelsPerStep);
 
-    return clampMidi(dragStartValue + steps);
+    return clampVelocity(dragStartValue + steps);
   }
 
   /** @param {PointerEvent} event */
@@ -36,7 +36,7 @@
   function onPointerMove(event) {
     if (!dragging) return;
 
-    const next = noteFromDrag(event.clientY);
+    const next = velocityFromDrag(event.clientY);
 
     if (next !== value) onValueChange(next);
   }
@@ -49,15 +49,15 @@
 </script>
 
 <div
-  class="inline-flex cursor-ns-resize touch-none select-none items-start outline-none {dragging
+  class="inline-flex cursor-ns-resize touch-none select-none items-end outline-none {dragging
     ? 'text-emerald-300'
     : 'text-zinc-100'}"
   role="slider"
   aria-label={ariaLabel}
-  aria-valuemin={0}
-  aria-valuemax={127}
+  aria-valuemin={min}
+  aria-valuemax={max}
   aria-valuenow={value}
-  aria-valuetext={displayName}
+  aria-valuetext={displayValue}
   tabindex="0"
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
@@ -67,13 +67,13 @@
     if (event.key === "ArrowUp") {
       event.preventDefault();
 
-      if (value < 127) onValueChange(value + 1);
+      if (value < max) onValueChange(value + 1);
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
 
-      if (value > 0) onValueChange(value - 1);
+      if (value > min) onValueChange(value - 1);
     }
   }}
 >
-  <span class="font-sans text-2xl leading-none font-bold tabular-nums">{displayName}</span>
+  <span class="font-sans text-2xl leading-none font-bold tabular-nums">{displayValue}</span>
 </div>

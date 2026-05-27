@@ -2,9 +2,9 @@
   import { flip } from "svelte/animate";
   import gsap from "gsap";
   import { dragHandle, dragHandleZone, TRIGGERS } from "svelte-dnd-action";
-  import ContinuousSlider from "./ContinuousSlider.svelte";
   import DurationBar from "./DurationBar.svelte";
   import NoteDragInput from "./NoteDragInput.svelte";
+  import VelocityDragInput from "./VelocityDragInput.svelte";
   import StepInsertZone from "./StepInsertZone.svelte";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
   import {
@@ -420,31 +420,26 @@
         </div>
       {/if}
 
-      <div class="flex min-h-0 min-w-0 flex-1">
-        <div class="flex shrink-0 items-stretch border-r border-zinc-800">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col px-2 py-1.5">
+        <DurationBar
+          value={stepDurationFraction[step]}
+          velocity={stepVelocity[step]}
+          ariaLabel="Step duration fraction"
+          onValueChange={(fraction) => onDurationChange(row, step, fraction)}
+        />
+        <div class="relative mt-2 flex min-h-0 flex-1 flex-col justify-between">
           <NoteDragInput
             value={notes[step]}
             ariaLabel="Step note"
             onValueChange={(midi) => onNoteChange(row, step, midi)}
           />
-        </div>
-        <div class="relative flex min-w-0 flex-1 flex-col gap-2 px-2 py-1.5">
-          <DurationBar
-            value={stepDurationFraction[step]}
-            ariaLabel="Step duration fraction"
-            onValueChange={(fraction) => onDurationChange(row, step, fraction)}
-          />
-          <ContinuousSlider
-            label="Velocity"
-            fullWidth
-            min={0}
-            max={127}
+          <VelocityDragInput
             value={stepVelocity[step]}
             ariaLabel="Step velocity"
             onValueChange={(value) => onVelocityChange(row, step, value)}
           />
           <span
-            class="pointer-events-none absolute right-6 bottom-1 font-sans text-2xl leading-none font-bold tabular-nums text-zinc-100"
+            class="pointer-events-none absolute right-4 bottom-0 font-sans text-2xl leading-none font-bold tabular-nums text-zinc-100"
             aria-hidden="true"
           >
             {multiplierLabel}
