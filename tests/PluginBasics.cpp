@@ -106,6 +106,21 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPhraseStepVelocity (1, 2, 0);
         CHECK (testPlugin.getPhraseStepVelocity (1, 2) == 0);
     }
+
+    SECTION ("remove phrase step")
+    {
+        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::phraseStepCount);
+
+        testPlugin.setPhraseNote (0, 0, 55);
+        testPlugin.setPhraseNote (0, 1, 66);
+        testPlugin.setPhraseNote (0, 2, 77);
+
+        testPlugin.removePhraseStep (0, 1);
+
+        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::phraseStepCount - 1);
+        CHECK (testPlugin.getPhraseNote (0, 0) == 55);
+        CHECK (testPlugin.getPhraseNote (0, 1) == 77);
+    }
 }
 
 

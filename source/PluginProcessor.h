@@ -76,12 +76,16 @@ public:
     void setPhraseStepVelocity (int row, int step, int velocity);
     int getPhraseStepVelocity (int row, int step) const;
 
+    void removePhraseStep (int row, int step);
+    int getPhraseRowStepCount (int row) const;
+
     juce::Array<juce::var> getPhraseStepPlaybackActivity() const;
 
 private:
     static BusesProperties createBusesProperties();
 
     static int defaultNoteForRow (int row);
+    void resetPhraseStepToDefaults (int row, int step);
     void resetPendingNoteOffs();
     void resetLastEmittedTriggers();
     void resetPhraseStepGateEnds();
@@ -97,6 +101,7 @@ private:
     std::array<std::array<std::atomic<int>, phraseStepCount>, phraseRowCount> phraseStepTimingMultiplier {};
     std::array<std::array<std::atomic<int>, phraseStepCount>, phraseRowCount> phraseStepDurationFraction {};
     std::array<std::array<std::atomic<int>, phraseStepCount>, phraseRowCount> phraseStepVelocity {};
+    std::array<std::atomic<int>, phraseRowCount> phraseRowStepCount {};
     std::array<std::atomic<int>, phraseRowCount> phraseRowMuted {};
     std::array<std::atomic<int>, phraseRowCount> phraseRowTimingOffset {};
     std::array<std::atomic<int>, phraseRowCount> phraseRowFlushNoteOff {};

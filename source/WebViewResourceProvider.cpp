@@ -128,7 +128,7 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
         juce::Array<juce::var> stepTimingMultipliers;
         juce::Array<juce::var> stepVelocities;
 
-        for (int step = 0; step < PluginProcessor::phraseStepCount; ++step)
+        for (int step = 0; step < processor.getPhraseRowStepCount (row); ++step)
         {
             steps.add (processor.getPhraseNote (row, step));
             stepTimingMultipliers.add (processor.getPhraseStepTimingMultiplier (row, step));
@@ -226,6 +226,18 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.setPhraseStepVelocity (varToInt (args[0]),
                                                                     varToInt (args[1]),
                                                                     varToInt (args[2]));
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "removePhraseStep",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 2)
+                               {
+                                   processor.removePhraseStep (varToInt (args[0]),
+                                                               varToInt (args[1]));
                                }
 
                                complete (juce::var {});

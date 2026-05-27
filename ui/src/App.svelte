@@ -6,16 +6,15 @@
     defaultStepDurationGrid,
     defaultStepTimingMultiplierGrid,
     defaultStepVelocityGrid,
-    midiToNoteName,
-    noteNameToMidi,
   } from "./midiNoteNames.js";
   import SpeakerIcon from "./SpeakerIcon.svelte";
+  import DiscreteSlider from "./DiscreteSlider.svelte";
+  import ContinuousSlider from "./ContinuousSlider.svelte";
+  import NoteDragInput from "./NoteDragInput.svelte";
 
   let pluginName = "MIDI Phrases";
   let version = "0.0.1";
   let grid = defaultPhraseGrid();
-  /** @type {string[][]} */
-  let displayNames = grid.map((row) => row.map((note) => midiToNoteName(note)));
   /** @type {boolean[]} */
   let rowMuted = [false, false, false, false];
   /** @type {number[]} */
@@ -56,15 +55,12 @@
     { index: 4, label: "4" },
   ];
 
-  const toggleButtonClass = (active) =>
-    active
-      ? "border-emerald-500 bg-emerald-950 text-emerald-300"
-      : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200";
+  const timingMultiplierValues = [0.25, 0.5, 1, 2, 4];
 
-  const stepCellToggleClass = (active) =>
-    active
-      ? "bg-emerald-950 text-emerald-300"
-      : "bg-transparent text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200";
+  /** @param {number} index */
+  function stepTimingMultiplierValue(index) {
+    return timingMultiplierValues[index] ?? 1;
+  }
 
   const stepCellPlaybackClass = (active) =>
     active
@@ -99,29 +95,28 @@
 
     if (!Array.isArray(init) || init.length === 0) return;
 
-    const nextGrid = defaultPhraseGrid();
-    const nextNames = defaultPhraseGrid().map((row) =>
-      row.map((note) => midiToNoteName(note)),
-    );
+    const defaults = defaultPhraseGrid();
+    const nextGrid = [];
 
     for (let row = 0; row < 4; row += 1) {
       const rowData = init[row];
 
-      if (!Array.isArray(rowData)) continue;
-
-      for (let step = 0; step < 4; step += 1) {
-        const midi = Number.parseInt(String(rowData[step]), 10);
-
-        if (Number.isNaN(midi)) continue;
-
-        const clamped = Math.min(127, Math.max(0, midi));
-        nextGrid[row][step] = clamped;
-        nextNames[row][step] = midiToNoteName(clamped);
+      if (!Array.isArray(rowData)) {
+        nextGrid[row] = [...defaults[row]];
+        continue;
       }
+
+      nextGrid[row] = rowData.map((value, step) => {
+        const midi = Number.parseInt(String(value), 10);
+
+        if (Number.isNaN(midi)) return defaults[row][step] ?? defaults[row][0];
+
+        return Math.min(127, Math.max(0, midi));
+      });
     }
 
     grid = nextGrid;
-    displayNames = nextNames;
+    activeGates = nextGrid.map((row) => row.map(() => false));
   }
 
   function loadRowMutedFromInitialisation() {
@@ -161,19 +156,20 @@
 
     if (!Array.isArray(init)) return;
 
-    const next = defaultStepDurationGrid();
+    const defaults = defaultStepDurationGrid();
+    const next = [];
 
     for (let row = 0; row < 4; row += 1) {
       const rowData = init[row];
+      const stepCount = grid[row]?.length ?? defaults[row].length;
+      next[row] = [];
 
-      if (!Array.isArray(rowData)) continue;
+      for (let step = 0; step < stepCount; step += 1) {
+        const value = Number.parseInt(String(rowData?.[step] ?? defaults[row][step]), 10);
 
-      for (let step = 0; step < 4; step += 1) {
-        const value = Number.parseInt(String(rowData[step]), 10);
-
-        if (Number.isNaN(value)) continue;
-
-        next[row][step] = Math.min(3, Math.max(0, value));
+        next[row][step] = Number.isNaN(value)
+          ? defaults[row][step] ?? defaults[row][0]
+          : Math.min(3, Math.max(0, value));
       }
     }
 
@@ -185,19 +181,20 @@
 
     if (!Array.isArray(init)) return;
 
-    const next = defaultStepTimingMultiplierGrid();
+    const defaults = defaultStepTimingMultiplierGrid();
+    const next = [];
 
     for (let row = 0; row < 4; row += 1) {
       const rowData = init[row];
+      const stepCount = grid[row]?.length ?? defaults[row].length;
+      next[row] = [];
 
-      if (!Array.isArray(rowData)) continue;
+      for (let step = 0; step < stepCount; step += 1) {
+        const value = Number.parseInt(String(rowData?.[step] ?? defaults[row][step]), 10);
 
-      for (let step = 0; step < 4; step += 1) {
-        const value = Number.parseInt(String(rowData[step]), 10);
-
-        if (Number.isNaN(value)) continue;
-
-        next[row][step] = Math.min(4, Math.max(0, value));
+        next[row][step] = Number.isNaN(value)
+          ? defaults[row][step] ?? defaults[row][0]
+          : Math.min(4, Math.max(0, value));
       }
     }
 
@@ -209,19 +206,20 @@
 
     if (!Array.isArray(init)) return;
 
-    const next = defaultStepVelocityGrid();
+    const defaults = defaultStepVelocityGrid();
+    const next = [];
 
     for (let row = 0; row < 4; row += 1) {
       const rowData = init[row];
+      const stepCount = grid[row]?.length ?? defaults[row].length;
+      next[row] = [];
 
-      if (!Array.isArray(rowData)) continue;
+      for (let step = 0; step < stepCount; step += 1) {
+        const value = Number.parseInt(String(rowData?.[step] ?? defaults[row][step]), 10);
 
-      for (let step = 0; step < 4; step += 1) {
-        const value = Number.parseInt(String(rowData[step]), 10);
-
-        if (Number.isNaN(value)) continue;
-
-        next[row][step] = Math.min(127, Math.max(0, value));
+        next[row][step] = Number.isNaN(value)
+          ? defaults[row][step] ?? defaults[row][0]
+          : Math.min(127, Math.max(0, value));
       }
     }
 
@@ -270,24 +268,9 @@
     await setPhraseStepVelocity(row, step, stepVelocity[row][step]);
   }
 
-  function onNoteInput(row, step, event) {
-    displayNames[row][step] = event.currentTarget.value;
-    displayNames = displayNames;
-  }
-
-  async function commitNote(row, step) {
-    const parsed = noteNameToMidi(displayNames[row][step]);
-
-    if (parsed === null) {
-      displayNames[row][step] = midiToNoteName(grid[row][step]);
-      displayNames = displayNames;
-      return;
-    }
-
-    grid[row][step] = parsed;
-    displayNames[row][step] = midiToNoteName(parsed);
+  async function setPhraseNoteValue(row, step, midi) {
+    grid[row][step] = Math.min(127, Math.max(0, midi));
     grid = grid;
-    displayNames = displayNames;
     await pushNote(row, step);
   }
 
@@ -315,14 +298,29 @@
     await pushStepDurationFraction(row, step);
   }
 
-  async function onStepVelocityInput(row, step, event) {
-    const value = Number(event.currentTarget.value);
-
-    if (Number.isNaN(value)) return;
-
+  async function setStepVelocity(row, step, value) {
     stepVelocity[row][step] = Math.min(127, Math.max(0, value));
     stepVelocity = stepVelocity;
     await pushStepVelocity(row, step);
+  }
+
+  async function removeStep(row, step) {
+    grid[row].splice(step, 1);
+    stepDurationFraction[row].splice(step, 1);
+    stepTimingMultiplier[row].splice(step, 1);
+    stepVelocity[row].splice(step, 1);
+    activeGates[row].splice(step, 1);
+
+    grid = grid;
+    stepDurationFraction = stepDurationFraction;
+    stepTimingMultiplier = stepTimingMultiplier;
+    stepVelocity = stepVelocity;
+    activeGates = activeGates;
+
+    if (!nativeFunctionAvailable("removePhraseStep")) return;
+
+    const removePhraseStep = getNativeFunction("removePhraseStep");
+    await removePhraseStep(row, step);
   }
 
   function applyPlaybackActivity(result) {
@@ -335,8 +333,8 @@
 
       if (!Array.isArray(rowData)) continue;
 
-      for (let step = 0; step < 4; step += 1) {
-        const active = Boolean(rowData[step]);
+      for (let step = 0; step < activeGates[row].length; step += 1) {
+        const active = Boolean(rowData?.[step]);
 
         if (activeGates[row][step] !== active) {
           activeGates[row][step] = active;
@@ -387,28 +385,19 @@
     <p class="shrink-0 pt-0.5 text-sm text-zinc-500">v{version}</p>
   </header>
 
-  <section class="mt-16 flex flex-1 flex-col items-center justify-center">
-    <div class="w-full max-w-6xl">
+  <section class="mt-16 flex flex-1 flex-col items-start justify-center">
+    <div class="w-full">
       <div class="flex flex-col gap-10">
         {#each grid as _row, row}
-          <div class="grid grid-cols-[auto_2.5rem_repeat(4,minmax(0,1fr))] items-center gap-2">
-            <div class="flex items-center gap-0.5" role="radiogroup" aria-label="Row timing offset">
-              {#each timingOffsetOptions as option}
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={rowTimingOffset[row] === option.index}
-                  aria-label="Timing offset {option.label}"
-                  class="min-w-[2.1rem] rounded border px-1 py-1 font-mono text-[10px] leading-none transition-colors outline-none {toggleButtonClass(
-                    rowTimingOffset[row] === option.index,
-                  )}"
-                  onclick={() => selectRowTimingOffset(row, option.index)}
-                >
-                  {option.label}
-                </button>
-              {/each}
-            </div>
-            <div class="flex items-center justify-center">
+          <div class="flex items-center gap-2">
+            <DiscreteSlider
+              label="Offset"
+              options={timingOffsetOptions}
+              value={rowTimingOffset[row]}
+              ariaLabel="Row timing offset"
+              onValueChange={(offsetIndex) => selectRowTimingOffset(row, offsetIndex)}
+            />
+            <div class="flex shrink-0 items-center justify-center">
               <button
                 type="button"
                 aria-label={rowMuted[row] ? "Unmute voice" : "Mute voice"}
@@ -421,89 +410,73 @@
                 <SpeakerIcon class="h-4 w-4" />
               </button>
             </div>
-            {#each grid[row] as _note, step}
-              <div
-                class="flex min-w-0 overflow-hidden rounded-lg border bg-zinc-900 outline-none transition-[border-color,box-shadow] duration-75 {stepCellPlaybackClass(
-                  activeGates[row][step],
-                )} focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500"
-              >
-                <label class="flex shrink-0 items-center border-r border-zinc-800">
-                  <input
-                    type="text"
-                    spellcheck="false"
-                    autocomplete="off"
-                    class="h-full w-14 border-0 bg-transparent px-2 py-3 text-left font-mono text-base text-zinc-100 outline-none"
-                    value={displayNames[row][step]}
-                    oninput={(e) => onNoteInput(row, step, e)}
-                    onchange={() => commitNote(row, step)}
-                    onblur={() => commitNote(row, step)}
-                  />
-                </label>
-                <div class="flex min-w-0 flex-1 flex-col">
-                  <div
-                    class="flex min-w-0 items-stretch border-b border-zinc-800"
-                    role="radiogroup"
-                    aria-label="Step timing multiplier"
+            <div class="flex min-w-0 flex-1 gap-2 pt-2 pl-2">
+              {#each grid[row] as _note, step}
+                <div
+                  style:flex="{stepTimingMultiplierValue(stepTimingMultiplier[row][step])} 1 0"
+                  class="relative min-w-0"
+                >
+                  <button
+                    type="button"
+                    aria-label="Remove step"
+                    class="absolute top-0 left-0 z-10 flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/90 bg-zinc-700 text-white shadow-md transition-colors outline-none hover:bg-zinc-600 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+                    onclick={() => removeStep(row, step)}
                   >
-                    {#each timingMultiplierOptions as option, optionIndex}
-                      <button
-                        type="button"
-                        role="radio"
-                        aria-checked={stepTimingMultiplier[row][step] === option.index}
-                        aria-label="Timing multiplier {option.label}"
-                        class="min-w-[1.75rem] flex-1 border-0 px-1 py-2 font-mono text-[10px] leading-none transition-colors outline-none {optionIndex >
-                        0
-                          ? 'border-l border-zinc-800'
-                          : ''} {stepCellToggleClass(
-                          stepTimingMultiplier[row][step] === option.index,
-                        )}"
-                        onclick={() => selectStepTimingMultiplier(row, step, option.index)}
-                      >
-                        {option.label}
-                      </button>
-                    {/each}
-                  </div>
+                    <svg viewBox="0 0 10 10" class="h-2 w-2" aria-hidden="true">
+                      <path
+                        d="M2 2 L8 8 M8 2 L2 8"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.75"
+                        stroke-linecap="square"
+                      />
+                    </svg>
+                  </button>
                   <div
-                    class="flex min-w-0 items-stretch border-b border-zinc-800"
-                    role="radiogroup"
-                    aria-label="Step duration fraction"
+                    class="flex min-w-0 overflow-hidden rounded-lg border bg-zinc-900 outline-none transition-[border-color,box-shadow,flex-grow] duration-200 {stepCellPlaybackClass(
+                      activeGates[row][step],
+                    )} focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500"
                   >
-                    {#each durationFractionOptions as option, optionIndex}
-                      <button
-                        type="button"
-                        role="radio"
-                        aria-checked={stepDurationFraction[row][step] === option.index}
-                        aria-label="Duration {option.label}"
-                        class="min-w-[1.75rem] flex-1 border-0 px-1 py-2 font-mono text-[10px] leading-none transition-colors outline-none {optionIndex >
-                        0
-                          ? 'border-l border-zinc-800'
-                          : ''} {stepCellToggleClass(
-                          stepDurationFraction[row][step] === option.index,
-                        )}"
-                        onclick={() => selectStepDurationFraction(row, step, option.index)}
-                      >
-                        {option.label}
-                      </button>
-                    {/each}
-                  </div>
-                  <div class="flex items-center gap-2 px-2 py-1">
-                    <input
-                      type="range"
-                      min="0"
-                      max="127"
-                      aria-label="Step velocity"
-                      class="min-w-0 flex-1 accent-emerald-500"
-                      value={stepVelocity[row][step]}
-                      oninput={(e) => onStepVelocityInput(row, step, e)}
-                      onchange={(e) => onStepVelocityInput(row, step, e)}
-                    />
-                    <span class="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-zinc-400">
-                      {stepVelocity[row][step]}
-                    </span>
+                    <div class="flex shrink-0 items-stretch border-r border-zinc-800">
+                      <NoteDragInput
+                        value={grid[row][step]}
+                        ariaLabel="Step note"
+                        onValueChange={(midi) => setPhraseNoteValue(row, step, midi)}
+                      />
+                    </div>
+                    <div class="flex min-w-0 flex-1 flex-col gap-2 px-2 py-1.5">
+                      <DiscreteSlider
+                        label="Multiplier"
+                        fullWidth
+                        options={timingMultiplierOptions}
+                        value={stepTimingMultiplier[row][step]}
+                        ariaLabel="Step timing multiplier"
+                        onValueChange={(multiplierIndex) =>
+                          selectStepTimingMultiplier(row, step, multiplierIndex)}
+                      />
+                      <DiscreteSlider
+                        label="Duration"
+                        fullWidth
+                        options={durationFractionOptions}
+                        value={stepDurationFraction[row][step]}
+                        ariaLabel="Step duration fraction"
+                        onValueChange={(fractionIndex) =>
+                          selectStepDurationFraction(row, step, fractionIndex)}
+                      />
+                      <ContinuousSlider
+                        label="Velocity"
+                        fullWidth
+                        min={0}
+                        max={127}
+                        value={stepVelocity[row][step]}
+                        ariaLabel="Step velocity"
+                        onValueChange={(value) => setStepVelocity(row, step, value)}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            {/each}
+              {/each}
+            </div>
           </div>
         {/each}
       </div>
