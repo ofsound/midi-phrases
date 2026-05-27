@@ -9,11 +9,9 @@
   } from "./midiNoteNames.js";
   import SpeakerIcon from "./SpeakerIcon.svelte";
   import DiscreteSlider from "./DiscreteSlider.svelte";
-  import ContinuousSlider from "./ContinuousSlider.svelte";
-  import NoteDragInput from "./NoteDragInput.svelte";
-  import StepInsertZone from "./StepInsertZone.svelte";
-
-  const maxPhraseSteps = 4;
+  import PhraseRow from "./PhraseRow.svelte";
+  import { findSingleMove } from "./stepCellLayout.js";
+  import { sanitizeOrderedIds } from "./dndUtils.js";
 
   let pluginName = "MIDI Phrases";
   let version = "0.0.1";
@@ -30,6 +28,10 @@
   let stepVelocity = defaultStepVelocityGrid();
   /** @type {boolean[][]} */
   let activeGates = defaultPhraseGrid().map((row) => row.map(() => false));
+  /** @type {string[][]} */
+  let stepIds = defaultPhraseGrid().map((row, rowIndex) =>
+    row.map((_, step) => `step-${rowIndex}-${step}`),
+  );
 
   let playbackPollFrameId = 0;
 
@@ -58,17 +60,38 @@
     { index: 4, label: "4" },
   ];
 
-  const timingMultiplierValues = [0.25, 0.5, 1, 2, 4];
+  let nextStepId = defaultPhraseGrid().reduce((count, row) => count + row.length, 0);
 
-  /** @param {number} index */
-  function stepTimingMultiplierValue(index) {
-    return timingMultiplierValues[index] ?? 1;
+  function createStepId() {
+    const id = `step-${nextStepId}`;
+    nextStepId += 1;
+    return id;
   }
 
-  const stepCellPlaybackClass = (active) =>
-    active
-      ? "border-emerald-300 ring-2 ring-emerald-400/90"
-      : "border-zinc-700";
+  /** @param {number} row @param {string[]} orderedIds */
+  function reorderRowByIds(row, orderedIds) {
+    const validIds = sanitizeOrderedIds(orderedIds, stepIds[row]);
+
+    if (validIds.length !== stepIds[row].length) return;
+
+    const idToIndex = Object.fromEntries(stepIds[row].map((id, index) => [id, index]));
+    /** @param {unknown[]} array */
+    const reorder = (array) => validIds.map((id) => array[idToIndex[id]]);
+
+    grid[row] = reorder(grid[row]);
+    stepDurationFraction[row] = reorder(stepDurationFraction[row]);
+    stepTimingMultiplier[row] = reorder(stepTimingMultiplier[row]);
+    stepVelocity[row] = reorder(stepVelocity[row]);
+    activeGates[row] = reorder(activeGates[row]);
+    stepIds[row] = validIds;
+
+    grid = grid;
+    stepDurationFraction = stepDurationFraction;
+    stepTimingMultiplier = stepTimingMultiplier;
+    stepVelocity = stepVelocity;
+    activeGates = activeGates;
+    stepIds = stepIds;
+  }
 
   /** JUCE wraps each withInitialisationData value as [payload]. */
   function unwrapJuceInit(key) {
@@ -120,6 +143,8 @@
 
     grid = nextGrid;
     activeGates = nextGrid.map((row) => row.map(() => false));
+    stepIds = nextGrid.map((row, rowIndex) => row.map((_, step) => `step-${rowIndex}-${step}`));
+    nextStepId = nextGrid.reduce((count, row) => count + row.length, 0);
   }
 
   function loadRowMutedFromInitialisation() {
@@ -229,6 +254,22 @@
     stepVelocity = next;
   }
 
+  async function pushMovePhraseStep(row, fromStep, toStep) {
+    if (!nativeFunctionAvailable("movePhraseStep")) return;
+
+    const movePhraseStep = getNativeFunction("movePhraseStep");
+    await movePhraseStep(row, fromStep, toStep);
+  }
+
+  /** @param {number} row @param {string[]} beforeIds @param {string[]} afterIds */
+  async function commitRowMove(row, beforeIds, afterIds) {
+    const move = findSingleMove(beforeIds, afterIds);
+
+    if (!move || move.from === move.to) return;
+
+    await pushMovePhraseStep(row, move.from, move.to);
+  }
+
   async function pushNote(row, step) {
     if (!nativeFunctionAvailable("setPhraseNote")) return;
 
@@ -308,17 +349,21 @@
   }
 
   async function removeStep(row, step) {
+    if (step < 0 || step >= grid[row].length) return;
+
     grid[row].splice(step, 1);
     stepDurationFraction[row].splice(step, 1);
     stepTimingMultiplier[row].splice(step, 1);
     stepVelocity[row].splice(step, 1);
     activeGates[row].splice(step, 1);
+    stepIds[row].splice(step, 1);
 
     grid = grid;
     stepDurationFraction = stepDurationFraction;
     stepTimingMultiplier = stepTimingMultiplier;
     stepVelocity = stepVelocity;
     activeGates = activeGates;
+    stepIds = stepIds;
 
     if (!nativeFunctionAvailable("removePhraseStep")) return;
 
@@ -327,24 +372,25 @@
   }
 
   async function insertStep(row, step) {
-    if (grid[row].length >= maxPhraseSteps) return;
-
     const defaults = defaultPhraseGrid();
     const defaultDurations = defaultStepDurationGrid();
     const defaultMultipliers = defaultStepTimingMultiplierGrid();
     const defaultVelocities = defaultStepVelocityGrid();
+    const defaultNote = defaults[row]?.[0] ?? 60;
 
-    grid[row].splice(step, 0, defaults[row][0]);
-    stepDurationFraction[row].splice(step, 0, defaultDurations[row][0]);
-    stepTimingMultiplier[row].splice(step, 0, defaultMultipliers[row][0]);
-    stepVelocity[row].splice(step, 0, defaultVelocities[row][0]);
+    grid[row].splice(step, 0, defaultNote);
+    stepDurationFraction[row].splice(step, 0, defaultDurations[row]?.[0] ?? 3);
+    stepTimingMultiplier[row].splice(step, 0, defaultMultipliers[row]?.[0] ?? 2);
+    stepVelocity[row].splice(step, 0, defaultVelocities[row]?.[0] ?? 100);
     activeGates[row].splice(step, 0, false);
+    stepIds[row].splice(step, 0, createStepId());
 
     grid = grid;
     stepDurationFraction = stepDurationFraction;
     stepTimingMultiplier = stepTimingMultiplier;
     stepVelocity = stepVelocity;
     activeGates = activeGates;
+    stepIds = stepIds;
 
     if (!nativeFunctionAvailable("insertPhraseStep")) return;
 
@@ -439,79 +485,25 @@
                 <SpeakerIcon class="h-4 w-4" />
               </button>
             </div>
-            <div class="flex min-w-0 flex-1 pt-2 pl-2">
-              {#if grid[row].length < maxPhraseSteps}
-                <StepInsertZone onInsert={() => insertStep(row, 0)} />
-              {/if}
-              {#each grid[row] as _note, step}
-                <div
-                  style:flex="{stepTimingMultiplierValue(stepTimingMultiplier[row][step])} 1 0"
-                  class="relative min-w-0"
-                >
-                  <button
-                    type="button"
-                    aria-label="Remove step"
-                    class="absolute top-0 left-0 z-10 flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/90 bg-zinc-700 text-white shadow-md transition-colors outline-none hover:bg-zinc-600 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
-                    onclick={() => removeStep(row, step)}
-                  >
-                    <svg viewBox="0 0 10 10" class="h-2 w-2" aria-hidden="true">
-                      <path
-                        d="M2 2 L8 8 M8 2 L2 8"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.75"
-                        stroke-linecap="square"
-                      />
-                    </svg>
-                  </button>
-                  <div
-                    class="flex min-w-0 overflow-hidden rounded-lg border bg-zinc-900 outline-none transition-[border-color,box-shadow,flex-grow] duration-200 {stepCellPlaybackClass(
-                      activeGates[row][step],
-                    )} focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500"
-                  >
-                    <div class="flex shrink-0 items-stretch border-r border-zinc-800">
-                      <NoteDragInput
-                        value={grid[row][step]}
-                        ariaLabel="Step note"
-                        onValueChange={(midi) => setPhraseNoteValue(row, step, midi)}
-                      />
-                    </div>
-                    <div class="flex min-w-0 flex-1 flex-col gap-2 px-2 py-1.5">
-                      <DiscreteSlider
-                        label="Multiplier"
-                        fullWidth
-                        options={timingMultiplierOptions}
-                        value={stepTimingMultiplier[row][step]}
-                        ariaLabel="Step timing multiplier"
-                        onValueChange={(multiplierIndex) =>
-                          selectStepTimingMultiplier(row, step, multiplierIndex)}
-                      />
-                      <DiscreteSlider
-                        label="Duration"
-                        fullWidth
-                        options={durationFractionOptions}
-                        value={stepDurationFraction[row][step]}
-                        ariaLabel="Step duration fraction"
-                        onValueChange={(fractionIndex) =>
-                          selectStepDurationFraction(row, step, fractionIndex)}
-                      />
-                      <ContinuousSlider
-                        label="Velocity"
-                        fullWidth
-                        min={0}
-                        max={127}
-                        value={stepVelocity[row][step]}
-                        ariaLabel="Step velocity"
-                        onValueChange={(value) => setStepVelocity(row, step, value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-                {#if grid[row].length < maxPhraseSteps}
-                  <StepInsertZone onInsert={() => insertStep(row, step + 1)} />
-                {/if}
-              {/each}
-            </div>
+            <PhraseRow
+              {row}
+              stepIds={stepIds[row]}
+              notes={grid[row]}
+              stepDurationFraction={stepDurationFraction[row]}
+              stepTimingMultiplier={stepTimingMultiplier[row]}
+              stepVelocity={stepVelocity[row]}
+              activeGates={activeGates[row]}
+              {timingMultiplierOptions}
+              {durationFractionOptions}
+              onReorder={reorderRowByIds}
+              onMoveCommitted={commitRowMove}
+              onRemoveStep={removeStep}
+              onInsertStep={insertStep}
+              onNoteChange={setPhraseNoteValue}
+              onMultiplierChange={selectStepTimingMultiplier}
+              onDurationChange={selectStepDurationFraction}
+              onVelocityChange={setStepVelocity}
+            />
           </div>
         {/each}
       </div>

@@ -7,3 +7,11 @@
     @apply select-none;
   }
 }
+
+/* svelte-dnd-action drag ghost — keep visible (shadow placeholder uses hidden styles). */
+#dnd-action-dragged-el {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: none;
+  z-index: 99999 !important;
+}

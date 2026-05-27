@@ -109,7 +109,7 @@ TEST_CASE ("Plugin instance", "[instance]")
 
     SECTION ("remove phrase step")
     {
-        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::phraseStepCount);
+        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::defaultPhraseStepsPerRow);
 
         testPlugin.setPhraseNote (0, 0, 55);
         testPlugin.setPhraseNote (0, 1, 66);
@@ -117,7 +117,7 @@ TEST_CASE ("Plugin instance", "[instance]")
 
         testPlugin.removePhraseStep (0, 1);
 
-        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::phraseStepCount - 1);
+        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::defaultPhraseStepsPerRow - 1);
         CHECK (testPlugin.getPhraseNote (0, 0) == 55);
         CHECK (testPlugin.getPhraseNote (0, 1) == 77);
     }
@@ -127,17 +127,49 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.removePhraseStep (0, 3);
         testPlugin.removePhraseStep (0, 2);
 
-        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::phraseStepCount - 2);
+        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::defaultPhraseStepsPerRow - 2);
 
         testPlugin.setPhraseNote (0, 0, 55);
         testPlugin.setPhraseNote (0, 1, 77);
 
         testPlugin.insertPhraseStep (0, 1);
 
-        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::phraseStepCount - 1);
+        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::defaultPhraseStepsPerRow - 1);
         CHECK (testPlugin.getPhraseNote (0, 0) == 55);
         CHECK (testPlugin.getPhraseNote (0, 1) == 60);
         CHECK (testPlugin.getPhraseNote (0, 2) == 77);
+    }
+
+    SECTION ("move phrase step")
+    {
+        testPlugin.setPhraseNote (0, 0, 55);
+        testPlugin.setPhraseNote (0, 1, 66);
+        testPlugin.setPhraseNote (0, 2, 77);
+        testPlugin.setPhraseNote (0, 3, 88);
+        testPlugin.setPhraseStepVelocity (0, 1, 42);
+
+        testPlugin.movePhraseStep (0, 1, 3);
+
+        CHECK (testPlugin.getPhraseNote (0, 0) == 55);
+        CHECK (testPlugin.getPhraseNote (0, 1) == 77);
+        CHECK (testPlugin.getPhraseNote (0, 2) == 88);
+        CHECK (testPlugin.getPhraseNote (0, 3) == 66);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 3) == 42);
+
+        testPlugin.movePhraseStep (0, 3, 0);
+
+        CHECK (testPlugin.getPhraseNote (0, 0) == 66);
+        CHECK (testPlugin.getPhraseNote (0, 1) == 55);
+        CHECK (testPlugin.getPhraseNote (0, 2) == 77);
+        CHECK (testPlugin.getPhraseNote (0, 3) == 88);
+    }
+
+    SECTION ("insert phrase step beyond default row length")
+    {
+        for (int i = 0; i < 3; ++i)
+            testPlugin.insertPhraseStep (0, PluginProcessor::defaultPhraseStepsPerRow);
+
+        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::defaultPhraseStepsPerRow + 3);
     }
 }
 

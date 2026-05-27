@@ -5,7 +5,7 @@
 <button
   type="button"
   aria-label="Insert step"
-  class="group relative flex w-4 shrink-0 cursor-pointer items-center justify-center self-stretch border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-emerald-500"
+  class="group relative flex h-full w-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-emerald-500"
   onclick={onInsert}
 >
   <span
