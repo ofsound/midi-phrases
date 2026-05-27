@@ -48,6 +48,24 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseRowTimingOffset (0) == PluginProcessor::rowTimingOffsetCount - 1);
     }
 
+    SECTION ("step timing multiplier")
+    {
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 0)
+               == PluginProcessor::defaultStepTimingMultiplierIndex);
+
+        testPlugin.setPhraseStepTimingMultiplier (0, 1, 0);
+        testPlugin.setPhraseStepTimingMultiplier (2, 3, 4);
+
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 1) == 0);
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (2, 3) == 4);
+        CHECK (PluginProcessor::stepTimingMultiplierForIndex (0)
+               < PluginProcessor::stepTimingMultiplierForIndex (4));
+
+        testPlugin.setPhraseStepTimingMultiplier (0, 0, 99);
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 0)
+               == PluginProcessor::stepTimingMultiplierCount - 1);
+    }
+
     SECTION ("step duration fraction")
     {
         CHECK (testPlugin.getPhraseStepDurationFraction (0, 0)

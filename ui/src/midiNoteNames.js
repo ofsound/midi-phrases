@@ -52,6 +52,13 @@ export const defaultStepDurationGrid = () => [
   [3, 3, 3, 3],
 ];
 
+export const defaultStepTimingMultiplierGrid = () => [
+  [2, 2, 2, 2],
+  [2, 2, 2, 2],
+  [2, 2, 2, 2],
+  [2, 2, 2, 2],
+];
+
 export const defaultStepVelocityGrid = () => [
   [100, 100, 100, 100],
   [100, 100, 100, 100],

@@ -4,6 +4,7 @@
   import {
     defaultPhraseGrid,
     defaultStepDurationGrid,
+    defaultStepTimingMultiplierGrid,
     defaultStepVelocityGrid,
     midiToNoteName,
     noteNameToMidi,
@@ -22,6 +23,8 @@
   /** @type {number[][]} */
   let stepDurationFraction = defaultStepDurationGrid();
   /** @type {number[][]} */
+  let stepTimingMultiplier = defaultStepTimingMultiplierGrid();
+  /** @type {number[][]} */
   let stepVelocity = defaultStepVelocityGrid();
 
   const timingOffsetOptions = [
@@ -39,6 +42,14 @@
     { index: 1, label: ".5" },
     { index: 2, label: ".75" },
     { index: 3, label: "1" },
+  ];
+
+  const timingMultiplierOptions = [
+    { index: 0, label: ".25" },
+    { index: 1, label: ".5" },
+    { index: 2, label: "1" },
+    { index: 3, label: "2" },
+    { index: 4, label: "4" },
   ];
 
   const toggleButtonClass = (active) =>
@@ -160,6 +171,30 @@
     stepDurationFraction = next;
   }
 
+  function loadStepTimingMultiplierFromInitialisation() {
+    const init = unwrapJuceInit("phraseStepTimingMultiplier");
+
+    if (!Array.isArray(init)) return;
+
+    const next = defaultStepTimingMultiplierGrid();
+
+    for (let row = 0; row < 4; row += 1) {
+      const rowData = init[row];
+
+      if (!Array.isArray(rowData)) continue;
+
+      for (let step = 0; step < 4; step += 1) {
+        const value = Number.parseInt(String(rowData[step]), 10);
+
+        if (Number.isNaN(value)) continue;
+
+        next[row][step] = Math.min(4, Math.max(0, value));
+      }
+    }
+
+    stepTimingMultiplier = next;
+  }
+
   function loadStepVelocityFromInitialisation() {
     const init = unwrapJuceInit("phraseStepVelocity");
 
@@ -203,6 +238,13 @@
 
     const setPhraseRowTimingOffset = getNativeFunction("setPhraseRowTimingOffset");
     await setPhraseRowTimingOffset(row, rowTimingOffset[row]);
+  }
+
+  async function pushStepTimingMultiplier(row, step) {
+    if (!nativeFunctionAvailable("setPhraseStepTimingMultiplier")) return;
+
+    const setPhraseStepTimingMultiplier = getNativeFunction("setPhraseStepTimingMultiplier");
+    await setPhraseStepTimingMultiplier(row, step, stepTimingMultiplier[row][step]);
   }
 
   async function pushStepDurationFraction(row, step) {
@@ -252,6 +294,12 @@
     await pushRowTimingOffset(row);
   }
 
+  async function selectStepTimingMultiplier(row, step, multiplierIndex) {
+    stepTimingMultiplier[row][step] = multiplierIndex;
+    stepTimingMultiplier = stepTimingMultiplier;
+    await pushStepTimingMultiplier(row, step);
+  }
+
   async function selectStepDurationFraction(row, step, fractionIndex) {
     stepDurationFraction[row][step] = fractionIndex;
     stepDurationFraction = stepDurationFraction;
@@ -273,6 +321,7 @@
     loadRowMutedFromInitialisation();
     loadRowTimingOffsetFromInitialisation();
     loadStepDurationFromInitialisation();
+    loadStepTimingMultiplierFromInitialisation();
     loadStepVelocityFromInitialisation();
   });
 </script>
@@ -322,23 +371,46 @@
             </div>
             {#each grid[row] as _note, step}
               <div
-                class="flex min-w-0 flex-col overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 outline-none focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500"
+                class="flex min-w-0 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 outline-none focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500"
               >
-                <div class="flex min-w-0 items-stretch">
-                  <label class="shrink-0 border-r border-zinc-800">
-                    <input
-                      type="text"
-                      spellcheck="false"
-                      autocomplete="off"
-                      class="w-12 border-0 bg-transparent px-2 py-2 text-left font-mono text-sm text-zinc-100 outline-none"
-                      value={displayNames[row][step]}
-                      oninput={(e) => onNoteInput(row, step, e)}
-                      onchange={() => commitNote(row, step)}
-                      onblur={() => commitNote(row, step)}
-                    />
-                  </label>
+                <label class="flex shrink-0 items-center border-r border-zinc-800">
+                  <input
+                    type="text"
+                    spellcheck="false"
+                    autocomplete="off"
+                    class="h-full w-14 border-0 bg-transparent px-2 py-3 text-left font-mono text-base text-zinc-100 outline-none"
+                    value={displayNames[row][step]}
+                    oninput={(e) => onNoteInput(row, step, e)}
+                    onchange={() => commitNote(row, step)}
+                    onblur={() => commitNote(row, step)}
+                  />
+                </label>
+                <div class="flex min-w-0 flex-1 flex-col">
                   <div
-                    class="flex min-w-0 flex-1 items-stretch"
+                    class="flex min-w-0 items-stretch border-b border-zinc-800"
+                    role="radiogroup"
+                    aria-label="Step timing multiplier"
+                  >
+                    {#each timingMultiplierOptions as option, optionIndex}
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={stepTimingMultiplier[row][step] === option.index}
+                        aria-label="Timing multiplier {option.label}"
+                        class="min-w-[1.75rem] flex-1 border-0 px-1 py-2 font-mono text-[10px] leading-none transition-colors outline-none {optionIndex >
+                        0
+                          ? 'border-l border-zinc-800'
+                          : ''} {stepCellToggleClass(
+                          stepTimingMultiplier[row][step] === option.index,
+                        )}"
+                        onclick={() => selectStepTimingMultiplier(row, step, option.index)}
+                      >
+                        {option.label}
+                      </button>
+                    {/each}
+                  </div>
+                  <div
+                    class="flex min-w-0 items-stretch border-b border-zinc-800"
                     role="radiogroup"
                     aria-label="Step duration fraction"
                   >
@@ -348,7 +420,7 @@
                         role="radio"
                         aria-checked={stepDurationFraction[row][step] === option.index}
                         aria-label="Duration {option.label}"
-                        class="min-w-[2rem] flex-1 border-0 px-1 py-2 font-mono text-[10px] leading-none transition-colors outline-none {optionIndex >
+                        class="min-w-[1.75rem] flex-1 border-0 px-1 py-2 font-mono text-[10px] leading-none transition-colors outline-none {optionIndex >
                         0
                           ? 'border-l border-zinc-800'
                           : ''} {stepCellToggleClass(
@@ -360,21 +432,21 @@
                       </button>
                     {/each}
                   </div>
-                </div>
-                <div class="flex items-center gap-2 border-t border-zinc-800 px-2 py-1">
-                  <input
-                    type="range"
-                    min="0"
-                    max="127"
-                    aria-label="Step velocity"
-                    class="min-w-0 flex-1 accent-emerald-500"
-                    value={stepVelocity[row][step]}
-                    oninput={(e) => onStepVelocityInput(row, step, e)}
-                    onchange={(e) => onStepVelocityInput(row, step, e)}
-                  />
-                  <span class="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-zinc-400">
-                    {stepVelocity[row][step]}
-                  </span>
+                  <div class="flex items-center gap-2 px-2 py-1">
+                    <input
+                      type="range"
+                      min="0"
+                      max="127"
+                      aria-label="Step velocity"
+                      class="min-w-0 flex-1 accent-emerald-500"
+                      value={stepVelocity[row][step]}
+                      oninput={(e) => onStepVelocityInput(row, step, e)}
+                      onchange={(e) => onStepVelocityInput(row, step, e)}
+                    />
+                    <span class="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-zinc-400">
+                      {stepVelocity[row][step]}
+                    </span>
+                  </div>
                 </div>
               </div>
             {/each}

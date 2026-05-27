@@ -1,12 +1,14 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace
 {
 constexpr int defaultRowNotes[] = { 60, 64, 67, 72 };
 constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
+constexpr double stepTimingMultiplierValues[] = { 0.25, 0.5, 1.0, 2.0, 4.0 };
 constexpr double stepDurationFractionValues[] = { 0.25, 0.5, 0.75, 0.99 };
 } // namespace
 
@@ -19,10 +21,10 @@ void PluginProcessor::resetPendingNoteOffs()
     }
 }
 
-void PluginProcessor::resetLastEmittedQuarters()
+void PluginProcessor::resetLastEmittedTriggers()
 {
-    for (auto& lastQuarter : lastEmittedQuarter)
-        lastQuarter = -1;
+    for (auto& lastTrigger : lastEmittedTriggerPpq)
+        lastTrigger = -1.0;
 }
 
 PluginProcessor::BusesProperties PluginProcessor::createBusesProperties()
@@ -49,6 +51,8 @@ PluginProcessor::PluginProcessor()
         for (int step = 0; step < phraseStepCount; ++step)
         {
             phraseNotes[static_cast<size_t> (row)][static_cast<size_t> (step)].store (defaultNote);
+            phraseStepTimingMultiplier[static_cast<size_t> (row)][static_cast<size_t> (step)].store (
+                defaultStepTimingMultiplierIndex);
             phraseStepDurationFraction[static_cast<size_t> (row)][static_cast<size_t> (step)].store (
                 defaultStepDurationFractionIndex);
             phraseStepVelocity[static_cast<size_t> (row)][static_cast<size_t> (step)].store (
@@ -60,7 +64,7 @@ PluginProcessor::PluginProcessor()
         phraseRowFlushNoteOff[static_cast<size_t> (row)].store (0);
     }
 
-    resetLastEmittedQuarters();
+    resetLastEmittedTriggers();
 }
 
 PluginProcessor::~PluginProcessor()
@@ -79,6 +83,12 @@ double PluginProcessor::rowTimingOffsetForIndex (const int offsetIndex)
 {
     const auto index = juce::jlimit (0, rowTimingOffsetCount - 1, offsetIndex);
     return rowTimingOffsetValues[static_cast<size_t> (index)];
+}
+
+double PluginProcessor::stepTimingMultiplierForIndex (const int multiplierIndex)
+{
+    const auto index = juce::jlimit (0, stepTimingMultiplierCount - 1, multiplierIndex);
+    return stepTimingMultiplierValues[static_cast<size_t> (index)];
 }
 
 double PluginProcessor::stepDurationFractionForIndex (const int fractionIndex)
@@ -157,7 +167,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     juce::ignoreUnused (samplesPerBlock);
     sampleRateHz = sampleRate;
-    resetLastEmittedQuarters();
+    resetLastEmittedTriggers();
     wasPlaying = false;
     resetPendingNoteOffs();
 }
@@ -213,6 +223,25 @@ int PluginProcessor::getPhraseRowTimingOffset (const int row) const
         return defaultRowTimingOffsetIndex;
 
     return phraseRowTimingOffset[static_cast<size_t> (row)].load();
+}
+
+void PluginProcessor::setPhraseStepTimingMultiplier (const int row,
+                                                    const int step,
+                                                    const int multiplierIndex)
+{
+    if (row < 0 || row >= phraseRowCount || step < 0 || step >= phraseStepCount)
+        return;
+
+    phraseStepTimingMultiplier[static_cast<size_t> (row)][static_cast<size_t> (step)].store (
+        juce::jlimit (0, stepTimingMultiplierCount - 1, multiplierIndex));
+}
+
+int PluginProcessor::getPhraseStepTimingMultiplier (const int row, const int step) const
+{
+    if (row < 0 || row >= phraseRowCount || step < 0 || step >= phraseStepCount)
+        return defaultStepTimingMultiplierIndex;
+
+    return phraseStepTimingMultiplier[static_cast<size_t> (row)][static_cast<size_t> (step)].load();
 }
 
 void PluginProcessor::setPhraseStepDurationFraction (const int row,
@@ -308,7 +337,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         }
 
         wasPlaying = false;
-        resetLastEmittedQuarters();
+        resetLastEmittedTriggers();
         resetPendingNoteOffs();
         return;
     }
@@ -363,27 +392,77 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         const auto offset = rowTimingOffsetForIndex (
             phraseRowTimingOffset[static_cast<size_t> (row)].load (std::memory_order_relaxed));
 
-        const auto qMin = static_cast<int> (std::ceil (ppqStart - offset - 1.0e-9));
-        const auto qMax = static_cast<int> (std::floor (ppqEnd - offset - 1.0e-9));
+        double stepLengthQuarters[phraseStepCount] {};
+        double stepStartQuarters[phraseStepCount] {};
+        auto cycleLengthQuarters = 0.0;
 
-        auto& lastQuarter = lastEmittedQuarter[static_cast<size_t> (row)];
-
-        if (qMax < lastQuarter)
-            lastQuarter = qMax - 1;
-
-        for (int quarter = qMin; quarter <= qMax; ++quarter)
+        for (int step = 0; step < phraseStepCount; ++step)
         {
-            if (quarter <= lastQuarter)
+            stepStartQuarters[step] = cycleLengthQuarters;
+            stepLengthQuarters[step] = stepTimingMultiplierForIndex (
+                phraseStepTimingMultiplier[static_cast<size_t> (row)][static_cast<size_t> (step)].load (
+                    std::memory_order_relaxed));
+            cycleLengthQuarters += stepLengthQuarters[step];
+        }
+
+        if (cycleLengthQuarters <= 0.0)
+            continue;
+
+        struct StepTrigger
+        {
+            double ppq = 0.0;
+            int step = 0;
+        };
+
+        std::array<StepTrigger, phraseStepCount * 8> triggers {};
+        auto triggerCount = 0;
+
+        for (int step = 0; step < phraseStepCount; ++step)
+        {
+            const auto stepStartInCycle = stepStartQuarters[step];
+            const auto nMin = static_cast<int> (std::ceil (
+                (ppqStart - stepStartInCycle - offset - 1.0e-9) / cycleLengthQuarters));
+            const auto nMax = static_cast<int> (std::floor (
+                (ppqEnd - stepStartInCycle - offset - 1.0e-9) / cycleLengthQuarters));
+
+            for (int cycle = nMin; cycle <= nMax; ++cycle)
+            {
+                const auto triggerPpq = static_cast<double> (cycle) * cycleLengthQuarters
+                                        + stepStartInCycle + offset;
+
+                if (triggerPpq < ppqStart - 1.0e-9 || triggerPpq >= ppqEnd + 1.0e-9)
+                    continue;
+
+                if (triggerCount >= static_cast<int> (triggers.size()))
+                    break;
+
+                triggers[static_cast<size_t> (triggerCount)] = { triggerPpq, step };
+                ++triggerCount;
+            }
+        }
+
+        if (triggerCount == 0)
+            continue;
+
+        std::sort (triggers.begin(),
+                   triggers.begin() + triggerCount,
+                   [] (const StepTrigger& a, const StepTrigger& b) { return a.ppq < b.ppq; });
+
+        auto& lastTrigger = lastEmittedTriggerPpq[static_cast<size_t> (row)];
+
+        if (ppqStart < lastTrigger - cycleLengthQuarters - 1.0e-9)
+            lastTrigger = ppqStart - cycleLengthQuarters - 1.0;
+
+        for (int triggerIndex = 0; triggerIndex < triggerCount; ++triggerIndex)
+        {
+            const auto triggerPpq = triggers[static_cast<size_t> (triggerIndex)].ppq;
+
+            if (triggerPpq <= lastTrigger + 1.0e-9)
                 continue;
 
-            const auto triggerPpq = static_cast<double> (quarter) + offset;
+            lastTrigger = triggerPpq;
 
-            if (triggerPpq < ppqStart - 1.0e-9 || triggerPpq >= ppqEnd + 1.0e-9)
-                continue;
-
-            lastQuarter = quarter;
-
-            const auto slot = ((quarter % phraseStepCount) + phraseStepCount) % phraseStepCount;
+            const auto slot = triggers[static_cast<size_t> (triggerIndex)].step;
             const auto sampleOffset = juce::jlimit (
                 0,
                 bufferSamples - 1,
@@ -405,12 +484,14 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             if (velocity <= 0)
                 continue;
 
-            const auto gateFraction = stepDurationFractionForIndex (
+            const auto stepLength = stepLengthQuarters[slot];
+            const auto durationFraction = stepDurationFractionForIndex (
                 phraseStepDurationFraction[static_cast<size_t> (row)][static_cast<size_t> (slot)].load (
                     std::memory_order_relaxed));
+            const auto gateQuarters = stepLength * durationFraction;
             const auto noteGateSamples = juce::jmax (
                 1,
-                static_cast<int> (std::lround (gateFraction / ppqPerSample)));
+                static_cast<int> (std::lround (gateQuarters / ppqPerSample)));
 
             midiMessages.addEvent (
                 juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (velocity)),
@@ -457,7 +538,9 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
             const auto propName = "step" + juce::String (step);
             const auto durationPropName = "duration" + juce::String (step);
             const auto velocityPropName = "velocity" + juce::String (step);
+            const auto timingMultiplierPropName = "timingMultiplier" + juce::String (step);
             rowTree.setProperty (propName, getPhraseNote (row, step), nullptr);
+            rowTree.setProperty (timingMultiplierPropName, getPhraseStepTimingMultiplier (row, step), nullptr);
             rowTree.setProperty (durationPropName, getPhraseStepDurationFraction (row, step), nullptr);
             rowTree.setProperty (velocityPropName, getPhraseStepVelocity (row, step), nullptr);
         }
@@ -504,8 +587,14 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             const auto propName = "step" + juce::String (step);
             const auto durationPropName = "duration" + juce::String (step);
             const auto velocityPropName = "velocity" + juce::String (step);
+            const auto timingMultiplierPropName = "timingMultiplier" + juce::String (step);
             const auto note = static_cast<int> (rowTree.getProperty (propName, defaultNoteForRow (row)));
             setPhraseNote (row, step, note);
+            setPhraseStepTimingMultiplier (row,
+                                             step,
+                                             static_cast<int> (rowTree.getProperty (
+                                                 timingMultiplierPropName,
+                                                 defaultStepTimingMultiplierIndex)));
             setPhraseStepDurationFraction (row,
                                              step,
                                              static_cast<int> (rowTree.getProperty (

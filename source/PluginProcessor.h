@@ -57,6 +57,13 @@ public:
     int getPhraseRowTimingOffset (int row) const;
     static double rowTimingOffsetForIndex (int offsetIndex);
 
+    static constexpr int stepTimingMultiplierCount = 5;
+    static constexpr int defaultStepTimingMultiplierIndex = 2;
+
+    void setPhraseStepTimingMultiplier (int row, int step, int multiplierIndex);
+    int getPhraseStepTimingMultiplier (int row, int step) const;
+    static double stepTimingMultiplierForIndex (int multiplierIndex);
+
     static constexpr int stepDurationFractionCount = 4;
     static constexpr int defaultStepDurationFractionIndex = 3;
 
@@ -74,7 +81,7 @@ private:
 
     static int defaultNoteForRow (int row);
     void resetPendingNoteOffs();
-    void resetLastEmittedQuarters();
+    void resetLastEmittedTriggers();
 
     struct PendingNoteOff
     {
@@ -83,13 +90,14 @@ private:
     };
 
     std::array<std::array<std::atomic<int>, phraseStepCount>, phraseRowCount> phraseNotes {};
+    std::array<std::array<std::atomic<int>, phraseStepCount>, phraseRowCount> phraseStepTimingMultiplier {};
     std::array<std::array<std::atomic<int>, phraseStepCount>, phraseRowCount> phraseStepDurationFraction {};
     std::array<std::array<std::atomic<int>, phraseStepCount>, phraseRowCount> phraseStepVelocity {};
     std::array<std::atomic<int>, phraseRowCount> phraseRowMuted {};
     std::array<std::atomic<int>, phraseRowCount> phraseRowTimingOffset {};
     std::array<std::atomic<int>, phraseRowCount> phraseRowFlushNoteOff {};
     std::array<PendingNoteOff, phraseRowCount> pendingNoteOffs {};
-    std::array<int, phraseRowCount> lastEmittedQuarter {};
+    std::array<double, phraseRowCount> lastEmittedTriggerPpq {};
     double sampleRateHz = 44100.0;
     bool wasPlaying = false;
 
