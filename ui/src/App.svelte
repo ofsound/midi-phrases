@@ -486,6 +486,7 @@
             </div>
             <PhraseRow
               {row}
+              timingOffsetIndex={rowTimingOffset[row]}
               stepIds={stepIds[row]}
               notes={grid[row]}
               stepDurationFraction={stepDurationFraction[row]}

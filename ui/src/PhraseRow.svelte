@@ -13,11 +13,14 @@
     minMultiplierCellWidthPx,
     multiplierIndexFromWidth,
     multiplierLabelForIndex,
+    rowTimingOffsetShiftPx,
     stepCellWidthPx,
     stepInsertZoneWidthPx,
   } from "./stepCellLayout.js";
 
   export let row = 0;
+  /** Index into timingOffsetValues (default 3 = 0 quarters). */
+  export let timingOffsetIndex = 3;
   /** @type {string[]} */
   export let stepIds = [];
   /** @type {number[]} */
@@ -697,7 +700,10 @@
   </div>
 {/snippet}
 
-<div class="flex min-w-0 flex-1 overflow-x-auto overflow-y-visible pt-2 pl-2">
+<div
+  class="flex min-w-0 flex-1 overflow-x-auto overflow-y-visible pt-2 pl-2"
+  style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex)}px"
+>
   <div class="relative z-50 shrink-0 self-stretch">
     <StepInsertZone onInsert={() => onInsertStep(row, 0)} />
   </div>

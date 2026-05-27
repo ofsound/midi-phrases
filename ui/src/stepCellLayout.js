@@ -6,6 +6,16 @@ export const stepInsertZoneWidthPx = 16;
 
 export const timingMultiplierValues = [0.25, 0.5, 1, 2, 4];
 
+/** Row timing offset in quarter notes; matches PluginProcessor::rowTimingOffsetValues. */
+export const timingOffsetValues = [-0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75];
+
+/** @param {number} offsetIndex */
+export function rowTimingOffsetShiftPx(offsetIndex) {
+  const offset = timingOffsetValues[offsetIndex] ?? 0;
+
+  return Math.round(stepCellBaseWidthPx * offset);
+}
+
 /** @param {number} multiplierIndex */
 export function stepCellWidthPx(multiplierIndex) {
   const multiplier = timingMultiplierValues[multiplierIndex] ?? 1;
