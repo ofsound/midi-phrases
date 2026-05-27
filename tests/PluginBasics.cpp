@@ -1,5 +1,6 @@
 #include "helpers/test_helpers.h"
 #include <PluginProcessor.h>
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
@@ -69,19 +70,24 @@ TEST_CASE ("Plugin instance", "[instance]")
     SECTION ("step duration fraction")
     {
         CHECK (testPlugin.getPhraseStepDurationFraction (0, 0)
-               == PluginProcessor::defaultStepDurationFractionIndex);
+               == Catch::Approx (PluginProcessor::defaultStepDurationFraction));
 
-        testPlugin.setPhraseStepDurationFraction (0, 1, 0);
-        testPlugin.setPhraseStepDurationFraction (2, 3, 2);
+        testPlugin.setPhraseStepDurationFraction (0, 1, 0.0);
+        testPlugin.setPhraseStepDurationFraction (2, 3, 0.5);
 
-        CHECK (testPlugin.getPhraseStepDurationFraction (0, 1) == 0);
-        CHECK (testPlugin.getPhraseStepDurationFraction (2, 3) == 2);
-        CHECK (PluginProcessor::stepDurationFractionForIndex (0)
-               < PluginProcessor::stepDurationFractionForIndex (3));
-
-        testPlugin.setPhraseStepDurationFraction (0, 0, 99);
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 1) == Catch::Approx (0.0));
+        CHECK (testPlugin.getPhraseStepDurationFraction (2, 3) == Catch::Approx (0.5));
         CHECK (testPlugin.getPhraseStepDurationFraction (0, 0)
-               == PluginProcessor::stepDurationFractionCount - 1);
+               > testPlugin.getPhraseStepDurationFraction (0, 1));
+
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.5);
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 0) == Catch::Approx (1.0));
+
+        testPlugin.setPhraseStepDurationFraction (0, 0, -0.25);
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 0) == Catch::Approx (0.0));
+
+        testPlugin.setPhraseStepDurationFraction (0, 0, 0.33);
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 0) == Catch::Approx (0.33));
     }
 
     SECTION ("step velocity")

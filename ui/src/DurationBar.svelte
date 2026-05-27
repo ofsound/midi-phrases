@@ -1,0 +1,121 @@
+<script>
+  export let value = 1;
+  export let ariaLabel = "Step duration";
+  /** @type {(value: number) => void | Promise<void>} */
+  export let onValueChange = () => {};
+
+  const snapValues = [0, 0.25, 0.5, 0.75, 1];
+
+  /** @type {HTMLDivElement | null} */
+  let trackEl = null;
+  let dragging = false;
+
+  $: fillPercent = Math.min(100, Math.max(0, value * 100));
+
+  function clampFraction(fraction) {
+    return Math.min(1, Math.max(0, fraction));
+  }
+
+  function fractionFromClientX(clientX) {
+    if (!trackEl) return value;
+
+    const rect = trackEl.getBoundingClientRect();
+    const ratio = (clientX - rect.left) / rect.width;
+
+    return clampFraction(ratio);
+  }
+
+  function updateFromClientX(clientX) {
+    const next = fractionFromClientX(clientX);
+
+    if (Math.abs(next - value) < 0.0001) return;
+
+    onValueChange(next);
+  }
+
+  /** @param {PointerEvent} event */
+  function onTrackPointerDown(event) {
+    if (event.target !== trackEl && !trackEl?.contains(event.target)) return;
+
+    trackEl?.setPointerCapture(event.pointerId);
+    dragging = true;
+    updateFromClientX(event.clientX);
+  }
+
+  /** @param {PointerEvent} event */
+  function onTrackPointerMove(event) {
+    if (!dragging) return;
+
+    updateFromClientX(event.clientX);
+  }
+
+  /** @param {PointerEvent} event */
+  function onTrackPointerUp(event) {
+    dragging = false;
+    trackEl?.releasePointerCapture(event.pointerId);
+  }
+
+  /** @param {number} snapValue @param {PointerEvent} event */
+  function handleTickClick(snapValue, event) {
+    event.stopPropagation();
+
+    if (snapValue === value) return;
+
+    onValueChange(snapValue);
+  }
+</script>
+
+<div class="flex min-w-0 w-full flex-col gap-1">
+  <div
+    bind:this={trackEl}
+    class="relative h-3 cursor-pointer touch-none select-none rounded-full bg-zinc-600"
+    role="slider"
+    aria-label={ariaLabel}
+    aria-valuemin={0}
+    aria-valuemax={1}
+    aria-valuenow={value}
+    tabindex="0"
+    onpointerdown={onTrackPointerDown}
+    onpointermove={onTrackPointerMove}
+    onpointerup={onTrackPointerUp}
+    onpointercancel={onTrackPointerUp}
+    onkeydown={(event) => {
+      const step = event.shiftKey ? 0.01 : 0.05;
+
+      if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+        event.preventDefault();
+
+        if (value > 0) onValueChange(clampFraction(value - step));
+      } else if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+        event.preventDefault();
+
+        if (value < 1) onValueChange(clampFraction(value + step));
+      }
+    }}
+  >
+    <div
+      class="absolute inset-y-0 left-0 rounded-full bg-emerald-500 {dragging ? '' : 'transition-[width] duration-75'}"
+      style:width="{fillPercent}%"
+    ></div>
+  </div>
+
+  <div class="relative h-2.5">
+    {#each snapValues as snapValue}
+      <button
+        type="button"
+        aria-label="Set duration to {snapValue}"
+        class="absolute top-0 h-2 w-3 -translate-x-1/2 cursor-pointer border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-emerald-400"
+        style:left="{snapValue * 100}%"
+        onpointerdown={(event) => event.stopPropagation()}
+        onclick={(event) => handleTickClick(snapValue, event)}
+      >
+        <span
+          class="mx-auto block h-2 w-px {Math.abs(value - snapValue) < 0.001
+            ? 'bg-emerald-400'
+            : 'bg-zinc-500'}"
+          aria-hidden="true"
+        ></span>
+      </button>
+    {/each}
+  </div>
+</div>

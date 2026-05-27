@@ -13,6 +13,33 @@ export function stepCellWidthPx(multiplierIndex) {
   return Math.round(stepCellBaseWidthPx * multiplier);
 }
 
+export function minMultiplierCellWidthPx() {
+  return stepCellWidthPx(0);
+}
+
+export function maxMultiplierCellWidthPx() {
+  return stepCellWidthPx(timingMultiplierValues.length - 1);
+}
+
+/** @param {number} widthPx */
+export function multiplierIndexFromWidth(widthPx) {
+  const snapWidths = timingMultiplierValues.map((_, index) => stepCellWidthPx(index));
+  const clamped = Math.min(snapWidths[snapWidths.length - 1], Math.max(snapWidths[0], widthPx));
+
+  for (let index = 0; index < snapWidths.length - 1; index += 1) {
+    const midpoint = (snapWidths[index] + snapWidths[index + 1]) / 2;
+
+    if (clamped < midpoint) return index;
+  }
+
+  return snapWidths.length - 1;
+}
+
+/** @param {number} multiplierIndex @param {{ index: number, label: string }[]} options */
+export function multiplierLabelForIndex(multiplierIndex, options) {
+  return options.find((option) => option.index === multiplierIndex)?.label ?? "1";
+}
+
 /** @param {string[]} before @param {string[]} after */
 export function findSingleMove(before, after) {
   if (before.length !== after.length) return null;

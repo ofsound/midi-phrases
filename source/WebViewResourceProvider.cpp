@@ -10,6 +10,23 @@
 
 namespace
 {
+double varToDouble (const juce::var& value)
+{
+    if (value.isBool())
+        return static_cast<bool> (value) ? 1.0 : 0.0;
+
+    if (value.isInt())
+        return static_cast<double> (static_cast<int> (value));
+
+    if (value.isInt64())
+        return static_cast<double> (static_cast<juce::int64> (value));
+
+    if (value.isDouble())
+        return static_cast<double> (value);
+
+    return static_cast<double> (value);
+}
+
 int varToInt (const juce::var& value)
 {
     if (value.isBool())
@@ -212,7 +229,7 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                {
                                    processor.setPhraseStepDurationFraction (varToInt (args[0]),
                                                                             varToInt (args[1]),
-                                                                            varToInt (args[2]));
+                                                                            varToDouble (args[2]));
                                }
 
                                complete (juce::var {});

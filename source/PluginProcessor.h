@@ -65,12 +65,10 @@ public:
     int getPhraseStepTimingMultiplier (int row, int step) const;
     static double stepTimingMultiplierForIndex (int multiplierIndex);
 
-    static constexpr int stepDurationFractionCount = 4;
-    static constexpr int defaultStepDurationFractionIndex = 3;
+    static constexpr double defaultStepDurationFraction = 1.0;
 
-    void setPhraseStepDurationFraction (int row, int step, int fractionIndex);
-    int getPhraseStepDurationFraction (int row, int step) const;
-    static double stepDurationFractionForIndex (int fractionIndex);
+    void setPhraseStepDurationFraction (int row, int step, double fraction);
+    double getPhraseStepDurationFraction (int row, int step) const;
 
     static constexpr int defaultStepVelocity = 100;
 
@@ -89,7 +87,7 @@ private:
     {
         std::vector<int> notes;
         std::vector<int> timingMultiplier;
-        std::vector<int> durationFraction;
+        std::vector<double> durationFraction;
         std::vector<int> velocity;
         std::vector<double> gateStartPpq;
         std::vector<double> gateEndPpq;

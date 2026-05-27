@@ -9,7 +9,25 @@ namespace
 constexpr int defaultRowNotes[] = { 60, 64, 67, 72 };
 constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
 constexpr double stepTimingMultiplierValues[] = { 0.25, 0.5, 1.0, 2.0, 4.0 };
-constexpr double stepDurationFractionValues[] = { 0.25, 0.5, 0.75, 0.99 };
+constexpr int phraseStateVersion = 2;
+constexpr double legacyStepDurationFractionValues[] = { 0.25, 0.5, 0.75, 1.0 };
+
+double clampStepDurationFraction (const double fraction)
+{
+    return juce::jlimit (0.0, 1.0, fraction);
+}
+
+double durationFractionFromStateProperty (const juce::var& value, const int stateVersion)
+{
+    if (stateVersion < phraseStateVersion)
+    {
+        const auto legacyIndex = juce::jlimit (0, 3, static_cast<int> (value));
+
+        return legacyStepDurationFractionValues[static_cast<size_t> (legacyIndex)];
+    }
+
+    return clampStepDurationFraction (static_cast<double> (value));
+}
 } // namespace
 
 void PluginProcessor::resetPendingNoteOffs()
@@ -94,7 +112,7 @@ PluginProcessor::PluginProcessor()
         auto& steps = phraseRows[static_cast<size_t> (row)];
         steps.notes.assign (defaultPhraseStepsPerRow, defaultNoteForRow (row));
         steps.timingMultiplier.assign (defaultPhraseStepsPerRow, defaultStepTimingMultiplierIndex);
-        steps.durationFraction.assign (defaultPhraseStepsPerRow, defaultStepDurationFractionIndex);
+        steps.durationFraction.assign (defaultPhraseStepsPerRow, defaultStepDurationFraction);
         steps.velocity.assign (defaultPhraseStepsPerRow, defaultStepVelocity);
 
         phraseRowMuted[static_cast<size_t> (row)].store (0);
@@ -137,7 +155,7 @@ void PluginProcessor::resetPhraseStepToDefaults (const int row, const int step)
     auto& steps = phraseRows[static_cast<size_t> (row)];
     steps.notes[static_cast<size_t> (step)] = defaultNoteForRow (row);
     steps.timingMultiplier[static_cast<size_t> (step)] = defaultStepTimingMultiplierIndex;
-    steps.durationFraction[static_cast<size_t> (step)] = defaultStepDurationFractionIndex;
+    steps.durationFraction[static_cast<size_t> (step)] = defaultStepDurationFraction;
     steps.velocity[static_cast<size_t> (step)] = defaultStepVelocity;
     steps.gateStartPpq[static_cast<size_t> (step)] = -1.0;
     steps.gateEndPpq[static_cast<size_t> (step)] = -1.0;
@@ -153,12 +171,6 @@ double PluginProcessor::stepTimingMultiplierForIndex (const int multiplierIndex)
 {
     const auto index = juce::jlimit (0, stepTimingMultiplierCount - 1, multiplierIndex);
     return stepTimingMultiplierValues[static_cast<size_t> (index)];
-}
-
-double PluginProcessor::stepDurationFractionForIndex (const int fractionIndex)
-{
-    const auto index = juce::jlimit (0, stepDurationFractionCount - 1, fractionIndex);
-    return stepDurationFractionValues[static_cast<size_t> (index)];
 }
 
 const juce::String PluginProcessor::getName() const
@@ -310,19 +322,19 @@ int PluginProcessor::getPhraseStepTimingMultiplier (const int row, const int ste
 
 void PluginProcessor::setPhraseStepDurationFraction (const int row,
                                                    const int step,
-                                                   const int fractionIndex)
+                                                   const double fraction)
 {
     if (! isValidStep (row, step))
         return;
 
     phraseRows[static_cast<size_t> (row)].durationFraction[static_cast<size_t> (step)] =
-        juce::jlimit (0, stepDurationFractionCount - 1, fractionIndex);
+        clampStepDurationFraction (fraction);
 }
 
-int PluginProcessor::getPhraseStepDurationFraction (const int row, const int step) const
+double PluginProcessor::getPhraseStepDurationFraction (const int row, const int step) const
 {
     if (! isValidStep (row, step))
-        return defaultStepDurationFractionIndex;
+        return defaultStepDurationFraction;
 
     return phraseRows[static_cast<size_t> (row)].durationFraction[static_cast<size_t> (step)];
 }
@@ -398,7 +410,7 @@ void PluginProcessor::insertPhraseStep (const int row, const int step)
                                    defaultStepTimingMultiplierIndex);
     steps.durationFraction.insert (steps.durationFraction.begin()
                                    + static_cast<std::ptrdiff_t> (index),
-                                   defaultStepDurationFractionIndex);
+                                   defaultStepDurationFraction);
     steps.velocity.insert (steps.velocity.begin() + static_cast<std::ptrdiff_t> (index),
                            defaultStepVelocity);
 
@@ -711,8 +723,12 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                 continue;
 
             const auto stepLength = scratch.stepLengthQuarters[static_cast<size_t> (slot)];
-            const auto durationFraction = stepDurationFractionForIndex (
-                rowSteps.durationFraction[static_cast<size_t> (slot)]);
+            const auto durationFraction =
+                rowSteps.durationFraction[static_cast<size_t> (slot)];
+
+            if (durationFraction <= 0.0)
+                continue;
+
             const auto gateQuarters = stepLength * durationFraction;
             const auto noteGateSamples = juce::jmax (
                 1,
@@ -753,6 +769,7 @@ juce::AudioProcessorEditor* PluginProcessor::createEditor()
 void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::ValueTree state ("MidiPhrases");
+    state.setProperty ("version", phraseStateVersion, nullptr);
 
     for (int row = 0; row < phraseRowCount; ++row)
     {
@@ -802,6 +819,8 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     if (! state.isValid() || ! state.hasType ("MidiPhrases"))
         return;
 
+    const auto stateVersion = static_cast<int> (state.getProperty ("version", 1));
+
     for (int i = 0; i < state.getNumChildren(); ++i)
     {
         const auto rowTree = state.getChild (i);
@@ -837,11 +856,9 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                 stepTimingMultiplierCount - 1,
                 static_cast<int> (rowTree.getProperty (timingMultiplierPropName,
                                                          defaultStepTimingMultiplierIndex)));
-            steps.durationFraction[static_cast<size_t> (step)] = juce::jlimit (
-                0,
-                stepDurationFractionCount - 1,
-                static_cast<int> (rowTree.getProperty (durationPropName,
-                                                       defaultStepDurationFractionIndex)));
+            steps.durationFraction[static_cast<size_t> (step)] = durationFractionFromStateProperty (
+                rowTree.getProperty (durationPropName, defaultStepDurationFraction),
+                stateVersion);
             steps.velocity[static_cast<size_t> (step)] = juce::jlimit (
                 0,
                 127,

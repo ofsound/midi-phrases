@@ -46,10 +46,10 @@ export const defaultPhraseGrid = () => [
 ];
 
 export const defaultStepDurationGrid = () => [
-  [3, 3, 3, 3],
-  [3, 3, 3, 3],
-  [3, 3, 3, 3],
-  [3, 3, 3, 3],
+  [1, 1, 1, 1],
+  [1, 1, 1, 1],
+  [1, 1, 1, 1],
+  [1, 1, 1, 1],
 ];
 
 export const defaultStepTimingMultiplierGrid = () => [

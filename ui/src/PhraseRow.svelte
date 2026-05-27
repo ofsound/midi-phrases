@@ -1,12 +1,20 @@
 <script>
   import { flip } from "svelte/animate";
+  import gsap from "gsap";
   import { dragHandle, dragHandleZone, TRIGGERS } from "svelte-dnd-action";
-  import DiscreteSlider from "./DiscreteSlider.svelte";
   import ContinuousSlider from "./ContinuousSlider.svelte";
+  import DurationBar from "./DurationBar.svelte";
   import NoteDragInput from "./NoteDragInput.svelte";
   import StepInsertZone from "./StepInsertZone.svelte";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
-  import { stepCellWidthPx, stepInsertZoneWidthPx } from "./stepCellLayout.js";
+  import {
+    maxMultiplierCellWidthPx,
+    minMultiplierCellWidthPx,
+    multiplierIndexFromWidth,
+    multiplierLabelForIndex,
+    stepCellWidthPx,
+    stepInsertZoneWidthPx,
+  } from "./stepCellLayout.js";
 
   export let row = 0;
   /** @type {string[]} */
@@ -23,8 +31,6 @@
   export let activeGates = [];
   /** @type {{ index: number, label: string }[]} */
   export let timingMultiplierOptions = [];
-  /** @type {{ index: number, label: string }[]} */
-  export let durationFractionOptions = [];
 
   /** @type {(row: number, orderedIds: string[]) => void} */
   export let onReorder = () => {};
@@ -38,7 +44,7 @@
   export let onNoteChange = () => {};
   /** @type {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} */
   export let onMultiplierChange = () => {};
-  /** @type {(row: number, step: number, fractionIndex: number) => void | Promise<void>} */
+  /** @type {(row: number, step: number, fraction: number) => void | Promise<void>} */
   export let onDurationChange = () => {};
   /** @type {(row: number, step: number, value: number) => void | Promise<void>} */
   export let onVelocityChange = () => {};
@@ -56,6 +62,10 @@
   let idsBeforeDrag = null;
   /** @type {string | null} */
   let draggedStepId = null;
+  /** @type {{ step: number, startX: number, startWidth: number, previewIndex: number, displayWidth: number } | null} */
+  let activeResize = null;
+  /** @type {gsap.core.Tween | null} */
+  let widthTween = null;
 
   $: reorderDisabled = stepIds.length <= 1;
 
@@ -97,6 +107,23 @@
     return stepIds.indexOf(stepId);
   }
 
+  /** @param {number} step */
+  function cellWidthForStep(step) {
+    if (activeResize?.step === step) {
+      return Math.round(activeResize.displayWidth);
+    }
+
+    return stepCellWidthPx(stepTimingMultiplier[step]);
+  }
+
+  /** @param {number} step */
+  function multiplierLabelForStep(step) {
+    const index =
+      activeResize?.step === step ? activeResize.previewIndex : stepTimingMultiplier[step];
+
+    return multiplierLabelForIndex(index, timingMultiplierOptions);
+  }
+
   /** @param {string | null} stepId */
   function cellWidthForStepId(stepId) {
     if (!stepId) return stepCellWidthPx(2);
@@ -105,7 +132,7 @@
 
     if (step < 0) return stepCellWidthPx(2);
 
-    return stepCellWidthPx(stepTimingMultiplier[step]);
+    return cellWidthForStep(step);
   }
 
   /** @param {number} widthPx */
@@ -118,8 +145,22 @@
     return `left: -${stepInsertZoneWidthPx}px; width: ${stepInsertZoneWidthPx}px;`;
   }
 
-  $: layoutFingerprint = stepTimingMultiplier.join(",");
+  $: layoutFingerprint = `${stepIds.length}:${stepTimingMultiplier.join(",")}`;
   let appliedLayoutFingerprint = "";
+
+  /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
+  $: rowCellLayouts = dndItems.map((item, index) => {
+    const cellWidth = isShadowItem(item)
+      ? cellWidthForStepId(draggedStepId)
+      : cellWidthForStepId(item.id);
+    const step = isShadowItem(item) ? -1 : stepIndexFromId(item.id);
+
+    return {
+      cellWidth,
+      step,
+      gapBefore: index > 0,
+    };
+  });
 
   // Sync when steps are inserted/removed, parent order reverts, or cell widths change.
   $: if (!isDragging) {
@@ -192,6 +233,7 @@
     element.style.setProperty("visibility", "visible", "important");
     element.querySelector("[data-remove-button]")?.style.setProperty("display", "none");
     element.querySelector("[data-insert-slot]")?.style.setProperty("display", "none");
+    element.querySelector("[data-multiplier-resize]")?.style.setProperty("display", "none");
   }
 
   /** @param {PointerEvent} event */
@@ -203,20 +245,104 @@
   function handleRemoveClick(event, step) {
     event.stopPropagation();
 
-    if (removeBlocked || isDragging || step < 0 || step >= stepIds.length) return;
+    if (removeBlocked || isDragging || activeResize || step < 0 || step >= stepIds.length) return;
 
     onRemoveStep(row, step);
   }
 
+  /** @param {PointerEvent} event @param {number} step */
+  function beginMultiplierResize(event, step) {
+    event.stopPropagation();
+    event.preventDefault();
+
+    if (isDragging || removeBlocked) return;
+
+    widthTween?.kill();
+
+    const handle = /** @type {HTMLElement} */ (event.currentTarget);
+    handle.setPointerCapture(event.pointerId);
+
+    const previewIndex = stepTimingMultiplier[step];
+    const displayWidth = stepCellWidthPx(previewIndex);
+
+    activeResize = {
+      step,
+      startX: event.clientX,
+      startWidth: displayWidth,
+      previewIndex,
+      displayWidth,
+    };
+  }
+
+  /** @param {PointerEvent} event */
+  function updateMultiplierResize(event) {
+    if (!activeResize) return;
+
+    const rawWidth = Math.min(
+      maxMultiplierCellWidthPx(),
+      Math.max(
+        minMultiplierCellWidthPx(),
+        activeResize.startWidth + (event.clientX - activeResize.startX),
+      ),
+    );
+    const nextIndex = multiplierIndexFromWidth(rawWidth);
+
+    if (nextIndex === activeResize.previewIndex) return;
+
+    const targetWidth = stepCellWidthPx(nextIndex);
+    activeResize.previewIndex = nextIndex;
+
+    widthTween?.kill();
+
+    const state = activeResize;
+    widthTween = gsap.to(state, {
+      displayWidth: targetWidth,
+      duration: 0.12,
+      ease: "power2.out",
+      onUpdate: () => {
+        state.displayWidth = Math.round(state.displayWidth);
+        activeResize = activeResize;
+      },
+    });
+  }
+
+  /** @param {PointerEvent} event */
+  async function finishMultiplierResize(event) {
+    if (!activeResize) return;
+
+    widthTween?.kill();
+
+    const { step, previewIndex } = activeResize;
+    const targetWidth = stepCellWidthPx(previewIndex);
+
+    activeResize.displayWidth = targetWidth;
+    activeResize = activeResize;
+
+    /** @type {HTMLElement} */ (event.currentTarget).releasePointerCapture(event.pointerId);
+
+    const committedIndex = stepTimingMultiplier[step];
+
+    if (previewIndex !== committedIndex) {
+      await onMultiplierChange(row, step, previewIndex);
+    }
+
+    activeResize = null;
+  }
+
+  /** @param {PointerEvent} event */
+  function cancelMultiplierResize(event) {
+    if (!activeResize) return;
+
+    widthTween?.kill();
+    /** @type {HTMLElement} */ (event.currentTarget).releasePointerCapture(event.pointerId);
+    activeResize = null;
+  }
+
   /** @param {{ id: string }} item @param {number} index */
   function layoutForItem(item, index) {
-    const cellWidth = isShadowItem(item)
-      ? cellWidthForStepId(draggedStepId)
-      : cellWidthForStepId(item.id);
-
-    return {
-      cellWidth,
-      step: isShadowItem(item) ? -1 : stepIndexFromId(item.id),
+    return rowCellLayouts[index] ?? {
+      cellWidth: stepCellWidthPx(2),
+      step: -1,
       gapBefore: index > 0,
     };
   }
@@ -228,8 +354,8 @@
 </script>
 
 {#snippet stepCell(step, reorderEnabled)}
-  {@const cellWidth = cellWidthForStepId(stepIds[step])}
-  <div class="relative shrink-0" style={fixedFlexStyle(cellWidth)}>
+  {@const multiplierLabel = multiplierLabelForStep(step)}
+  <div class="relative h-full w-full min-w-0">
     <button
       type="button"
       data-remove-button
@@ -251,7 +377,7 @@
     </button>
 
     <div
-      class="flex min-w-0 flex-col overflow-hidden rounded-lg border bg-zinc-900 outline-none transition-[border-color,box-shadow] duration-200 {stepCellPlaybackClass(
+      class="relative flex min-w-0 flex-col overflow-hidden rounded-lg border bg-zinc-900 outline-none transition-[border-color,box-shadow] duration-200 {stepCellPlaybackClass(
         activeGates[step],
       )} focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500"
     >
@@ -302,22 +428,11 @@
             onValueChange={(midi) => onNoteChange(row, step, midi)}
           />
         </div>
-        <div class="flex min-w-0 flex-1 flex-col gap-2 px-2 py-1.5">
-          <DiscreteSlider
-            label="Multiplier"
-            fullWidth
-            options={timingMultiplierOptions}
-            value={stepTimingMultiplier[step]}
-            ariaLabel="Step timing multiplier"
-            onValueChange={(multiplierIndex) => onMultiplierChange(row, step, multiplierIndex)}
-          />
-          <DiscreteSlider
-            label="Duration"
-            fullWidth
-            options={durationFractionOptions}
+        <div class="relative flex min-w-0 flex-1 flex-col gap-2 px-2 py-1.5">
+          <DurationBar
             value={stepDurationFraction[step]}
             ariaLabel="Step duration fraction"
-            onValueChange={(fractionIndex) => onDurationChange(row, step, fractionIndex)}
+            onValueChange={(fraction) => onDurationChange(row, step, fraction)}
           />
           <ContinuousSlider
             label="Velocity"
@@ -328,8 +443,36 @@
             ariaLabel="Step velocity"
             onValueChange={(value) => onVelocityChange(row, step, value)}
           />
+          <span
+            class="pointer-events-none absolute right-6 bottom-1 font-sans text-2xl leading-none font-bold tabular-nums text-zinc-100"
+            aria-hidden="true"
+          >
+            {multiplierLabel}
+          </span>
         </div>
       </div>
+
+      <button
+        type="button"
+        data-multiplier-resize
+        aria-label="Resize step timing multiplier"
+        disabled={isDragging || removeBlocked}
+        class="absolute right-0 bottom-0 z-30 flex h-6 w-5 cursor-ew-resize items-center justify-center rounded-tr-lg border-0 bg-transparent text-zinc-400 outline-none hover:text-zinc-200 focus-visible:text-emerald-300 disabled:pointer-events-none disabled:opacity-50"
+        onpointerdown={(event) => beginMultiplierResize(event, step)}
+        onpointermove={updateMultiplierResize}
+        onpointerup={finishMultiplierResize}
+        onpointercancel={cancelMultiplierResize}
+      >
+        <svg viewBox="0 0 6 12" class="pointer-events-none h-3 w-1.5" aria-hidden="true">
+          <path
+            d="M1 1 V11 M5 1 V11"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
     </div>
   </div>
 {/snippet}
@@ -352,7 +495,7 @@
   {#if reorderDisabled}
     <div class="flex w-max shrink-0 items-stretch overflow-visible">
       {#each stepIds as stepId, step (stepId)}
-        {@const cellWidth = cellWidthForStepId(stepId)}
+        {@const cellWidth = cellWidthForStep(step)}
         <div
           class="relative shrink-0 overflow-visible"
           style={fixedFlexStyle(cellWidth)}
@@ -361,7 +504,7 @@
           {#if step > 0}
             {@render gapInsert(step)}
           {/if}
-          <div class="pointer-events-auto">
+          <div class="pointer-events-auto h-full">
             {@render stepCell(step, false)}
           </div>
         </div>
@@ -374,22 +517,23 @@
       onfinalize={handleFinalize}
       class="flex w-max shrink-0 items-stretch overflow-visible"
     >
-      {#each dndItems as item, index (item.id)}
+      {#each dndItems as item, index (`${item.id}:${layoutFingerprint}`)}
+        {@const layout = layoutForItem(item, index)}
         <div
           animate:flip={{ duration: flipDurationMs }}
           class="relative shrink-0 overflow-visible {isShadowItem(item) ? 'pointer-events-none' : ''}"
-          style={fixedFlexStyle(layoutForItem(item, index).cellWidth)}
-          style:margin-left={layoutForItem(item, index).gapBefore ? `${stepInsertZoneWidthPx}px` : undefined}
+          style={fixedFlexStyle(layout.cellWidth)}
+          style:margin-left={layout.gapBefore ? `${stepInsertZoneWidthPx}px` : undefined}
           aria-hidden={isShadowItem(item) ? true : undefined}
         >
-          {#if layoutForItem(item, index).gapBefore && !isShadowItem(item)}
-            {@render gapInsert(layoutForItem(item, index).step)}
+          {#if layout.gapBefore && !isShadowItem(item)}
+            {@render gapInsert(layout.step)}
           {/if}
           {#if isShadowItem(item)}
-            <div class="shrink-0" style={fixedFlexStyle(layoutForItem(item, index).cellWidth)}></div>
+            <div class="shrink-0" style={fixedFlexStyle(layout.cellWidth)}></div>
           {:else}
-            <div class="pointer-events-auto">
-              {@render stepCell(layoutForItem(item, index).step, true)}
+            <div class="pointer-events-auto h-full">
+              {@render stepCell(layout.step, true)}
             </div>
           {/if}
         </div>

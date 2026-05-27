@@ -45,13 +45,6 @@
     { index: 6, label: ".75" },
   ];
 
-  const durationFractionOptions = [
-    { index: 0, label: ".25" },
-    { index: 1, label: ".5" },
-    { index: 2, label: ".75" },
-    { index: 3, label: "1" },
-  ];
-
   const timingMultiplierOptions = [
     { index: 0, label: ".25" },
     { index: 1, label: ".5" },
@@ -193,11 +186,12 @@
       next[row] = [];
 
       for (let step = 0; step < stepCount; step += 1) {
-        const value = Number.parseInt(String(rowData?.[step] ?? defaults[row][step]), 10);
+        const raw = rowData?.[step] ?? defaults[row][step];
+        const parsed = Number.parseFloat(String(raw));
 
-        next[row][step] = Number.isNaN(value)
+        next[row][step] = Number.isNaN(parsed)
           ? defaults[row][step] ?? defaults[row][0]
-          : Math.min(3, Math.max(0, value));
+          : Math.min(1, Math.max(0, parsed));
       }
     }
 
@@ -336,8 +330,8 @@
     await pushStepTimingMultiplier(row, step);
   }
 
-  async function selectStepDurationFraction(row, step, fractionIndex) {
-    stepDurationFraction[row][step] = fractionIndex;
+  async function selectStepDurationFraction(row, step, fraction) {
+    stepDurationFraction[row][step] = Math.min(1, Math.max(0, fraction));
     stepDurationFraction = stepDurationFraction;
     await pushStepDurationFraction(row, step);
   }
@@ -379,7 +373,7 @@
     const defaultNote = defaults[row]?.[0] ?? 60;
 
     grid[row].splice(step, 0, defaultNote);
-    stepDurationFraction[row].splice(step, 0, defaultDurations[row]?.[0] ?? 3);
+    stepDurationFraction[row].splice(step, 0, defaultDurations[row]?.[0] ?? 1);
     stepTimingMultiplier[row].splice(step, 0, defaultMultipliers[row]?.[0] ?? 2);
     stepVelocity[row].splice(step, 0, defaultVelocities[row]?.[0] ?? 100);
     activeGates[row].splice(step, 0, false);
@@ -436,13 +430,18 @@
     playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
   }
 
-  onMount(() => {
+  function loadInitialStateFromJuce() {
     loadGridFromInitialisation();
     loadRowMutedFromInitialisation();
     loadRowTimingOffsetFromInitialisation();
     loadStepDurationFromInitialisation();
     loadStepTimingMultiplierFromInitialisation();
     loadStepVelocityFromInitialisation();
+  }
+
+  loadInitialStateFromJuce();
+
+  onMount(() => {
     playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
 
     return () => {
@@ -494,7 +493,6 @@
               stepVelocity={stepVelocity[row]}
               activeGates={activeGates[row]}
               {timingMultiplierOptions}
-              {durationFractionOptions}
               onReorder={reorderRowByIds}
               onMoveCommitted={commitRowMove}
               onRemoveStep={removeStep}
