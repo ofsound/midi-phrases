@@ -1,4 +1,5 @@
 <script>
+  import { onDestroy } from "svelte";
   import { flip } from "svelte/animate";
   import gsap from "gsap";
   import { dragHandle, dragHandleZone, TRIGGERS } from "svelte-dnd-action";
@@ -62,10 +63,24 @@
   let idsBeforeDrag = null;
   /** @type {string | null} */
   let draggedStepId = null;
-  /** @type {{ step: number, startX: number, startWidth: number, previewIndex: number, displayWidth: number } | null} */
-  let activeResize = null;
+  let resizingStep = -1;
+  let resizeStartX = 0;
+  let resizeStartWidth = 0;
+  let resizeDisplayWidth = 0;
   /** @type {gsap.core.Tween | null} */
   let widthTween = null;
+  /** @type {HTMLElement | null} */
+  let resizeHandleElement = null;
+  let resizePointerId = -1;
+  let resizePointerX = 0;
+  let resizeFrameId = 0;
+  let resizeEndHandled = false;
+  /** @type {Map<number, HTMLElement>} */
+  const cellShellElements = new Map();
+  /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
+  let resizeListenerEntries = [];
+  const resizeCapture = { capture: true };
+  const resizePassiveCapture = { capture: true, passive: true };
 
   $: reorderDisabled = stepIds.length <= 1;
 
@@ -109,8 +124,8 @@
 
   /** @param {number} step */
   function cellWidthForStep(step) {
-    if (activeResize?.step === step) {
-      return Math.round(activeResize.displayWidth);
+    if (resizingStep === step) {
+      return resizeDisplayWidth;
     }
 
     return stepCellWidthPx(stepTimingMultiplier[step]);
@@ -119,7 +134,9 @@
   /** @param {number} step */
   function multiplierLabelForStep(step) {
     const index =
-      activeResize?.step === step ? activeResize.previewIndex : stepTimingMultiplier[step];
+      resizingStep === step
+        ? multiplierIndexFromWidth(resizeDisplayWidth)
+        : stepTimingMultiplier[step];
 
     return multiplierLabelForIndex(index, timingMultiplierOptions);
   }
@@ -147,20 +164,22 @@
 
   $: layoutFingerprint = `${stepIds.length}:${stepTimingMultiplier.join(",")}`;
   let appliedLayoutFingerprint = "";
+  $: resizeLayoutTick = `${resizingStep}:${resizeDisplayWidth}`;
 
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
-  $: rowCellLayouts = dndItems.map((item, index) => {
-    const cellWidth = isShadowItem(item)
-      ? cellWidthForStepId(draggedStepId)
-      : cellWidthForStepId(item.id);
-    const step = isShadowItem(item) ? -1 : stepIndexFromId(item.id);
+  $: rowCellLayouts = (resizeLayoutTick,
+    dndItems.map((item, index) => {
+      const cellWidth = isShadowItem(item)
+        ? cellWidthForStepId(draggedStepId)
+        : cellWidthForStepId(item.id);
+      const step = isShadowItem(item) ? -1 : stepIndexFromId(item.id);
 
-    return {
-      cellWidth,
-      step,
-      gapBefore: index > 0,
-    };
-  });
+      return {
+        cellWidth,
+        step,
+        gapBefore: index > 0,
+      };
+    }));
 
   // Sync when steps are inserted/removed, parent order reverts, or cell widths change.
   $: if (!isDragging) {
@@ -245,97 +264,290 @@
   function handleRemoveClick(event, step) {
     event.stopPropagation();
 
-    if (removeBlocked || isDragging || activeResize || step < 0 || step >= stepIds.length) return;
+    if (removeBlocked || isDragging || resizingStep >= 0 || step < 0 || step >= stepIds.length) return;
 
     onRemoveStep(row, step);
   }
+
+  /** @param {HTMLElement} shell @param {number} widthPx */
+  function applyCellShellWidthPx(shell, widthPx) {
+    shell.style.flex = `0 0 ${widthPx}px`;
+    shell.style.width = `${widthPx}px`;
+    shell.style.minWidth = `${widthPx}px`;
+    shell.style.maxWidth = `${widthPx}px`;
+  }
+
+  /** @param {number} step */
+  function clearCellShellInlineWidth(step) {
+    const shell = cellShellElements.get(step);
+
+    if (!shell) return;
+
+    shell.style.removeProperty("flex");
+    shell.style.removeProperty("width");
+    shell.style.removeProperty("min-width");
+    shell.style.removeProperty("max-width");
+  }
+
+  /** @param {number} clientX */
+  function resizeWidthFromClientX(clientX) {
+    return Math.round(
+      Math.min(
+        maxMultiplierCellWidthPx(),
+        Math.max(
+          minMultiplierCellWidthPx(),
+          resizeStartWidth + (clientX - resizeStartX),
+        ),
+      ),
+    );
+  }
+
+  function syncActiveResizeVisuals() {
+    if (resizingStep < 0) return;
+
+    const shell = cellShellElements.get(resizingStep);
+
+    if (shell) {
+      applyCellShellWidthPx(shell, resizeDisplayWidth);
+    }
+
+    const label = shell?.querySelector("[data-multiplier-label]");
+
+    if (label) {
+      const previewIndex = multiplierIndexFromWidth(resizeDisplayWidth);
+      label.textContent = multiplierLabelForIndex(previewIndex, timingMultiplierOptions);
+    }
+  }
+
+  function resizeFrameLoop() {
+    if (resizingStep < 0) {
+      resizeFrameId = 0;
+      return;
+    }
+
+    resizeDisplayWidth = resizeWidthFromClientX(resizePointerX);
+    syncActiveResizeVisuals();
+    resizeFrameId = requestAnimationFrame(resizeFrameLoop);
+  }
+
+  function startResizeFrameLoop() {
+    if (resizeFrameId) return;
+
+    resizeFrameId = requestAnimationFrame(resizeFrameLoop);
+  }
+
+  function stopResizeFrameLoop() {
+    if (!resizeFrameId) return;
+
+    cancelAnimationFrame(resizeFrameId);
+    resizeFrameId = 0;
+  }
+
+  /** @param {string} eventName @param {EventListener} listener @param {AddEventListenerOptions | boolean} options */
+  function addResizeListener(eventName, listener, options) {
+    document.addEventListener(eventName, listener, options);
+    resizeListenerEntries.push([eventName, listener, options]);
+  }
+
+  function clearResizeListeners() {
+    for (const [eventName, listener, options] of resizeListenerEntries) {
+      document.removeEventListener(eventName, listener, options);
+    }
+
+    resizeListenerEntries = [];
+  }
+
+  /** @type {import('svelte/action').Action<HTMLElement, number>} */
+  function cellShellAction(node, step) {
+    if (step < 0) {
+      return {};
+    }
+
+    cellShellElements.set(step, node);
+
+    return {
+      update(nextStep) {
+        if (nextStep === step) return;
+
+        cellShellElements.delete(step);
+
+        if (nextStep < 0) {
+          step = nextStep;
+          return;
+        }
+
+        step = nextStep;
+        cellShellElements.set(step, node);
+      },
+      destroy() {
+        if (step >= 0) {
+          cellShellElements.delete(step);
+        }
+      },
+    };
+  }
+
+  /** @param {Event} event */
+  function trackResizeMove(event) {
+    if (resizingStep < 0) return;
+
+    if ("buttons" in event && event.buttons !== 1) return;
+
+    resizePointerX = /** @type {PointerEvent | MouseEvent} */ (event).clientX;
+  }
+
+  /** @param {Event} event */
+  function trackResizeEnd(event) {
+    if (resizingStep < 0) return;
+
+    finishMultiplierResize(/** @type {PointerEvent} */ (event));
+  }
+
+  /** @param {Event} event */
+  function trackResizeCancel(event) {
+    if (resizingStep < 0) return;
+
+    cancelMultiplierResize(/** @type {PointerEvent} */ (event));
+  }
+
+  function teardownActiveResize() {
+    widthTween?.kill();
+    stopResizeFrameLoop();
+    clearResizeListeners();
+    document.body.style.removeProperty("cursor");
+
+    if (resizeHandleElement && resizePointerId >= 0) {
+      try {
+        if (resizeHandleElement.hasPointerCapture(resizePointerId)) {
+          resizeHandleElement.releasePointerCapture(resizePointerId);
+        }
+      } catch {
+        // Pointer may already be released in the WebView.
+      }
+    }
+
+    resizeHandleElement = null;
+    resizePointerId = -1;
+  }
+
+  onDestroy(() => {
+    teardownActiveResize();
+    cellShellElements.clear();
+  });
 
   /** @param {PointerEvent} event @param {number} step */
   function beginMultiplierResize(event, step) {
     event.stopPropagation();
     event.preventDefault();
 
-    if (isDragging || removeBlocked) return;
+    if (isDragging || removeBlocked || resizingStep >= 0) return;
 
-    widthTween?.kill();
+    teardownActiveResize();
 
     const handle = /** @type {HTMLElement} */ (event.currentTarget);
-    handle.setPointerCapture(event.pointerId);
+    resizeHandleElement = handle;
+    resizePointerId = event.pointerId;
 
-    const previewIndex = stepTimingMultiplier[step];
-    const displayWidth = stepCellWidthPx(previewIndex);
+    if (handle.setPointerCapture) {
+      handle.setPointerCapture(event.pointerId);
+    }
 
-    activeResize = {
-      step,
-      startX: event.clientX,
-      startWidth: displayWidth,
-      previewIndex,
-      displayWidth,
-    };
-  }
+    const displayWidth = stepCellWidthPx(stepTimingMultiplier[step]);
 
-  /** @param {PointerEvent} event */
-  function updateMultiplierResize(event) {
-    if (!activeResize) return;
+    resizingStep = step;
+    resizeStartX = event.clientX;
+    resizeStartWidth = displayWidth;
+    resizeDisplayWidth = displayWidth;
+    resizePointerX = event.clientX;
+    resizeEndHandled = false;
 
-    const rawWidth = Math.min(
-      maxMultiplierCellWidthPx(),
-      Math.max(
-        minMultiplierCellWidthPx(),
-        activeResize.startWidth + (event.clientX - activeResize.startX),
-      ),
-    );
-    const nextIndex = multiplierIndexFromWidth(rawWidth);
+    syncActiveResizeVisuals();
+    document.body.style.cursor = "ew-resize";
 
-    if (nextIndex === activeResize.previewIndex) return;
+    addResizeListener("pointermove", trackResizeMove, resizePassiveCapture);
+    addResizeListener("mousemove", trackResizeMove, resizePassiveCapture);
+    addResizeListener("pointerup", trackResizeEnd, resizeCapture);
+    addResizeListener("mouseup", trackResizeEnd, resizeCapture);
+    addResizeListener("pointercancel", trackResizeCancel, resizeCapture);
 
-    const targetWidth = stepCellWidthPx(nextIndex);
-    activeResize.previewIndex = nextIndex;
-
-    widthTween?.kill();
-
-    const state = activeResize;
-    widthTween = gsap.to(state, {
-      displayWidth: targetWidth,
-      duration: 0.12,
-      ease: "power2.out",
-      onUpdate: () => {
-        state.displayWidth = Math.round(state.displayWidth);
-        activeResize = activeResize;
-      },
-    });
+    startResizeFrameLoop();
   }
 
   /** @param {PointerEvent} event */
   async function finishMultiplierResize(event) {
-    if (!activeResize) return;
+    if (resizeEndHandled || resizingStep < 0) return;
 
+    resizeEndHandled = true;
     widthTween?.kill();
 
-    const { step, previewIndex } = activeResize;
-    const targetWidth = stepCellWidthPx(previewIndex);
+    const step = resizingStep;
+    const shell = cellShellElements.get(step);
+    const snappedIndex = multiplierIndexFromWidth(resizeDisplayWidth);
+    const targetWidth = stepCellWidthPx(snappedIndex);
 
-    activeResize.displayWidth = targetWidth;
-    activeResize = activeResize;
+    resizingStep = -1;
+    stopResizeFrameLoop();
+    clearResizeListeners();
+    document.body.style.removeProperty("cursor");
 
-    /** @type {HTMLElement} */ (event.currentTarget).releasePointerCapture(event.pointerId);
+    if (resizeHandleElement && resizePointerId >= 0) {
+      try {
+        if (resizeHandleElement.hasPointerCapture(resizePointerId)) {
+          resizeHandleElement.releasePointerCapture(resizePointerId);
+        }
+      } catch {
+        // Pointer may already be released in the WebView.
+      }
+    }
+
+    resizeHandleElement = null;
+    resizePointerId = -1;
+
+    if (shell && resizeDisplayWidth !== targetWidth) {
+      const tweenState = { value: resizeDisplayWidth };
+      await new Promise((resolve) => {
+        widthTween = gsap.to(tweenState, {
+          value: targetWidth,
+          duration: 0.12,
+          ease: "power2.out",
+          onUpdate: () => {
+            const widthPx = Math.round(tweenState.value);
+            resizeDisplayWidth = widthPx;
+            applyCellShellWidthPx(shell, widthPx);
+
+            const label = shell.querySelector("[data-multiplier-label]");
+
+            if (label) {
+              label.textContent = multiplierLabelForIndex(
+                multiplierIndexFromWidth(widthPx),
+                timingMultiplierOptions,
+              );
+            }
+          },
+          onComplete: resolve,
+        });
+      });
+    }
+
+    clearCellShellInlineWidth(step);
 
     const committedIndex = stepTimingMultiplier[step];
 
-    if (previewIndex !== committedIndex) {
-      await onMultiplierChange(row, step, previewIndex);
+    if (snappedIndex !== committedIndex) {
+      await onMultiplierChange(row, step, snappedIndex);
     }
-
-    activeResize = null;
   }
 
   /** @param {PointerEvent} event */
   function cancelMultiplierResize(event) {
-    if (!activeResize) return;
+    if (resizeEndHandled || resizingStep < 0) return;
 
-    widthTween?.kill();
-    /** @type {HTMLElement} */ (event.currentTarget).releasePointerCapture(event.pointerId);
-    activeResize = null;
+    resizeEndHandled = true;
+    const step = resizingStep;
+
+    teardownActiveResize();
+    clearCellShellInlineWidth(step);
+    resizingStep = -1;
   }
 
   /** @param {{ id: string }} item @param {number} index */
@@ -427,23 +639,28 @@
           ariaLabel="Step duration fraction"
           onValueChange={(fraction) => onDurationChange(row, step, fraction)}
         />
-        <div class="relative mt-2 flex min-h-0 flex-1 flex-col justify-between">
-          <NoteDragInput
-            value={notes[step]}
-            ariaLabel="Step note"
-            onValueChange={(midi) => onNoteChange(row, step, midi)}
-          />
-          <VelocityDragInput
-            value={stepVelocity[step]}
-            ariaLabel="Step velocity"
-            onValueChange={(value) => onVelocityChange(row, step, value)}
-          />
-          <span
-            class="pointer-events-none absolute right-4 bottom-0 font-sans text-2xl leading-none font-bold tabular-nums text-zinc-100"
-            aria-hidden="true"
-          >
-            {multiplierLabel}
-          </span>
+        <div class="relative mt-2 flex min-h-0 flex-1 flex-col">
+          <div class="mb-6">
+            <NoteDragInput
+              value={notes[step]}
+              ariaLabel="Step note"
+              onValueChange={(midi) => onNoteChange(row, step, midi)}
+            />
+          </div>
+          <div class="mt-auto flex w-full items-end justify-between">
+            <VelocityDragInput
+              value={stepVelocity[step]}
+              ariaLabel="Step velocity"
+              onValueChange={(value) => onVelocityChange(row, step, value)}
+            />
+            <span
+              data-multiplier-label
+              class="pointer-events-none pr-2 font-sans text-2xl leading-none font-bold tabular-nums text-zinc-100"
+              aria-hidden="true"
+            >
+              {multiplierLabel}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -452,11 +669,9 @@
         data-multiplier-resize
         aria-label="Resize step timing multiplier"
         disabled={isDragging || removeBlocked}
-        class="absolute right-0 bottom-0 z-30 flex h-6 w-5 cursor-ew-resize items-center justify-center rounded-tr-lg border-0 bg-transparent text-zinc-400 outline-none hover:text-zinc-200 focus-visible:text-emerald-300 disabled:pointer-events-none disabled:opacity-50"
+        class="absolute right-0 bottom-0 z-30 flex h-6 w-5 cursor-ew-resize touch-none select-none items-center justify-center rounded-tr-lg border-0 bg-transparent text-zinc-400 outline-none hover:text-zinc-200 focus-visible:text-emerald-300 disabled:pointer-events-none disabled:opacity-50"
         onpointerdown={(event) => beginMultiplierResize(event, step)}
-        onpointermove={updateMultiplierResize}
-        onpointerup={finishMultiplierResize}
-        onpointercancel={cancelMultiplierResize}
+        onmousedown={(event) => beginMultiplierResize(event, step)}
       >
         <svg viewBox="0 0 6 12" class="pointer-events-none h-3 w-1.5" aria-hidden="true">
           <path
@@ -492,6 +707,7 @@
       {#each stepIds as stepId, step (stepId)}
         {@const cellWidth = cellWidthForStep(step)}
         <div
+          use:cellShellAction={step}
           class="relative shrink-0 overflow-visible"
           style={fixedFlexStyle(cellWidth)}
           style:margin-left={step > 0 ? `${stepInsertZoneWidthPx}px` : undefined}
@@ -515,7 +731,8 @@
       {#each dndItems as item, index (`${item.id}:${layoutFingerprint}`)}
         {@const layout = layoutForItem(item, index)}
         <div
-          animate:flip={{ duration: flipDurationMs }}
+          use:cellShellAction={layout.step}
+          animate:flip={resizingStep >= 0 ? undefined : { duration: flipDurationMs }}
           class="relative shrink-0 overflow-visible {isShadowItem(item) ? 'pointer-events-none' : ''}"
           style={fixedFlexStyle(layout.cellWidth)}
           style:margin-left={layout.gapBefore ? `${stepInsertZoneWidthPx}px` : undefined}
