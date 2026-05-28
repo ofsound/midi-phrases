@@ -38,7 +38,62 @@ export function rowCanonicalWidthPx(totalDuration) {
 }
 
 /**
+ * Integer pixel boundaries at cumulative musical durations (start + after each cell).
+ * End is pinned to canonicalWidth so shared durations align across rows with different step counts.
+ *
+ * @param {number[]} durations
+ * @param {number} totalDuration
+ * @param {number} canonicalWidth
+ */
+function musicalBoundariesPx(durations, totalDuration, canonicalWidth) {
+  const boundaries = [0];
+  let cumulative = 0;
+
+  for (const duration of durations) {
+    cumulative += duration;
+    boundaries.push((cumulative / totalDuration) * canonicalWidth);
+  }
+
+  boundaries[boundaries.length - 1] = canonicalWidth;
+
+  const rounded = [0];
+
+  for (let index = 1; index < boundaries.length - 1; index += 1) {
+    rounded.push(Math.round(boundaries[index]));
+  }
+
+  rounded.push(canonicalWidth);
+
+  for (let index = 1; index < rounded.length; index += 1) {
+    if (rounded[index] < rounded[index - 1]) {
+      rounded[index] = rounded[index - 1];
+    }
+  }
+
+  return rounded;
+}
+
+/**
+ * Cell widths from musical boundaries; each non-final cell yields gapPx to the insert zone after it.
+ *
+ * @param {number[]} boundaries
+ * @param {number} gapPx
+ */
+function rowCellWidthsFromBoundariesPx(boundaries, gapPx) {
+  const cellCount = boundaries.length - 1;
+  const widths = [];
+
+  for (let index = 0; index < cellCount; index += 1) {
+    const gapAfter = index < cellCount - 1 ? gapPx : 0;
+    widths.push(boundaries[index + 1] - boundaries[index] - gapAfter);
+  }
+
+  return widths;
+}
+
+/**
  * Per-cell display widths so Σ widths + (n−1)×gap equals the canonical span for Σ durations.
+ * Boundaries at cumulative musical durations align across rows; gaps are carved from trailing edges.
  * During resize, pass resizeStep + resizeDisplayWidth (compensated px) so siblings re-compensate live.
  *
  * @param {number[]} multiplierIndices
@@ -85,39 +140,62 @@ export function rowCellDisplayWidthsPx(multiplierIndices, options = {}) {
     return multiplierIndices.map((index) => stepCellWidthPx(index));
   }
 
-  const exactWidths = durations.map((duration) => (duration / totalDuration) * cellBudget);
-  let rounded = exactWidths.map((width) => Math.round(width));
-  const targetSum = Math.round(cellBudget);
-  let sum = rounded.reduce((total, width) => total + width, 0);
-  const diff = targetSum - sum;
+  const boundaries = musicalBoundariesPx(durations, totalDuration, canonicalWidth);
+  let rounded = rowCellWidthsFromBoundariesPx(boundaries, gapPx);
 
-  if (diff !== 0) {
-    rounded[rounded.length - 1] += diff;
+  for (let index = 0; index < rounded.length; index += 1) {
+    if (rounded[index] >= stepCellMinWidthPx) {
+      continue;
+    }
+
+    let deficit = stepCellMinWidthPx - rounded[index];
+    rounded[index] = stepCellMinWidthPx;
+
+    for (let donor = rounded.length - 1; donor > index && deficit > 0; donor -= 1) {
+      const headroom = rounded[donor] - stepCellMinWidthPx;
+
+      if (headroom <= 0) {
+        continue;
+      }
+
+      const take = Math.min(deficit, headroom);
+      rounded[donor] -= take;
+      deficit -= take;
+    }
+
+    for (let donor = index - 1; donor >= 0 && deficit > 0; donor -= 1) {
+      const headroom = rounded[donor] - stepCellMinWidthPx;
+
+      if (headroom <= 0) {
+        continue;
+      }
+
+      const take = Math.min(deficit, headroom);
+      rounded[donor] -= take;
+      deficit -= take;
+    }
   }
 
-  rounded = rounded.map((width) => Math.max(stepCellMinWidthPx, width));
-  sum = rounded.reduce((total, width) => total + width, 0);
-
+  let sum = rounded.reduce((total, width) => total + width, 0);
+  const targetSum = cellBudget;
   let overflow = sum - targetSum;
 
   while (overflow > 0) {
     let shrinkStep = -1;
-    let shrinkHeadroom = 0;
 
-    for (let step = 0; step < rounded.length; step += 1) {
-      const headroom = rounded[step] - stepCellMinWidthPx;
-
-      if (headroom > shrinkHeadroom) {
-        shrinkHeadroom = headroom;
+    for (let step = rounded.length - 1; step >= 0; step -= 1) {
+      if (rounded[step] - stepCellMinWidthPx > 0) {
         shrinkStep = step;
+        break;
       }
     }
 
-    if (shrinkStep < 0 || shrinkHeadroom <= 0) {
+    if (shrinkStep < 0) {
       break;
     }
 
-    const delta = Math.min(overflow, shrinkHeadroom);
+    const headroom = rounded[shrinkStep] - stepCellMinWidthPx;
+    const delta = Math.min(overflow, headroom);
     rounded[shrinkStep] -= delta;
     overflow -= delta;
   }
