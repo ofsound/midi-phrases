@@ -171,6 +171,12 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("phraseStepDurationFraction", phraseStepDurationFraction)
                        .withInitialisationData ("phraseStepTimingMultiplier", phraseStepTimingMultiplier)
                        .withInitialisationData ("phraseStepVelocity", phraseStepVelocity)
+                       .withInitialisationData ("loopBraceEnabled",
+                                                processor.isLoopBraceEnabled() ? 1 : 0)
+                       .withInitialisationData ("loopBraceStart",
+                                                processor.getLoopBraceStartQuarters())
+                       .withInitialisationData ("loopBraceEnd",
+                                                processor.getLoopBraceEndQuarters())
                        .withNativeFunction (
                            "setPhraseNote",
                            [&processor] (const juce::Array<juce::var>& args,
@@ -289,6 +295,39 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                            [&processor] (const juce::Array<juce::var>&,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
                                complete (processor.getPhraseStepPlaybackActivity());
+                           })
+                       .withNativeFunction (
+                           "setLoopBraceEnabled",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setLoopBraceEnabled (varToInt (args[0]) != 0);
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setLoopBraceStart",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setLoopBraceStartQuarters (varToInt (args[0]));
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setLoopBraceEnd",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setLoopBraceEndQuarters (varToInt (args[0]));
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "getLoopPlaybackBeat",
+                           [&processor] (const juce::Array<juce::var>&,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               complete (processor.getLoopPlaybackBeat());
                            })
                        .withUserScript (juce::String { R"(
                            document.documentElement.classList.add('juce-ready');

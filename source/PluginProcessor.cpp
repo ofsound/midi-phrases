@@ -9,7 +9,7 @@ namespace
 constexpr int defaultRowNotes[] = { 60, 64, 67, 72 };
 constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
 constexpr double stepTimingMultiplierValues[] = { 0.25, 0.5, 1.0, 2.0, 4.0 };
-constexpr int phraseStateVersion = 2;
+constexpr int phraseStateVersion = 3;
 constexpr double legacyStepDurationFractionValues[] = { 0.25, 0.5, 0.75, 1.0 };
 
 double clampStepDurationFraction (const double fraction)
@@ -27,6 +27,29 @@ double durationFractionFromStateProperty (const juce::var& value, const int stat
     }
 
     return clampStepDurationFraction (static_cast<double> (value));
+}
+
+double positiveMod (const double value, const double modulus)
+{
+    if (modulus <= 0.0)
+        return value;
+
+    auto remainder = std::fmod (value, modulus);
+
+    if (remainder < 0.0)
+        remainder += modulus;
+
+    return remainder;
+}
+
+int clampLoopBraceStart (const int startQuarters, const int endQuarters)
+{
+    return juce::jmax (0, juce::jmin (startQuarters, endQuarters - 1));
+}
+
+int clampLoopBraceEnd (const int endQuarters, const int startQuarters)
+{
+    return juce::jmax (startQuarters + 1, endQuarters);
 }
 } // namespace
 
@@ -478,6 +501,10 @@ juce::Array<juce::var> PluginProcessor::getPhraseStepPlaybackActivity() const
 
     const auto currentPpq = currentPlaybackPpq.load (std::memory_order_relaxed);
     const auto isPlaying = currentPpq >= 0.0;
+    const auto loopEnabled = loopBraceEnabled.load (std::memory_order_relaxed) != 0;
+    const auto loopStart = static_cast<double> (loopBraceStartQuarters.load (std::memory_order_relaxed));
+    const auto loopEnd = static_cast<double> (loopBraceEndQuarters.load (std::memory_order_relaxed));
+    const auto loopLength = loopEnd - loopStart;
 
     for (int row = 0; row < phraseRowCount; ++row)
     {
@@ -492,12 +519,17 @@ juce::Array<juce::var> PluginProcessor::getPhraseStepPlaybackActivity() const
 
             if (isPlaying)
             {
+                auto playbackPpq = currentPpq;
+
+                if (loopEnabled && loopLength > 0.0)
+                    playbackPpq = loopStart + positiveMod (playbackPpq - loopStart, loopLength);
+
                 const auto gateStart = rowSteps.gateStartPpq[static_cast<size_t> (step)];
                 const auto gateEnd = rowSteps.gateEndPpq[static_cast<size_t> (step)];
 
                 active = gateEnd > gateStart + 1.0e-9
-                         && currentPpq >= gateStart - 1.0e-9
-                         && currentPpq < gateEnd - 1.0e-9;
+                         && playbackPpq >= gateStart - 1.0e-9
+                         && playbackPpq < gateEnd - 1.0e-9;
             }
 
             steps.add (active);
@@ -507,6 +539,246 @@ juce::Array<juce::var> PluginProcessor::getPhraseStepPlaybackActivity() const
     }
 
     return rows;
+}
+
+void PluginProcessor::setLoopBraceEnabled (const bool enabled)
+{
+    loopBraceEnabled.store (enabled ? 1 : 0);
+}
+
+bool PluginProcessor::isLoopBraceEnabled() const
+{
+    return loopBraceEnabled.load() != 0;
+}
+
+void PluginProcessor::setLoopBraceStartQuarters (const int startQuarters)
+{
+    const auto end = loopBraceEndQuarters.load();
+    loopBraceStartQuarters.store (clampLoopBraceStart (startQuarters, end));
+}
+
+int PluginProcessor::getLoopBraceStartQuarters() const
+{
+    return loopBraceStartQuarters.load();
+}
+
+void PluginProcessor::setLoopBraceEndQuarters (const int endQuarters)
+{
+    const auto start = loopBraceStartQuarters.load();
+    loopBraceEndQuarters.store (clampLoopBraceEnd (endQuarters, start));
+}
+
+int PluginProcessor::getLoopBraceEndQuarters() const
+{
+    return loopBraceEndQuarters.load();
+}
+
+double PluginProcessor::getLoopPlaybackBeat() const
+{
+    const auto currentPpq = currentPlaybackPpq.load (std::memory_order_relaxed);
+
+    if (currentPpq < 0.0)
+        return -1.0;
+
+    if (loopBraceEnabled.load (std::memory_order_relaxed) == 0)
+        return -1.0;
+
+    const auto loopStart = static_cast<double> (loopBraceStartQuarters.load (std::memory_order_relaxed));
+    const auto loopEnd = static_cast<double> (loopBraceEndQuarters.load (std::memory_order_relaxed));
+    const auto loopLength = loopEnd - loopStart;
+
+    if (loopLength <= 0.0)
+        return -1.0;
+
+    return loopStart + positiveMod (currentPpq - loopStart, loopLength);
+}
+
+void PluginProcessor::processScheduledRange (const double schedulePpqStart,
+                                             const double schedulePpqEnd,
+                                             const double segmentTransportStartPpq,
+                                             const double bufferTransportStartPpq,
+                                             const int bufferSamples,
+                                             const double ppqPerSample,
+                                             juce::MidiBuffer& midiMessages,
+                                             const bool resetRowTriggersAtSegmentStart)
+{
+    constexpr auto epsilon = 1.0e-9;
+
+    if (resetRowTriggersAtSegmentStart)
+    {
+        resetLastEmittedTriggers();
+        resetPhraseStepGateEnds();
+
+        const auto segmentSampleOffset = juce::jlimit (
+            0,
+            bufferSamples - 1,
+            static_cast<int> (std::lround (
+                (segmentTransportStartPpq - bufferTransportStartPpq) / ppqPerSample)));
+
+        for (int row = 0; row < phraseRowCount; ++row)
+        {
+            auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
+
+            if (pending.note < 0)
+                continue;
+
+            midiMessages.addEvent (juce::MidiMessage::noteOff (1, pending.note), segmentSampleOffset);
+            pending.note = -1;
+            pending.samplesRemaining = 0;
+        }
+    }
+
+    for (int row = 0; row < phraseRowCount; ++row)
+    {
+        if (phraseRowMuted[static_cast<size_t> (row)].load (std::memory_order_relaxed) != 0)
+            continue;
+
+        const auto offset = rowTimingOffsetForIndex (
+            phraseRowTimingOffset[static_cast<size_t> (row)].load (std::memory_order_relaxed));
+
+        const auto stepCount = getPhraseRowStepCount (row);
+
+        if (stepCount <= 0)
+            continue;
+
+        auto& rowSteps = phraseRows[static_cast<size_t> (row)];
+        auto& scratch = processScratch[static_cast<size_t> (row)];
+
+        if (scratch.stepLengthQuarters.size() < static_cast<size_t> (stepCount)
+            || scratch.stepStartQuarters.size() < static_cast<size_t> (stepCount))
+            continue;
+
+        auto cycleLengthQuarters = 0.0;
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            scratch.stepStartQuarters[static_cast<size_t> (step)] = cycleLengthQuarters;
+            scratch.stepLengthQuarters[static_cast<size_t> (step)] = stepTimingMultiplierForIndex (
+                rowSteps.timingMultiplier[static_cast<size_t> (step)]);
+            cycleLengthQuarters += scratch.stepLengthQuarters[static_cast<size_t> (step)];
+        }
+
+        if (cycleLengthQuarters <= 0.0)
+            continue;
+
+        auto triggerCount = 0;
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            const auto stepStartInCycle = scratch.stepStartQuarters[static_cast<size_t> (step)];
+            const auto nMin = static_cast<int> (std::ceil (
+                (schedulePpqStart - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+            const auto nMax = static_cast<int> (std::floor (
+                (schedulePpqEnd - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+
+            for (int cycle = nMin; cycle <= nMax; ++cycle)
+            {
+                const auto triggerPpq = static_cast<double> (cycle) * cycleLengthQuarters
+                                        + stepStartInCycle + offset;
+
+                if (triggerPpq < schedulePpqStart - epsilon || triggerPpq >= schedulePpqEnd + epsilon)
+                    continue;
+
+                if (triggerCount >= static_cast<int> (scratch.triggers.size()))
+                    break;
+
+                scratch.triggers[static_cast<size_t> (triggerCount)] = { triggerPpq, step };
+                ++triggerCount;
+            }
+        }
+
+        if (triggerCount == 0)
+            continue;
+
+        std::sort (scratch.triggers.begin(),
+                   scratch.triggers.begin() + triggerCount,
+                   [] (const ProcessScratch::StepTrigger& a, const ProcessScratch::StepTrigger& b) {
+                       return a.ppq < b.ppq;
+                   });
+
+        auto& lastTrigger = lastEmittedTriggerPpq[static_cast<size_t> (row)];
+
+        if (resetRowTriggersAtSegmentStart)
+        {
+            lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
+        }
+        else if (schedulePpqStart < lastTrigger - cycleLengthQuarters - epsilon)
+        {
+            lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
+            resetPhraseStepGateEndsForRow (row);
+        }
+
+        for (int triggerIndex = 0; triggerIndex < triggerCount; ++triggerIndex)
+        {
+            const auto triggerPpq = scratch.triggers[static_cast<size_t> (triggerIndex)].ppq;
+
+            if (triggerPpq <= lastTrigger + epsilon)
+                continue;
+
+            lastTrigger = triggerPpq;
+
+            const auto slot = scratch.triggers[static_cast<size_t> (triggerIndex)].step;
+            const auto transportPpqAtTrigger =
+                segmentTransportStartPpq + (triggerPpq - schedulePpqStart);
+            const auto sampleOffset = juce::jlimit (
+                0,
+                bufferSamples - 1,
+                static_cast<int> (std::lround (
+                    (transportPpqAtTrigger - bufferTransportStartPpq) / ppqPerSample)));
+
+            auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
+
+            if (pending.note >= 0)
+            {
+                midiMessages.addEvent (juce::MidiMessage::noteOff (1, pending.note), sampleOffset);
+                pending.note = -1;
+                pending.samplesRemaining = 0;
+            }
+
+            const auto note = rowSteps.notes[static_cast<size_t> (slot)];
+            const auto velocity = rowSteps.velocity[static_cast<size_t> (slot)];
+
+            if (velocity <= 0)
+                continue;
+
+            const auto stepLength = scratch.stepLengthQuarters[static_cast<size_t> (slot)];
+            const auto durationFraction =
+                rowSteps.durationFraction[static_cast<size_t> (slot)];
+
+            if (durationFraction <= 0.0)
+                continue;
+
+            const auto gateQuarters = stepLength * durationFraction;
+            const auto gateEndPpq = juce::jmin (triggerPpq + gateQuarters, schedulePpqEnd);
+            const auto effectiveGateQuarters = gateEndPpq - triggerPpq;
+
+            if (effectiveGateQuarters <= epsilon)
+                continue;
+
+            const auto noteGateSamples = juce::jmax (
+                1,
+                static_cast<int> (std::lround (effectiveGateQuarters / ppqPerSample)));
+
+            midiMessages.addEvent (
+                juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (velocity)),
+                sampleOffset);
+
+            rowSteps.gateStartPpq[static_cast<size_t> (slot)] = triggerPpq;
+            rowSteps.gateEndPpq[static_cast<size_t> (slot)] = gateEndPpq;
+
+            const auto samplesUntilOff = sampleOffset + noteGateSamples;
+
+            if (samplesUntilOff < bufferSamples)
+            {
+                midiMessages.addEvent (juce::MidiMessage::noteOff (1, note), samplesUntilOff);
+            }
+            else
+            {
+                pending.note = note;
+                pending.samplesRemaining = samplesUntilOff - bufferSamples;
+            }
+        }
+    }
 }
 
 void PluginProcessor::releaseResources()
@@ -616,143 +888,49 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const auto ppqEnd = ppqStart + static_cast<double> (bufferSamples) * ppqPerSample;
     currentPlaybackPpq.store (ppqEnd, std::memory_order_relaxed);
 
-    for (int row = 0; row < phraseRowCount; ++row)
+    const auto loopEnabled = loopBraceEnabled.load (std::memory_order_relaxed) != 0;
+    const auto loopStart = static_cast<double> (loopBraceStartQuarters.load (std::memory_order_relaxed));
+    const auto loopEnd = static_cast<double> (loopBraceEndQuarters.load (std::memory_order_relaxed));
+    const auto loopLength = loopEnd - loopStart;
+
+    if (loopEnabled && loopLength > 0.0)
     {
-        if (phraseRowMuted[static_cast<size_t> (row)].load (std::memory_order_relaxed) != 0)
-            continue;
+        constexpr auto epsilon = 1.0e-9;
+        auto transportCursor = ppqStart;
+        auto isFirstSegment = true;
 
-        const auto offset = rowTimingOffsetForIndex (
-            phraseRowTimingOffset[static_cast<size_t> (row)].load (std::memory_order_relaxed));
-
-        const auto stepCount = getPhraseRowStepCount (row);
-
-        if (stepCount <= 0)
-            continue;
-
-        auto& rowSteps = phraseRows[static_cast<size_t> (row)];
-        auto& scratch = processScratch[static_cast<size_t> (row)];
-
-        if (scratch.stepLengthQuarters.size() < static_cast<size_t> (stepCount)
-            || scratch.stepStartQuarters.size() < static_cast<size_t> (stepCount))
-            continue;
-
-        auto cycleLengthQuarters = 0.0;
-
-        for (int step = 0; step < stepCount; ++step)
+        while (transportCursor < ppqEnd - epsilon)
         {
-            scratch.stepStartQuarters[static_cast<size_t> (step)] = cycleLengthQuarters;
-            scratch.stepLengthQuarters[static_cast<size_t> (step)] = stepTimingMultiplierForIndex (
-                rowSteps.timingMultiplier[static_cast<size_t> (step)]);
-            cycleLengthQuarters += scratch.stepLengthQuarters[static_cast<size_t> (step)];
+            const auto mappedStart = loopStart + positiveMod (transportCursor - loopStart, loopLength);
+            const auto remainingInLoop = loopEnd - mappedStart;
+            const auto segmentTransportEnd = juce::jmin (ppqEnd, transportCursor + remainingInLoop);
+            const auto mappedEnd = mappedStart + (segmentTransportEnd - transportCursor);
+            const auto wrappedToLoopStart = mappedStart <= loopStart + epsilon
+                                            && transportCursor > ppqStart + epsilon;
+
+            processScheduledRange (mappedStart,
+                                   mappedEnd,
+                                   transportCursor,
+                                   ppqStart,
+                                   bufferSamples,
+                                   ppqPerSample,
+                                   midiMessages,
+                                   wrappedToLoopStart && ! isFirstSegment);
+
+            transportCursor = segmentTransportEnd;
+            isFirstSegment = false;
         }
-
-        if (cycleLengthQuarters <= 0.0)
-            continue;
-
-        auto triggerCount = 0;
-
-        for (int step = 0; step < stepCount; ++step)
-        {
-            const auto stepStartInCycle = scratch.stepStartQuarters[static_cast<size_t> (step)];
-            const auto nMin = static_cast<int> (std::ceil (
-                (ppqStart - stepStartInCycle - offset - 1.0e-9) / cycleLengthQuarters));
-            const auto nMax = static_cast<int> (std::floor (
-                (ppqEnd - stepStartInCycle - offset - 1.0e-9) / cycleLengthQuarters));
-
-            for (int cycle = nMin; cycle <= nMax; ++cycle)
-            {
-                const auto triggerPpq = static_cast<double> (cycle) * cycleLengthQuarters
-                                        + stepStartInCycle + offset;
-
-                if (triggerPpq < ppqStart - 1.0e-9 || triggerPpq >= ppqEnd + 1.0e-9)
-                    continue;
-
-                if (triggerCount >= static_cast<int> (scratch.triggers.size()))
-                    break;
-
-                scratch.triggers[static_cast<size_t> (triggerCount)] = { triggerPpq, step };
-                ++triggerCount;
-            }
-        }
-
-        if (triggerCount == 0)
-            continue;
-
-        std::sort (scratch.triggers.begin(),
-                   scratch.triggers.begin() + triggerCount,
-                   [] (const ProcessScratch::StepTrigger& a, const ProcessScratch::StepTrigger& b) {
-                       return a.ppq < b.ppq;
-                   });
-
-        auto& lastTrigger = lastEmittedTriggerPpq[static_cast<size_t> (row)];
-
-        if (ppqStart < lastTrigger - cycleLengthQuarters - 1.0e-9)
-        {
-            lastTrigger = ppqStart - cycleLengthQuarters - 1.0;
-            resetPhraseStepGateEndsForRow (row);
-        }
-
-        for (int triggerIndex = 0; triggerIndex < triggerCount; ++triggerIndex)
-        {
-            const auto triggerPpq = scratch.triggers[static_cast<size_t> (triggerIndex)].ppq;
-
-            if (triggerPpq <= lastTrigger + 1.0e-9)
-                continue;
-
-            lastTrigger = triggerPpq;
-
-            const auto slot = scratch.triggers[static_cast<size_t> (triggerIndex)].step;
-            const auto sampleOffset = juce::jlimit (
-                0,
-                bufferSamples - 1,
-                static_cast<int> (std::lround ((triggerPpq - ppqStart) / ppqPerSample)));
-
-            auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
-
-            if (pending.note >= 0)
-            {
-                midiMessages.addEvent (juce::MidiMessage::noteOff (1, pending.note), sampleOffset);
-                pending.note = -1;
-                pending.samplesRemaining = 0;
-            }
-
-            const auto note = rowSteps.notes[static_cast<size_t> (slot)];
-            const auto velocity = rowSteps.velocity[static_cast<size_t> (slot)];
-
-            if (velocity <= 0)
-                continue;
-
-            const auto stepLength = scratch.stepLengthQuarters[static_cast<size_t> (slot)];
-            const auto durationFraction =
-                rowSteps.durationFraction[static_cast<size_t> (slot)];
-
-            if (durationFraction <= 0.0)
-                continue;
-
-            const auto gateQuarters = stepLength * durationFraction;
-            const auto noteGateSamples = juce::jmax (
-                1,
-                static_cast<int> (std::lround (gateQuarters / ppqPerSample)));
-
-            midiMessages.addEvent (
-                juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (velocity)),
-                sampleOffset);
-
-            rowSteps.gateStartPpq[static_cast<size_t> (slot)] = triggerPpq;
-            rowSteps.gateEndPpq[static_cast<size_t> (slot)] = triggerPpq + gateQuarters;
-
-            const auto samplesUntilOff = sampleOffset + noteGateSamples;
-
-            if (samplesUntilOff < bufferSamples)
-            {
-                midiMessages.addEvent (juce::MidiMessage::noteOff (1, note), samplesUntilOff);
-            }
-            else
-            {
-                pending.note = note;
-                pending.samplesRemaining = samplesUntilOff - bufferSamples;
-            }
-        }
+    }
+    else
+    {
+        processScheduledRange (ppqStart,
+                               ppqEnd,
+                               ppqStart,
+                               ppqStart,
+                               bufferSamples,
+                               ppqPerSample,
+                               midiMessages,
+                               false);
     }
 }
 
@@ -795,6 +973,10 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
         rowTree.setProperty ("timingOffset", getPhraseRowTimingOffset (row), nullptr);
         state.appendChild (rowTree, nullptr);
     }
+
+    state.setProperty ("loopBraceEnabled", isLoopBraceEnabled(), nullptr);
+    state.setProperty ("loopBraceStart", getLoopBraceStartQuarters(), nullptr);
+    state.setProperty ("loopBraceEnd", getLoopBraceEndQuarters(), nullptr);
 
     if (auto xml = state.createXml())
     {
@@ -874,6 +1056,12 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                                   static_cast<int> (rowTree.getProperty ("timingOffset",
                                                                          defaultRowTimingOffsetIndex)));
     }
+
+    setLoopBraceStartQuarters (static_cast<int> (state.getProperty ("loopBraceStart",
+                                                                     defaultLoopBraceStartQuarters)));
+    setLoopBraceEndQuarters (static_cast<int> (state.getProperty ("loopBraceEnd",
+                                                                  defaultLoopBraceEndQuarters)));
+    setLoopBraceEnabled (static_cast<bool> (state.getProperty ("loopBraceEnabled", false)));
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

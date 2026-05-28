@@ -82,6 +82,20 @@ public:
 
     juce::Array<juce::var> getPhraseStepPlaybackActivity() const;
 
+    static constexpr int defaultLoopBraceStartQuarters = 0;
+    static constexpr int defaultLoopBraceEndQuarters = 8;
+
+    void setLoopBraceEnabled (bool enabled);
+    bool isLoopBraceEnabled() const;
+
+    void setLoopBraceStartQuarters (int startQuarters);
+    int getLoopBraceStartQuarters() const;
+
+    void setLoopBraceEndQuarters (int endQuarters);
+    int getLoopBraceEndQuarters() const;
+
+    double getLoopPlaybackBeat() const;
+
 private:
     struct PhraseRowSteps
     {
@@ -119,6 +133,15 @@ private:
     void syncProcessScratch (int row);
     bool isValidStep (int row, int step) const;
 
+    void processScheduledRange (double schedulePpqStart,
+                                double schedulePpqEnd,
+                                double segmentTransportStartPpq,
+                                double bufferTransportStartPpq,
+                                int bufferSamples,
+                                double ppqPerSample,
+                                juce::MidiBuffer& midiMessages,
+                                bool resetRowTriggersAtSegmentStart);
+
     struct PendingNoteOff
     {
         int note = -1;
@@ -134,6 +157,9 @@ private:
     std::array<double, phraseRowCount> lastEmittedTriggerPpq {};
     std::array<ProcessScratch, phraseRowCount> processScratch {};
     std::atomic<double> currentPlaybackPpq { -1.0 };
+    std::atomic<int> loopBraceEnabled { 0 };
+    std::atomic<int> loopBraceStartQuarters { defaultLoopBraceStartQuarters };
+    std::atomic<int> loopBraceEndQuarters { defaultLoopBraceEndQuarters };
     double sampleRateHz = 44100.0;
     bool wasPlaying = false;
 

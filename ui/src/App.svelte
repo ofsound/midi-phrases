@@ -10,6 +10,7 @@
   import SpeakerIcon from "./SpeakerIcon.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
   import PhraseRow from "./PhraseRow.svelte";
+  import PianoRollPreview from "./PianoRollPreview.svelte";
   import { findSingleMove } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
 
@@ -54,6 +55,10 @@
   ];
 
   let nextStepId = defaultPhraseGrid().reduce((count, row) => count + row.length, 0);
+  let loopBraceEnabled = false;
+  let loopBraceStart = 0;
+  let loopBraceEnd = 8;
+  let loopPlaybackBeat = -1;
 
   function createStepId() {
     const id = `step-${nextStepId}`;
@@ -427,7 +432,87 @@
       }
     }
 
+    if (nativeFunctionAvailable("getLoopPlaybackBeat")) {
+      const getLoopPlaybackBeat = getNativeFunction("getLoopPlaybackBeat");
+
+      try {
+        const result = await getLoopPlaybackBeat();
+        const beat = Number.parseFloat(String(result));
+        loopPlaybackBeat = Number.isNaN(beat) ? -1 : beat;
+      } catch {
+        loopPlaybackBeat = -1;
+      }
+    } else {
+      loopPlaybackBeat = -1;
+    }
+
     playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
+  }
+
+  function loadLoopBraceFromInitialisation() {
+    const enabledInit = unwrapJuceInit("loopBraceEnabled");
+
+    if (enabledInit !== null) {
+      const raw = Array.isArray(enabledInit) ? enabledInit[0] : enabledInit;
+      loopBraceEnabled = Boolean(Number.parseInt(String(raw), 10));
+    }
+
+    const startInit = unwrapJuceInit("loopBraceStart");
+
+    if (startInit !== null) {
+      const raw = Array.isArray(startInit) ? startInit[0] : startInit;
+      const value = Number.parseInt(String(raw), 10);
+
+      if (!Number.isNaN(value)) loopBraceStart = Math.max(0, value);
+    }
+
+    const endInit = unwrapJuceInit("loopBraceEnd");
+
+    if (endInit !== null) {
+      const raw = Array.isArray(endInit) ? endInit[0] : endInit;
+      const value = Number.parseInt(String(raw), 10);
+
+      if (!Number.isNaN(value)) loopBraceEnd = Math.max(loopBraceStart + 1, value);
+    }
+  }
+
+  async function pushLoopBraceEnabled(enabled) {
+    if (!nativeFunctionAvailable("setLoopBraceEnabled")) return;
+
+    const setLoopBraceEnabled = getNativeFunction("setLoopBraceEnabled");
+    await setLoopBraceEnabled(enabled ? 1 : 0);
+  }
+
+  async function pushLoopBraceStart(start) {
+    if (!nativeFunctionAvailable("setLoopBraceStart")) return;
+
+    const setLoopBraceStart = getNativeFunction("setLoopBraceStart");
+    await setLoopBraceStart(start);
+  }
+
+  async function pushLoopBraceEnd(end) {
+    if (!nativeFunctionAvailable("setLoopBraceEnd")) return;
+
+    const setLoopBraceEnd = getNativeFunction("setLoopBraceEnd");
+    await setLoopBraceEnd(end);
+  }
+
+  /** @param {{ enabled?: boolean, start?: number, end?: number }} next */
+  async function updateLoopBrace(next) {
+    if (next.enabled !== undefined) {
+      loopBraceEnabled = next.enabled;
+      await pushLoopBraceEnabled(next.enabled);
+    }
+
+    if (next.start !== undefined) {
+      loopBraceStart = next.start;
+      await pushLoopBraceStart(next.start);
+    }
+
+    if (next.end !== undefined) {
+      loopBraceEnd = next.end;
+      await pushLoopBraceEnd(next.end);
+    }
   }
 
   function loadInitialStateFromJuce() {
@@ -437,6 +522,7 @@
     loadStepDurationFromInitialisation();
     loadStepTimingMultiplierFromInitialisation();
     loadStepVelocityFromInitialisation();
+    loadLoopBraceFromInitialisation();
   }
 
   loadInitialStateFromJuce();
@@ -461,7 +547,7 @@
 
   <section class="mt-4 flex flex-1 flex-col items-start justify-start">
     <div class="w-full">
-      <div class="flex flex-col gap-10">
+      <div class="flex flex-col gap-5">
         {#each grid as _row, row}
           <div class="flex items-center gap-2">
             <BipolarKnob
@@ -506,6 +592,20 @@
           </div>
         {/each}
       </div>
+
+      <PianoRollPreview
+        notes={grid}
+        {rowMuted}
+        {rowTimingOffset}
+        {stepDurationFraction}
+        {stepTimingMultiplier}
+        {stepVelocity}
+        loopEnabled={loopBraceEnabled}
+        loopStart={loopBraceStart}
+        loopEnd={loopBraceEnd}
+        {loopPlaybackBeat}
+        onLoopBraceChange={updateLoopBrace}
+      />
     </div>
   </section>
 </main>
