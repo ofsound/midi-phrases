@@ -97,7 +97,9 @@
       style:transform="rotate({indicatorAngleDeg}deg)"
       aria-hidden="true"
     >
-      <span class="absolute left-1/2 top-1 h-2 w-0.5 -translate-x-1/2 rounded-full bg-emerald-400"></span>
+      <span
+        class="absolute left-1/2 top-[2px] h-[3px] w-[3px] -translate-x-1/2 rounded-[1px] bg-emerald-400"
+      ></span>
     </div>
 
     <span

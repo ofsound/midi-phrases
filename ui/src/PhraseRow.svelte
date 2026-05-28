@@ -705,7 +705,7 @@
           ariaLabel="Step duration fraction"
           onValueChange={(fraction) => onDurationChange(row, step, fraction)}
         />
-        <div class="flex min-w-0 items-center pt-3 pb-1">
+        <div class="flex min-w-0 items-center pt-1 pb-1">
           <div class="flex min-w-0 items-baseline gap-1.5">
             <NoteDragInput
               value={notes[step]}

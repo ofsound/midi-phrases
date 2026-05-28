@@ -459,7 +459,7 @@
     <p class="shrink-0 pt-0.5 text-sm text-zinc-500">v{version}</p>
   </header>
 
-  <section class="mt-16 flex flex-1 flex-col items-start justify-center">
+  <section class="mt-4 flex flex-1 flex-col items-start justify-start">
     <div class="w-full">
       <div class="flex flex-col gap-10">
         {#each grid as _row, row}
