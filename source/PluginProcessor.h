@@ -96,6 +96,9 @@ public:
 
     double getLoopPlaybackBeat() const;
 
+    /** Beat used for UI playhead and step highlighting; -1 when not playing. */
+    double getPlaybackBeat() const;
+
 private:
     struct PhraseRowSteps
     {
@@ -132,6 +135,9 @@ private:
     void syncRowGateStorage (int row);
     void syncProcessScratch (int row);
     bool isValidStep (int row, int step) const;
+
+    double playbackBeatForUi() const;
+    bool isPhraseStepActiveAtPlaybackBeat (int row, int step, double playbackBeat) const;
 
     void processScheduledRange (double schedulePpqStart,
                                 double schedulePpqEnd,

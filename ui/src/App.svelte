@@ -58,7 +58,7 @@
   let loopBraceEnabled = false;
   let loopBraceStart = 0;
   let loopBraceEnd = 8;
-  let loopPlaybackBeat = -1;
+  let playbackBeat = -1;
 
   function createStepId() {
     const id = `step-${nextStepId}`;
@@ -432,18 +432,24 @@
       }
     }
 
-    if (nativeFunctionAvailable("getLoopPlaybackBeat")) {
-      const getLoopPlaybackBeat = getNativeFunction("getLoopPlaybackBeat");
+    const beatNativeName = nativeFunctionAvailable("getPlaybackBeat")
+      ? "getPlaybackBeat"
+      : nativeFunctionAvailable("getLoopPlaybackBeat")
+        ? "getLoopPlaybackBeat"
+        : null;
+
+    if (beatNativeName) {
+      const getPlaybackBeat = getNativeFunction(beatNativeName);
 
       try {
-        const result = await getLoopPlaybackBeat();
+        const result = await getPlaybackBeat();
         const beat = Number.parseFloat(String(result));
-        loopPlaybackBeat = Number.isNaN(beat) ? -1 : beat;
+        playbackBeat = Number.isNaN(beat) ? -1 : beat;
       } catch {
-        loopPlaybackBeat = -1;
+        playbackBeat = -1;
       }
     } else {
-      loopPlaybackBeat = -1;
+      playbackBeat = -1;
     }
 
     playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
@@ -603,7 +609,7 @@
         loopEnabled={loopBraceEnabled}
         loopStart={loopBraceStart}
         loopEnd={loopBraceEnd}
-        {loopPlaybackBeat}
+        {playbackBeat}
         onLoopBraceChange={updateLoopBrace}
       />
     </div>

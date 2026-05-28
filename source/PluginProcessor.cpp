@@ -495,43 +495,106 @@ void PluginProcessor::movePhraseStep (const int row, const int fromStep, const i
     resetPhraseStepGateEndsForRow (row);
 }
 
+double PluginProcessor::playbackBeatForUi() const
+{
+    const auto currentPpq = currentPlaybackPpq.load (std::memory_order_relaxed);
+
+    if (currentPpq < 0.0)
+        return -1.0;
+
+    if (loopBraceEnabled.load (std::memory_order_relaxed) != 0)
+    {
+        const auto loopStart = static_cast<double> (loopBraceStartQuarters.load (std::memory_order_relaxed));
+        const auto loopEnd = static_cast<double> (loopBraceEndQuarters.load (std::memory_order_relaxed));
+        const auto loopLength = loopEnd - loopStart;
+
+        if (loopLength > 0.0)
+            return loopStart + positiveMod (currentPpq - loopStart, loopLength);
+    }
+
+    return currentPpq;
+}
+
+bool PluginProcessor::isPhraseStepActiveAtPlaybackBeat (const int row,
+                                                      const int step,
+                                                      const double playbackBeat) const
+{
+    constexpr auto epsilon = 1.0e-9;
+
+    if (! isValidStep (row, step))
+        return false;
+
+    if (phraseRowMuted[static_cast<size_t> (row)].load (std::memory_order_relaxed) != 0)
+        return false;
+
+    const auto& rowSteps = phraseRows[static_cast<size_t> (row)];
+
+    if (rowSteps.velocity[static_cast<size_t> (step)] <= 0)
+        return false;
+
+    const auto durationFraction = rowSteps.durationFraction[static_cast<size_t> (step)];
+
+    if (durationFraction <= 0.0)
+        return false;
+
+    const auto stepCount = getPhraseRowStepCount (row);
+
+    if (stepCount <= 0)
+        return false;
+
+    const auto offset = rowTimingOffsetForIndex (
+        phraseRowTimingOffset[static_cast<size_t> (row)].load (std::memory_order_relaxed));
+
+    auto cycleLengthQuarters = 0.0;
+    auto stepStartInCycle = 0.0;
+    auto stepLengthQuarters = 0.0;
+
+    for (int index = 0; index < stepCount; ++index)
+    {
+        const auto length = stepTimingMultiplierForIndex (
+            rowSteps.timingMultiplier[static_cast<size_t> (index)]);
+
+        if (index == step)
+        {
+            stepStartInCycle = cycleLengthQuarters;
+            stepLengthQuarters = length;
+        }
+
+        cycleLengthQuarters += length;
+    }
+
+    if (cycleLengthQuarters <= 0.0 || stepLengthQuarters <= 0.0)
+        return false;
+
+    const auto relativeBeat = playbackBeat - stepStartInCycle - offset;
+
+    if (relativeBeat < -epsilon)
+        return false;
+
+    const auto cycleIndex = static_cast<int> (std::floor ((relativeBeat + epsilon) / cycleLengthQuarters));
+    const auto triggerPpq = static_cast<double> (cycleIndex) * cycleLengthQuarters + stepStartInCycle
+                            + offset;
+    const auto gateEndPpq = triggerPpq + stepLengthQuarters * durationFraction;
+
+    return playbackBeat >= triggerPpq - epsilon && playbackBeat < gateEndPpq - epsilon;
+}
+
 juce::Array<juce::var> PluginProcessor::getPhraseStepPlaybackActivity() const
 {
     juce::Array<juce::var> rows;
-
-    const auto currentPpq = currentPlaybackPpq.load (std::memory_order_relaxed);
-    const auto isPlaying = currentPpq >= 0.0;
-    const auto loopEnabled = loopBraceEnabled.load (std::memory_order_relaxed) != 0;
-    const auto loopStart = static_cast<double> (loopBraceStartQuarters.load (std::memory_order_relaxed));
-    const auto loopEnd = static_cast<double> (loopBraceEndQuarters.load (std::memory_order_relaxed));
-    const auto loopLength = loopEnd - loopStart;
+    const auto playbackBeat = playbackBeatForUi();
+    const auto isPlaying = playbackBeat >= 0.0;
 
     for (int row = 0; row < phraseRowCount; ++row)
     {
         juce::Array<juce::var> steps;
 
         const auto stepCount = getPhraseRowStepCount (row);
-        const auto& rowSteps = phraseRows[static_cast<size_t> (row)];
 
         for (int step = 0; step < stepCount; ++step)
         {
-            auto active = false;
-
-            if (isPlaying)
-            {
-                auto playbackPpq = currentPpq;
-
-                if (loopEnabled && loopLength > 0.0)
-                    playbackPpq = loopStart + positiveMod (playbackPpq - loopStart, loopLength);
-
-                const auto gateStart = rowSteps.gateStartPpq[static_cast<size_t> (step)];
-                const auto gateEnd = rowSteps.gateEndPpq[static_cast<size_t> (step)];
-
-                active = gateEnd > gateStart + 1.0e-9
-                         && playbackPpq >= gateStart - 1.0e-9
-                         && playbackPpq < gateEnd - 1.0e-9;
-            }
-
+            const auto active = isPlaying
+                                && isPhraseStepActiveAtPlaybackBeat (row, step, playbackBeat);
             steps.add (active);
         }
 
@@ -573,24 +636,14 @@ int PluginProcessor::getLoopBraceEndQuarters() const
     return loopBraceEndQuarters.load();
 }
 
+double PluginProcessor::getPlaybackBeat() const
+{
+    return playbackBeatForUi();
+}
+
 double PluginProcessor::getLoopPlaybackBeat() const
 {
-    const auto currentPpq = currentPlaybackPpq.load (std::memory_order_relaxed);
-
-    if (currentPpq < 0.0)
-        return -1.0;
-
-    if (loopBraceEnabled.load (std::memory_order_relaxed) == 0)
-        return -1.0;
-
-    const auto loopStart = static_cast<double> (loopBraceStartQuarters.load (std::memory_order_relaxed));
-    const auto loopEnd = static_cast<double> (loopBraceEndQuarters.load (std::memory_order_relaxed));
-    const auto loopLength = loopEnd - loopStart;
-
-    if (loopLength <= 0.0)
-        return -1.0;
-
-    return loopStart + positiveMod (currentPpq - loopStart, loopLength);
+    return getPlaybackBeat();
 }
 
 void PluginProcessor::processScheduledRange (const double schedulePpqStart,

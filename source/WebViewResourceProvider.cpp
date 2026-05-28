@@ -329,6 +329,12 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
                                complete (processor.getLoopPlaybackBeat());
                            })
+                       .withNativeFunction (
+                           "getPlaybackBeat",
+                           [&processor] (const juce::Array<juce::var>&,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               complete (processor.getPlaybackBeat());
+                           })
                        .withUserScript (juce::String { R"(
                            document.documentElement.classList.add('juce-ready');
                        )" });

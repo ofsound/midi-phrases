@@ -187,3 +187,13 @@ export function pitchRangeForSchedule(scheduled, paddingSemitones = 2) {
 export function isBlackKey(midi) {
   return [1, 3, 6, 8, 10].includes(midi % 12);
 }
+
+/**
+ * @param {ScheduledNote} note
+ * @param {number} beat
+ */
+export function isScheduledNoteActiveAtBeat(note, beat) {
+  if (beat < 0) return false;
+
+  return beat >= note.start - EPSILON && beat < note.end - EPSILON;
+}

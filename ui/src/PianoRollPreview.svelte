@@ -5,6 +5,7 @@
     buildPhraseSchedule,
     DEFAULT_PREVIEW_LENGTH_QUARTERS,
     isBlackKey,
+    isScheduledNoteActiveAtBeat,
     pitchRangeForSchedule,
   } from "./phraseSchedule.js";
 
@@ -18,7 +19,7 @@
   export let loopEnabled = false;
   export let loopStart = 0;
   export let loopEnd = 8;
-  export let loopPlaybackBeat = -1;
+  export let playbackBeat = -1;
   /** @type {(next: { enabled?: boolean, start?: number, end?: number }) => void | Promise<void>} */
   export let onLoopBraceChange = () => {};
 
@@ -61,8 +62,8 @@
   $: loopSpan = Math.max(1, displayEnd - displayStart);
   $: loopLeftPx = displayStart * pxPerQuarter;
   $: loopWidthPx = loopSpan * pxPerQuarter;
-  $: showLoopPlayhead = loopEnabled && loopPlaybackBeat >= 0;
-  $: loopPlayheadLeftPx = loopPlaybackBeat * pxPerQuarter;
+  $: showPlaybackPlayhead = playbackBeat >= 0;
+  $: playbackPlayheadLeftPx = playbackBeat * pxPerQuarter;
 
   /** @param {number} midi */
   function pitchTopPx(midi) {
@@ -74,15 +75,19 @@
     return Math.max(1, (end - start) * pxPerQuarter - 1);
   }
 
-  /** @param {number} row */
-  function noteClass(row) {
+  /** @param {number} row @param {boolean} active */
+  function noteClass(row, active) {
     const classes = [
-      "absolute rounded-[2px] border border-emerald-300/20",
-      "bg-emerald-400/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+      "absolute rounded-[2px] border transition-[box-shadow,border-color,filter] duration-150",
+      active
+        ? "border-emerald-200/90 bg-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.65)]"
+        : "border-emerald-300/20 bg-emerald-400/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
     ];
 
     if (row === 3) {
-      classes[1] = "bg-teal-500/70";
+      classes[1] = active
+        ? "bg-teal-300 shadow-[0_0_12px_rgba(45,212,191,0.55)]"
+        : "bg-teal-500/70";
     }
 
     return classes.join(" ");
@@ -316,10 +321,10 @@
           </div>
 
           <div class="relative" style:height="{rollHeightPx}px">
-            {#if showLoopPlayhead}
+            {#if showPlaybackPlayhead}
               <div
                 class="pointer-events-none absolute top-0 bottom-0 z-40 w-px bg-zinc-100/90 shadow-[0_0_6px_rgba(255,255,255,0.35)]"
-                style:left="{loopPlayheadLeftPx}px"
+                style:left="{playbackPlayheadLeftPx}px"
               ></div>
             {/if}
 
@@ -349,13 +354,14 @@
             {/each}
 
             {#each scheduled as note (`${note.row}-${note.start}-${note.midi}`)}
+              {@const noteActive = isScheduledNoteActiveAtBeat(note, playbackBeat)}
               <div
-                class={noteClass(note.row)}
+                class={noteClass(note.row, noteActive)}
                 style:left="{note.start * pxPerQuarter}px"
                 style:top="{pitchTopPx(note.midi) + 1}px"
                 style:width="{noteWidthPx(note.start, note.end)}px"
                 style:height="{rowHeightPx - 2}px"
-                style:opacity="{Math.max(0.2, note.velocity / 127)}"
+                style:opacity="{noteActive ? 1 : Math.max(0.2, note.velocity / 127)}"
                 title="{midiToNoteName(note.midi)} · vel {note.velocity}"
               ></div>
             {/each}
