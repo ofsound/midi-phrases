@@ -13,6 +13,7 @@
     minMultiplierCellWidthPx,
     multiplierIndexFromWidth,
     multiplierLabelForIndex,
+    rowCellDisplayWidthsPx,
     rowTimingOffsetShiftPx,
     stepCellBaseWidthPx,
     stepCellWidthPx,
@@ -162,13 +163,14 @@
     return stepIds.indexOf(stepId);
   }
 
+  $: rowDisplayWidths = rowCellDisplayWidthsPx(
+    stepTimingMultiplier,
+    resizingStep >= 0 ? { resizeStep: resizingStep, resizeDisplayWidth } : {},
+  );
+
   /** @param {number} step */
   function cellWidthForStep(step) {
-    if (resizingStep === step) {
-      return resizeDisplayWidth;
-    }
-
-    return stepCellWidthPx(stepTimingMultiplier[step]);
+    return rowDisplayWidths[step] ?? stepCellWidthPx(stepTimingMultiplier[step] ?? 2);
   }
 
   /** @param {number} step */
@@ -179,17 +181,6 @@
         : stepTimingMultiplier[step];
 
     return multiplierLabelForIndex(index, timingMultiplierOptions);
-  }
-
-  /** @param {string | null} stepId */
-  function cellWidthForStepId(stepId) {
-    if (!stepId) return stepCellWidthPx(2);
-
-    const step = stepIndexFromId(stepId);
-
-    if (step < 0) return stepCellWidthPx(2);
-
-    return cellWidthForStep(step);
   }
 
   /** @param {number} widthPx */
@@ -204,22 +195,19 @@
 
   $: layoutFingerprint = `${stepCellBaseWidthPx}:${stepIds.length}:${stepTimingMultiplier.join(",")}`;
   let appliedLayoutFingerprint = "";
-  $: resizeLayoutTick = `${resizingStep}:${resizeDisplayWidth}`;
 
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
-  $: rowCellLayouts = (resizeLayoutTick,
-    dndItems.map((item, index) => {
-      const cellWidth = isShadowItem(item)
-        ? cellWidthForStepId(draggedStepId)
-        : cellWidthForStepId(item.id);
-      const step = isShadowItem(item) ? -1 : stepIndexFromId(item.id);
+  $: rowCellLayouts = dndItems.map((item, index) => {
+    const step = isShadowItem(item) ? stepIndexFromId(draggedStepId) : stepIndexFromId(item.id);
+    const cellWidth =
+      step >= 0 ? rowDisplayWidths[step] : stepCellWidthPx(2);
 
-      return {
-        cellWidth,
-        step,
-        gapBefore: index > 0,
-      };
-    }));
+    return {
+      cellWidth,
+      step: isShadowItem(item) ? -1 : step,
+      gapBefore: index > 0,
+    };
+  });
 
   // Sync when steps are inserted/removed, parent order reverts, or cell widths change.
   $: if (!isDragging) {
@@ -311,12 +299,18 @@
   }
 
   function resyncAllCellShellWidths() {
-    if (resizingStep >= 0) return;
+    const widths =
+      resizingStep >= 0
+        ? rowCellDisplayWidthsPx(stepTimingMultiplier, {
+            resizeStep: resizingStep,
+            resizeDisplayWidth,
+          })
+        : rowDisplayWidths;
 
     cellShellElements.forEach((shell, step) => {
-      if (step < 0 || step >= stepTimingMultiplier.length) return;
+      if (step < 0 || step >= widths.length) return;
 
-      applyCellShellWidthPx(shell, stepCellWidthPx(stepTimingMultiplier[step]));
+      applyCellShellWidthPx(shell, widths[step]);
     });
   }
 
@@ -332,9 +326,9 @@
   function resyncCellShellWidth(step) {
     const shell = cellShellElements.get(step);
 
-    if (!shell || step < 0 || step >= stepTimingMultiplier.length) return;
+    if (!shell || step < 0 || step >= rowDisplayWidths.length) return;
 
-    applyCellShellWidthPx(shell, stepCellWidthPx(stepTimingMultiplier[step]));
+    applyCellShellWidthPx(shell, rowDisplayWidths[step]);
   }
 
   /** @param {number} clientX */
@@ -353,12 +347,18 @@
   function syncActiveResizeVisuals() {
     if (resizingStep < 0) return;
 
+    const widths = rowCellDisplayWidthsPx(stepTimingMultiplier, {
+      resizeStep: resizingStep,
+      resizeDisplayWidth,
+    });
+
+    cellShellElements.forEach((shell, step) => {
+      if (step < 0 || step >= widths.length) return;
+
+      applyCellShellWidthPx(shell, widths[step]);
+    });
+
     const shell = cellShellElements.get(resizingStep);
-
-    if (shell) {
-      applyCellShellWidthPx(shell, resizeDisplayWidth);
-    }
-
     const label = shell?.querySelector("[data-multiplier-label]");
 
     if (label) {
@@ -534,7 +534,9 @@
     const step = resizingStep;
     const shell = cellShellElements.get(step);
     const snappedIndex = multiplierIndexFromWidth(resizeDisplayWidth);
-    const targetWidth = stepCellWidthPx(snappedIndex);
+    const previewMultipliers = stepTimingMultiplier.slice();
+    previewMultipliers[step] = snappedIndex;
+    const targetWidth = rowCellDisplayWidthsPx(previewMultipliers)[step];
 
     resizingStep = -1;
     stopResizeFrameLoop();
@@ -563,7 +565,6 @@
           ease: "power2.out",
           onUpdate: () => {
             const widthPx = Math.round(tweenState.value);
-            resizeDisplayWidth = widthPx;
             applyCellShellWidthPx(shell, widthPx);
 
             const label = shell.querySelector("[data-multiplier-label]");
@@ -580,9 +581,12 @@
       });
     }
 
-    if (shell) {
-      applyCellShellWidthPx(shell, targetWidth);
-    }
+    const committedWidths = rowCellDisplayWidthsPx(previewMultipliers);
+    cellShellElements.forEach((shell, shellStep) => {
+      if (shellStep < 0 || shellStep >= committedWidths.length) return;
+
+      applyCellShellWidthPx(shell, committedWidths[shellStep]);
+    });
 
     const committedIndex = stepTimingMultiplier[step];
 
