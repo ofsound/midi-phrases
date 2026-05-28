@@ -19,7 +19,8 @@ double clampStepDurationFraction (const double fraction)
 
 double durationFractionFromStateProperty (const juce::var& value, const int stateVersion)
 {
-    if (stateVersion < phraseStateVersion)
+    // Version 1 stored duration as a discrete index; version 2+ stores 0–1 fractions.
+    if (stateVersion < 2)
     {
         const auto legacyIndex = juce::jlimit (0, 3, static_cast<int> (value));
 
@@ -802,15 +803,32 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                 continue;
 
             const auto gateQuarters = stepLength * durationFraction;
-            const auto gateEndPpq = juce::jmin (triggerPpq + gateQuarters, schedulePpqEnd);
+
+            if (gateQuarters <= epsilon)
+                continue;
+
+            const auto scheduleSpanQuarters = schedulePpqEnd - schedulePpqStart;
+            const auto bufferSpanQuarters = static_cast<double> (bufferSamples) * ppqPerSample;
+            const auto scheduleEndsBeforeBuffer =
+                scheduleSpanQuarters < bufferSpanQuarters - epsilon;
+
+            const auto gateEndPpq = scheduleEndsBeforeBuffer
+                                        ? juce::jmin (triggerPpq + gateQuarters, schedulePpqEnd)
+                                        : triggerPpq + gateQuarters;
             const auto effectiveGateQuarters = gateEndPpq - triggerPpq;
 
             if (effectiveGateQuarters <= epsilon)
                 continue;
 
-            const auto noteGateSamples = juce::jmax (
-                1,
-                static_cast<int> (std::lround (effectiveGateQuarters / ppqPerSample)));
+            const auto noteGateSamples = scheduleEndsBeforeBuffer
+                                             ? juce::jmax (
+                                                   1,
+                                                   static_cast<int> (std::lround (
+                                                       effectiveGateQuarters / ppqPerSample)))
+                                             : juce::jmax (
+                                                   1,
+                                                   static_cast<int> (std::lround (
+                                                       gateQuarters / ppqPerSample)));
 
             midiMessages.addEvent (
                 juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (velocity)),

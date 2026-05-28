@@ -3,6 +3,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
+#include <cmath>
 
 TEST_CASE ("one is equal to one", "[dummy]")
 {
@@ -88,6 +89,135 @@ TEST_CASE ("Plugin instance", "[instance]")
 
         testPlugin.setPhraseStepDurationFraction (0, 0, 0.33);
         CHECK (testPlugin.getPhraseStepDurationFraction (0, 0) == Catch::Approx (0.33));
+    }
+
+    SECTION ("step duration state version 2 loads continuous fractions")
+    {
+        juce::ValueTree state ("MidiPhrases");
+        state.setProperty ("version", 2, nullptr);
+
+        juce::ValueTree rowTree ("Row");
+        rowTree.setProperty ("index", 0, nullptr);
+        rowTree.setProperty ("stepCount", PluginProcessor::defaultPhraseStepsPerRow, nullptr);
+        rowTree.setProperty ("duration0", 0.75, nullptr);
+        rowTree.setProperty ("duration1", 1.0, nullptr);
+        rowTree.setProperty ("duration2", 0.33, nullptr);
+        rowTree.setProperty ("duration3", 0.5, nullptr);
+        state.appendChild (rowTree, nullptr);
+
+        juce::MemoryBlock destData;
+
+        if (auto xml = state.createXml())
+        {
+            juce::MemoryOutputStream stream;
+            xml->writeTo (stream);
+            destData.replaceAll (stream.getData(), stream.getDataSize());
+        }
+
+        PluginProcessor reloaded;
+        reloaded.setStateInformation (destData.getData(), static_cast<int> (destData.getSize()));
+
+        CHECK (reloaded.getPhraseStepDurationFraction (0, 0) == Catch::Approx (0.75));
+        CHECK (reloaded.getPhraseStepDurationFraction (0, 1) == Catch::Approx (1.0));
+        CHECK (reloaded.getPhraseStepDurationFraction (0, 2) == Catch::Approx (0.33));
+        CHECK (reloaded.getPhraseStepDurationFraction (0, 3) == Catch::Approx (0.5));
+    }
+
+    SECTION ("note gate spans audio blocks")
+    {
+        testPlugin.prepareToPlay (44100.0, 512);
+
+        for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
+        {
+            for (int step = 0; step < testPlugin.getPhraseRowStepCount (row); ++step)
+            {
+                if (row > 0)
+                    testPlugin.setPhraseStepVelocity (row, step, 0);
+
+                testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+                testPlugin.setPhraseStepTimingMultiplier (row, step, 2);
+            }
+        }
+
+        juce::AudioBuffer<float> buffer (2, 512);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (120.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+
+        testPlugin.processBlock (buffer, midi);
+
+        int noteOnSample = -1;
+        int noteOffSample = -1;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+                noteOnSample = metadata.samplePosition;
+
+            if (message.isNoteOff())
+                noteOffSample = metadata.samplePosition;
+        }
+
+        CHECK (noteOnSample == 0);
+        CHECK (noteOffSample < 0);
+
+        midi.clear();
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOff())
+                noteOffSample = metadata.samplePosition;
+        }
+
+        CHECK (noteOffSample < 0);
+
+        const auto ppqPerSample = (120.0 / 60.0) / 44100.0;
+        const auto expectedGateSamples =
+            static_cast<int> (std::lround (1.0 / ppqPerSample));
+        int blocksProcessed = 1;
+
+        while (noteOffSample < 0 && blocksProcessed < 64)
+        {
+            const auto ppq = playHead.info.getPpqPosition().orFallback (0.0)
+                             + static_cast<double> (512) * (120.0 / 60.0) / 44100.0;
+            playHead.info.setPpqPosition (ppq);
+            midi.clear();
+            testPlugin.processBlock (buffer, midi);
+            ++blocksProcessed;
+
+            for (const auto metadata : midi)
+            {
+                const auto message = metadata.getMessage();
+
+                if (message.isNoteOff())
+                    noteOffSample = metadata.samplePosition;
+            }
+        }
+
+        CHECK (noteOffSample >= 0);
+        CHECK (blocksProcessed > 1);
+        CHECK (noteOffSample + blocksProcessed * 512
+               == Catch::Approx (expectedGateSamples).margin (2));
+
+        testPlugin.setPlayHead (nullptr);
     }
 
     SECTION ("step velocity")
