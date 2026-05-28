@@ -14,6 +14,7 @@
     multiplierIndexFromWidth,
     multiplierLabelForIndex,
     rowTimingOffsetShiftPx,
+    stepCellBaseWidthPx,
     stepCellWidthPx,
     stepInsertZoneWidthPx,
   } from "./stepCellLayout.js";
@@ -55,6 +56,7 @@
 
   const flipDurationMs = 200;
   const removeBlockMs = 500;
+  const draggedElementId = "dnd-action-dragged-el";
 
   /** @type {{ id: string }[]} */
   let dndItems = stepIds.map((id) => ({ id }));
@@ -78,6 +80,7 @@
   let resizePointerX = 0;
   let resizeFrameId = 0;
   let resizeEndHandled = false;
+  let dragYLockFrameId = 0;
   /** @type {Map<number, HTMLElement>} */
   const cellShellElements = new Map();
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
@@ -93,6 +96,7 @@
     type: `phrase-row-${row}`,
     dropFromOthersDisabled: true,
     morphDisabled: true,
+    dropTargetStyle: { outline: "none" },
     transformDraggedElement,
   };
 
@@ -109,14 +113,47 @@
     }, removeBlockMs);
   }
 
+  function lockDraggedElementToRowY() {
+    dragYLockFrameId = 0;
+
+    if (!isDragging) return;
+
+    const draggedEl = document.getElementById(draggedElementId);
+
+    if (draggedEl) {
+      const transform = draggedEl.style.transform;
+      const match = transform.match(/^translate3d\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\)$/);
+
+      if (match && match[2] !== "0px") {
+        draggedEl.style.transform = `translate3d(${match[1]}, 0px, ${match[3]})`;
+      }
+    }
+
+    dragYLockFrameId = requestAnimationFrame(lockDraggedElementToRowY);
+  }
+
+  function startDragYLock() {
+    stopDragYLock();
+    lockDraggedElementToRowY();
+  }
+
+  function stopDragYLock() {
+    if (!dragYLockFrameId) return;
+
+    cancelAnimationFrame(dragYLockFrameId);
+    dragYLockFrameId = 0;
+  }
+
   function beginDragSession() {
     isDragging = true;
     blockRemoveTemporarily();
+    startDragYLock();
   }
 
   function endDragSession() {
     isDragging = false;
     draggedStepId = null;
+    stopDragYLock();
     blockRemoveTemporarily();
   }
 
@@ -165,7 +202,7 @@
     return `left: -${stepInsertZoneWidthPx}px; width: ${stepInsertZoneWidthPx}px;`;
   }
 
-  $: layoutFingerprint = `${stepIds.length}:${stepTimingMultiplier.join(",")}`;
+  $: layoutFingerprint = `${stepCellBaseWidthPx}:${stepIds.length}:${stepTimingMultiplier.join(",")}`;
   let appliedLayoutFingerprint = "";
   $: resizeLayoutTick = `${resizingStep}:${resizeDisplayWidth}`;
 
@@ -195,6 +232,7 @@
     if (idsOutOfSync || layoutOutOfSync) {
       dndItems = stepIds.map((id) => ({ id }));
       appliedLayoutFingerprint = layoutFingerprint;
+      resyncAllCellShellWidths();
     }
   }
 
@@ -272,6 +310,16 @@
     onRemoveStep(row, step);
   }
 
+  function resyncAllCellShellWidths() {
+    if (resizingStep >= 0) return;
+
+    cellShellElements.forEach((shell, step) => {
+      if (step < 0 || step >= stepTimingMultiplier.length) return;
+
+      applyCellShellWidthPx(shell, stepCellWidthPx(stepTimingMultiplier[step]));
+    });
+  }
+
   /** @param {HTMLElement} shell @param {number} widthPx */
   function applyCellShellWidthPx(shell, widthPx) {
     shell.style.flex = `0 0 ${widthPx}px`;
@@ -281,15 +329,12 @@
   }
 
   /** @param {number} step */
-  function clearCellShellInlineWidth(step) {
+  function resyncCellShellWidth(step) {
     const shell = cellShellElements.get(step);
 
-    if (!shell) return;
+    if (!shell || step < 0 || step >= stepTimingMultiplier.length) return;
 
-    shell.style.removeProperty("flex");
-    shell.style.removeProperty("width");
-    shell.style.removeProperty("min-width");
-    shell.style.removeProperty("max-width");
+    applyCellShellWidthPx(shell, stepCellWidthPx(stepTimingMultiplier[step]));
   }
 
   /** @param {number} clientX */
@@ -367,6 +412,7 @@
     }
 
     cellShellElements.set(step, node);
+    resyncCellShellWidth(step);
 
     return {
       update(nextStep) {
@@ -381,6 +427,7 @@
 
         step = nextStep;
         cellShellElements.set(step, node);
+        resyncCellShellWidth(step);
       },
       destroy() {
         if (step >= 0) {
@@ -434,6 +481,7 @@
   }
 
   onDestroy(() => {
+    stopDragYLock();
     teardownActiveResize();
     cellShellElements.clear();
   });
@@ -532,7 +580,9 @@
       });
     }
 
-    clearCellShellInlineWidth(step);
+    if (shell) {
+      applyCellShellWidthPx(shell, targetWidth);
+    }
 
     const committedIndex = stepTimingMultiplier[step];
 
@@ -549,7 +599,7 @@
     const step = resizingStep;
 
     teardownActiveResize();
-    clearCellShellInlineWidth(step);
+    resyncCellShellWidth(step);
     resizingStep = -1;
   }
 
@@ -563,130 +613,113 @@
   }
 
   const stepCellPlaybackClass = (active) =>
-    active
-      ? "border-emerald-300 ring-2 ring-emerald-400/90"
-      : "border-zinc-700";
+    active ? "border-emerald-400" : "border-zinc-700";
+
+  const stepCellPlaybackGlowClass = (active) =>
+    active ? "shadow-[0_0_14px_rgba(52,211,153,0.55)]" : "";
 </script>
+
+{#snippet stepHeaderRemoveButton(step)}
+  <button
+    type="button"
+    data-remove-button
+    aria-label="Remove step"
+    disabled={removeBlocked}
+    class="z-10 flex h-4 w-4 shrink-0 items-center justify-start p-0 text-zinc-400 transition-colors outline-none hover:text-zinc-200 focus-visible:text-emerald-300 disabled:pointer-events-none disabled:opacity-50"
+    onpointerdown={(event) => event.stopPropagation()}
+    onmousedown={(event) => event.stopPropagation()}
+    onclick={(event) => handleRemoveClick(event, step)}
+  >
+    <svg viewBox="0 0 10 10" class="pointer-events-none h-2 w-2" aria-hidden="true">
+      <path
+        d="M2 2 L8 8 M8 2 L2 8"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.75"
+        stroke-linecap="round"
+      />
+    </svg>
+  </button>
+{/snippet}
 
 {#snippet stepCell(step, reorderEnabled)}
   {@const multiplierLabel = multiplierLabelForStep(step)}
-  <div class="relative h-full w-full min-w-0">
-    <button
-      type="button"
-      data-remove-button
-      aria-label="Remove step"
-      disabled={removeBlocked}
-      class="absolute top-0 left-0 z-40 flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/90 bg-zinc-700 text-white shadow-md transition-colors outline-none hover:bg-zinc-600 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 disabled:pointer-events-none disabled:opacity-50"
-      onmousedown={(event) => event.stopPropagation()}
-      onclick={(event) => handleRemoveClick(event, step)}
-    >
-      <svg viewBox="0 0 10 10" class="pointer-events-none h-2 w-2" aria-hidden="true">
-        <path
-          d="M2 2 L8 8 M8 2 L2 8"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.75"
-          stroke-linecap="round"
-        />
-      </svg>
-    </button>
-
+  <div
+    class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[box-shadow] duration-200 {stepCellPlaybackGlowClass(
+      activeGates[step],
+    )}"
+  >
     <div
-      class="relative flex min-w-0 flex-col overflow-hidden rounded-lg border bg-zinc-900 outline-none transition-[border-color,box-shadow] duration-200 {stepCellPlaybackClass(
+      class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 bg-zinc-900 outline-none transition-[border-color] duration-200 {stepCellPlaybackClass(
         activeGates[step],
-      )} focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500"
+      )} focus-within:has-[:focus-visible]:border-emerald-500"
     >
       {#if reorderEnabled}
         <div
           use:dragHandle
           aria-label="Drag to reorder step"
-          class="flex h-5 w-full shrink-0 cursor-grab items-center border-b border-zinc-800 bg-zinc-800/60 pl-3 active:cursor-grabbing"
+          class="flex h-5 w-full shrink-0 cursor-grab items-center justify-start gap-1 border-b border-zinc-800 bg-zinc-800/60 px-1 active:cursor-grabbing"
         >
-          <div class="ml-auto flex h-full items-center px-2">
-            <svg viewBox="0 0 12 6" class="h-2 w-3 text-zinc-400" aria-hidden="true">
-              <path
-                d="M1 1 H11 M1 5 H11"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.75"
-                stroke-linecap="round"
-              />
-            </svg>
-          </div>
+          {@render stepHeaderRemoveButton(step)}
+          <span
+            data-multiplier-label
+            class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums text-zinc-300"
+            aria-hidden="true"
+          >
+            {multiplierLabel}
+          </span>
         </div>
       {:else}
         <div
           role="presentation"
           aria-label="Reorder unavailable for single step"
-          class="flex h-5 w-full shrink-0 cursor-default items-center border-b border-zinc-800 bg-zinc-800/60 pl-3 opacity-60"
+          class="flex h-5 w-full shrink-0 cursor-default items-center justify-start gap-1 border-b border-zinc-800 bg-zinc-800/60 px-1 opacity-60"
           onpointerdown={stopPointerPropagation}
         >
-          <div class="ml-auto flex h-full items-center px-2">
-            <svg viewBox="0 0 12 6" class="h-2 w-3 text-zinc-400" aria-hidden="true">
-              <path
-                d="M1 1 H11 M1 5 H11"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.75"
-                stroke-linecap="round"
-              />
-            </svg>
-          </div>
+          {@render stepHeaderRemoveButton(step)}
+          <span
+            data-multiplier-label
+            class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums text-zinc-300"
+            aria-hidden="true"
+          >
+            {multiplierLabel}
+          </span>
         </div>
       {/if}
 
-      <div class="flex min-h-0 min-w-0 flex-1 flex-col px-2 py-1.5">
+      <div class="flex min-w-0 flex-col gap-1 px-1 py-1">
         <DurationBar
           value={stepDurationFraction[step]}
           velocity={stepVelocity[step]}
           ariaLabel="Step duration fraction"
           onValueChange={(fraction) => onDurationChange(row, step, fraction)}
         />
-        <div class="relative mt-2 flex min-h-0 flex-1 flex-col">
-          <div class="mb-6">
+        <div class="flex min-w-0 items-center pt-3 pb-1">
+          <div class="flex min-w-0 items-baseline gap-1.5">
             <NoteDragInput
               value={notes[step]}
               ariaLabel="Step note"
               onValueChange={(midi) => onNoteChange(row, step, midi)}
             />
-          </div>
-          <div class="mt-auto flex w-full items-end justify-between">
             <VelocityDragInput
               value={stepVelocity[step]}
               ariaLabel="Step velocity"
               onValueChange={(value) => onVelocityChange(row, step, value)}
             />
-            <span
-              data-multiplier-label
-              class="pointer-events-none pr-2 font-sans text-2xl leading-none font-bold tabular-nums text-zinc-100"
-              aria-hidden="true"
-            >
-              {multiplierLabel}
-            </span>
           </div>
         </div>
       </div>
-
-      <button
-        type="button"
-        data-multiplier-resize
-        aria-label="Resize step timing multiplier"
-        disabled={isDragging || removeBlocked}
-        class="absolute right-0 bottom-0 z-30 flex h-6 w-5 cursor-ew-resize touch-none select-none items-center justify-center rounded-tr-lg border-0 bg-transparent text-zinc-400 outline-none hover:text-zinc-200 focus-visible:text-emerald-300 disabled:pointer-events-none disabled:opacity-50"
-        onpointerdown={(event) => beginMultiplierResize(event, step)}
-        onmousedown={(event) => beginMultiplierResize(event, step)}
-      >
-        <svg viewBox="0 0 6 12" class="pointer-events-none h-3 w-1.5" aria-hidden="true">
-          <path
-            d="M1 1 V11 M5 1 V11"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.75"
-            stroke-linecap="round"
-          />
-        </svg>
-      </button>
     </div>
+
+    <button
+      type="button"
+      data-multiplier-resize
+      aria-label="Resize step timing multiplier"
+      disabled={isDragging || removeBlocked}
+      class="absolute top-0 bottom-0 right-0 z-[60] w-4 cursor-ew-resize touch-none select-none border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-emerald-400 disabled:pointer-events-none disabled:opacity-50"
+      onpointerdown={(event) => beginMultiplierResize(event, step)}
+      onmousedown={(event) => beginMultiplierResize(event, step)}
+    ></button>
   </div>
 {/snippet}
 
@@ -701,7 +734,7 @@
 {/snippet}
 
 <div
-  class="flex min-w-0 flex-1 overflow-x-auto overflow-y-visible pt-2 pl-2"
+  class="flex min-w-0 flex-1 overflow-x-auto pt-2 pr-2 pb-2 pl-2"
   style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex)}px"
 >
   <div class="relative z-50 shrink-0 self-stretch">
@@ -721,7 +754,7 @@
           {#if step > 0}
             {@render gapInsert(step)}
           {/if}
-          <div class="pointer-events-auto h-full">
+          <div class="pointer-events-auto h-full overflow-visible">
             {@render stepCell(step, false)}
           </div>
         </div>
@@ -750,7 +783,7 @@
           {#if isShadowItem(item)}
             <div class="shrink-0" style={fixedFlexStyle(layout.cellWidth)}></div>
           {:else}
-            <div class="pointer-events-auto h-full">
+            <div class="pointer-events-auto h-full overflow-visible">
               {@render stepCell(layout.step, true)}
             </div>
           {/if}

@@ -8,7 +8,7 @@
     defaultStepVelocityGrid,
   } from "./midiNoteNames.js";
   import SpeakerIcon from "./SpeakerIcon.svelte";
-  import DiscreteSlider from "./DiscreteSlider.svelte";
+  import BipolarKnob from "./BipolarKnob.svelte";
   import PhraseRow from "./PhraseRow.svelte";
   import { findSingleMove } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
@@ -464,7 +464,7 @@
       <div class="flex flex-col gap-10">
         {#each grid as _row, row}
           <div class="flex items-center gap-2">
-            <DiscreteSlider
+            <BipolarKnob
               label="Offset"
               options={timingOffsetOptions}
               value={rowTimingOffset[row]}

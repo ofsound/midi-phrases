@@ -49,7 +49,7 @@
 </script>
 
 <div
-  class="inline-flex cursor-ns-resize touch-none select-none items-end outline-none {dragging
+  class="inline-flex cursor-ns-resize touch-none select-none items-center rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-emerald-400 {dragging
     ? 'text-emerald-300'
     : 'text-zinc-100'}"
   role="slider"
@@ -75,5 +75,5 @@
     }
   }}
 >
-  <span class="font-sans text-2xl leading-none font-bold tabular-nums">{displayValue}</span>
+  <span class="font-sans text-xs leading-none font-bold tabular-nums">{displayValue}</span>
 </div>

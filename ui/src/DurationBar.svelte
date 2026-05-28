@@ -70,7 +70,7 @@
 <div class="flex min-w-0 w-full flex-col gap-1">
   <div
     bind:this={trackEl}
-    class="relative h-3 cursor-pointer touch-none select-none rounded-full bg-zinc-600"
+    class="relative h-4 cursor-pointer touch-none select-none bg-zinc-600 outline-none focus-visible:ring-1 focus-visible:ring-emerald-400"
     role="slider"
     aria-label={ariaLabel}
     aria-valuemin={0}
@@ -96,7 +96,7 @@
     }}
   >
     <div
-      class="absolute inset-y-0 left-0 rounded-full bg-emerald-400 {dragging
+      class="absolute inset-y-0 left-0 bg-emerald-400 {dragging
         ? ''
         : 'transition-[width,opacity] duration-75'}"
       style:width="{fillPercent}%"
@@ -114,12 +114,7 @@
         onpointerdown={(event) => event.stopPropagation()}
         onclick={(event) => handleTickClick(snapValue, event)}
       >
-        <span
-          class="mx-auto block h-2 w-px {Math.abs(value - snapValue) < 0.001
-            ? 'bg-emerald-400'
-            : 'bg-zinc-500'}"
-          aria-hidden="true"
-        ></span>
+        <span class="mx-auto block h-2 w-px bg-zinc-500" aria-hidden="true"></span>
       </button>
     {/each}
   </div>
