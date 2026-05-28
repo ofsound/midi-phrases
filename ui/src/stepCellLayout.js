@@ -39,7 +39,7 @@ export function rowCanonicalWidthPx(totalDuration) {
 
 /**
  * Per-cell display widths so Σ widths + (n−1)×gap equals the canonical span for Σ durations.
- * During resize, pass resizeStep + resizeDisplayWidth (naive px) so siblings re-compensate live.
+ * During resize, pass resizeStep + resizeDisplayWidth (compensated px) so siblings re-compensate live.
  *
  * @param {number[]} multiplierIndices
  * @param {{ gapPx?: number, resizeStep?: number, resizeDisplayWidth?: number }} [options]
@@ -64,7 +64,9 @@ export function rowCellDisplayWidthsPx(multiplierIndices, options = {}) {
 
   const durations = multiplierIndices.map((index, step) => {
     if (step === resizeStep) {
-      return timingMultiplierAtIndex(multiplierIndexFromWidth(resizeDisplayWidth));
+      return timingMultiplierAtIndex(
+        multiplierIndexFromCompensatedWidth(multiplierIndices, resizeStep, resizeDisplayWidth),
+      );
     }
 
     return timingMultiplierAtIndex(index);
@@ -137,7 +139,57 @@ export function maxMultiplierCellWidthPx() {
 
 /** @param {number} widthPx */
 export function multiplierIndexFromWidth(widthPx) {
-  const snapWidths = timingMultiplierValues.map((_, index) => stepCellWidthPx(index));
+  return multiplierIndexFromSnapWidths(
+    timingMultiplierValues.map((_, index) => stepCellWidthPx(index)),
+    widthPx,
+  );
+}
+
+/**
+ * Compensated display width for one cell at a multiplier index (row-aware).
+ * @param {number[]} multiplierIndices
+ * @param {number} step
+ * @param {number} multiplierIndex
+ */
+export function compensatedCellWidthPx(multiplierIndices, step, multiplierIndex) {
+  const preview = multiplierIndices.slice();
+  preview[step] = multiplierIndex;
+
+  return rowCellDisplayWidthsPx(preview)[step];
+}
+
+/**
+ * Compensated min/max for resize drag so pointer-down does not jump to naive width.
+ * @param {number[]} multiplierIndices
+ * @param {number} step
+ */
+export function compensatedResizeBoundsPx(multiplierIndices, step) {
+  const snapWidths = timingMultiplierValues.map((_, index) =>
+    compensatedCellWidthPx(multiplierIndices, step, index),
+  );
+
+  return {
+    min: Math.min(...snapWidths),
+    max: Math.max(...snapWidths),
+  };
+}
+
+/**
+ * Snap multiplier from compensated pixel width for a cell in this row.
+ * @param {number[]} multiplierIndices
+ * @param {number} step
+ * @param {number} widthPx
+ */
+export function multiplierIndexFromCompensatedWidth(multiplierIndices, step, widthPx) {
+  const snapWidths = timingMultiplierValues.map((_, index) =>
+    compensatedCellWidthPx(multiplierIndices, step, index),
+  );
+
+  return multiplierIndexFromSnapWidths(snapWidths, widthPx);
+}
+
+/** @param {number[]} snapWidths @param {number} widthPx */
+function multiplierIndexFromSnapWidths(snapWidths, widthPx) {
   const clamped = Math.min(snapWidths[snapWidths.length - 1], Math.max(snapWidths[0], widthPx));
 
   for (let index = 0; index < snapWidths.length - 1; index += 1) {

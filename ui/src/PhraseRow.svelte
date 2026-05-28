@@ -9,9 +9,8 @@
   import StepInsertZone from "./StepInsertZone.svelte";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
   import {
-    maxMultiplierCellWidthPx,
-    minMultiplierCellWidthPx,
-    multiplierIndexFromWidth,
+    compensatedResizeBoundsPx,
+    multiplierIndexFromCompensatedWidth,
     multiplierLabelForIndex,
     rowCellDisplayWidthsPx,
     rowTimingOffsetShiftPx,
@@ -177,7 +176,11 @@
   function multiplierLabelForStep(step) {
     const index =
       resizingStep === step
-        ? multiplierIndexFromWidth(resizeDisplayWidth)
+        ? multiplierIndexFromCompensatedWidth(
+            stepTimingMultiplier,
+            step,
+            resizeDisplayWidth,
+          )
         : stepTimingMultiplier[step];
 
     return multiplierLabelForIndex(index, timingMultiplierOptions);
@@ -333,14 +336,10 @@
 
   /** @param {number} clientX */
   function resizeWidthFromClientX(clientX) {
+    const { min, max } = compensatedResizeBoundsPx(stepTimingMultiplier, resizingStep);
+
     return Math.round(
-      Math.min(
-        maxMultiplierCellWidthPx(),
-        Math.max(
-          minMultiplierCellWidthPx(),
-          resizeStartWidth + (clientX - resizeStartX),
-        ),
-      ),
+      Math.min(max, Math.max(min, resizeStartWidth + (clientX - resizeStartX))),
     );
   }
 
@@ -362,7 +361,11 @@
     const label = shell?.querySelector("[data-multiplier-label]");
 
     if (label) {
-      const previewIndex = multiplierIndexFromWidth(resizeDisplayWidth);
+      const previewIndex = multiplierIndexFromCompensatedWidth(
+        stepTimingMultiplier,
+        resizingStep,
+        resizeDisplayWidth,
+      );
       label.textContent = multiplierLabelForIndex(previewIndex, timingMultiplierOptions);
     }
   }
@@ -503,7 +506,7 @@
       handle.setPointerCapture(event.pointerId);
     }
 
-    const displayWidth = stepCellWidthPx(stepTimingMultiplier[step]);
+    const displayWidth = rowDisplayWidths[step];
 
     resizingStep = step;
     resizeStartX = event.clientX;
@@ -533,7 +536,11 @@
 
     const step = resizingStep;
     const shell = cellShellElements.get(step);
-    const snappedIndex = multiplierIndexFromWidth(resizeDisplayWidth);
+    const snappedIndex = multiplierIndexFromCompensatedWidth(
+      stepTimingMultiplier,
+      step,
+      resizeDisplayWidth,
+    );
     const previewMultipliers = stepTimingMultiplier.slice();
     previewMultipliers[step] = snappedIndex;
     const targetWidth = rowCellDisplayWidthsPx(previewMultipliers)[step];
@@ -571,7 +578,7 @@
 
             if (label) {
               label.textContent = multiplierLabelForIndex(
-                multiplierIndexFromWidth(widthPx),
+                multiplierIndexFromCompensatedWidth(stepTimingMultiplier, step, widthPx),
                 timingMultiplierOptions,
               );
             }
