@@ -154,6 +154,18 @@ target_link_libraries("${PROJECT_NAME}" PRIVATE SharedCode)
 # Everything related to the tests target
 include(Tests)
 
+option(MIDI_PHRASES_WARNINGS_AS_ERRORS "Treat warnings in owned targets as errors" ON)
+
+if (MIDI_PHRASES_WARNINGS_AS_ERRORS)
+    if (MSVC)
+        target_compile_options(SharedCode INTERFACE /WX)
+        target_compile_options(Tests PRIVATE /WX)
+    else()
+        target_compile_options(SharedCode INTERFACE -Werror)
+        target_compile_options(Tests PRIVATE -Werror)
+    endif()
+endif()
+
 # A separate target for Benchmarks (keeps the Tests target fast)
 include(Benchmarks)
 

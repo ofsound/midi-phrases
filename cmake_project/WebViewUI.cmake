@@ -1,7 +1,7 @@
 # Builds the Svelte/Vite frontend and packages it as assets/webview/ui.zip for BinaryData.
 
 set(WEBVIEW_UI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ui")
-set(WEBVIEW_DIST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/webview/dist")
+set(WEBVIEW_DIST_DIR "${WEBVIEW_UI_DIR}/dist")
 set(WEBVIEW_ZIP "${CMAKE_CURRENT_SOURCE_DIR}/assets/webview/ui.zip")
 
 file(GLOB_RECURSE WEBVIEW_UI_SOURCES CONFIGURE_DEPENDS

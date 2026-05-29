@@ -291,12 +291,6 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                complete (juce::var {});
                            })
                        .withNativeFunction (
-                           "getPhraseStepPlaybackActivity",
-                           [&processor] (const juce::Array<juce::var>&,
-                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
-                               complete (processor.getPhraseStepPlaybackActivity());
-                           })
-                       .withNativeFunction (
                            "setLoopBraceEnabled",
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {

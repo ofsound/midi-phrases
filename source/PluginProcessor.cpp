@@ -69,55 +69,6 @@ void PluginProcessor::resetLastEmittedTriggers()
         lastTrigger = -1.0;
 }
 
-void PluginProcessor::resetPhraseStepGateEnds()
-{
-    for (auto& rowSteps : phraseRows)
-    {
-        for (auto& gateStart : rowSteps.gateStartPpq)
-            gateStart = -1.0;
-
-        for (auto& gateEnd : rowSteps.gateEndPpq)
-            gateEnd = -1.0;
-    }
-}
-
-void PluginProcessor::syncRowGateStorage (const int row)
-{
-    if (row < 0 || row >= phraseRowCount)
-        return;
-
-    const auto count = static_cast<size_t> (getPhraseRowStepCount (row));
-    auto& steps = phraseRows[static_cast<size_t> (row)];
-    steps.gateStartPpq.assign (count, -1.0);
-    steps.gateEndPpq.assign (count, -1.0);
-}
-
-void PluginProcessor::syncProcessScratch (const int row)
-{
-    if (row < 0 || row >= phraseRowCount)
-        return;
-
-    const auto count = static_cast<size_t> (getPhraseRowStepCount (row));
-    auto& scratch = processScratch[static_cast<size_t> (row)];
-    scratch.stepLengthQuarters.resize (count);
-    scratch.stepStartQuarters.resize (count);
-    scratch.triggers.resize (std::max (count * 8, size_t { 8 }));
-}
-
-void PluginProcessor::resetPhraseStepGateEndsForRow (const int row)
-{
-    if (row < 0 || row >= phraseRowCount)
-        return;
-
-    auto& steps = phraseRows[static_cast<size_t> (row)];
-
-    for (auto& gateStart : steps.gateStartPpq)
-        gateStart = -1.0;
-
-    for (auto& gateEnd : steps.gateEndPpq)
-        gateEnd = -1.0;
-}
-
 PluginProcessor::BusesProperties PluginProcessor::createBusesProperties()
 {
   #if JucePlugin_IsMidiEffect
@@ -133,19 +84,13 @@ PluginProcessor::PluginProcessor()
 {
     for (int row = 0; row < phraseRowCount; ++row)
     {
-        auto& steps = phraseRows[static_cast<size_t> (row)];
-        steps.notes.assign (defaultPhraseStepsPerRow, defaultNoteForRow (row));
-        steps.timingMultiplier.assign (defaultPhraseStepsPerRow, defaultStepTimingMultiplierIndex);
-        steps.durationFraction.assign (defaultPhraseStepsPerRow, defaultStepDurationFraction);
-        steps.velocity.assign (defaultPhraseStepsPerRow, defaultStepVelocity);
-
-        phraseRowMuted[static_cast<size_t> (row)].store (0);
-        phraseRowTimingOffset[static_cast<size_t> (row)].store (defaultRowTimingOffsetIndex);
+        initialiseRowDefaults (modelState.rows[static_cast<size_t> (row)], row, defaultPhraseStepsPerRow);
+        initialiseRowDefaults (audioState.rows[static_cast<size_t> (row)], row, defaultPhraseStepsPerRow);
+        modelState.muted[static_cast<size_t> (row)] = 0;
+        modelState.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
+        audioState.muted[static_cast<size_t> (row)] = 0;
+        audioState.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
         phraseRowFlushNoteOff[static_cast<size_t> (row)].store (0);
-        phraseRowStepCount[static_cast<size_t> (row)].store (defaultPhraseStepsPerRow);
-
-        syncRowGateStorage (row);
-        syncProcessScratch (row);
     }
 
     resetLastEmittedTriggers();
@@ -171,18 +116,249 @@ bool PluginProcessor::isValidStep (const int row, const int step) const
     return step < getPhraseRowStepCount (row);
 }
 
+bool PluginProcessor::isValidAudioStep (const SequencerState& state, const int row, const int step) const
+{
+    if (row < 0 || row >= phraseRowCount || step < 0)
+        return false;
+
+    return step < state.rows[static_cast<size_t> (row)].stepCount;
+}
+
+PluginProcessor::PhraseRowSteps& PluginProcessor::modelRow (const int row)
+{
+    return modelState.rows[static_cast<size_t> (row)];
+}
+
+const PluginProcessor::PhraseRowSteps& PluginProcessor::modelRow (const int row) const
+{
+    return modelState.rows[static_cast<size_t> (row)];
+}
+
+void PluginProcessor::initialiseRowDefaults (PhraseRowSteps& steps, const int row, const int stepCount)
+{
+    steps.stepCount = juce::jlimit (0, maxPhraseStepsPerRow, stepCount);
+
+    for (int step = 0; step < maxPhraseStepsPerRow; ++step)
+    {
+        steps.notes[static_cast<size_t> (step)] = defaultNoteForRow (row);
+        steps.timingMultiplier[static_cast<size_t> (step)] = defaultStepTimingMultiplierIndex;
+        steps.durationFraction[static_cast<size_t> (step)] = defaultStepDurationFraction;
+        steps.velocity[static_cast<size_t> (step)] = defaultStepVelocity;
+    }
+
+    rebuildRowTimingLayout (steps);
+}
+
+void PluginProcessor::rebuildRowTimingLayout (PhraseRowSteps& steps)
+{
+    auto cycleLengthQuarters = 0.0;
+
+    for (int step = 0; step < maxPhraseStepsPerRow; ++step)
+    {
+        steps.stepStartQuarters[static_cast<size_t> (step)] = cycleLengthQuarters;
+
+        if (step < steps.stepCount)
+        {
+            steps.stepLengthQuarters[static_cast<size_t> (step)] = stepTimingMultiplierForIndex (
+                steps.timingMultiplier[static_cast<size_t> (step)]);
+            cycleLengthQuarters += steps.stepLengthQuarters[static_cast<size_t> (step)];
+        }
+        else
+        {
+            steps.stepLengthQuarters[static_cast<size_t> (step)] = 0.0;
+        }
+    }
+
+    steps.cycleLengthQuarters = cycleLengthQuarters;
+}
+
+void PluginProcessor::publishCommandToAudio (const SequencerCommand& command)
+{
+    const auto write = sequencerCommandWriteIndex.load (std::memory_order_relaxed);
+    const auto nextWrite = (write + 1) % sequencerCommandQueueCapacity;
+
+    if (nextWrite == sequencerCommandReadIndex.load (std::memory_order_acquire))
+    {
+        jassertfalse;
+        return;
+    }
+
+    sequencerCommandQueue[write] = command;
+    sequencerCommandWriteIndex.store (nextWrite, std::memory_order_release);
+}
+
+void PluginProcessor::publishRowToAudio (const int row)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::ReplaceRow;
+    command.row = row;
+    command.rowState = modelRow (row);
+    publishCommandToAudio (command);
+}
+
+void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
+{
+    if (command.row < 0 || command.row >= phraseRowCount)
+        return;
+
+    auto& row = audioState.rows[static_cast<size_t> (command.row)];
+    const auto step = command.step;
+    const auto index = static_cast<size_t> (juce::jlimit (0, maxPhraseStepsPerRow - 1, step));
+
+    switch (command.type)
+    {
+        case SequencerCommand::Type::SetNote:
+            if (isValidAudioStep (audioState, command.row, step))
+                row.notes[index] = command.intValue;
+            break;
+
+        case SequencerCommand::Type::SetRowMuted:
+            audioState.muted[static_cast<size_t> (command.row)] = command.intValue != 0 ? 1 : 0;
+            break;
+
+        case SequencerCommand::Type::SetRowTimingOffset:
+            audioState.timingOffset[static_cast<size_t> (command.row)] =
+                juce::jlimit (0, rowTimingOffsetCount - 1, command.intValue);
+            break;
+
+        case SequencerCommand::Type::SetStepTimingMultiplier:
+            if (isValidAudioStep (audioState, command.row, step))
+            {
+                row.timingMultiplier[index] =
+                    juce::jlimit (0, stepTimingMultiplierCount - 1, command.intValue);
+                rebuildRowTimingLayout (row);
+            }
+            break;
+
+        case SequencerCommand::Type::SetStepDurationFraction:
+            if (isValidAudioStep (audioState, command.row, step))
+                row.durationFraction[index] = clampStepDurationFraction (command.doubleValue);
+            break;
+
+        case SequencerCommand::Type::SetStepVelocity:
+            if (isValidAudioStep (audioState, command.row, step))
+                row.velocity[index] = juce::jlimit (0, 127, command.intValue);
+            break;
+
+        case SequencerCommand::Type::RemoveStep:
+            if (isValidAudioStep (audioState, command.row, step))
+            {
+                for (int i = step; i < row.stepCount - 1; ++i)
+                {
+                    const auto current = static_cast<size_t> (i);
+                    const auto next = static_cast<size_t> (i + 1);
+                    row.notes[current] = row.notes[next];
+                    row.timingMultiplier[current] = row.timingMultiplier[next];
+                    row.durationFraction[current] = row.durationFraction[next];
+                    row.velocity[current] = row.velocity[next];
+                }
+
+                --row.stepCount;
+                rebuildRowTimingLayout (row);
+            }
+            break;
+
+        case SequencerCommand::Type::InsertStep:
+            if (step >= 0 && step <= row.stepCount && row.stepCount < maxPhraseStepsPerRow)
+            {
+                for (int i = row.stepCount; i > step; --i)
+                {
+                    const auto current = static_cast<size_t> (i);
+                    const auto previous = static_cast<size_t> (i - 1);
+                    row.notes[current] = row.notes[previous];
+                    row.timingMultiplier[current] = row.timingMultiplier[previous];
+                    row.durationFraction[current] = row.durationFraction[previous];
+                    row.velocity[current] = row.velocity[previous];
+                }
+
+                row.notes[index] = defaultNoteForRow (command.row);
+                row.timingMultiplier[index] = defaultStepTimingMultiplierIndex;
+                row.durationFraction[index] = defaultStepDurationFraction;
+                row.velocity[index] = defaultStepVelocity;
+                ++row.stepCount;
+                rebuildRowTimingLayout (row);
+            }
+            break;
+
+        case SequencerCommand::Type::MoveStep:
+            if (isValidAudioStep (audioState, command.row, command.step)
+                && isValidAudioStep (audioState, command.row, command.toStep)
+                && command.step != command.toStep)
+            {
+                const auto note = row.notes[static_cast<size_t> (command.step)];
+                const auto timingMultiplier = row.timingMultiplier[static_cast<size_t> (command.step)];
+                const auto durationFraction = row.durationFraction[static_cast<size_t> (command.step)];
+                const auto velocity = row.velocity[static_cast<size_t> (command.step)];
+
+                if (command.step < command.toStep)
+                {
+                    for (int i = command.step; i < command.toStep; ++i)
+                    {
+                        const auto current = static_cast<size_t> (i);
+                        const auto next = static_cast<size_t> (i + 1);
+                        row.notes[current] = row.notes[next];
+                        row.timingMultiplier[current] = row.timingMultiplier[next];
+                        row.durationFraction[current] = row.durationFraction[next];
+                        row.velocity[current] = row.velocity[next];
+                    }
+                }
+                else
+                {
+                    for (int i = command.step; i > command.toStep; --i)
+                    {
+                        const auto current = static_cast<size_t> (i);
+                        const auto previous = static_cast<size_t> (i - 1);
+                        row.notes[current] = row.notes[previous];
+                        row.timingMultiplier[current] = row.timingMultiplier[previous];
+                        row.durationFraction[current] = row.durationFraction[previous];
+                        row.velocity[current] = row.velocity[previous];
+                    }
+                }
+
+                const auto destination = static_cast<size_t> (command.toStep);
+                row.notes[destination] = note;
+                row.timingMultiplier[destination] = timingMultiplier;
+                row.durationFraction[destination] = durationFraction;
+                row.velocity[destination] = velocity;
+                rebuildRowTimingLayout (row);
+            }
+            break;
+
+        case SequencerCommand::Type::ReplaceRow:
+            row = command.rowState;
+            row.stepCount = juce::jlimit (0, maxPhraseStepsPerRow, row.stepCount);
+            rebuildRowTimingLayout (row);
+            break;
+    }
+}
+
+void PluginProcessor::drainSequencerCommands()
+{
+    auto read = sequencerCommandReadIndex.load (std::memory_order_relaxed);
+
+    while (read != sequencerCommandWriteIndex.load (std::memory_order_acquire))
+    {
+        applySequencerCommand (sequencerCommandQueue[read]);
+        read = (read + 1) % sequencerCommandQueueCapacity;
+        sequencerCommandReadIndex.store (read, std::memory_order_release);
+    }
+}
+
 void PluginProcessor::resetPhraseStepToDefaults (const int row, const int step)
 {
     if (! isValidStep (row, step))
         return;
 
-    auto& steps = phraseRows[static_cast<size_t> (row)];
+    auto& steps = modelRow (row);
     steps.notes[static_cast<size_t> (step)] = defaultNoteForRow (row);
     steps.timingMultiplier[static_cast<size_t> (step)] = defaultStepTimingMultiplierIndex;
     steps.durationFraction[static_cast<size_t> (step)] = defaultStepDurationFraction;
     steps.velocity[static_cast<size_t> (step)] = defaultStepVelocity;
-    steps.gateStartPpq[static_cast<size_t> (step)] = -1.0;
-    steps.gateEndPpq[static_cast<size_t> (step)] = -1.0;
+    rebuildRowTimingLayout (steps);
+    publishRowToAudio (row);
 }
 
 double PluginProcessor::rowTimingOffsetForIndex (const int offsetIndex)
@@ -267,9 +443,6 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     resetLastEmittedTriggers();
     wasPlaying = false;
     resetPendingNoteOffs();
-
-    for (int row = 0; row < phraseRowCount; ++row)
-        syncProcessScratch (row);
 }
 
 void PluginProcessor::setPhraseNote (int row, int step, int noteNumber)
@@ -277,8 +450,15 @@ void PluginProcessor::setPhraseNote (int row, int step, int noteNumber)
     if (! isValidStep (row, step))
         return;
 
-    phraseRows[static_cast<size_t> (row)].notes[static_cast<size_t> (step)] =
-        juce::jlimit (0, 127, noteNumber);
+    const auto value = juce::jlimit (0, 127, noteNumber);
+    modelRow (row).notes[static_cast<size_t> (step)] = value;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetNote;
+    command.row = row;
+    command.step = step;
+    command.intValue = value;
+    publishCommandToAudio (command);
 }
 
 int PluginProcessor::getPhraseNote (int row, int step) const
@@ -286,7 +466,7 @@ int PluginProcessor::getPhraseNote (int row, int step) const
     if (! isValidStep (row, step))
         return 60;
 
-    return phraseRows[static_cast<size_t> (row)].notes[static_cast<size_t> (step)];
+    return modelRow (row).notes[static_cast<size_t> (step)];
 }
 
 void PluginProcessor::setPhraseRowMuted (int row, bool muted)
@@ -294,10 +474,16 @@ void PluginProcessor::setPhraseRowMuted (int row, bool muted)
     if (row < 0 || row >= phraseRowCount)
         return;
 
-    phraseRowMuted[static_cast<size_t> (row)].store (muted ? 1 : 0);
+    modelState.muted[static_cast<size_t> (row)] = muted ? 1 : 0;
 
     if (muted)
         phraseRowFlushNoteOff[static_cast<size_t> (row)].store (1);
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetRowMuted;
+    command.row = row;
+    command.intValue = muted ? 1 : 0;
+    publishCommandToAudio (command);
 }
 
 bool PluginProcessor::isPhraseRowMuted (int row) const
@@ -305,7 +491,7 @@ bool PluginProcessor::isPhraseRowMuted (int row) const
     if (row < 0 || row >= phraseRowCount)
         return false;
 
-    return phraseRowMuted[static_cast<size_t> (row)].load() != 0;
+    return modelState.muted[static_cast<size_t> (row)] != 0;
 }
 
 void PluginProcessor::setPhraseRowTimingOffset (const int row, const int offsetIndex)
@@ -313,8 +499,14 @@ void PluginProcessor::setPhraseRowTimingOffset (const int row, const int offsetI
     if (row < 0 || row >= phraseRowCount)
         return;
 
-    phraseRowTimingOffset[static_cast<size_t> (row)].store (
-        juce::jlimit (0, rowTimingOffsetCount - 1, offsetIndex));
+    const auto value = juce::jlimit (0, rowTimingOffsetCount - 1, offsetIndex);
+    modelState.timingOffset[static_cast<size_t> (row)] = value;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetRowTimingOffset;
+    command.row = row;
+    command.intValue = value;
+    publishCommandToAudio (command);
 }
 
 int PluginProcessor::getPhraseRowTimingOffset (const int row) const
@@ -322,7 +514,7 @@ int PluginProcessor::getPhraseRowTimingOffset (const int row) const
     if (row < 0 || row >= phraseRowCount)
         return defaultRowTimingOffsetIndex;
 
-    return phraseRowTimingOffset[static_cast<size_t> (row)].load();
+    return modelState.timingOffset[static_cast<size_t> (row)];
 }
 
 void PluginProcessor::setPhraseStepTimingMultiplier (const int row,
@@ -332,8 +524,16 @@ void PluginProcessor::setPhraseStepTimingMultiplier (const int row,
     if (! isValidStep (row, step))
         return;
 
-    phraseRows[static_cast<size_t> (row)].timingMultiplier[static_cast<size_t> (step)] =
-        juce::jlimit (0, stepTimingMultiplierCount - 1, multiplierIndex);
+    const auto value = juce::jlimit (0, stepTimingMultiplierCount - 1, multiplierIndex);
+    modelRow (row).timingMultiplier[static_cast<size_t> (step)] = value;
+    rebuildRowTimingLayout (modelRow (row));
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetStepTimingMultiplier;
+    command.row = row;
+    command.step = step;
+    command.intValue = value;
+    publishCommandToAudio (command);
 }
 
 int PluginProcessor::getPhraseStepTimingMultiplier (const int row, const int step) const
@@ -341,7 +541,7 @@ int PluginProcessor::getPhraseStepTimingMultiplier (const int row, const int ste
     if (! isValidStep (row, step))
         return defaultStepTimingMultiplierIndex;
 
-    return phraseRows[static_cast<size_t> (row)].timingMultiplier[static_cast<size_t> (step)];
+    return modelRow (row).timingMultiplier[static_cast<size_t> (step)];
 }
 
 void PluginProcessor::setPhraseStepDurationFraction (const int row,
@@ -351,8 +551,15 @@ void PluginProcessor::setPhraseStepDurationFraction (const int row,
     if (! isValidStep (row, step))
         return;
 
-    phraseRows[static_cast<size_t> (row)].durationFraction[static_cast<size_t> (step)] =
-        clampStepDurationFraction (fraction);
+    const auto value = clampStepDurationFraction (fraction);
+    modelRow (row).durationFraction[static_cast<size_t> (step)] = value;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetStepDurationFraction;
+    command.row = row;
+    command.step = step;
+    command.doubleValue = value;
+    publishCommandToAudio (command);
 }
 
 double PluginProcessor::getPhraseStepDurationFraction (const int row, const int step) const
@@ -360,7 +567,7 @@ double PluginProcessor::getPhraseStepDurationFraction (const int row, const int 
     if (! isValidStep (row, step))
         return defaultStepDurationFraction;
 
-    return phraseRows[static_cast<size_t> (row)].durationFraction[static_cast<size_t> (step)];
+    return modelRow (row).durationFraction[static_cast<size_t> (step)];
 }
 
 void PluginProcessor::setPhraseStepVelocity (const int row, const int step, const int velocity)
@@ -368,8 +575,15 @@ void PluginProcessor::setPhraseStepVelocity (const int row, const int step, cons
     if (! isValidStep (row, step))
         return;
 
-    phraseRows[static_cast<size_t> (row)].velocity[static_cast<size_t> (step)] =
-        juce::jlimit (0, 127, velocity);
+    const auto value = juce::jlimit (0, 127, velocity);
+    modelRow (row).velocity[static_cast<size_t> (step)] = value;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetStepVelocity;
+    command.row = row;
+    command.step = step;
+    command.intValue = value;
+    publishCommandToAudio (command);
 }
 
 int PluginProcessor::getPhraseStepVelocity (const int row, const int step) const
@@ -377,7 +591,7 @@ int PluginProcessor::getPhraseStepVelocity (const int row, const int step) const
     if (! isValidStep (row, step))
         return defaultStepVelocity;
 
-    return phraseRows[static_cast<size_t> (row)].velocity[static_cast<size_t> (step)];
+    return modelRow (row).velocity[static_cast<size_t> (step)];
 }
 
 int PluginProcessor::getPhraseRowStepCount (const int row) const
@@ -385,7 +599,7 @@ int PluginProcessor::getPhraseRowStepCount (const int row) const
     if (row < 0 || row >= phraseRowCount)
         return 0;
 
-    return juce::jmax (0, phraseRowStepCount[static_cast<size_t> (row)].load());
+    return modelRow (row).stepCount;
 }
 
 void PluginProcessor::removePhraseStep (const int row, const int step)
@@ -398,20 +612,25 @@ void PluginProcessor::removePhraseStep (const int row, const int step)
     if (step >= count)
         return;
 
-    auto& steps = phraseRows[static_cast<size_t> (row)];
-    const auto index = static_cast<size_t> (step);
+    auto& steps = modelRow (row);
 
-    steps.notes.erase (steps.notes.begin() + static_cast<std::ptrdiff_t> (index));
-    steps.timingMultiplier.erase (steps.timingMultiplier.begin()
-                                  + static_cast<std::ptrdiff_t> (index));
-    steps.durationFraction.erase (steps.durationFraction.begin()
-                                  + static_cast<std::ptrdiff_t> (index));
-    steps.velocity.erase (steps.velocity.begin() + static_cast<std::ptrdiff_t> (index));
+    for (int index = step; index < count - 1; ++index)
+    {
+        const auto current = static_cast<size_t> (index);
+        const auto next = static_cast<size_t> (index + 1);
+        steps.notes[current] = steps.notes[next];
+        steps.timingMultiplier[current] = steps.timingMultiplier[next];
+        steps.durationFraction[current] = steps.durationFraction[next];
+        steps.velocity[current] = steps.velocity[next];
+    }
 
-    phraseRowStepCount[static_cast<size_t> (row)].store (count - 1);
-    syncRowGateStorage (row);
-    syncProcessScratch (row);
-    resetPhraseStepGateEndsForRow (row);
+    steps.stepCount = count - 1;
+    rebuildRowTimingLayout (steps);
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::RemoveStep;
+    command.row = row;
+    command.step = step;
+    publishCommandToAudio (command);
 }
 
 void PluginProcessor::insertPhraseStep (const int row, const int step)
@@ -421,27 +640,33 @@ void PluginProcessor::insertPhraseStep (const int row, const int step)
 
     const auto count = getPhraseRowStepCount (row);
 
-    if (step > count)
+    if (step > count || count >= maxPhraseStepsPerRow)
         return;
 
-    auto& steps = phraseRows[static_cast<size_t> (row)];
-    const auto index = static_cast<size_t> (step);
+    auto& steps = modelRow (row);
 
-    steps.notes.insert (steps.notes.begin() + static_cast<std::ptrdiff_t> (index),
-                        defaultNoteForRow (row));
-    steps.timingMultiplier.insert (steps.timingMultiplier.begin()
-                                   + static_cast<std::ptrdiff_t> (index),
-                                   defaultStepTimingMultiplierIndex);
-    steps.durationFraction.insert (steps.durationFraction.begin()
-                                   + static_cast<std::ptrdiff_t> (index),
-                                   defaultStepDurationFraction);
-    steps.velocity.insert (steps.velocity.begin() + static_cast<std::ptrdiff_t> (index),
-                           defaultStepVelocity);
+    for (int index = count; index > step; --index)
+    {
+        const auto current = static_cast<size_t> (index);
+        const auto previous = static_cast<size_t> (index - 1);
+        steps.notes[current] = steps.notes[previous];
+        steps.timingMultiplier[current] = steps.timingMultiplier[previous];
+        steps.durationFraction[current] = steps.durationFraction[previous];
+        steps.velocity[current] = steps.velocity[previous];
+    }
 
-    phraseRowStepCount[static_cast<size_t> (row)].store (count + 1);
-    syncRowGateStorage (row);
-    syncProcessScratch (row);
-    resetPhraseStepGateEndsForRow (row);
+    const auto insertIndex = static_cast<size_t> (step);
+    steps.notes[insertIndex] = defaultNoteForRow (row);
+    steps.timingMultiplier[insertIndex] = defaultStepTimingMultiplierIndex;
+    steps.durationFraction[insertIndex] = defaultStepDurationFraction;
+    steps.velocity[insertIndex] = defaultStepVelocity;
+    steps.stepCount = count + 1;
+    rebuildRowTimingLayout (steps);
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::InsertStep;
+    command.row = row;
+    command.step = step;
+    publishCommandToAudio (command);
 }
 
 void PluginProcessor::movePhraseStep (const int row, const int fromStep, const int toStep)
@@ -454,7 +679,7 @@ void PluginProcessor::movePhraseStep (const int row, const int fromStep, const i
     if (fromStep >= count || toStep >= count || fromStep == toStep)
         return;
 
-    auto& steps = phraseRows[static_cast<size_t> (row)];
+    auto& steps = modelRow (row);
     const auto note = steps.notes[static_cast<size_t> (fromStep)];
     const auto timingMultiplier = steps.timingMultiplier[static_cast<size_t> (fromStep)];
     const auto durationFraction = steps.durationFraction[static_cast<size_t> (fromStep)];
@@ -493,7 +718,13 @@ void PluginProcessor::movePhraseStep (const int row, const int fromStep, const i
     steps.timingMultiplier[static_cast<size_t> (toStep)] = timingMultiplier;
     steps.durationFraction[static_cast<size_t> (toStep)] = durationFraction;
     steps.velocity[static_cast<size_t> (toStep)] = velocity;
-    resetPhraseStepGateEndsForRow (row);
+    rebuildRowTimingLayout (steps);
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::MoveStep;
+    command.row = row;
+    command.step = fromStep;
+    command.toStep = toStep;
+    publishCommandToAudio (command);
 }
 
 double PluginProcessor::playbackBeatForUi() const
@@ -514,95 +745,6 @@ double PluginProcessor::playbackBeatForUi() const
     }
 
     return currentPpq;
-}
-
-bool PluginProcessor::isPhraseStepActiveAtPlaybackBeat (const int row,
-                                                      const int step,
-                                                      const double playbackBeat) const
-{
-    constexpr auto epsilon = 1.0e-9;
-
-    if (! isValidStep (row, step))
-        return false;
-
-    if (phraseRowMuted[static_cast<size_t> (row)].load (std::memory_order_relaxed) != 0)
-        return false;
-
-    const auto& rowSteps = phraseRows[static_cast<size_t> (row)];
-
-    if (rowSteps.velocity[static_cast<size_t> (step)] <= 0)
-        return false;
-
-    const auto durationFraction = rowSteps.durationFraction[static_cast<size_t> (step)];
-
-    if (durationFraction <= 0.0)
-        return false;
-
-    const auto stepCount = getPhraseRowStepCount (row);
-
-    if (stepCount <= 0)
-        return false;
-
-    const auto offset = rowTimingOffsetForIndex (
-        phraseRowTimingOffset[static_cast<size_t> (row)].load (std::memory_order_relaxed));
-
-    auto cycleLengthQuarters = 0.0;
-    auto stepStartInCycle = 0.0;
-    auto stepLengthQuarters = 0.0;
-
-    for (int index = 0; index < stepCount; ++index)
-    {
-        const auto length = stepTimingMultiplierForIndex (
-            rowSteps.timingMultiplier[static_cast<size_t> (index)]);
-
-        if (index == step)
-        {
-            stepStartInCycle = cycleLengthQuarters;
-            stepLengthQuarters = length;
-        }
-
-        cycleLengthQuarters += length;
-    }
-
-    if (cycleLengthQuarters <= 0.0 || stepLengthQuarters <= 0.0)
-        return false;
-
-    const auto relativeBeat = playbackBeat - stepStartInCycle - offset;
-
-    if (relativeBeat < -epsilon)
-        return false;
-
-    const auto cycleIndex = static_cast<int> (std::floor ((relativeBeat + epsilon) / cycleLengthQuarters));
-    const auto triggerPpq = static_cast<double> (cycleIndex) * cycleLengthQuarters + stepStartInCycle
-                            + offset;
-    const auto gateEndPpq = triggerPpq + stepLengthQuarters * durationFraction;
-
-    return playbackBeat >= triggerPpq - epsilon && playbackBeat < gateEndPpq - epsilon;
-}
-
-juce::Array<juce::var> PluginProcessor::getPhraseStepPlaybackActivity() const
-{
-    juce::Array<juce::var> rows;
-    const auto playbackBeat = playbackBeatForUi();
-    const auto isPlaying = playbackBeat >= 0.0;
-
-    for (int row = 0; row < phraseRowCount; ++row)
-    {
-        juce::Array<juce::var> steps;
-
-        const auto stepCount = getPhraseRowStepCount (row);
-
-        for (int step = 0; step < stepCount; ++step)
-        {
-            const auto active = isPlaying
-                                && isPhraseStepActiveAtPlaybackBeat (row, step, playbackBeat);
-            steps.add (active);
-        }
-
-        rows.add (steps);
-    }
-
-    return rows;
 }
 
 void PluginProcessor::setLoopBraceEnabled (const bool enabled)
@@ -661,7 +803,6 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
     if (resetRowTriggersAtSegmentStart)
     {
         resetLastEmittedTriggers();
-        resetPhraseStepGateEnds();
 
         const auto segmentSampleOffset = juce::jlimit (
             0,
@@ -684,33 +825,20 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
     for (int row = 0; row < phraseRowCount; ++row)
     {
-        if (phraseRowMuted[static_cast<size_t> (row)].load (std::memory_order_relaxed) != 0)
+        if (audioState.muted[static_cast<size_t> (row)] != 0)
             continue;
 
-        const auto offset = rowTimingOffsetForIndex (
-            phraseRowTimingOffset[static_cast<size_t> (row)].load (std::memory_order_relaxed));
+        const auto offset = rowTimingOffsetForIndex (audioState.timingOffset[static_cast<size_t> (row)]);
 
-        const auto stepCount = getPhraseRowStepCount (row);
+        const auto stepCount = audioState.rows[static_cast<size_t> (row)].stepCount;
 
         if (stepCount <= 0)
             continue;
 
-        auto& rowSteps = phraseRows[static_cast<size_t> (row)];
+        const auto& rowSteps = audioState.rows[static_cast<size_t> (row)];
         auto& scratch = processScratch[static_cast<size_t> (row)];
 
-        if (scratch.stepLengthQuarters.size() < static_cast<size_t> (stepCount)
-            || scratch.stepStartQuarters.size() < static_cast<size_t> (stepCount))
-            continue;
-
-        auto cycleLengthQuarters = 0.0;
-
-        for (int step = 0; step < stepCount; ++step)
-        {
-            scratch.stepStartQuarters[static_cast<size_t> (step)] = cycleLengthQuarters;
-            scratch.stepLengthQuarters[static_cast<size_t> (step)] = stepTimingMultiplierForIndex (
-                rowSteps.timingMultiplier[static_cast<size_t> (step)]);
-            cycleLengthQuarters += scratch.stepLengthQuarters[static_cast<size_t> (step)];
-        }
+        const auto cycleLengthQuarters = rowSteps.cycleLengthQuarters;
 
         if (cycleLengthQuarters <= 0.0)
             continue;
@@ -719,7 +847,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
         for (int step = 0; step < stepCount; ++step)
         {
-            const auto stepStartInCycle = scratch.stepStartQuarters[static_cast<size_t> (step)];
+            const auto stepStartInCycle = rowSteps.stepStartQuarters[static_cast<size_t> (step)];
             const auto nMin = static_cast<int> (std::ceil (
                 (schedulePpqStart - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
             const auto nMax = static_cast<int> (std::floor (
@@ -759,7 +887,6 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
         else if (schedulePpqStart < lastTrigger - cycleLengthQuarters - epsilon)
         {
             lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
-            resetPhraseStepGateEndsForRow (row);
         }
 
         for (int triggerIndex = 0; triggerIndex < triggerCount; ++triggerIndex)
@@ -795,7 +922,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             if (velocity <= 0)
                 continue;
 
-            const auto stepLength = scratch.stepLengthQuarters[static_cast<size_t> (slot)];
+            const auto stepLength = rowSteps.stepLengthQuarters[static_cast<size_t> (slot)];
             const auto durationFraction =
                 rowSteps.durationFraction[static_cast<size_t> (slot)];
 
@@ -833,10 +960,6 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             midiMessages.addEvent (
                 juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (velocity)),
                 sampleOffset);
-
-            rowSteps.gateStartPpq[static_cast<size_t> (slot)] = triggerPpq;
-            rowSteps.gateEndPpq[static_cast<size_t> (slot)] = gateEndPpq;
-
             const auto samplesUntilOff = sampleOffset + noteGateSamples;
 
             if (samplesUntilOff < bufferSamples)
@@ -893,6 +1016,8 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     return;
    #endif
 
+    drainSequencerCommands();
+
     const auto* playHead = getPlayHead();
 
     if (playHead == nullptr)
@@ -911,7 +1036,6 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         wasPlaying = false;
         resetLastEmittedTriggers();
         resetPendingNoteOffs();
-        resetPhraseStepGateEnds();
         currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
         return;
     }
@@ -1086,15 +1210,13 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         if (row < 0 || row >= phraseRowCount)
             continue;
 
-        const auto stepCount = juce::jmax (
+        const auto stepCount = juce::jlimit (
             0,
+            maxPhraseStepsPerRow,
             static_cast<int> (rowTree.getProperty ("stepCount", defaultPhraseStepsPerRow)));
 
-        auto& steps = phraseRows[static_cast<size_t> (row)];
-        steps.notes.resize (static_cast<size_t> (stepCount));
-        steps.timingMultiplier.resize (static_cast<size_t> (stepCount));
-        steps.durationFraction.resize (static_cast<size_t> (stepCount));
-        steps.velocity.resize (static_cast<size_t> (stepCount));
+        auto& steps = modelRow (row);
+        initialiseRowDefaults (steps, row, stepCount);
 
         for (int step = 0; step < stepCount; ++step)
         {
@@ -1118,14 +1240,26 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                 static_cast<int> (rowTree.getProperty (velocityPropName, defaultStepVelocity)));
         }
 
-        phraseRowStepCount[static_cast<size_t> (row)].store (stepCount);
-        syncRowGateStorage (row);
-        syncProcessScratch (row);
+        modelState.muted[static_cast<size_t> (row)] =
+            static_cast<bool> (rowTree.getProperty ("muted", false)) ? 1 : 0;
+        modelState.timingOffset[static_cast<size_t> (row)] = juce::jlimit (
+            0,
+            rowTimingOffsetCount - 1,
+            static_cast<int> (rowTree.getProperty ("timingOffset", defaultRowTimingOffsetIndex)));
+        rebuildRowTimingLayout (steps);
+        publishRowToAudio (row);
 
-        setPhraseRowMuted (row, static_cast<bool> (rowTree.getProperty ("muted", false)));
-        setPhraseRowTimingOffset (row,
-                                  static_cast<int> (rowTree.getProperty ("timingOffset",
-                                                                         defaultRowTimingOffsetIndex)));
+        SequencerCommand mutedCommand;
+        mutedCommand.type = SequencerCommand::Type::SetRowMuted;
+        mutedCommand.row = row;
+        mutedCommand.intValue = modelState.muted[static_cast<size_t> (row)];
+        publishCommandToAudio (mutedCommand);
+
+        SequencerCommand timingCommand;
+        timingCommand.type = SequencerCommand::Type::SetRowTimingOffset;
+        timingCommand.row = row;
+        timingCommand.intValue = modelState.timingOffset[static_cast<size_t> (row)];
+        publishCommandToAudio (timingCommand);
     }
 
     setLoopBraceStartQuarters (static_cast<int> (state.getProperty ("loopBraceStart",

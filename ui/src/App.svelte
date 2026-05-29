@@ -13,6 +13,7 @@
   import PianoRollPreview from "./PianoRollPreview.svelte";
   import { findSingleMove } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
+  import { isStepActiveAtBeat } from "./phraseSchedule.js";
 
   let pluginName = "MIDI Phrases";
   let version = "0.0.1";
@@ -104,6 +105,29 @@
 
   function nativeFunctionAvailable(name) {
     return window.__JUCE__?.initialisationData?.__juce__functions?.includes?.(name) ?? false;
+  }
+
+  $: {
+    const nextActiveGates = grid.map((row) => row.map(() => false));
+
+    if (playbackBeat >= 0) {
+      for (let row = 0; row < grid.length; row += 1) {
+        for (let step = 0; step < grid[row].length; step += 1) {
+          nextActiveGates[row][step] = isStepActiveAtBeat({
+            beat: playbackBeat,
+            step,
+            rowNotes: grid[row],
+            rowMuted: rowMuted[row],
+            rowTimingOffset: rowTimingOffset[row],
+            stepDurationFraction: stepDurationFraction[row],
+            stepTimingMultiplier: stepTimingMultiplier[row],
+            stepVelocity: stepVelocity[row],
+          });
+        }
+      }
+    }
+
+    activeGates = nextActiveGates;
   }
 
   if (window.__JUCE__?.initialisationData?.pluginName?.[0]) {
@@ -397,41 +421,7 @@
     await insertPhraseStep(row, step);
   }
 
-  function applyPlaybackActivity(result) {
-    if (!Array.isArray(result)) return;
-
-    let changed = false;
-
-    for (let row = 0; row < 4; row += 1) {
-      const rowData = result[row];
-
-      if (!Array.isArray(rowData)) continue;
-
-      for (let step = 0; step < activeGates[row].length; step += 1) {
-        const active = Boolean(rowData?.[step]);
-
-        if (activeGates[row][step] !== active) {
-          activeGates[row][step] = active;
-          changed = true;
-        }
-      }
-    }
-
-    if (changed) activeGates = activeGates;
-  }
-
   async function pollPlaybackActivity() {
-    if (nativeFunctionAvailable("getPhraseStepPlaybackActivity")) {
-      const getPhraseStepPlaybackActivity = getNativeFunction("getPhraseStepPlaybackActivity");
-
-      try {
-        const result = await getPhraseStepPlaybackActivity();
-        applyPlaybackActivity(result);
-      } catch {
-        // WebView bridge may be unavailable during teardown.
-      }
-    }
-
     const beatNativeName = nativeFunctionAvailable("getPlaybackBeat")
       ? "getPlaybackBeat"
       : nativeFunctionAvailable("getLoopPlaybackBeat")

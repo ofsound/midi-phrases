@@ -116,6 +116,8 @@ Version is read from the `VERSION` file in project root.
 
 Always resolve any compile warnings encountered during builds. Warnings should be treated as errors and fixed before considering a task complete.
 
+Warnings-as-errors must be enforced for owned targets in CMake. If a local build reports a warning in project source, tests, or benchmarks, fix it before finishing. Generated or vendor warnings may be isolated explicitly, but do not weaken warnings for project-owned code.
+
 Note: LSP/clangd often reports false positive diagnostic errors (like "undeclared identifier", "file not found") because it doesn't have full context of the JUCE module system. Ignore these unless the actual build fails.
 
 ## Includes
@@ -133,6 +135,21 @@ To communicate between them:
 - **Simple values**: Use `std::atomic` or JUCE's `AudioParameterFloat`/`AudioParameterBool` (which are atomic under the hood)
 - **Larger data**: Use a lock-free queue (e.g. `moodycamel::ReaderWriterQueue`) to pass data from message → audio thread
 - **Audio → UI updates**: Use `juce::AsyncUpdater` or `juce::Timer` on the message thread to poll state — never call UI code from the audio thread
+
+## Processor State Ownership
+
+Any state read by `processBlock()` must be owned by the audio thread or copied into an audio-thread snapshot. UI callbacks, WebView native functions, parameter listeners, timers, and state loading must not mutate containers or objects that `processBlock()` reads directly.
+
+For sequencer/grid data:
+- Define a fixed maximum capacity before audio-thread use
+- Use fixed-size storage for audio-visible state
+- Send edits to the audio thread through a bounded queue or publish immutable snapshots
+- Apply queued edits at the start of `processBlock()`
+- Never call `std::vector::resize`, `insert`, `erase`, `push_back`, or any allocating operation on data used by the audio thread
+
+If a feature needs both UI preview and audio scheduling, prefer one tested scheduling model or shared fixtures. Do not independently evolve JavaScript and C++ timing behavior without tests or explicit parity checks that compare them.
+
+WebView/native bridge calls that run every animation frame should return scalar/lightweight values only. Avoid per-frame nested arrays, full schedules, or other allocation-heavy payloads.
 
 ## Realtime Safety
 

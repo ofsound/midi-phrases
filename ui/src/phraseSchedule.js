@@ -5,7 +5,7 @@ export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
 const EPSILON = 1e-9;
 
 /**
- * @typedef {{ start: number, end: number, midi: number, velocity: number, row: number }} ScheduledNote
+ * @typedef {{ start: number, end: number, midi: number, velocity: number, row: number, step: number }} ScheduledNote
  */
 
 /** @param {number} offsetIndex */
@@ -151,6 +151,7 @@ export function buildPhraseSchedule({
         midi: rowNotes[step],
         velocity,
         row,
+        step,
       };
     }
 
@@ -196,4 +197,45 @@ export function isScheduledNoteActiveAtBeat(note, beat) {
   if (beat < 0) return false;
 
   return beat >= note.start - EPSILON && beat < note.end - EPSILON;
+}
+
+/**
+ * @param {object} params
+ * @param {number} params.beat
+ * @param {number} params.step
+ * @param {number[]} params.rowNotes
+ * @param {boolean} params.rowMuted
+ * @param {number} params.rowTimingOffset
+ * @param {number[]} params.stepDurationFraction
+ * @param {number[]} params.stepTimingMultiplier
+ * @param {number[]} params.stepVelocity
+ */
+export function isStepActiveAtBeat({
+  beat,
+  step,
+  rowNotes,
+  rowMuted,
+  rowTimingOffset,
+  stepDurationFraction,
+  stepTimingMultiplier,
+  stepVelocity,
+}) {
+  if (beat < 0 || rowMuted || step < 0 || step >= rowNotes.length) return false;
+  if ((stepVelocity[step] ?? 0) <= 0 || (stepDurationFraction[step] ?? 0) <= 0) return false;
+
+  const { stepStartQuarters, stepLengthQuarters, cycleLengthQuarters } =
+    rowStepLayout(stepTimingMultiplier);
+
+  if (cycleLengthQuarters <= 0 || (stepLengthQuarters[step] ?? 0) <= 0) return false;
+
+  const offset = rowTimingOffsetQuarters(rowTimingOffset);
+  const relativeBeat = beat - stepStartQuarters[step] - offset;
+
+  if (relativeBeat < -EPSILON) return false;
+
+  const cycleIndex = Math.floor((relativeBeat + EPSILON) / cycleLengthQuarters);
+  const triggerBeat = cycleIndex * cycleLengthQuarters + stepStartQuarters[step] + offset;
+  const gateEnd = triggerBeat + stepLengthQuarters[step] * stepDurationFraction[step];
+
+  return beat >= triggerBeat - EPSILON && beat < gateEnd - EPSILON;
 }

@@ -19,7 +19,7 @@ export default defineConfig({
     cors: true,
   },
   build: {
-    outDir: "../assets/webview/dist",
+    outDir: "dist",
     emptyOutDir: true,
   },
 });

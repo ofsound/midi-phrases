@@ -220,6 +220,53 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPlayHead (nullptr);
     }
 
+    SECTION ("message-thread edits are applied by the next audio block")
+    {
+        testPlugin.prepareToPlay (44100.0, 512);
+
+        for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
+        {
+            for (int step = 0; step < testPlugin.getPhraseRowStepCount (row); ++step)
+                testPlugin.setPhraseStepVelocity (row, step, 0);
+        }
+
+        testPlugin.setPhraseNote (0, 0, 73);
+        testPlugin.setPhraseStepVelocity (0, 0, 100);
+
+        juce::AudioBuffer<float> buffer (2, 512);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (120.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+
+        testPlugin.processBlock (buffer, midi);
+
+        auto emittedEditedNote = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 73)
+                emittedEditedNote = true;
+        }
+
+        CHECK (emittedEditedNote);
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("step velocity")
     {
         CHECK (testPlugin.getPhraseStepVelocity (0, 0) == PluginProcessor::defaultStepVelocity);
@@ -306,6 +353,44 @@ TEST_CASE ("Plugin instance", "[instance]")
             testPlugin.insertPhraseStep (0, PluginProcessor::defaultPhraseStepsPerRow);
 
         CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::defaultPhraseStepsPerRow + 3);
+    }
+
+    SECTION ("phrase rows are capped at fixed audio-thread capacity")
+    {
+        for (int i = 0; i < PluginProcessor::maxPhraseStepsPerRow * 2; ++i)
+            testPlugin.insertPhraseStep (0, testPlugin.getPhraseRowStepCount (0));
+
+        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::maxPhraseStepsPerRow);
+    }
+
+    SECTION ("state load clamps phrase rows to fixed audio-thread capacity")
+    {
+        juce::ValueTree state ("MidiPhrases");
+        state.setProperty ("version", 3, nullptr);
+
+        juce::ValueTree rowTree ("Row");
+        rowTree.setProperty ("index", 0, nullptr);
+        rowTree.setProperty ("stepCount", PluginProcessor::maxPhraseStepsPerRow + 10, nullptr);
+
+        for (int step = 0; step < PluginProcessor::maxPhraseStepsPerRow + 10; ++step)
+            rowTree.setProperty ("step" + juce::String (step), 72, nullptr);
+
+        state.appendChild (rowTree, nullptr);
+
+        juce::MemoryBlock destData;
+
+        if (auto xml = state.createXml())
+        {
+            juce::MemoryOutputStream stream;
+            xml->writeTo (stream);
+            destData.replaceAll (stream.getData(), stream.getDataSize());
+        }
+
+        PluginProcessor reloaded;
+        reloaded.setStateInformation (destData.getData(), static_cast<int> (destData.getSize()));
+
+        CHECK (reloaded.getPhraseRowStepCount (0) == PluginProcessor::maxPhraseStepsPerRow);
+        CHECK (reloaded.getPhraseNote (0, PluginProcessor::maxPhraseStepsPerRow - 1) == 72);
     }
 }
 

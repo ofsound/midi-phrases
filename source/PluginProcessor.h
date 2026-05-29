@@ -2,7 +2,6 @@
 
 #include <array>
 #include <atomic>
-#include <vector>
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -44,6 +43,7 @@ public:
 
     static constexpr int phraseRowCount = 4;
     static constexpr int defaultPhraseStepsPerRow = 4;
+    static constexpr int maxPhraseStepsPerRow = 64;
 
     void setPhraseNote (int row, int step, int noteNumber);
     int getPhraseNote (int row, int step) const;
@@ -80,8 +80,6 @@ public:
     void movePhraseStep (int row, int fromStep, int toStep);
     int getPhraseRowStepCount (int row) const;
 
-    juce::Array<juce::var> getPhraseStepPlaybackActivity() const;
-
     static constexpr int defaultLoopBraceStartQuarters = 0;
     static constexpr int defaultLoopBraceEndQuarters = 8;
 
@@ -102,26 +100,58 @@ public:
 private:
     struct PhraseRowSteps
     {
-        std::vector<int> notes;
-        std::vector<int> timingMultiplier;
-        std::vector<double> durationFraction;
-        std::vector<int> velocity;
-        std::vector<double> gateStartPpq;
-        std::vector<double> gateEndPpq;
+        int stepCount = defaultPhraseStepsPerRow;
+        std::array<int, maxPhraseStepsPerRow> notes {};
+        std::array<int, maxPhraseStepsPerRow> timingMultiplier {};
+        std::array<double, maxPhraseStepsPerRow> durationFraction {};
+        std::array<int, maxPhraseStepsPerRow> velocity {};
+        std::array<double, maxPhraseStepsPerRow> stepLengthQuarters {};
+        std::array<double, maxPhraseStepsPerRow> stepStartQuarters {};
+        double cycleLengthQuarters = 0.0;
     };
 
     struct ProcessScratch
     {
-        std::vector<double> stepLengthQuarters;
-        std::vector<double> stepStartQuarters;
-
         struct StepTrigger
         {
             double ppq = 0.0;
             int step = 0;
         };
 
-        std::vector<StepTrigger> triggers;
+        static constexpr int maxTriggers = maxPhraseStepsPerRow * 8;
+        std::array<StepTrigger, maxTriggers> triggers {};
+    };
+
+    struct SequencerState
+    {
+        std::array<PhraseRowSteps, phraseRowCount> rows {};
+        std::array<int, phraseRowCount> muted {};
+        std::array<int, phraseRowCount> timingOffset {};
+    };
+
+    struct SequencerCommand
+    {
+        enum class Type
+        {
+            SetNote,
+            SetRowMuted,
+            SetRowTimingOffset,
+            SetStepTimingMultiplier,
+            SetStepDurationFraction,
+            SetStepVelocity,
+            RemoveStep,
+            InsertStep,
+            MoveStep,
+            ReplaceRow
+        };
+
+        Type type = Type::SetNote;
+        int row = 0;
+        int step = 0;
+        int toStep = 0;
+        int intValue = 0;
+        double doubleValue = 0.0;
+        PhraseRowSteps rowState {};
     };
 
     static BusesProperties createBusesProperties();
@@ -130,14 +160,18 @@ private:
     void resetPhraseStepToDefaults (int row, int step);
     void resetPendingNoteOffs();
     void resetLastEmittedTriggers();
-    void resetPhraseStepGateEnds();
-    void resetPhraseStepGateEndsForRow (int row);
-    void syncRowGateStorage (int row);
-    void syncProcessScratch (int row);
     bool isValidStep (int row, int step) const;
+    bool isValidAudioStep (const SequencerState& state, int row, int step) const;
+    void initialiseRowDefaults (PhraseRowSteps& steps, int row, int stepCount);
+    void rebuildRowTimingLayout (PhraseRowSteps& steps);
+    void publishCommandToAudio (const SequencerCommand& command);
+    void publishRowToAudio (int row);
+    void drainSequencerCommands();
+    void applySequencerCommand (const SequencerCommand& command);
+    PhraseRowSteps& modelRow (int row);
+    const PhraseRowSteps& modelRow (int row) const;
 
     double playbackBeatForUi() const;
-    bool isPhraseStepActiveAtPlaybackBeat (int row, int step, double playbackBeat) const;
 
     void processScheduledRange (double schedulePpqStart,
                                 double schedulePpqEnd,
@@ -154,10 +188,13 @@ private:
         int samplesRemaining = 0;
     };
 
-    std::array<PhraseRowSteps, phraseRowCount> phraseRows {};
-    std::array<std::atomic<int>, phraseRowCount> phraseRowStepCount {};
-    std::array<std::atomic<int>, phraseRowCount> phraseRowMuted {};
-    std::array<std::atomic<int>, phraseRowCount> phraseRowTimingOffset {};
+    static constexpr size_t sequencerCommandQueueCapacity = 1024;
+
+    SequencerState modelState {};
+    SequencerState audioState {};
+    std::array<SequencerCommand, sequencerCommandQueueCapacity> sequencerCommandQueue {};
+    std::atomic<size_t> sequencerCommandWriteIndex { 0 };
+    std::atomic<size_t> sequencerCommandReadIndex { 0 };
     std::array<std::atomic<int>, phraseRowCount> phraseRowFlushNoteOff {};
     std::array<PendingNoteOff, phraseRowCount> pendingNoteOffs {};
     std::array<double, phraseRowCount> lastEmittedTriggerPpq {};
