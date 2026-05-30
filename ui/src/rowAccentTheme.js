@@ -122,3 +122,11 @@ export function rowAccentFor(row, rowColorsEnabled) {
 
   return altRowAccents[row - 1] ?? emeraldRowAccent;
 }
+
+/** Absolute overlay on a phrase row when muted (pointer-events-none). */
+export const rowMutedOverlayClasses =
+  "pointer-events-none absolute inset-0 z-10 rounded-xl bg-zinc-950/50";
+
+/** Mute toggle stays above {@link rowMutedOverlayClasses}. */
+export const rowMuteControlClasses =
+  "relative z-20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-zinc-900 transition-colors outline-none hover:border-zinc-600";

@@ -3,8 +3,11 @@
 
   /** @type {import('./rowAccentTheme.js').RowAccent} */
   export let accent = emeraldRowAccent;
+  export let muted = false;
   export let value = 1;
   export let velocity = 127;
+  /** Duration fraction restored on double-click; omit to disable reset. */
+  export let resetValue = undefined;
   export let ariaLabel = "Step duration";
   /** @type {(value: number) => void | Promise<void>} */
   export let onValueChange = () => {};
@@ -69,12 +72,23 @@
 
     onValueChange(snapValue);
   }
+
+  /** @param {MouseEvent} event */
+  function onDoubleClick(event) {
+    if (resetValue === undefined || dragging) return;
+
+    event.preventDefault();
+
+    if (Math.abs(value - resetValue) > 0.0001) onValueChange(resetValue);
+  }
 </script>
 
 <div class="flex min-w-0 w-full flex-col gap-1">
   <div
     bind:this={trackEl}
-    class="relative h-4 cursor-pointer touch-none select-none bg-zinc-600 outline-none {accent.ringFocusWithWidth}"
+    class="relative h-4 cursor-pointer touch-none select-none outline-none {accent.ringFocusWithWidth} {muted
+      ? 'bg-zinc-800'
+      : 'bg-zinc-600'}"
     role="slider"
     aria-label={ariaLabel}
     aria-valuemin={0}
@@ -85,6 +99,8 @@
     onpointermove={onTrackPointerMove}
     onpointerup={onTrackPointerUp}
     onpointercancel={onTrackPointerUp}
+    ondblclick={onDoubleClick}
+    title={resetValue !== undefined ? "Drag to change · double-click to reset" : undefined}
     onkeydown={(event) => {
       const step = event.shiftKey ? 0.01 : 0.05;
 
@@ -100,7 +116,7 @@
     }}
   >
     <div
-      class="absolute inset-y-0 left-0 {accent.bgAccent} {dragging
+      class="absolute inset-y-0 left-0 {muted ? 'bg-zinc-600' : accent.bgAccent} {dragging
         ? ''
         : 'transition-[width,opacity] duration-75'}"
       style:width="{fillPercent}%"

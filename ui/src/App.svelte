@@ -3,6 +3,7 @@
   import { getNativeFunction } from "@juce/index.js";
   import {
     defaultPhraseGrid,
+    defaultRowTimingOffsetIndex,
     defaultStepDurationGrid,
     defaultStepTimingMultiplierGrid,
     defaultStepVelocityGrid,
@@ -21,7 +22,7 @@
   import { sanitizeOrderedIds } from "./dndUtils.js";
   import { isStepActiveAtBeat } from "./phraseSchedule.js";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
-  import { rowAccentFor } from "./rowAccentTheme.js";
+  import { rowAccentFor, rowMutedOverlayClasses, rowMuteControlClasses } from "./rowAccentTheme.js";
 
   let pluginName = "MIDI Phrases";
   let version = "0.0.1";
@@ -29,7 +30,12 @@
   /** @type {boolean[]} */
   let rowMuted = [false, false, false, false];
   /** @type {number[]} */
-  let rowTimingOffset = [3, 3, 3, 3];
+  let rowTimingOffset = [
+    defaultRowTimingOffsetIndex,
+    defaultRowTimingOffsetIndex,
+    defaultRowTimingOffsetIndex,
+    defaultRowTimingOffsetIndex,
+  ];
   /** @type {number[]} */
   let rowMidiChannel = [1, 1, 1, 1];
   /** @type {number[][]} */
@@ -708,10 +714,14 @@
       <div class="flex flex-col gap-5">
         {#each grid as _row, row}
           {@const rowAccent = rowAccentFor(row, rowColorsEnabled)}
-          <div class="flex items-center gap-2">
+          <div class="relative flex min-w-0 flex-1 items-center gap-2">
+            {#if rowMuted[row]}
+              <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
+            {/if}
             <MidiChannelStepper
               value={rowMidiChannel[row]}
               ariaLabel="Row {row + 1} MIDI channel"
+              muted={rowMuted[row]}
               onValueChange={(channel) => selectRowMidiChannel(row, channel)}
             />
             <BipolarKnob
@@ -719,24 +729,25 @@
               accent={rowAccent}
               options={timingOffsetOptions}
               value={rowTimingOffset[row]}
+              resetValue={defaultRowTimingOffsetIndex}
               ariaLabel="Row timing offset"
+              muted={rowMuted[row]}
               onValueChange={(offsetIndex) => selectRowTimingOffset(row, offsetIndex)}
             />
-            <div class="flex shrink-0 items-center justify-center">
-              <button
-                type="button"
-                aria-label={rowMuted[row] ? "Unmute voice" : "Mute voice"}
-                aria-pressed={!rowMuted[row]}
-                class="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 transition-colors outline-none hover:border-zinc-600 {rowAccent.controlFocus} {rowMuted[row]
-                  ? 'text-zinc-500'
-                  : rowAccent.textAccent}"
-                onclick={() => toggleRowMute(row)}
-              >
-                <SpeakerIcon class="h-4 w-4" />
-              </button>
-            </div>
+            <button
+              type="button"
+              aria-label={rowMuted[row] ? "Unmute voice" : "Mute voice"}
+              aria-pressed={!rowMuted[row]}
+              class="{rowMuteControlClasses} {rowAccent.controlFocus} {rowMuted[row]
+                ? 'border-zinc-600 text-zinc-400'
+                : `border-zinc-700 ${rowAccent.textAccent}`}"
+              onclick={() => toggleRowMute(row)}
+            >
+              <SpeakerIcon class="h-4 w-4" />
+            </button>
             <PhraseRow
               {row}
+              muted={rowMuted[row]}
               accent={rowAccent}
               timingOffsetIndex={rowTimingOffset[row]}
               {pulseIndex}

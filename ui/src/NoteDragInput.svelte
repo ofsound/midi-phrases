@@ -4,7 +4,10 @@
 
   /** @type {import('./rowAccentTheme.js').RowAccent} */
   export let accent = emeraldRowAccent;
+  export let muted = false;
   export let value;
+  /** MIDI note to restore on double-click; omit to disable reset. */
+  export let resetValue = undefined;
   export let ariaLabel = "Note";
   /** @type {(value: number) => void | Promise<void>} */
   export let onValueChange = () => {};
@@ -49,12 +52,23 @@
     dragging = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
+
+  /** @param {MouseEvent} event */
+  function onDoubleClick(event) {
+    if (resetValue === undefined || dragging) return;
+
+    event.preventDefault();
+
+    if (value !== resetValue) onValueChange(resetValue);
+  }
 </script>
 
 <div
-  class="inline-flex cursor-ns-resize touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {dragging
-    ? accent.textAccentLight
-    : 'text-zinc-100'}"
+  class="inline-flex cursor-ns-resize touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {muted
+    ? 'text-zinc-500'
+    : dragging
+      ? accent.textAccentLight
+      : 'text-zinc-100'}"
   role="slider"
   aria-label={ariaLabel}
   aria-valuemin={0}
@@ -66,6 +80,8 @@
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
   onpointercancel={onPointerUp}
+  ondblclick={onDoubleClick}
+  title={resetValue !== undefined ? "Drag to change · double-click to reset" : undefined}
   onkeydown={(event) => {
     if (event.key === "ArrowUp") {
       event.preventDefault();

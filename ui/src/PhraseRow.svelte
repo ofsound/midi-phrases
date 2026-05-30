@@ -8,6 +8,11 @@
   import VelocityDragInput from "./VelocityDragInput.svelte";
   import StepInsertZone from "./StepInsertZone.svelte";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
+  import {
+    defaultNoteForRow,
+    defaultStepDurationFraction,
+    defaultStepVelocity,
+  } from "./midiNoteNames.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import {
     compensatedResizeBoundsPx,
@@ -22,6 +27,7 @@
   } from "./stepCellLayout.js";
 
   export let row = 0;
+  export let muted = false;
   /** @type {import('./rowAccentTheme.js').RowAccent} */
   export let accent = emeraldRowAccent;
   /** Index into timingOffsetValues (default 3 = 0 quarters). */
@@ -631,9 +637,23 @@
     };
   }
 
-  const stepCellPlaybackClass = (active) => (active ? accent.borderActive : "border-zinc-700");
+  const stepCellPlaybackClass = (active) => {
+    if (muted) return "border-zinc-800/90";
 
-  const stepCellPlaybackGlowClass = (active) => (active ? accent.playbackGlow : "");
+    return active ? accent.borderActive : "border-zinc-700";
+  };
+
+  const stepCellPlaybackGlowClass = (active) => (muted || !active ? "" : accent.playbackGlow);
+
+  const stepCellSurfaceClass = muted ? "bg-zinc-950/95" : "bg-zinc-900";
+
+  const stepHeaderClass = muted
+    ? "border-b border-zinc-800/90 bg-zinc-900/70"
+    : "border-b border-zinc-800 bg-zinc-800/60";
+
+  const stepHeaderLabelClass = muted
+    ? "text-zinc-500"
+    : "text-zinc-300";
 </script>
 
 {#snippet stepHeaderRemoveButton(step)}
@@ -642,7 +662,9 @@
     data-remove-button
     aria-label="Remove step"
     disabled={removeBlocked}
-    class="z-10 flex h-4 w-4 shrink-0 items-center justify-start p-0 text-zinc-400 transition-colors outline-none hover:text-zinc-200 {accent.textAccentFocus} disabled:pointer-events-none disabled:opacity-50"
+    class="z-10 flex h-4 w-4 shrink-0 items-center justify-start p-0 transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 {muted
+      ? 'text-zinc-600 hover:text-zinc-500'
+      : `text-zinc-400 hover:text-zinc-200 ${accent.textAccentFocus}`}"
     onpointerdown={(event) => event.stopPropagation()}
     onmousedown={(event) => event.stopPropagation()}
     onclick={(event) => handleRemoveClick(event, step)}
@@ -667,20 +689,20 @@
     )}"
   >
     <div
-      class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 bg-zinc-900 outline-none transition-[border-color] duration-200 {stepCellPlaybackClass(
+      class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color] duration-200 {stepCellSurfaceClass} {stepCellPlaybackClass(
         activeGates[step],
-      )} {accent.cellFocusWithinBorder}"
+      )} {muted ? '' : accent.cellFocusWithinBorder}"
     >
       {#if reorderEnabled}
         <div
           use:dragHandle
           aria-label="Drag to reorder step"
-          class="flex h-5 w-full shrink-0 cursor-grab items-center justify-start gap-1 border-b border-zinc-800 bg-zinc-800/60 px-1 active:cursor-grabbing"
+          class="flex h-5 w-full shrink-0 cursor-grab items-center justify-start gap-1 px-1 active:cursor-grabbing {stepHeaderClass}"
         >
           {@render stepHeaderRemoveButton(step)}
           <span
             data-multiplier-label
-            class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums text-zinc-300"
+            class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
             aria-hidden="true"
           >
             {multiplierLabel}
@@ -690,13 +712,15 @@
         <div
           role="presentation"
           aria-label="Reorder unavailable for single step"
-          class="flex h-5 w-full shrink-0 cursor-default items-center justify-start gap-1 border-b border-zinc-800 bg-zinc-800/60 px-1 opacity-60"
+          class="flex h-5 w-full shrink-0 cursor-default items-center justify-start gap-1 px-1 {stepHeaderClass} {muted
+            ? 'opacity-80'
+            : 'opacity-60'}"
           onpointerdown={stopPointerPropagation}
         >
           {@render stepHeaderRemoveButton(step)}
           <span
             data-multiplier-label
-            class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums text-zinc-300"
+            class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
             aria-hidden="true"
           >
             {multiplierLabel}
@@ -704,11 +728,13 @@
         </div>
       {/if}
 
-      <div class="flex min-w-0 flex-col gap-1 px-1 py-1">
+      <div class="flex min-w-0 flex-col gap-1 px-1 py-1 {muted ? 'opacity-80' : ''}">
         <DurationBar
           {accent}
+          {muted}
           value={stepDurationFraction[step]}
           velocity={stepVelocity[step]}
+          resetValue={defaultStepDurationFraction}
           ariaLabel="Step duration fraction"
           onValueChange={(fraction) => onDurationChange(row, step, fraction)}
         />
@@ -716,13 +742,17 @@
           <div class="flex min-w-0 items-baseline gap-1.5">
             <NoteDragInput
               {accent}
+              {muted}
               value={notes[step]}
+              resetValue={defaultNoteForRow(row)}
               ariaLabel="Step note"
               onValueChange={(midi) => onNoteChange(row, step, midi)}
             />
             <VelocityDragInput
               {accent}
+              {muted}
               value={stepVelocity[step]}
+              resetValue={defaultStepVelocity}
               ariaLabel="Step velocity"
               onValueChange={(value) => onVelocityChange(row, step, value)}
             />
@@ -749,7 +779,7 @@
     class="pointer-events-auto absolute inset-y-0 z-50"
     style={gapInsertStyle()}
   >
-    <StepInsertZone {accent} onInsert={() => onInsertStep(row, insertStep)} />
+    <StepInsertZone {accent} {muted} onInsert={() => onInsertStep(row, insertStep)} />
   </div>
 {/snippet}
 
@@ -758,7 +788,7 @@
   style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex, pulseIndex)}px"
 >
   <div class="relative z-50 shrink-0 self-stretch">
-    <StepInsertZone {accent} onInsert={() => onInsertStep(row, 0)} />
+    <StepInsertZone {accent} {muted} onInsert={() => onInsertStep(row, 0)} />
   </div>
 
   {#if reorderDisabled}
@@ -813,6 +843,6 @@
   {/if}
 
   <div class="relative z-50 shrink-0 self-stretch">
-    <StepInsertZone {accent} onInsert={() => onInsertStep(row, stepIds.length)} />
+    <StepInsertZone {accent} {muted} onInsert={() => onInsertStep(row, stepIds.length)} />
   </div>
 </div>
