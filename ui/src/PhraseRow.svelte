@@ -32,6 +32,8 @@
   export let accent = emeraldRowAccent;
   /** Index into timingOffsetValues (default 3 = 0 quarters). */
   export let timingOffsetIndex = 3;
+  /** UI-only margin added when any row has a negative offset (see phraseRowLayout). */
+  export let timingOffsetVisualCompensationPx = 0;
   export let pulseIndex = 1;
   /** @type {string[]} */
   export let stepIds = [];
@@ -785,7 +787,8 @@
 
 <div
   class="flex min-w-0 flex-1 overflow-x-auto pt-2 pr-2 pb-2 pl-2"
-  style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex, pulseIndex)}px"
+  style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex, pulseIndex) +
+    timingOffsetVisualCompensationPx}px"
 >
   <div class="relative z-50 shrink-0 self-stretch">
     <StepInsertZone {accent} {muted} onInsert={() => onInsertStep(row, 0)} />

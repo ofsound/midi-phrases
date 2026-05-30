@@ -22,6 +22,10 @@
   import { sanitizeOrderedIds } from "./dndUtils.js";
   import { isStepActiveAtBeat } from "./phraseSchedule.js";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
+  import {
+    phraseBeatGuideGlobalLeftPx,
+    phraseGridVisualOffsetCompensationPx,
+  } from "./phraseRowLayout.js";
   import { rowAccentFor, rowMutedOverlayClasses, rowMuteControlClasses } from "./rowAccentTheme.js";
 
   let pluginName = "MIDI Phrases";
@@ -74,6 +78,12 @@
   let standaloneTempoBpm = 120;
   let pulseIndex = defaultPulseIndex;
   let rowColorsEnabled = false;
+
+  /** UI-only; shifts phrase rows and beat-one guide when any row has a negative offset. */
+  $: phraseVisualOffsetCompensationPx = phraseGridVisualOffsetCompensationPx(
+    rowTimingOffset,
+    pulseIndex,
+  );
 
   function createStepId() {
     const id = `step-${nextStepId}`;
@@ -711,10 +721,16 @@
 
   <section class="mt-4 flex flex-1 flex-col items-start justify-start">
     <div class="w-full">
-      <div class="flex flex-col gap-5">
+      <div class="relative flex flex-col gap-5">
+        <div
+          class="pointer-events-none absolute top-0 bottom-0 z-0 w-px bg-zinc-600/70"
+          style:left="{phraseBeatGuideGlobalLeftPx(phraseVisualOffsetCompensationPx)}px"
+          aria-hidden="true"
+          title="Beat one"
+        ></div>
         {#each grid as _row, row}
           {@const rowAccent = rowAccentFor(row, rowColorsEnabled)}
-          <div class="relative flex min-w-0 flex-1 items-center gap-2">
+          <div class="relative z-10 flex min-w-0 flex-1 items-center gap-2">
             {#if rowMuted[row]}
               <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
             {/if}
@@ -750,6 +766,7 @@
               muted={rowMuted[row]}
               accent={rowAccent}
               timingOffsetIndex={rowTimingOffset[row]}
+              timingOffsetVisualCompensationPx={phraseVisualOffsetCompensationPx}
               {pulseIndex}
               stepIds={stepIds[row]}
               notes={grid[row]}
