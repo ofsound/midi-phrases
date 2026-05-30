@@ -203,6 +203,13 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("phraseStepCycle", phraseStepCycle)
                        .withInitialisationData ("phraseStepCycleOffset", phraseStepCycleOffset)
                        .withInitialisationData ("pulseIndex", processor.getPulseIndex())
+                       .withInitialisationData ("swingPercent", processor.getSwingPercent())
+                       .withInitialisationData ("velocityHumanizePercent",
+                                                processor.getVelocityHumanizePercent())
+                       .withInitialisationData ("timingHumanizePercent",
+                                                processor.getTimingHumanizePercent())
+                       .withInitialisationData ("swingSubdivisionIndex",
+                                                processor.getSwingSubdivisionIndex())
                        .withInitialisationData ("loopBraceEnabled",
                                                 processor.isLoopBraceEnabled() ? 1 : 0)
                        .withInitialisationData ("loopBraceStart",
@@ -437,6 +444,42 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.setPulseIndex (varToInt (args[0]));
 
                                complete (processor.getPulseIndex());
+                           })
+                       .withNativeFunction (
+                           "setSwingPercent",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setSwingPercent (varToInt (args[0]));
+
+                               complete (processor.getSwingPercent());
+                           })
+                       .withNativeFunction (
+                           "setVelocityHumanizePercent",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setVelocityHumanizePercent (varToInt (args[0]));
+
+                               complete (processor.getVelocityHumanizePercent());
+                           })
+                       .withNativeFunction (
+                           "setTimingHumanizePercent",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setTimingHumanizePercent (varToInt (args[0]));
+
+                               complete (processor.getTimingHumanizePercent());
+                           })
+                       .withNativeFunction (
+                           "setSwingSubdivisionIndex",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setSwingSubdivisionIndex (varToInt (args[0]));
+
+                               complete (processor.getSwingSubdivisionIndex());
                            })
                        .withNativeFunction (
                            "setLoopBraceEnabled",

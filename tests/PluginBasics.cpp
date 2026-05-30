@@ -65,6 +65,31 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
     }
 
+    SECTION ("swing and humanize controls")
+    {
+        CHECK (testPlugin.getSwingPercent() == PluginProcessor::defaultSwingPercent);
+        CHECK (testPlugin.getVelocityHumanizePercent()
+               == PluginProcessor::defaultVelocityHumanizePercent);
+        CHECK (testPlugin.getTimingHumanizePercent()
+               == PluginProcessor::defaultTimingHumanizePercent);
+        CHECK (testPlugin.getSwingSubdivisionIndex()
+               == PluginProcessor::defaultSwingSubdivisionIndex);
+        CHECK (PluginProcessor::swingSubdivisionForIndex (0) == Catch::Approx (0.25));
+        CHECK (PluginProcessor::swingSubdivisionForIndex (1) == Catch::Approx (0.5));
+        CHECK (PluginProcessor::swingSubdivisionForIndex (2) == Catch::Approx (1.0));
+
+        testPlugin.setSwingPercent (125);
+        testPlugin.setVelocityHumanizePercent (64);
+        testPlugin.setTimingHumanizePercent (-3);
+        testPlugin.setSwingSubdivisionIndex (99);
+
+        CHECK (testPlugin.getSwingPercent() == 100);
+        CHECK (testPlugin.getVelocityHumanizePercent() == 64);
+        CHECK (testPlugin.getTimingHumanizePercent() == 0);
+        CHECK (testPlugin.getSwingSubdivisionIndex()
+               == PluginProcessor::swingSubdivisionCount - 1);
+    }
+
     SECTION ("row timing offset")
     {
         CHECK (testPlugin.getPhraseRowTimingOffset (0) == PluginProcessor::defaultRowTimingOffsetIndex);
@@ -384,6 +409,65 @@ TEST_CASE ("Plugin instance", "[instance]")
         }
 
         CHECK (emittedEditedNote);
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("swing delays selected pulse subdivisions")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setSwingPercent (100);
+        testPlugin.setSwingSubdivisionIndex (2);
+
+        for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
+            testPlugin.setPhraseRowMuted (row, row != 0);
+
+        while (testPlugin.getPhraseRowStepCount (0) > 2)
+            testPlugin.removePhraseStep (0, testPlugin.getPhraseRowStepCount (0) - 1);
+
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseNote (0, 1, 62);
+
+        for (int step = 0; step < testPlugin.getPhraseRowStepCount (0); ++step)
+        {
+            testPlugin.setPhraseStepVelocity (0, step, 100);
+            testPlugin.setPhraseStepDurationFraction (0, step, 0.1);
+            testPlugin.setPhraseStepTimingMultiplier (
+                0,
+                step,
+                PluginProcessor::defaultStepTimingMultiplierIndex);
+        }
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (600.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.99);
+        testPlugin.setPlayHead (&playHead);
+
+        testPlugin.processBlock (buffer, midi);
+
+        int swungNoteOnSample = -1;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 62)
+                swungNoteOnSample = metadata.samplePosition;
+        }
+
+        CHECK (swungNoteOnSample == Catch::Approx (51).margin (1));
         testPlugin.setPlayHead (nullptr);
     }
 

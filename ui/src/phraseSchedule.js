@@ -4,6 +4,7 @@ import { timingMultiplierAtIndex, timingOffsetValues } from "./stepCellLayout.js
 export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
 
 const EPSILON = 1e-9;
+export const swingSubdivisionValues = [0.25, 0.5, 1];
 
 /** @param {number} triggerCount @param {number} cycle @param {number} cycleOffset */
 export function cycleGatePasses(triggerCount, cycle, cycleOffset) {
@@ -31,6 +32,29 @@ export function probabilityPasses(step, triggerCount, probability) {
 /** @param {number} offsetIndex @param {number} [pulseIndex] */
 export function rowTimingOffsetQuarters(offsetIndex, pulseIndex = defaultPulseIndex) {
   return (timingOffsetValues[offsetIndex] ?? 0) * pulseQuartersForIndex(pulseIndex);
+}
+
+export function swingDelayQuartersForPpq(
+  ppq,
+  pulseIndex = defaultPulseIndex,
+  swingPercent = 0,
+  swingSubdivisionIndex = 1,
+) {
+  const swing = Math.min(100, Math.max(0, Math.round(swingPercent)));
+
+  if (swing <= 0) return 0;
+
+  const subdivisionValue =
+    swingSubdivisionValues[
+      Math.min(swingSubdivisionValues.length - 1, Math.max(0, Math.trunc(swingSubdivisionIndex)))
+    ] ?? 0.5;
+  const subdivisionQuarters = pulseQuartersForIndex(pulseIndex) * subdivisionValue;
+
+  if (subdivisionQuarters <= 0) return 0;
+
+  const subdivisionNumber = Math.floor((ppq + EPSILON) / subdivisionQuarters);
+
+  return subdivisionNumber % 2 !== 0 ? subdivisionQuarters * 0.5 * (swing / 100) : 0;
 }
 
 /**
@@ -110,6 +134,8 @@ export function stepStartInCycleForStep(
  * @param {number[][]} [params.stepCycle]
  * @param {number[][]} [params.stepCycleOffset]
  * @param {number} [params.pulseIndex]
+ * @param {number} [params.swingPercent]
+ * @param {number} [params.swingSubdivisionIndex]
  * @param {number} [params.lengthQuarters]
  * @returns {ScheduledNote[]}
  */
@@ -127,6 +153,8 @@ export function buildPhraseSchedule({
   stepCycle = [],
   stepCycleOffset = [],
   pulseIndex = defaultPulseIndex,
+  swingPercent = 0,
+  swingSubdivisionIndex = 1,
   lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
 }) {
   const ppqStart = 0;
@@ -238,7 +266,6 @@ export function buildPhraseSchedule({
       if (triggerPpq <= lastTrigger + EPSILON) continue;
 
       lastTrigger = triggerPpq;
-      flushActive(triggerPpq);
 
       const step = trigger.step;
       const velocity = stepVelocity[row][step];
@@ -252,10 +279,15 @@ export function buildPhraseSchedule({
       if (durationFraction <= 0) continue;
 
       const gateQuarters = stepLengthQuarters[step] * durationFraction;
+      const noteStart =
+        triggerPpq +
+        swingDelayQuartersForPpq(triggerPpq, pulseIndex, swingPercent, swingSubdivisionIndex);
+
+      flushActive(noteStart);
 
       activeNote = {
-        start: triggerPpq,
-        end: triggerPpq + gateQuarters,
+        start: noteStart,
+        end: noteStart + gateQuarters,
         midi: rowNotes[step],
         velocity: isStepMuted ? 0 : velocity,
         row,
@@ -324,6 +356,8 @@ export function isScheduledNoteActiveAtBeat(note, beat) {
  * @param {number} [params.stepCycle]
  * @param {number} [params.stepCycleOffset]
  * @param {number} [params.pulseIndex]
+ * @param {number} [params.swingPercent]
+ * @param {number} [params.swingSubdivisionIndex]
  */
 export function isStepActiveAtBeat({
   beat,
@@ -341,6 +375,8 @@ export function isStepActiveAtBeat({
   stepCycle = [],
   stepCycleOffset = [],
   pulseIndex = defaultPulseIndex,
+  swingPercent = 0,
+  swingSubdivisionIndex = 1,
 }) {
   if (beat < 0 || rowMuted || step < 0 || step >= rowNotes.length) return false;
   if (
@@ -382,7 +418,10 @@ export function isStepActiveAtBeat({
   if (!probabilityPasses(step, cycleIndex, probability)) return false;
 
   const triggerBeat = cycleIndex * cycleLengthQuarters + stepStartInCycle + rowOffsetQuarters;
+  const noteStart =
+    triggerBeat +
+    swingDelayQuartersForPpq(triggerBeat, pulseIndex, swingPercent, swingSubdivisionIndex);
   const gateEnd = triggerBeat + stepLengthQuarters[step] * stepDurationFraction[step];
 
-  return beat >= triggerBeat - EPSILON && beat < gateEnd - EPSILON;
+  return beat >= noteStart - EPSILON && beat < gateEnd - triggerBeat + noteStart - EPSILON;
 }

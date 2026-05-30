@@ -26,7 +26,7 @@
     timingMultiplierOptions,
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
-  import { isStepActiveAtBeat } from "./phraseSchedule.js";
+  import { isStepActiveAtBeat, swingSubdivisionValues } from "./phraseSchedule.js";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
     phraseBeatGuideGlobalLeftPx,
@@ -101,6 +101,10 @@
   let standalonePlaying = false;
   let standaloneTempoBpm = 120;
   let pulseIndex = defaultPulseIndex;
+  let swingPercent = 0;
+  let velocityHumanizePercent = 0;
+  let timingHumanizePercent = 0;
+  let swingSubdivisionIndex = 1;
   let rowColorsEnabled = false;
 
   /** UI-only; shifts phrase rows and beat-one guide when any row has a negative offset. */
@@ -187,6 +191,8 @@
             stepCycle: stepCycle[row],
             stepCycleOffset: stepCycleOffset[row],
             pulseIndex,
+            swingPercent,
+            swingSubdivisionIndex,
           });
         }
       }
@@ -847,6 +853,62 @@
     }
   }
 
+  function clampPercent(value) {
+    const parsed = Number.parseInt(String(value), 10);
+
+    return Number.isNaN(parsed) ? 0 : Math.min(100, Math.max(0, parsed));
+  }
+
+  function loadHumanizeControlsFromInitialisation() {
+    const swingInit = unwrapJuceInit("swingPercent");
+    const velocityInit = unwrapJuceInit("velocityHumanizePercent");
+    const timingInit = unwrapJuceInit("timingHumanizePercent");
+    const subdivisionInit = unwrapJuceInit("swingSubdivisionIndex");
+
+    if (swingInit !== null) swingPercent = clampPercent(Array.isArray(swingInit) ? swingInit[0] : swingInit);
+    if (velocityInit !== null)
+      velocityHumanizePercent = clampPercent(Array.isArray(velocityInit) ? velocityInit[0] : velocityInit);
+    if (timingInit !== null)
+      timingHumanizePercent = clampPercent(Array.isArray(timingInit) ? timingInit[0] : timingInit);
+
+    if (subdivisionInit !== null) {
+      const raw = Array.isArray(subdivisionInit) ? subdivisionInit[0] : subdivisionInit;
+      const value = Number.parseInt(String(raw), 10);
+
+      if (!Number.isNaN(value)) {
+        swingSubdivisionIndex = Math.min(swingSubdivisionValues.length - 1, Math.max(0, value));
+      }
+    }
+  }
+
+  async function setGlobalPercent(event, nativeName, assign) {
+    const next = clampPercent(event.currentTarget.value);
+    assign(next);
+
+    if (!nativeFunctionAvailable(nativeName)) return;
+
+    const result = await getNativeFunction(nativeName)(next);
+    const confirmed = clampPercent(result);
+    assign(confirmed);
+  }
+
+  async function setSwingSubdivisionFromSelect(event) {
+    const nextIndex = Number.parseInt(event.currentTarget.value, 10);
+
+    if (Number.isNaN(nextIndex)) return;
+
+    swingSubdivisionIndex = Math.min(swingSubdivisionValues.length - 1, Math.max(0, nextIndex));
+
+    if (!nativeFunctionAvailable("setSwingSubdivisionIndex")) return;
+
+    const result = await getNativeFunction("setSwingSubdivisionIndex")(swingSubdivisionIndex);
+    const confirmed = Number.parseInt(String(result), 10);
+
+    if (!Number.isNaN(confirmed)) {
+      swingSubdivisionIndex = Math.min(swingSubdivisionValues.length - 1, Math.max(0, confirmed));
+    }
+  }
+
   function loadLoopBraceFromInitialisation() {
     const enabledInit = unwrapJuceInit("loopBraceEnabled");
 
@@ -962,7 +1024,8 @@
     loadStepCycleFromInitialisation();
     loadStepCycleOffsetFromInitialisation();
     loadPulseFromInitialisation();
-  loadLoopBraceFromInitialisation();
+    loadHumanizeControlsFromInitialisation();
+    loadLoopBraceFromInitialisation();
     loadStandaloneTransportFromInitialisation();
   }
 
@@ -1009,6 +1072,65 @@
       >
         Colors
       </button>
+      <div class="mt-0.5 flex items-end gap-3 border-l border-r border-zinc-700/80 px-4">
+        <label class="flex flex-col gap-1 text-xs font-semibold text-zinc-500">
+          Swing
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            value={swingPercent}
+            class="h-8 w-[5.25rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-center text-lg font-medium text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            onchange={(event) =>
+              setGlobalPercent(event, "setSwingPercent", (value) => {
+                swingPercent = value;
+              })}
+          />
+        </label>
+        <label class="flex flex-col gap-1 text-xs font-semibold text-zinc-500">
+          Sub
+          <select
+            class="h-8 w-[4.5rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-sm font-semibold text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            value={swingSubdivisionIndex}
+            onchange={setSwingSubdivisionFromSelect}
+          >
+            <option value={0}>.25</option>
+            <option value={1}>.5</option>
+            <option value={2}>1</option>
+          </select>
+        </label>
+        <label class="flex flex-col gap-1 text-xs font-semibold text-zinc-500">
+          Vel %
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            value={velocityHumanizePercent}
+            class="h-8 w-[5.25rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-center text-lg font-medium text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            onchange={(event) =>
+              setGlobalPercent(event, "setVelocityHumanizePercent", (value) => {
+                velocityHumanizePercent = value;
+              })}
+          />
+        </label>
+        <label class="flex flex-col gap-1 text-xs font-semibold text-zinc-500">
+          Time %
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            value={timingHumanizePercent}
+            class="h-8 w-[5.25rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-center text-lg font-medium text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            onchange={(event) =>
+              setGlobalPercent(event, "setTimingHumanizePercent", (value) => {
+                timingHumanizePercent = value;
+              })}
+          />
+        </label>
+      </div>
     </div>
     <div class="flex shrink-0 items-center gap-3">
       {#if standaloneTransportAvailable}
@@ -1158,6 +1280,8 @@
       stepCycle={stepCycle}
       stepCycleOffset={stepCycleOffset}
       {pulseIndex}
+      {swingPercent}
+      {swingSubdivisionIndex}
       loopEnabled={loopBraceEnabled}
       loopStart={loopBraceStart}
       loopEnd={loopBraceEnd}

@@ -3,6 +3,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <memory>
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -147,6 +148,22 @@ public:
     int getPulseIndex() const;
     static double pulseQuartersForIndex (int pulseIndex);
 
+    static constexpr int defaultSwingPercent = 0;
+    static constexpr int defaultVelocityHumanizePercent = 0;
+    static constexpr int defaultTimingHumanizePercent = 0;
+    static constexpr int swingSubdivisionCount = 3;
+    static constexpr int defaultSwingSubdivisionIndex = 1;
+
+    void setSwingPercent (int percent);
+    int getSwingPercent() const;
+    void setVelocityHumanizePercent (int percent);
+    int getVelocityHumanizePercent() const;
+    void setTimingHumanizePercent (int percent);
+    int getTimingHumanizePercent() const;
+    void setSwingSubdivisionIndex (int subdivisionIndex);
+    int getSwingSubdivisionIndex() const;
+    static double swingSubdivisionForIndex (int subdivisionIndex);
+
 private:
     struct PhraseRowSteps
     {
@@ -219,16 +236,29 @@ private:
         PhraseRowSteps rowState {};
     };
 
+    struct PendingNoteOn;
+
     static BusesProperties createBusesProperties();
 
     static int defaultNoteForRow (int row);
     void resetPhraseStepToDefaults (int row, int step);
     void resetPendingNoteOffs();
+    void resetPendingNoteOns();
     void resetLastEmittedTriggers();
     void resetStepCycleCounters();
     void resetStepCycleCountersForRow (int row);
     bool isValidStep (int row, int step) const;
     bool isValidAudioStep (const SequencerState& state, int row, int step) const;
+    void addPendingNoteOn (const PendingNoteOn& note);
+    void emitScheduledNoteOn (int row,
+                              int midiChannel,
+                              int note,
+                              int velocity,
+                              int sampleOffset,
+                              int gateSamples,
+                              int bufferSamples,
+                              juce::MidiBuffer& midiMessages);
+    void flushPendingNoteOns (int bufferSamples, juce::MidiBuffer& midiMessages);
     void initialiseRowDefaults (PhraseRowSteps& steps, int row, int stepCount);
     void rebuildRowTimingLayout (PhraseRowSteps& steps);
     static double stepStartInCycleForPlayback (const PhraseRowSteps& steps, int step, bool reversed);
@@ -257,21 +287,38 @@ private:
         int samplesRemaining = 0;
     };
 
+    struct PendingNoteOn
+    {
+        int row = 0;
+        int channel = 1;
+        int note = -1;
+        int velocity = 0;
+        int samplesRemaining = 0;
+        int gateSamples = 0;
+    };
+
     static constexpr size_t sequencerCommandQueueCapacity = 1024;
+    static constexpr size_t pendingNoteOnCapacity = static_cast<size_t> (phraseRowCount) * 16;
 
     SequencerState modelState {};
     SequencerState audioState {};
-    std::array<SequencerCommand, sequencerCommandQueueCapacity> sequencerCommandQueue {};
+    std::unique_ptr<std::array<SequencerCommand, sequencerCommandQueueCapacity>> sequencerCommandQueue {};
     std::atomic<size_t> sequencerCommandWriteIndex { 0 };
     std::atomic<size_t> sequencerCommandReadIndex { 0 };
     std::array<std::atomic<int>, phraseRowCount> phraseRowFlushNoteOff {};
     std::array<PendingNoteOff, phraseRowCount> pendingNoteOffs {};
+    std::array<PendingNoteOn, pendingNoteOnCapacity> pendingNoteOns {};
+    size_t pendingNoteOnCount = 0;
     std::array<double, phraseRowCount> lastEmittedTriggerPpq {};
     std::array<ProcessScratch, phraseRowCount> processScratch {};
     std::array<std::array<std::uint32_t, maxPhraseStepsPerRow>, phraseRowCount> stepCycleCounters {};
     std::uint32_t playbackRandomState = 0xA5C3F17Du;
     std::atomic<double> currentPlaybackPpq { -1.0 };
     std::atomic<int> pulseIndex { defaultPulseIndex };
+    std::atomic<int> swingPercent { defaultSwingPercent };
+    std::atomic<int> velocityHumanizePercent { defaultVelocityHumanizePercent };
+    std::atomic<int> timingHumanizePercent { defaultTimingHumanizePercent };
+    std::atomic<int> swingSubdivisionIndex { defaultSwingSubdivisionIndex };
     std::atomic<int> loopBraceEnabled { 0 };
     std::atomic<int> loopBraceStartQuarters { defaultLoopBraceStartQuarters };
     std::atomic<int> loopBraceEndQuarters { defaultLoopBraceEndQuarters };

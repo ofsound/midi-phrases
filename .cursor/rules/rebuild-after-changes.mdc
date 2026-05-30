@@ -1,15 +1,45 @@
 ---
-description: Rebuild and install plugins after code changes
+description: Rebuild plugins and standalone after code changes
 alwaysApply: true
 ---
 
 # Rebuild after changes
 
-After editing plugin source (`source/`), `CMakeLists.txt`, or tests that affect the plugin target:
+After any change that affects what the user sees in the app, rebuild and report success or errors. Do not ask the user to rebuild manually unless the toolchain is broken.
+
+## WebView UI (`ui/`)
+
+The standalone and plugin editors load the UI from **`assets/webview/ui.zip` embedded in BinaryData**, not from `ui/dist` directly.
+
+1. `npm run build` in `ui/` (or let CMake run it) updates the zip only.
+2. **Always** run a plugin build so BinaryData and the binary are refreshed:
+   ```bash
+   cmake --build Builds --target MidiPhrases_Standalone
+   ```
+3. For DAW testing as well, a full build is fine:
+   ```bash
+   cmake --build Builds
+   ```
+   (CMake depends on `WebViewUIBuild`, so `ui/` edits trigger `npm run build` automatically when using Ninja.)
+
+**Default verification target:** `MidiPhrases_Standalone` — treat the standalone as the primary UI check after minor UI edits.
+
+Built app (Debug):
+
+`Builds/MidiPhrases_artefacts/Debug/Standalone/MIDI Phrases.app`
+
+Remind the user to **fully quit and reopen** the standalone after a rebuild; relaunching an already-running instance keeps the old embedded UI.
+
+`npm run dev` alone does **not** update the standalone unless the Debug build is compiled with `MIDI_PHRASES_UI_DEV_SERVER` and the dev server on port **5174** is running.
+
+## Plugin C++ (`source/`), CMake, tests
 
 1. If `CMakeLists.txt` changed: `cmake -B Builds -G Ninja -DCMAKE_BUILD_TYPE=Debug`
 2. Always run: `cmake --build Builds`
-3. Prefer building install targets so DAWs get fresh copies: `MidiPhrases_VST3`, `MidiPhrases_AU`, and `MidiPhrases_Standalone` (full `cmake --build Builds` is fine).
-4. Report build success or errors; do not ask the user to rebuild manually unless the build environment is broken.
+3. Prefer install targets when checking in a DAW: `MidiPhrases_VST3`, `MidiPhrases_AU`, and `MidiPhrases_Standalone` (full `cmake --build Builds` is fine).
 
 Plugins install to `~/Library/Audio/Plug-Ins/` (VST3, AU) via `COPY_PLUGIN_AFTER_BUILD`. Remind the user to rescan in the DAW only when plugin binaries change, not for every edit.
+
+## Both UI and C++
+
+Run `cmake --build Builds` (or at minimum `MidiPhrases_Standalone` if the change is UI-only and standalone is enough for the task).

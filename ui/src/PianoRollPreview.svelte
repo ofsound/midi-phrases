@@ -24,6 +24,8 @@
   export let stepCycle = [];
   export let stepCycleOffset = [];
   export let pulseIndex = defaultPulseIndex;
+  export let swingPercent = 0;
+  export let swingSubdivisionIndex = 1;
   export let rowColorsEnabled = false;
   export let lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS;
   export let loopEnabled = false;
@@ -69,6 +71,8 @@
     stepCycle,
     stepCycleOffset,
     pulseIndex,
+    swingPercent,
+    swingSubdivisionIndex,
     lengthQuarters,
   });
 

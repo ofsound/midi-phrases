@@ -8,7 +8,9 @@ namespace
 {
 constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
-constexpr int phraseStateVersion = 8;
+constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
+constexpr double timingHumanizeScale = 0.2;
+constexpr int phraseStateVersion = 9;
 
 int clampStepProbability (const int probability)
 {
@@ -37,6 +39,58 @@ float nextRandomUnit (std::uint32_t& state)
     state ^= state << 5;
 
     return static_cast<float> (state & 0x00FFFFFFu) / static_cast<float> (0x01000000u);
+}
+
+double nextRandomUnitDouble (std::uint32_t& state)
+{
+    state ^= state << 13;
+    state ^= state >> 17;
+    state ^= state << 5;
+
+    return static_cast<double> (state) / static_cast<double> (UINT32_MAX);
+}
+
+int clampPercent (const int percent)
+{
+    return juce::jlimit (0, 100, percent);
+}
+
+int humanizeVelocityValue (int velocity, const int humanizePercent, std::uint32_t& randomState)
+{
+    velocity = juce::jlimit (1, 127, velocity);
+
+    if (humanizePercent <= 0)
+        return velocity;
+
+    const auto range = static_cast<double> (velocity)
+                       * (static_cast<double> (clampPercent (humanizePercent)) / 100.0);
+    const auto humanized = static_cast<double> (velocity)
+                           + (nextRandomUnitDouble (randomState) * 2.0 - 1.0) * range;
+
+    return juce::jlimit (1, 127, static_cast<int> (std::lround (humanized)));
+}
+
+double swingDelayQuartersForPpq (const double ppq,
+                                 const double pulseQuarters,
+                                 const int swingPercent,
+                                 const int subdivisionIndex)
+{
+    if (swingPercent <= 0)
+        return 0.0;
+
+    const auto subdivision =
+        pulseQuarters * swingSubdivisionValues[static_cast<size_t> (
+                           juce::jlimit (0, PluginProcessor::swingSubdivisionCount - 1, subdivisionIndex))];
+
+    if (subdivision <= 0.0)
+        return 0.0;
+
+    constexpr auto epsilon = 1.0e-9;
+    const auto subdivisionNumber = static_cast<int> (std::floor ((ppq + epsilon) / subdivision));
+
+    return subdivisionNumber % 2 != 0
+               ? subdivision * 0.5 * (static_cast<double> (clampPercent (swingPercent)) / 100.0)
+               : 0.0;
 }
 
 int stepTimingMultiplierIndexFromState (const int storedIndex, const int stateVersion)
@@ -106,6 +160,11 @@ void PluginProcessor::resetPendingNoteOffs()
     }
 }
 
+void PluginProcessor::resetPendingNoteOns()
+{
+    pendingNoteOnCount = 0;
+}
+
 void PluginProcessor::resetLastEmittedTriggers()
 {
     for (auto& lastTrigger : lastEmittedTriggerPpq)
@@ -141,6 +200,9 @@ PluginProcessor::BusesProperties PluginProcessor::createBusesProperties()
 PluginProcessor::PluginProcessor()
      : AudioProcessor (createBusesProperties())
 {
+    sequencerCommandQueue =
+        std::make_unique<std::array<SequencerCommand, sequencerCommandQueueCapacity>>();
+
     for (int row = 0; row < phraseRowCount; ++row)
     {
         initialiseRowDefaults (modelState.rows[static_cast<size_t> (row)], row, defaultPhraseStepsPerRow);
@@ -270,7 +332,7 @@ void PluginProcessor::publishCommandToAudio (const SequencerCommand& command)
         return;
     }
 
-    sequencerCommandQueue[write] = command;
+    (*sequencerCommandQueue)[write] = command;
     sequencerCommandWriteIndex.store (nextWrite, std::memory_order_release);
 }
 
@@ -544,7 +606,7 @@ void PluginProcessor::drainSequencerCommands()
 
     while (read != sequencerCommandWriteIndex.load (std::memory_order_acquire))
     {
-        applySequencerCommand (sequencerCommandQueue[read]);
+        applySequencerCommand ((*sequencerCommandQueue)[read]);
         read = (read + 1) % sequencerCommandQueueCapacity;
         sequencerCommandReadIndex.store (read, std::memory_order_release);
     }
@@ -588,6 +650,12 @@ double PluginProcessor::pulseQuartersForIndex (const int pulseIndexIn)
     return pulseQuartersTable[static_cast<size_t> (index)];
 }
 
+double PluginProcessor::swingSubdivisionForIndex (const int subdivisionIndex)
+{
+    const auto index = juce::jlimit (0, swingSubdivisionCount - 1, subdivisionIndex);
+    return swingSubdivisionValues[static_cast<size_t> (index)];
+}
+
 void PluginProcessor::setPulseIndex (const int pulseIndexIn)
 {
     pulseIndex.store (juce::jlimit (0, pulseCount - 1, pulseIndexIn), std::memory_order_relaxed);
@@ -602,6 +670,48 @@ void PluginProcessor::setPulseIndex (const int pulseIndexIn)
 int PluginProcessor::getPulseIndex() const
 {
     return pulseIndex.load (std::memory_order_relaxed);
+}
+
+void PluginProcessor::setSwingPercent (const int percent)
+{
+    swingPercent.store (clampPercent (percent), std::memory_order_relaxed);
+}
+
+int PluginProcessor::getSwingPercent() const
+{
+    return swingPercent.load (std::memory_order_relaxed);
+}
+
+void PluginProcessor::setVelocityHumanizePercent (const int percent)
+{
+    velocityHumanizePercent.store (clampPercent (percent), std::memory_order_relaxed);
+}
+
+int PluginProcessor::getVelocityHumanizePercent() const
+{
+    return velocityHumanizePercent.load (std::memory_order_relaxed);
+}
+
+void PluginProcessor::setTimingHumanizePercent (const int percent)
+{
+    timingHumanizePercent.store (clampPercent (percent), std::memory_order_relaxed);
+}
+
+int PluginProcessor::getTimingHumanizePercent() const
+{
+    return timingHumanizePercent.load (std::memory_order_relaxed);
+}
+
+void PluginProcessor::setSwingSubdivisionIndex (const int subdivisionIndex)
+{
+    swingSubdivisionIndex.store (
+        juce::jlimit (0, swingSubdivisionCount - 1, subdivisionIndex),
+        std::memory_order_relaxed);
+}
+
+int PluginProcessor::getSwingSubdivisionIndex() const
+{
+    return swingSubdivisionIndex.load (std::memory_order_relaxed);
 }
 
 const juce::String PluginProcessor::getName() const
@@ -674,6 +784,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     resetLastEmittedTriggers();
     wasPlaying = false;
     resetPendingNoteOffs();
+    resetPendingNoteOns();
 }
 
 void PluginProcessor::setPhraseNote (int row, int step, int noteNumber)
@@ -1298,6 +1409,87 @@ double PluginProcessor::getLoopPlaybackBeat() const
     return getPlaybackBeat();
 }
 
+void PluginProcessor::addPendingNoteOn (const PendingNoteOn& note)
+{
+    if (pendingNoteOnCount >= pendingNoteOns.size())
+        return;
+
+    pendingNoteOns[pendingNoteOnCount++] = note;
+}
+
+void PluginProcessor::emitScheduledNoteOn (const int row,
+                                           const int midiChannel,
+                                           const int note,
+                                           const int velocity,
+                                           const int sampleOffset,
+                                           const int gateSamples,
+                                           const int bufferSamples,
+                                           juce::MidiBuffer& midiMessages)
+{
+    if (row < 0 || row >= phraseRowCount || sampleOffset < 0 || sampleOffset >= bufferSamples)
+        return;
+
+    auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
+
+    if (pending.note >= 0)
+    {
+        midiMessages.addEvent (
+            juce::MidiMessage::noteOff (pending.channel, pending.note),
+            juce::jlimit (0, bufferSamples - 1, juce::jmin (pending.samplesRemaining, sampleOffset)));
+        pending.note = -1;
+        pending.samplesRemaining = 0;
+    }
+
+    midiMessages.addEvent (
+        juce::MidiMessage::noteOn (midiChannel, note, static_cast<juce::uint8> (velocity)),
+        sampleOffset);
+
+    const auto samplesUntilOff = sampleOffset + gateSamples;
+
+    if (samplesUntilOff < bufferSamples)
+    {
+        midiMessages.addEvent (juce::MidiMessage::noteOff (midiChannel, note), samplesUntilOff);
+    }
+    else
+    {
+        pending.channel = midiChannel;
+        pending.note = note;
+        pending.samplesRemaining = samplesUntilOff - bufferSamples;
+    }
+}
+
+void PluginProcessor::flushPendingNoteOns (const int bufferSamples, juce::MidiBuffer& midiMessages)
+{
+    if (pendingNoteOnCount == 0)
+        return;
+
+    size_t writeIndex = 0;
+
+    for (size_t i = 0; i < pendingNoteOnCount; ++i)
+    {
+        auto pending = pendingNoteOns[i];
+
+        if (pending.samplesRemaining < bufferSamples)
+        {
+            emitScheduledNoteOn (pending.row,
+                                 pending.channel,
+                                 pending.note,
+                                 pending.velocity,
+                                 pending.samplesRemaining,
+                                 pending.gateSamples,
+                                 bufferSamples,
+                                 midiMessages);
+        }
+        else
+        {
+            pending.samplesRemaining -= bufferSamples;
+            pendingNoteOns[writeIndex++] = pending;
+        }
+    }
+
+    pendingNoteOnCount = writeIndex;
+}
+
 bool PluginProcessor::hasStandaloneTransport() const
 {
     return wrapperType == wrapperType_Standalone;
@@ -1381,6 +1573,10 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
         const auto midiChannel = audioState.midiChannel[static_cast<size_t> (row)];
         const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
+        const auto swing = swingPercent.load (std::memory_order_relaxed);
+        const auto velocityHumanize = velocityHumanizePercent.load (std::memory_order_relaxed);
+        const auto timingHumanize = timingHumanizePercent.load (std::memory_order_relaxed);
+        const auto swingSubdivision = swingSubdivisionIndex.load (std::memory_order_relaxed);
         const auto offset = rowTimingOffsetForIndex (audioState.timingOffset[static_cast<size_t> (row)])
                             * pulse;
 
@@ -1459,27 +1655,9 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             lastTrigger = triggerPpq;
 
             const auto slot = scratch.triggers[static_cast<size_t> (triggerIndex)].step;
-            const auto transportPpqAtTrigger =
-                segmentTransportStartPpq + (triggerPpq - schedulePpqStart);
-            const auto sampleOffset = juce::jlimit (
-                0,
-                bufferSamples - 1,
-                static_cast<int> (std::lround (
-                    (transportPpqAtTrigger - bufferTransportStartPpq) / ppqPerSample)));
-
-            auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
-
-            if (pending.note >= 0)
-            {
-                midiMessages.addEvent (
-                    juce::MidiMessage::noteOff (pending.channel, pending.note),
-                    sampleOffset);
-                pending.note = -1;
-                pending.samplesRemaining = 0;
-            }
 
             const auto note = rowSteps.notes[static_cast<size_t> (slot)];
-            const auto velocity = rowSteps.velocity[static_cast<size_t> (slot)];
+            auto velocity = rowSteps.velocity[static_cast<size_t> (slot)];
 
             if (velocity <= 0 || rowSteps.stepMuted[static_cast<size_t> (slot)] != 0)
                 continue;
@@ -1520,6 +1698,20 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             if (gateQuarters <= epsilon)
                 continue;
 
+            velocity = humanizeVelocityValue (velocity, velocityHumanize, playbackRandomState);
+
+            const auto swingDelay =
+                swingDelayQuartersForPpq (triggerPpq, pulse, swing, swingSubdivision);
+            const auto timingRange = stepLength * timingHumanizeScale
+                                     * (static_cast<double> (clampPercent (timingHumanize)) / 100.0);
+            const auto timingOffset =
+                timingRange > 0.0 ? (nextRandomUnitDouble (playbackRandomState) * 2.0 - 1.0) * timingRange
+                                  : 0.0;
+            const auto delayQuarters = juce::jmax (0.0, swingDelay + timingOffset);
+            const auto transportPpqAtNoteOn =
+                segmentTransportStartPpq + (triggerPpq + delayQuarters - schedulePpqStart);
+            const auto sampleOffset = static_cast<int> (std::lround (
+                (transportPpqAtNoteOn - bufferTransportStartPpq) / ppqPerSample));
             const auto scheduleSpanQuarters = schedulePpqEnd - schedulePpqStart;
             const auto bufferSpanQuarters = static_cast<double> (bufferSamples) * ppqPerSample;
             const auto scheduleEndsBeforeBuffer =
@@ -1543,22 +1735,25 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                                    static_cast<int> (std::lround (
                                                        gateQuarters / ppqPerSample)));
 
-            midiMessages.addEvent (
-                juce::MidiMessage::noteOn (midiChannel, note, static_cast<juce::uint8> (velocity)),
-                sampleOffset);
-            const auto samplesUntilOff = sampleOffset + noteGateSamples;
-
-            if (samplesUntilOff < bufferSamples)
+            if (sampleOffset < bufferSamples)
             {
-                midiMessages.addEvent (
-                    juce::MidiMessage::noteOff (midiChannel, note),
-                    samplesUntilOff);
+                emitScheduledNoteOn (row,
+                                     midiChannel,
+                                     note,
+                                     velocity,
+                                     juce::jmax (0, sampleOffset),
+                                     noteGateSamples,
+                                     bufferSamples,
+                                     midiMessages);
             }
             else
             {
-                pending.channel = midiChannel;
-                pending.note = note;
-                pending.samplesRemaining = samplesUntilOff - bufferSamples;
+                addPendingNoteOn (PendingNoteOn { row,
+                                                  midiChannel,
+                                                  note,
+                                                  velocity,
+                                                  sampleOffset - bufferSamples,
+                                                  noteGateSamples });
             }
         }
     }
@@ -1617,6 +1812,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         wasPlaying = false;
         resetLastEmittedTriggers();
         resetPendingNoteOffs();
+        resetPendingNoteOns();
         currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
     };
 
@@ -1630,6 +1826,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             wasPlaying = false;
             resetLastEmittedTriggers();
             resetPendingNoteOffs();
+            resetPendingNoteOns();
             currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
         }
 
@@ -1681,7 +1878,19 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             pending.note = -1;
             pending.samplesRemaining = 0;
         }
+
+        size_t writeIndex = 0;
+
+        for (size_t i = 0; i < pendingNoteOnCount; ++i)
+        {
+            if (pendingNoteOns[i].row != row)
+                pendingNoteOns[writeIndex++] = pendingNoteOns[i];
+        }
+
+        pendingNoteOnCount = writeIndex;
     }
+
+    flushPendingNoteOns (bufferSamples, midiMessages);
 
     for (auto& pending : pendingNoteOffs)
     {
@@ -1807,6 +2016,10 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
     }
 
     state.setProperty ("pulseIndex", getPulseIndex(), nullptr);
+    state.setProperty ("swingPercent", getSwingPercent(), nullptr);
+    state.setProperty ("velocityHumanizePercent", getVelocityHumanizePercent(), nullptr);
+    state.setProperty ("timingHumanizePercent", getTimingHumanizePercent(), nullptr);
+    state.setProperty ("swingSubdivisionIndex", getSwingSubdivisionIndex(), nullptr);
     state.setProperty ("loopBraceEnabled", isLoopBraceEnabled(), nullptr);
     state.setProperty ("loopBraceStart", getLoopBraceStartQuarters(), nullptr);
     state.setProperty ("loopBraceEnd", getLoopBraceEndQuarters(), nullptr);
@@ -1939,6 +2152,13 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     }
 
     setPulseIndex (static_cast<int> (state.getProperty ("pulseIndex", defaultPulseIndex)));
+    setSwingPercent (static_cast<int> (state.getProperty ("swingPercent", defaultSwingPercent)));
+    setVelocityHumanizePercent (
+        static_cast<int> (state.getProperty ("velocityHumanizePercent", defaultVelocityHumanizePercent)));
+    setTimingHumanizePercent (
+        static_cast<int> (state.getProperty ("timingHumanizePercent", defaultTimingHumanizePercent)));
+    setSwingSubdivisionIndex (
+        static_cast<int> (state.getProperty ("swingSubdivisionIndex", defaultSwingSubdivisionIndex)));
 
     setLoopBraceStartQuarters (static_cast<int> (state.getProperty ("loopBraceStart",
                                                                      defaultLoopBraceStartQuarters)));
