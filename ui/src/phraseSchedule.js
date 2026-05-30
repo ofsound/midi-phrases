@@ -37,11 +37,34 @@ export function rowStepLayout(timingMultiplierIndices, pulseIndex = defaultPulse
 }
 
 /**
+ * Step trigger position within a cycle (forward or reverse playback order).
+ *
+ * @param {number[]} stepStartQuarters
+ * @param {number[]} stepLengthQuarters
+ * @param {number} step
+ * @param {boolean} reversed
+ */
+export function stepStartInCycleForStep(stepStartQuarters, stepLengthQuarters, step, reversed) {
+  if (!reversed) {
+    return stepStartQuarters[step] ?? 0;
+  }
+
+  let start = 0;
+
+  for (let index = step + 1; index < stepLengthQuarters.length; index += 1) {
+    start += stepLengthQuarters[index] ?? 0;
+  }
+
+  return start;
+}
+
+/**
  * Deterministic MIDI schedule mirroring PluginProcessor::processBlock trigger logic.
  *
  * @param {object} params
  * @param {number[][]} params.notes
  * @param {boolean[]} params.rowMuted
+ * @param {boolean[]} [params.rowReversed]
  * @param {number[]} params.rowTimingOffset
  * @param {number[][]} params.stepDurationFraction
  * @param {number[][]} params.stepTimingMultiplier
@@ -53,6 +76,7 @@ export function rowStepLayout(timingMultiplierIndices, pulseIndex = defaultPulse
 export function buildPhraseSchedule({
   notes,
   rowMuted,
+  rowReversed = [],
   rowTimingOffset,
   stepDurationFraction,
   stepTimingMultiplier,
@@ -81,12 +105,18 @@ export function buildPhraseSchedule({
     if (cycleLengthQuarters <= 0) continue;
 
     const offset = rowTimingOffsetQuarters(rowTimingOffset[row], pulseIndex);
+    const reversed = rowReversed[row] ?? false;
 
     /** @type {{ ppq: number, step: number }[]} */
     const triggers = [];
 
     for (let step = 0; step < stepCount; step += 1) {
-      const stepStartInCycle = stepStartQuarters[step];
+      const stepStartInCycle = stepStartInCycleForStep(
+        stepStartQuarters,
+        stepLengthQuarters,
+        step,
+        reversed,
+      );
       const nMin = Math.ceil(
         (ppqStart - stepStartInCycle - offset - EPSILON) / cycleLengthQuarters,
       );
@@ -211,6 +241,7 @@ export function isScheduledNoteActiveAtBeat(note, beat) {
  * @param {number} params.step
  * @param {number[]} params.rowNotes
  * @param {boolean} params.rowMuted
+ * @param {boolean} [params.rowReversed]
  * @param {number} params.rowTimingOffset
  * @param {number[]} params.stepDurationFraction
  * @param {number[]} params.stepTimingMultiplier
@@ -222,6 +253,7 @@ export function isStepActiveAtBeat({
   step,
   rowNotes,
   rowMuted,
+  rowReversed = false,
   rowTimingOffset,
   stepDurationFraction,
   stepTimingMultiplier,
@@ -239,12 +271,18 @@ export function isStepActiveAtBeat({
   if (cycleLengthQuarters <= 0 || (stepLengthQuarters[step] ?? 0) <= 0) return false;
 
   const offset = rowTimingOffsetQuarters(rowTimingOffset, pulseIndex);
-  const relativeBeat = beat - stepStartQuarters[step] - offset;
+  const stepStartInCycle = stepStartInCycleForStep(
+    stepStartQuarters,
+    stepLengthQuarters,
+    step,
+    rowReversed,
+  );
+  const relativeBeat = beat - stepStartInCycle - offset;
 
   if (relativeBeat < -EPSILON) return false;
 
   const cycleIndex = Math.floor((relativeBeat + EPSILON) / cycleLengthQuarters);
-  const triggerBeat = cycleIndex * cycleLengthQuarters + stepStartQuarters[step] + offset;
+  const triggerBeat = cycleIndex * cycleLengthQuarters + stepStartInCycle + offset;
   const gateEnd = triggerBeat + stepLengthQuarters[step] * stepDurationFraction[step];
 
   return beat >= triggerBeat - EPSILON && beat < gateEnd - EPSILON;

@@ -133,6 +133,7 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
 
     juce::Array<juce::var> phraseRows;
     juce::Array<juce::var> phraseRowMuted;
+    juce::Array<juce::var> phraseRowReversed;
     juce::Array<juce::var> phraseRowTimingOffset;
     juce::Array<juce::var> phraseRowMidiChannel;
     juce::Array<juce::var> phraseStepDurationFraction;
@@ -156,6 +157,7 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
 
         phraseRows.add (steps);
         phraseRowMuted.add (processor.isPhraseRowMuted (row));
+        phraseRowReversed.add (processor.isPhraseRowReversed (row));
         phraseRowTimingOffset.add (processor.getPhraseRowTimingOffset (row));
         phraseRowMidiChannel.add (processor.getPhraseRowMidiChannel (row));
         phraseStepTimingMultiplier.add (stepTimingMultipliers);
@@ -169,6 +171,7 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("version", juce::var { VERSION })
                        .withInitialisationData ("phraseNotes", phraseRows)
                        .withInitialisationData ("phraseRowMuted", phraseRowMuted)
+                       .withInitialisationData ("phraseRowReversed", phraseRowReversed)
                        .withInitialisationData ("phraseRowTimingOffset", phraseRowTimingOffset)
                        .withInitialisationData ("phraseRowMidiChannel", phraseRowMidiChannel)
                        .withInitialisationData ("phraseStepDurationFraction", phraseStepDurationFraction)
@@ -208,6 +211,18 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                {
                                    processor.setPhraseRowMuted (varToInt (args[0]),
                                                                 varToInt (args[1]) != 0);
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setPhraseRowReversed",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 2)
+                               {
+                                   processor.setPhraseRowReversed (varToInt (args[0]),
+                                                                   varToInt (args[1]) != 0);
                                }
 
                                complete (juce::var {});

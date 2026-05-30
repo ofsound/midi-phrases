@@ -66,7 +66,6 @@
   export let onDurationChange = () => {};
   /** @type {(row: number, step: number, value: number) => void | Promise<void>} */
   export let onVelocityChange = () => {};
-
   const flipDurationMs = 200;
   const removeBlockMs = 500;
   const draggedElementId = "dnd-action-dragged-el";

@@ -9,7 +9,7 @@ namespace
 constexpr int defaultRowNotes[] = { 60, 64, 67, 72 };
 constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
-constexpr int phraseStateVersion = 4;
+constexpr int phraseStateVersion = 5;
 
 int stepTimingMultiplierIndexFromState (const int storedIndex, const int stateVersion)
 {
@@ -102,9 +102,11 @@ PluginProcessor::PluginProcessor()
         initialiseRowDefaults (modelState.rows[static_cast<size_t> (row)], row, defaultPhraseStepsPerRow);
         initialiseRowDefaults (audioState.rows[static_cast<size_t> (row)], row, defaultPhraseStepsPerRow);
         modelState.muted[static_cast<size_t> (row)] = 0;
+        modelState.reversed[static_cast<size_t> (row)] = 0;
         modelState.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
         modelState.midiChannel[static_cast<size_t> (row)] = defaultPhraseRowMidiChannel;
         audioState.muted[static_cast<size_t> (row)] = 0;
+        audioState.reversed[static_cast<size_t> (row)] = 0;
         audioState.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
         audioState.midiChannel[static_cast<size_t> (row)] = defaultPhraseRowMidiChannel;
         phraseRowFlushNoteOff[static_cast<size_t> (row)].store (0);
@@ -191,6 +193,21 @@ void PluginProcessor::rebuildRowTimingLayout (PhraseRowSteps& steps)
     steps.cycleLengthQuarters = cycleLengthQuarters;
 }
 
+double PluginProcessor::stepStartInCycleForPlayback (const PhraseRowSteps& steps,
+                                                       const int step,
+                                                       const bool reversed)
+{
+    if (! reversed)
+        return steps.stepStartQuarters[static_cast<size_t> (step)];
+
+    auto start = 0.0;
+
+    for (int index = step + 1; index < steps.stepCount; ++index)
+        start += steps.stepLengthQuarters[static_cast<size_t> (index)];
+
+    return start;
+}
+
 void PluginProcessor::publishCommandToAudio (const SequencerCommand& command)
 {
     const auto write = sequencerCommandWriteIndex.load (std::memory_order_relaxed);
@@ -236,6 +253,10 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
 
         case SequencerCommand::Type::SetRowMuted:
             audioState.muted[static_cast<size_t> (command.row)] = command.intValue != 0 ? 1 : 0;
+            break;
+
+        case SequencerCommand::Type::SetRowReversed:
+            audioState.reversed[static_cast<size_t> (command.row)] = command.intValue != 0 ? 1 : 0;
             break;
 
         case SequencerCommand::Type::SetRowTimingOffset:
@@ -539,6 +560,34 @@ bool PluginProcessor::isPhraseRowMuted (int row) const
         return false;
 
     return modelState.muted[static_cast<size_t> (row)] != 0;
+}
+
+void PluginProcessor::setPhraseRowReversed (const int row, const bool reversed)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return;
+
+    const auto next = reversed ? 1 : 0;
+
+    if (modelState.reversed[static_cast<size_t> (row)] == next)
+        return;
+
+    modelState.reversed[static_cast<size_t> (row)] = next;
+    phraseRowFlushNoteOff[static_cast<size_t> (row)].store (1);
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetRowReversed;
+    command.row = row;
+    command.intValue = next;
+    publishCommandToAudio (command);
+}
+
+bool PluginProcessor::isPhraseRowReversed (const int row) const
+{
+    if (row < 0 || row >= phraseRowCount)
+        return false;
+
+    return modelState.reversed[static_cast<size_t> (row)] != 0;
 }
 
 void PluginProcessor::setPhraseRowTimingOffset (const int row, const int offsetIndex)
@@ -962,9 +1011,12 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
         auto triggerCount = 0;
 
+        const auto reversed = audioState.reversed[static_cast<size_t> (row)] != 0;
+
         for (int step = 0; step < stepCount; ++step)
         {
-            const auto stepStartInCycle = rowSteps.stepStartQuarters[static_cast<size_t> (step)];
+            const auto stepStartInCycle =
+                stepStartInCycleForPlayback (rowSteps, step, reversed);
             const auto nMin = static_cast<int> (std::ceil (
                 (schedulePpqStart - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
             const auto nMax = static_cast<int> (std::floor (
@@ -1323,6 +1375,7 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
         }
 
         rowTree.setProperty ("muted", isPhraseRowMuted (row), nullptr);
+        rowTree.setProperty ("reversed", isPhraseRowReversed (row), nullptr);
         rowTree.setProperty ("timingOffset", getPhraseRowTimingOffset (row), nullptr);
         rowTree.setProperty ("midiChannel", getPhraseRowMidiChannel (row), nullptr);
         state.appendChild (rowTree, nullptr);
@@ -1401,6 +1454,8 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
 
         modelState.muted[static_cast<size_t> (row)] =
             static_cast<bool> (rowTree.getProperty ("muted", false)) ? 1 : 0;
+        modelState.reversed[static_cast<size_t> (row)] =
+            static_cast<bool> (rowTree.getProperty ("reversed", false)) ? 1 : 0;
         modelState.timingOffset[static_cast<size_t> (row)] = juce::jlimit (
             0,
             rowTimingOffsetCount - 1,
@@ -1417,6 +1472,12 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         mutedCommand.row = row;
         mutedCommand.intValue = modelState.muted[static_cast<size_t> (row)];
         publishCommandToAudio (mutedCommand);
+
+        SequencerCommand reversedCommand;
+        reversedCommand.type = SequencerCommand::Type::SetRowReversed;
+        reversedCommand.row = row;
+        reversedCommand.intValue = modelState.reversed[static_cast<size_t> (row)];
+        publishCommandToAudio (reversedCommand);
 
         SequencerCommand timingCommand;
         timingCommand.type = SequencerCommand::Type::SetRowTimingOffset;

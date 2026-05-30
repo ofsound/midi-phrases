@@ -13,6 +13,7 @@
 
   export let notes = [];
   export let rowMuted = [];
+  export let rowReversed = [];
   export let rowTimingOffset = [];
   export let stepDurationFraction = [];
   export let stepTimingMultiplier = [];
@@ -52,6 +53,7 @@
   $: scheduled = buildPhraseSchedule({
     notes,
     rowMuted,
+    rowReversed,
     rowTimingOffset,
     stepDurationFraction,
     stepTimingMultiplier,

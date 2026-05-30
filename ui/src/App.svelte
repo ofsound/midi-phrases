@@ -26,13 +26,20 @@
     phraseBeatGuideGlobalLeftPx,
     phraseGridVisualOffsetCompensationPx,
   } from "./phraseRowLayout.js";
-  import { rowAccentFor, rowMutedOverlayClasses, rowMuteControlClasses } from "./rowAccentTheme.js";
+  import {
+    rowAccentFor,
+    rowMutedOverlayClasses,
+    rowMuteControlClasses,
+    rowReverseControlClasses,
+  } from "./rowAccentTheme.js";
 
   let pluginName = "MIDI Phrases";
   let version = "0.0.1";
   let grid = defaultPhraseGrid();
   /** @type {boolean[]} */
   let rowMuted = [false, false, false, false];
+  /** @type {boolean[]} */
+  let rowReversed = [false, false, false, false];
   /** @type {number[]} */
   let rowTimingOffset = [
     defaultRowTimingOffsetIndex,
@@ -142,6 +149,7 @@
             step,
             rowNotes: grid[row],
             rowMuted: rowMuted[row],
+            rowReversed: rowReversed[row],
             rowTimingOffset: rowTimingOffset[row],
             stepDurationFraction: stepDurationFraction[row],
             stepTimingMultiplier: stepTimingMultiplier[row],
@@ -206,6 +214,20 @@
     }
 
     rowMuted = next;
+  }
+
+  function loadRowReversedFromInitialisation() {
+    const init = unwrapJuceInit("phraseRowReversed");
+
+    if (!Array.isArray(init)) return;
+
+    const next = [false, false, false, false];
+
+    for (let row = 0; row < 4; row += 1) {
+      next[row] = Boolean(init[row]);
+    }
+
+    rowReversed = next;
   }
 
   function loadRowTimingOffsetFromInitialisation() {
@@ -350,6 +372,13 @@
     await setPhraseRowMuted(row, rowMuted[row] ? 1 : 0);
   }
 
+  async function pushRowReversed(row) {
+    if (!nativeFunctionAvailable("setPhraseRowReversed")) return;
+
+    const setPhraseRowReversed = getNativeFunction("setPhraseRowReversed");
+    await setPhraseRowReversed(row, rowReversed[row] ? 1 : 0);
+  }
+
   async function pushRowTimingOffset(row) {
     if (!nativeFunctionAvailable("setPhraseRowTimingOffset")) return;
 
@@ -395,6 +424,12 @@
     rowMuted[row] = !rowMuted[row];
     rowMuted = rowMuted;
     await pushRowMuted(row);
+  }
+
+  async function toggleRowReverse(row) {
+    rowReversed[row] = !rowReversed[row];
+    rowReversed = rowReversed;
+    await pushRowReversed(row);
   }
 
   async function selectRowTimingOffset(row, offsetIndex) {
@@ -638,6 +673,7 @@
   function loadInitialStateFromJuce() {
     loadGridFromInitialisation();
     loadRowMutedFromInitialisation();
+    loadRowReversedFromInitialisation();
     loadRowTimingOffsetFromInitialisation();
     loadRowMidiChannelFromInitialisation();
     loadStepDurationFromInitialisation();
@@ -752,6 +788,19 @@
             />
             <button
               type="button"
+              aria-label={rowReversed[row] ? "Disable reverse playback" : "Enable reverse playback"}
+              aria-pressed={rowReversed[row]}
+              class="{rowReverseControlClasses} {rowAccent.controlFocus} {rowReversed[row] && !rowMuted[row]
+                ? `border-zinc-600 ${rowAccent.textAccent}`
+                : rowMuted[row]
+                  ? 'border-zinc-800/90 text-zinc-600'
+                  : 'border-zinc-700 text-zinc-500'}"
+              onclick={() => toggleRowReverse(row)}
+            >
+              Reverse
+            </button>
+            <button
+              type="button"
               aria-label={rowMuted[row] ? "Unmute voice" : "Mute voice"}
               aria-pressed={!rowMuted[row]}
               class="{rowMuteControlClasses} {rowAccent.controlFocus} {rowMuted[row]
@@ -792,6 +841,7 @@
         notes={grid}
         {rowColorsEnabled}
         {rowMuted}
+        {rowReversed}
         {rowTimingOffset}
         {stepDurationFraction}
         {stepTimingMultiplier}

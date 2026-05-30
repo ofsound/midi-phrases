@@ -130,3 +130,7 @@ export const rowMutedOverlayClasses =
 /** Mute toggle stays above {@link rowMutedOverlayClasses}. */
 export const rowMuteControlClasses =
   "relative z-20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-zinc-900 transition-colors outline-none hover:border-zinc-600";
+
+/** Reverse toggle in the row control strip (after offset). */
+export const rowReverseControlClasses =
+  "relative z-20 flex h-9 min-w-[3.75rem] shrink-0 items-center justify-center rounded-lg border bg-zinc-900 px-2 text-[10px] font-semibold uppercase tracking-wide transition-colors outline-none hover:border-zinc-600";

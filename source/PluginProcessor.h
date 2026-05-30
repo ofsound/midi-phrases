@@ -51,6 +51,9 @@ public:
     void setPhraseRowMuted (int row, bool muted);
     bool isPhraseRowMuted (int row) const;
 
+    void setPhraseRowReversed (int row, bool reversed);
+    bool isPhraseRowReversed (int row) const;
+
     static constexpr int rowTimingOffsetCount = 7;
     static constexpr int defaultRowTimingOffsetIndex = 3;
 
@@ -149,6 +152,7 @@ private:
     {
         std::array<PhraseRowSteps, phraseRowCount> rows {};
         std::array<int, phraseRowCount> muted {};
+        std::array<int, phraseRowCount> reversed {};
         std::array<int, phraseRowCount> timingOffset {};
         std::array<int, phraseRowCount> midiChannel {};
     };
@@ -159,6 +163,7 @@ private:
         {
             SetNote,
             SetRowMuted,
+            SetRowReversed,
             SetRowTimingOffset,
             SetRowMidiChannel,
             SetStepTimingMultiplier,
@@ -189,6 +194,7 @@ private:
     bool isValidAudioStep (const SequencerState& state, int row, int step) const;
     void initialiseRowDefaults (PhraseRowSteps& steps, int row, int stepCount);
     void rebuildRowTimingLayout (PhraseRowSteps& steps);
+    static double stepStartInCycleForPlayback (const PhraseRowSteps& steps, int step, bool reversed);
     void publishCommandToAudio (const SequencerCommand& command);
     void publishRowToAudio (int row);
     void drainSequencerCommands();

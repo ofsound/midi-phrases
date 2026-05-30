@@ -14,11 +14,15 @@ export const phraseFirstStepLeftOffsetPx =
 export const phraseBeatGuideOffsetPx =
   phraseFirstStepLeftOffsetPx - stepInsertZoneWidthPx / 2;
 
+/** Matches row reverse toggle `min-w-[3.75rem]` + horizontal padding. */
+export const phraseRowReverseControlWidthPx = 60;
+
 /**
- * Fixed width of controls before PhraseRow in App (Midi channel, offset knob, mute).
- * Tailwind: w-7 + min-w-[1.75rem] + w-7, gap-2, w-10 knob, gap-2, w-9 mute, gap-2.
+ * Fixed width of controls before PhraseRow in App (channel, offset, reverse, mute).
+ * Tailwind: w-7 + min-w-[1.75rem] + w-7, gap-2, w-10 knob, gap-2, reverse, gap-2, w-9 mute, gap-2.
  */
-export const phraseRowLeadingControlsWidthPx = 28 + 28 + 28 + 8 + 40 + 8 + 36 + 8;
+export const phraseRowLeadingControlsWidthPx =
+  28 + 28 + 28 + 8 + 40 + 8 + phraseRowReverseControlWidthPx + 8 + 36 + 8;
 
 /**
  * UI-only horizontal shift for the phrase grid and beat guide.

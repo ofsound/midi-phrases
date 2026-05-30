@@ -34,6 +34,20 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK_FALSE (testPlugin.isPhraseRowMuted (0));
     }
 
+    SECTION ("row reverse")
+    {
+        CHECK_FALSE (testPlugin.isPhraseRowReversed (0));
+
+        testPlugin.setPhraseRowReversed (0, true);
+        testPlugin.setPhraseRowReversed (1, false);
+
+        CHECK (testPlugin.isPhraseRowReversed (0));
+        CHECK_FALSE (testPlugin.isPhraseRowReversed (1));
+
+        testPlugin.setPhraseRowReversed (0, false);
+        CHECK_FALSE (testPlugin.isPhraseRowReversed (0));
+    }
+
     SECTION ("pulse")
     {
         CHECK (testPlugin.getPulseIndex() == PluginProcessor::defaultPulseIndex);
@@ -256,6 +270,72 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (blocksProcessed > 1);
         CHECK (noteOffSample + blocksProcessed * 512
                == Catch::Approx (expectedGateSamples).margin (2));
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("row reverse plays rightmost step first")
+    {
+        testPlugin.prepareToPlay (44100.0, 512);
+
+        for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
+            testPlugin.setPhraseRowMuted (row, row != 0);
+
+        while (testPlugin.getPhraseRowStepCount (0) > 2)
+            testPlugin.removePhraseStep (0, testPlugin.getPhraseRowStepCount (0) - 1);
+
+        for (int step = 0; step < testPlugin.getPhraseRowStepCount (0); ++step)
+        {
+            testPlugin.setPhraseStepVelocity (0, step, 100);
+            testPlugin.setPhraseStepDurationFraction (0, step, 1.0);
+            testPlugin.setPhraseStepTimingMultiplier (
+                0,
+                step,
+                PluginProcessor::defaultStepTimingMultiplierIndex);
+        }
+
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseNote (0, 1, 72);
+
+        juce::AudioBuffer<float> buffer (2, 512);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (120.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+
+        auto firstNoteOn = [&midi] {
+            for (const auto metadata : midi)
+            {
+                const auto message = metadata.getMessage();
+
+                if (message.isNoteOn())
+                    return message.getNoteNumber();
+            }
+
+            return -1;
+        };
+
+        testPlugin.setPhraseRowReversed (0, true);
+        testPlugin.processBlock (buffer, midi);
+        CHECK (firstNoteOn() == 72);
+
+        testPlugin.setPhraseRowReversed (0, false);
+        midi.clear();
+        playHead.info.setPpqPosition (8.0);
+        testPlugin.processBlock (buffer, midi);
+        CHECK (firstNoteOn() == 60);
 
         testPlugin.setPlayHead (nullptr);
     }
