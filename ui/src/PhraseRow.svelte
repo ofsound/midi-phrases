@@ -8,6 +8,7 @@
   import VelocityDragInput from "./VelocityDragInput.svelte";
   import StepInsertZone from "./StepInsertZone.svelte";
   import StepCardFlip from "./StepCardFlip.svelte";
+  import StepGearIcon from "./StepGearIcon.svelte";
   import StepMuteToggle from "./StepMuteToggle.svelte";
   import StepSkipToggle from "./StepSkipToggle.svelte";
   import ProbabilityDragInput from "./ProbabilityDragInput.svelte";
@@ -122,7 +123,8 @@
   let resizeFrameId = 0;
   let resizeEndHandled = false;
   let dragYLockFrameId = 0;
-  let flippedStep = -1;
+  /** @type {Set<number>} */
+  let flippedSteps = new Set();
   /** @type {Map<number, HTMLElement>} */
   const cellShellElements = new Map();
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
@@ -132,8 +134,14 @@
 
   $: reorderDisabled = stepIds.length <= 1;
 
-  $: if (flippedStep >= stepIds.length) {
-    flippedStep = -1;
+  $: {
+    const validFlippedSteps = new Set(
+      [...flippedSteps].filter((step) => step >= 0 && step < stepIds.length),
+    );
+
+    if (validFlippedSteps.size !== flippedSteps.size) {
+      flippedSteps = validFlippedSteps;
+    }
   }
 
   $: stepFlipLongPressDisabled =
@@ -145,7 +153,7 @@
       duration: stepFlipLongPressMs,
       disabled: stepFlipLongPressDisabled,
       onLongPress: () => {
-        flippedStep = step;
+        setStepFlipped(step, true);
       },
     };
   }
@@ -168,19 +176,35 @@
     if (stepFlipLongPressDisabled || shouldIgnoreFlipDoubleClick(event)) return;
 
     event.preventDefault();
-    flippedStep = step;
+    setStepFlipped(step, true);
+  }
+
+  /** @param {number} step @param {boolean} flipped */
+  function setStepFlipped(step, flipped) {
+    if (step < 0 || step >= stepIds.length) return;
+
+    const nextFlippedSteps = new Set(flippedSteps);
+
+    if (flipped) {
+      nextFlippedSteps.add(step);
+    } else {
+      nextFlippedSteps.delete(step);
+    }
+
+    flippedSteps = nextFlippedSteps;
   }
 
   /** @param {number} step @param {boolean} flipped */
   function handleStepFlipChange(step, flipped) {
-    if (flipped) {
-      flippedStep = step;
+    setStepFlipped(step, flipped);
+  }
+
+  function closeAllStepFlips() {
+    if (flippedSteps.size === 0) {
       return;
     }
 
-    if (flippedStep === step) {
-      flippedStep = -1;
-    }
+    flippedSteps = new Set();
   }
 
   $: dndZoneOptions = {
@@ -239,7 +263,7 @@
 
   function beginDragSession() {
     isDragging = true;
-    flippedStep = -1;
+    closeAllStepFlips();
     blockRemoveTemporarily();
     startDragYLock();
   }
@@ -777,15 +801,59 @@
     data-no-long-press
     aria-label="Resize step timing multiplier"
     disabled={isDragging || removeBlocked}
-    class="absolute top-0 right-0 bottom-0 z-[60] w-4 cursor-ew-resize touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+    class="absolute top-0 right-0 bottom-5 z-[60] w-4 cursor-ew-resize touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
     onpointerdown={(event) => beginMultiplierResize(event, step)}
     onmousedown={(event) => beginMultiplierResize(event, step)}
   ></button>
 {/snippet}
 
+{#snippet stepSkipMuteFooter(step, isFlipped)}
+  {@const stepIsMuted = stepMuted[step]}
+  {@const stepIsSkipped = stepSkipped[step]}
+  <div
+    class="flex h-5 w-full shrink-0 divide-x divide-zinc-800 {muted
+      ? 'border-t border-zinc-800/90 bg-zinc-900/70'
+      : 'border-t border-zinc-800 bg-zinc-800/60'}"
+    data-no-long-press
+  >
+    <StepSkipToggle
+      {accent}
+      {muted}
+      value={stepIsSkipped}
+      buttonClass={`flex h-full min-w-0 flex-1 basis-0 items-center justify-center border-0 bg-zinc-800/30 p-0 outline-none transition-colors hover:bg-zinc-700/45 ${accent.ringFocusWithWidth}`}
+      iconClass="pointer-events-none h-3 w-3"
+      ariaLabel="Skip step in sequence"
+      onValueChange={(value) => onStepSkipChange(row, step, value)}
+    />
+    <StepMuteToggle
+      {accent}
+      {muted}
+      value={stepIsMuted}
+      buttonClass={`flex h-full min-w-0 flex-1 basis-0 items-center justify-center border-0 bg-zinc-800/30 p-0 outline-none transition-colors hover:bg-zinc-700/45 ${accent.ringFocusWithWidth}`}
+      iconClass="pointer-events-none h-3 w-3"
+      ariaLabel="Mute step"
+      onValueChange={(value) => onStepMuteChange(row, step, value)}
+    />
+    <button
+      type="button"
+      data-step-pointer
+      aria-label={isFlipped ? "Close step settings" : "Open step settings"}
+      aria-pressed={isFlipped}
+      disabled={stepFlipLongPressDisabled}
+      style="cursor: pointer"
+      class="flex h-full min-w-0 flex-1 basis-0 items-center justify-center border-0 bg-zinc-800/30 p-0 text-zinc-500 outline-none transition-colors hover:bg-zinc-700/45 hover:text-zinc-300 disabled:pointer-events-none disabled:opacity-50 {accent.ringFocusWithWidth}"
+      onpointerdown={(event) => event.stopPropagation()}
+      onmousedown={(event) => event.stopPropagation()}
+      onclick={() => handleStepFlipChange(step, !isFlipped)}
+    >
+      <StepGearIcon class="pointer-events-none h-3 w-3" />
+    </button>
+  </div>
+{/snippet}
+
 {#snippet stepCell(step, reorderEnabled)}
   {@const multiplierLabel = multiplierLabelForStep(step)}
-  {@const stepFlipped = flippedStep === step}
+  {@const stepFlipped = flippedSteps.has(step)}
   {@const stepIsMuted = stepMuted[step]}
   {@const stepIsSkipped = stepSkipped[step]}
   <div
@@ -875,7 +943,7 @@
             </div>
           {/if}
 
-          <div class="flex min-w-0 flex-col gap-1 px-1 py-1 {muted ? 'opacity-80' : ''}">
+          <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-1 px-1 py-1 {muted ? 'opacity-80' : ''}">
             <DurationBar
               {accent}
               {muted}
@@ -914,6 +982,8 @@
               ></div>
             </div>
           </div>
+
+          {@render stepSkipMuteFooter(step, stepFlipped)}
         </div>
       </div>
 
@@ -939,10 +1009,10 @@
         </div>
       </div>
 
-      <div slot="back" class="flex min-h-0 w-full min-w-0 flex-1 items-stretch pb-1">
+      <div slot="back" class="flex min-h-0 w-full min-w-0 flex-1 items-stretch">
         <div
           data-no-flip-close
-          class="grid h-full w-max shrink-0 grid-cols-[auto_auto] grid-rows-[1fr_1fr] items-center gap-x-1"
+          class="grid h-full w-max shrink-0 grid-rows-[1fr_1fr] items-center"
         >
           <ProbabilityDragInput
             {accent}
@@ -952,15 +1022,6 @@
             ariaLabel="Step probability"
             onValueChange={(value) => onStepProbabilityChange(row, step, value)}
           />
-          <div class="flex justify-end">
-            <StepSkipToggle
-              {accent}
-              {muted}
-              value={stepIsSkipped}
-              ariaLabel="Skip step in sequence"
-              onValueChange={(value) => onStepSkipChange(row, step, value)}
-            />
-          </div>
           <div class="flex shrink-0 items-baseline justify-start gap-0.5">
             <StepNumberDragInput
               {accent}
@@ -987,16 +1048,11 @@
               onValueChange={(value) => onStepCycleOffsetChange(row, step, value)}
             />
           </div>
-          <div class="flex justify-end">
-            <StepMuteToggle
-              {accent}
-              {muted}
-              value={stepIsMuted}
-              ariaLabel="Mute step"
-              onValueChange={(value) => onStepMuteChange(row, step, value)}
-            />
-          </div>
         </div>
+      </div>
+
+      <div slot="back-footer">
+        {@render stepSkipMuteFooter(step, stepFlipped)}
       </div>
     </StepCardFlip>
     </div>

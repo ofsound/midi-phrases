@@ -156,6 +156,8 @@
         >
           <slot name="back" />
         </div>
+
+        <slot name="back-footer" />
       </div>
     </div>
   </div>
