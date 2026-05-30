@@ -1,4 +1,5 @@
 <script>
+  import { doubleClick } from "./doubleClickAction.js";
   import { longPress } from "./longPressAction.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import StepMutedOverlay from "./StepMutedOverlay.svelte";
@@ -29,12 +30,44 @@
   }
 
   /** @param {MouseEvent} event */
+  function shouldIgnoreBackDoubleClick(event) {
+    const target = event.target;
+
+    if (!(target instanceof Element)) return true;
+
+    return Boolean(
+      target.closest(
+        "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-no-flip-close]",
+      ),
+    );
+  }
+
+  /** @param {MouseEvent} event */
   function handleBackHeaderDoubleClick(event) {
-    if (disabled) return;
+    if (disabled || !flipped || shouldIgnoreBackDoubleClick(event)) return;
 
     event.preventDefault();
     closeFlip();
   }
+
+  /** @param {MouseEvent | PointerEvent} event */
+  function handleBackBodyDoubleClick(event) {
+    if (disabled || !flipped || shouldIgnoreBackDoubleClick(event)) return;
+
+    event.preventDefault();
+    closeFlip();
+  }
+
+  /** @param {PointerEvent} event */
+  function shouldIgnoreBackPointerDoubleClick(event) {
+    return shouldIgnoreBackDoubleClick(event);
+  }
+
+  $: backBodyDoubleClickOptions = {
+    disabled: disabled || !flipped,
+    shouldIgnore: shouldIgnoreBackPointerDoubleClick,
+    onDoubleClick: handleBackBodyDoubleClick,
+  };
 
   $: longPressOptions = {
     duration: longPressMs,
@@ -74,7 +107,7 @@
   >
     <div
       class="flip-face flip-front relative min-h-0 min-w-0 {frontHidden
-        ? 'pointer-events-none invisible'
+        ? 'pointer-events-none hidden'
         : flipped
           ? 'pointer-events-none'
           : 'pointer-events-auto'}"
@@ -89,12 +122,11 @@
 
     <div
       class="flip-face flip-back absolute inset-0 min-h-0 min-w-0 {backHidden
-        ? 'pointer-events-none invisible'
+        ? 'pointer-events-none hidden'
         : flipped
           ? 'pointer-events-auto'
           : 'pointer-events-none'}"
       aria-hidden={!flipped}
-      use:longPress={longPressOptions}
     >
       <div
         class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none {surfaceClass} {borderClass} {muted
@@ -103,8 +135,8 @@
       >
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-          class="flex h-5 w-full shrink-0 cursor-default items-center justify-start gap-1 px-1 {headerClass}"
-          use:longPress={longPressOptions}
+          class="flex h-5 w-full shrink-0 items-center justify-start gap-1 px-1 {headerClass}"
+          use:doubleClick={backBodyDoubleClickOptions}
           ondblclick={handleBackHeaderDoubleClick}
           title="Double-click to close step settings"
           aria-label="Step settings. Double-click to close."
@@ -112,9 +144,15 @@
           <slot name="back-header" />
         </div>
 
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-          class="relative flex min-h-0 flex-1 flex-col gap-1 px-1 py-1 {muted ? 'opacity-80' : ''}"
+          class="relative flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1 px-1 py-1 {muted
+            ? 'opacity-80'
+            : ''}"
           use:longPress={longPressOptions}
+          use:doubleClick={backBodyDoubleClickOptions}
+          ondblclick={handleBackBodyDoubleClick}
+          title="Double-click empty area to close step settings"
         >
           <slot name="back" />
         </div>
@@ -136,9 +174,10 @@
   .flip-face {
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
+    transform: translateZ(0.1px);
   }
 
   .flip-back {
-    transform: rotateY(180deg);
+    transform: rotateY(180deg) translateZ(0.1px);
   }
 </style>

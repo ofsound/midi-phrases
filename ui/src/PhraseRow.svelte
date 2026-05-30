@@ -169,14 +169,6 @@
     flippedStep = step;
   }
 
-  /** @param {MouseEvent} event */
-  function handleCloseFlipDoubleClick(event) {
-    if (stepFlipLongPressDisabled || shouldIgnoreFlipDoubleClick(event)) return;
-
-    event.preventDefault();
-    flippedStep = -1;
-  }
-
   /** @param {number} step @param {boolean} flipped */
   function handleStepFlipChange(step, flipped) {
     if (flipped) {
@@ -753,9 +745,11 @@
   <button
     type="button"
     data-remove-button
+    data-step-pointer
     aria-label="Remove step"
     disabled={removeBlocked}
-    class="z-10 flex h-4 w-4 shrink-0 items-center justify-start p-0 transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 {muted
+    style="cursor: pointer"
+    class="relative z-30 flex h-5 w-5 shrink-0 items-center justify-center p-0 transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 {muted
       ? 'text-zinc-600 hover:text-zinc-500'
       : `text-zinc-400 hover:text-zinc-200 ${accent.textAccentFocus}`}"
     onpointerdown={(event) => event.stopPropagation()}
@@ -820,44 +814,62 @@
             : accent.cellFocusWithinBorder}"
         >
           {#if reorderEnabled}
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-              use:dragHandle
-              use:longPress={longPressFlipParams(step)}
-              aria-label="Drag to reorder step. Hold or double-click header to open step settings."
-              class="flex h-5 w-full shrink-0 cursor-grab items-center justify-start gap-1 px-1 active:cursor-grabbing {stepHeaderClass}"
-              ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
-              title="Hold or double-click to open step settings"
+              class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass}"
+              data-no-long-press
             >
-              {@render stepHeaderRemoveButton(step)}
-              <span
-                data-multiplier-label
-                class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
-                aria-hidden="true"
+              {#if !stepFlipped}
+                {@render stepHeaderRemoveButton(step)}
+              {:else}
+                <span class="inline-block h-5 w-5 shrink-0" aria-hidden="true"></span>
+              {/if}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                use:dragHandle
+                use:longPress={longPressFlipParams(step)}
+                aria-label="Drag to reorder step. Hold or double-click header to open step settings."
+                class="flex min-h-5 min-w-0 flex-1 cursor-grab items-center justify-end active:cursor-grabbing"
+                ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
+                title="Hold or double-click to open step settings"
               >
-                {multiplierLabel}
-              </span>
+                <span
+                  data-multiplier-label
+                  class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
+                  aria-hidden="true"
+                >
+                  {multiplierLabel}
+                </span>
+              </div>
             </div>
           {:else}
             <div
-              role="presentation"
-              use:longPress={longPressFlipParams(step)}
-              aria-label="Hold or double-click header to open step settings"
-              class="flex h-5 w-full shrink-0 cursor-default items-center justify-start gap-1 px-1 {stepHeaderClass} {muted
-                ? 'opacity-80'
-                : 'opacity-60'}"
-              onpointerdown={stopPointerPropagation}
-              ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
-              title="Hold or double-click to open step settings"
+              class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass}"
+              data-no-long-press
             >
-              {@render stepHeaderRemoveButton(step)}
-              <span
-                data-multiplier-label
-                class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
-                aria-hidden="true"
+              {#if !stepFlipped}
+                {@render stepHeaderRemoveButton(step)}
+              {:else}
+                <span class="inline-block h-5 w-5 shrink-0" aria-hidden="true"></span>
+              {/if}
+              <div
+                role="presentation"
+                use:longPress={longPressFlipParams(step)}
+                aria-label="Hold or double-click header to open step settings."
+                class="flex min-h-5 min-w-0 flex-1 cursor-default items-center justify-end {muted
+                  ? 'opacity-80'
+                  : 'opacity-60'}"
+                onpointerdown={stopPointerPropagation}
+                ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
+                title="Hold or double-click to open step settings"
               >
-                {multiplierLabel}
-              </span>
+                <span
+                  data-multiplier-label
+                  class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
+                  aria-hidden="true"
+                >
+                  {multiplierLabel}
+                </span>
+              </div>
             </div>
           {/if}
 
@@ -906,19 +918,28 @@
       <div
         slot="back-header"
         class="flex min-w-0 flex-1 items-center justify-start gap-1"
+        data-no-long-press
       >
-        {@render stepHeaderRemoveButton(step)}
-        <span
-          data-multiplier-label
-          class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
+        {#if stepFlipped}
+          {@render stepHeaderRemoveButton(step)}
+        {/if}
+        <div
+          class="flex min-h-5 min-w-0 flex-1 cursor-default items-center justify-end"
+          role="presentation"
           aria-hidden="true"
         >
-          {multiplierLabel}
-        </span>
+          <span
+            data-multiplier-label
+            class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
+          >
+            {multiplierLabel}
+          </span>
+        </div>
       </div>
 
-      <div slot="back" class="flex min-h-0 flex-1 flex-col items-start pb-1">
+      <div slot="back" class="flex min-h-0 w-full min-w-0 flex-1 items-stretch pb-1">
         <div
+          data-no-flip-close
           class="grid h-full w-max shrink-0 grid-cols-[auto_auto] grid-rows-[1fr_1fr] items-center gap-x-1"
         >
           <ProbabilityDragInput

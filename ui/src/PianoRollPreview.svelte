@@ -222,8 +222,8 @@
   $: barLines = Array.from({ length: Math.floor(lengthQuarters / 4) + 1 }, (_, bar) => bar * 4);
 </script>
 
-<section class="mt-8 w-full">
-  <div class="mb-2 flex items-baseline justify-between gap-3">
+<section class="mt-6 flex min-h-0 w-full flex-1 flex-col">
+  <div class="mb-2 flex shrink-0 items-baseline justify-between gap-3">
     <div class="flex items-center gap-3">
       <p class="text-xs font-medium uppercase tracking-widest text-zinc-500">Output preview</p>
       <button
@@ -241,9 +241,15 @@
     </p>
   </div>
 
-  <div class="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/80">
-    <div class="flex">
-      <div class="shrink-0 border-r border-zinc-800 bg-zinc-900/90" style:width="{keyboardWidthPx}px">
+  <div
+    class="flex h-0 min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/80"
+  >
+    <div class="h-0 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div class="flex">
+        <div
+          class="shrink-0 border-r border-zinc-800 bg-zinc-900/90"
+          style:width="{keyboardWidthPx}px"
+        >
         <div style:height="{rulerHeightPx}px" class="border-b border-zinc-800"></div>
         <div class="relative" style:height="{rollHeightPx}px">
           {#each pitchRows as midi (midi)}
@@ -258,9 +264,12 @@
             </div>
           {/each}
         </div>
-      </div>
+        </div>
 
-      <div bind:this={scrollElement} class="min-w-0 flex-1 overflow-x-auto">
+        <div
+          bind:this={scrollElement}
+          class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
+        >
         <div class="relative" style:width="{rollWidthPx}px">
           <div
             class="relative border-b border-zinc-800 bg-zinc-900/95"
@@ -369,6 +378,7 @@
               ></div>
             {/each}
           </div>
+        </div>
         </div>
       </div>
     </div>

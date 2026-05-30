@@ -17,12 +17,34 @@ export const phraseBeatGuideOffsetPx =
 /** Matches row reverse toggle `min-w-[3.75rem]` + horizontal padding. */
 export const phraseRowReverseControlWidthPx = 60;
 
+/** Matches row mute toggle `h-9 w-9`. */
+export const phraseRowMuteControlWidthPx = 36;
+
+/** Matches App row header `gap-2` between controls and before PhraseRow. */
+export const phraseRowHeaderGapPx = 8;
+
 /**
- * Fixed width of controls before PhraseRow in App (channel, offset, reverse, mute).
- * Tailwind: w-7 + min-w-[1.75rem] + w-7, gap-2, w-10 knob, gap-2, reverse, gap-2, w-9 mute, gap-2.
+ * MIDI channel slot in App (`min-w-[5.25rem]`).
+ * Same width as the former bordered stepper (w-7 + min-w-[1.75rem] + w-7).
+ */
+export const phraseRowMidiChannelWidthPx = 84;
+
+/** Matches BipolarKnob `h-9 w-9` in the row header. */
+export const phraseRowOffsetKnobWidthPx = 36;
+
+/**
+ * Fixed width from the row container’s left edge to PhraseRow’s left edge.
+ * Must stay in sync with App.svelte row header controls (includes trailing gap-2).
  */
 export const phraseRowLeadingControlsWidthPx =
-  28 + 28 + 28 + 8 + 40 + 8 + phraseRowReverseControlWidthPx + 8 + 36 + 8;
+  phraseRowMidiChannelWidthPx +
+  phraseRowHeaderGapPx +
+  phraseRowOffsetKnobWidthPx +
+  phraseRowHeaderGapPx +
+  phraseRowReverseControlWidthPx +
+  phraseRowHeaderGapPx +
+  phraseRowMuteControlWidthPx +
+  phraseRowHeaderGapPx;
 
 /**
  * UI-only horizontal shift for the phrase grid and beat guide.

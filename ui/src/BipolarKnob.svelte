@@ -6,7 +6,6 @@
   export let value;
   /** Option index restored on double-click; omit to disable reset. */
   export let resetValue = undefined;
-  export let label = "";
   export let muted = false;
   export let ariaLabel = "Bipolar knob";
   /** @type {import('./rowAccentTheme.js').RowAccent} */
@@ -76,15 +75,9 @@
   }
 </script>
 
-<div class="flex flex-col items-center gap-1 transition-opacity duration-200 {muted ? 'opacity-75' : ''}">
-  {#if label}
-    <span class="text-[9px] font-medium uppercase tracking-wide {muted ? 'text-zinc-600' : 'text-zinc-500'}"
-      >{label}</span
-    >
-  {/if}
-
+<div class="transition-opacity duration-200 {muted ? 'opacity-75' : ''}">
   <div
-    class="relative h-10 w-10 cursor-ns-resize touch-none select-none rounded-full border-2 bg-zinc-900 outline-none transition-[border-color,box-shadow] duration-75 {accent.borderFocusVisible} focus-visible:ring-1 {accent.ringFocus} {dragging && !muted
+    class="relative h-9 w-9 cursor-ns-resize touch-none select-none rounded-full border-2 bg-zinc-900 outline-none transition-[border-color,box-shadow] duration-75 {accent.borderFocusVisible} focus-visible:ring-1 {accent.ringFocus} {dragging && !muted
       ? `${accent.dragBorder} ${accent.dragShadow}`
       : muted
         ? 'border-zinc-800'

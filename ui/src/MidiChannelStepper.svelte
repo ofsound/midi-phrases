@@ -1,56 +1,99 @@
 <script>
+  import { emeraldRowAccent } from "./rowAccentTheme.js";
+
+  /** @type {import('./rowAccentTheme.js').RowAccent} */
+  export let accent = emeraldRowAccent;
   export let value = 1;
   export let min = 1;
   export let max = 16;
   export let muted = false;
+  /** Channel restored on double-click; omit to disable reset. */
+  export let resetValue = undefined;
   export let ariaLabel = "MIDI channel";
   /** @type {(channel: number) => void | Promise<void>} */
   export let onValueChange = () => {};
 
-  function decrement() {
-    if (value <= min) return;
+  const pixelsPerStep = 10;
 
-    onValueChange(value - 1);
+  let dragging = false;
+  let dragStartY = 0;
+  let dragStartValue = 0;
+
+  $: displayValue = String(value);
+
+  function clampChannel(channel) {
+    return Math.min(max, Math.max(min, Math.round(channel)));
   }
 
-  function increment() {
-    if (value >= max) return;
+  function channelFromDrag(clientY) {
+    const steps = Math.round((dragStartY - clientY) / pixelsPerStep);
 
-    onValueChange(value + 1);
+    return clampChannel(dragStartValue + steps);
+  }
+
+  /** @param {PointerEvent} event */
+  function onPointerDown(event) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragging = true;
+    dragStartY = event.clientY;
+    dragStartValue = value;
+  }
+
+  /** @param {PointerEvent} event */
+  function onPointerMove(event) {
+    if (!dragging) return;
+
+    const next = channelFromDrag(event.clientY);
+
+    if (next !== value) onValueChange(next);
+  }
+
+  /** @param {PointerEvent} event */
+  function onPointerUp(event) {
+    dragging = false;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  /** @param {MouseEvent} event */
+  function onDoubleClick(event) {
+    if (resetValue === undefined || dragging) return;
+
+    event.preventDefault();
+
+    if (value !== resetValue) onValueChange(resetValue);
   }
 </script>
 
 <div
-  class="flex h-9 items-stretch overflow-hidden rounded-lg border bg-zinc-900 transition-[border-color,opacity] duration-200 {muted
-    ? 'border-zinc-800/90 opacity-75'
-    : 'border-zinc-700'}"
-  role="group"
-  aria-label={ariaLabel}
->
-  <button
-    type="button"
-    class="flex w-7 shrink-0 items-center justify-center text-sm text-zinc-400 transition-colors outline-none hover:bg-zinc-800 hover:text-zinc-200 focus-visible:bg-zinc-800 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-zinc-400"
-    aria-label="Decrease MIDI channel"
-    disabled={value <= min}
-    onclick={decrement}
-  >
-    −
-  </button>
-  <div
-    class="flex min-w-[1.75rem] items-center justify-center border-x border-zinc-700/80 px-1 text-sm font-semibold tabular-nums {muted
-      ? 'text-zinc-500'
+  class="inline-flex cursor-ns-resize touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {muted
+    ? 'text-zinc-500'
+    : dragging
+      ? accent.textAccentLight
       : 'text-zinc-100'}"
-    aria-live="polite"
-  >
-    {value}
-  </div>
-  <button
-    type="button"
-    class="flex w-7 shrink-0 items-center justify-center text-sm text-zinc-400 transition-colors outline-none hover:bg-zinc-800 hover:text-zinc-200 focus-visible:bg-zinc-800 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-zinc-400"
-    aria-label="Increase MIDI channel"
-    disabled={value >= max}
-    onclick={increment}
-  >
-    +
-  </button>
+  role="slider"
+  aria-label={ariaLabel}
+  aria-valuemin={min}
+  aria-valuemax={max}
+  aria-valuenow={value}
+  aria-valuetext={displayValue}
+  tabindex="0"
+  onpointerdown={onPointerDown}
+  onpointermove={onPointerMove}
+  onpointerup={onPointerUp}
+  onpointercancel={onPointerUp}
+  ondblclick={onDoubleClick}
+  title={resetValue !== undefined ? "Drag to change · double-click to reset" : undefined}
+  onkeydown={(event) => {
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+
+      if (value < max) onValueChange(value + 1);
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+
+      if (value > min) onValueChange(value - 1);
+    }
+  }}
+>
+  <span class="font-sans text-base leading-none font-bold tabular-nums">{displayValue}</span>
 </div>

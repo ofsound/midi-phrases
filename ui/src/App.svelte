@@ -33,6 +33,7 @@
     phraseGridVisualOffsetCompensationPx,
   } from "./phraseRowLayout.js";
   import {
+    emeraldRowAccent,
     rowAccentFor,
     rowMutedOverlayClasses,
     rowMuteControlClasses,
@@ -941,12 +942,12 @@
   });
 </script>
 
-<main class="flex min-h-screen flex-col p-6">
-  <header class="flex items-start justify-between gap-4">
+<main class="flex h-full flex-col overflow-hidden p-6">
+  <header class="flex shrink-0 items-start justify-between gap-4">
     <div class="flex min-w-0 flex-1 items-start gap-6">
       <div>
         <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
-        <h1 class="mt-1 text-xl font-semibold tracking-tight text-zinc-100">{pluginName}</h1>
+        <h1 class="text-xl font-semibold tracking-tight text-zinc-100">{pluginName}</h1>
       </div>
       <label class="flex items-center gap-2 pt-1 text-xs font-medium uppercase text-zinc-500">
         Pulse
@@ -960,14 +961,19 @@
           {/each}
         </select>
       </label>
-      <label class="flex cursor-pointer items-center gap-2 pt-1 text-xs font-medium uppercase text-zinc-500">
+      <button
+        type="button"
+        aria-label={rowColorsEnabled ? "Disable row colors" : "Enable row colors"}
+        aria-pressed={rowColorsEnabled}
+        class="mt-1 {rowReverseControlClasses} {emeraldRowAccent.controlFocus} {rowColorsEnabled
+          ? `border-zinc-600 ${emeraldRowAccent.textAccent}`
+          : 'border-zinc-700 text-zinc-500'}"
+        onclick={() => {
+          rowColorsEnabled = !rowColorsEnabled;
+        }}
+      >
         Colors
-        <input
-          type="checkbox"
-          bind:checked={rowColorsEnabled}
-          class="h-4 w-4 rounded border-zinc-600 bg-zinc-950 text-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0 focus:ring-offset-zinc-950"
-        />
-      </label>
+      </button>
     </div>
     <div class="flex shrink-0 items-center gap-3">
       {#if standaloneTransportAvailable}
@@ -1001,8 +1007,8 @@
     </div>
   </header>
 
-  <section class="mt-4 flex flex-1 flex-col items-start justify-start">
-    <div class="w-full">
+  <section class="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div class="w-full shrink-0">
       <div class="relative flex flex-col gap-5">
         <div
           class="pointer-events-none absolute top-0 bottom-0 z-0 w-px bg-zinc-600/70"
@@ -1017,14 +1023,19 @@
               {#if rowMuted[row]}
                 <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
               {/if}
-              <MidiChannelStepper
-                value={rowMidiChannel[row]}
-                ariaLabel="Row {row + 1} MIDI channel"
-                muted={rowMuted[row]}
-                onValueChange={(channel) => selectRowMidiChannel(row, channel)}
-              />
+              <div
+                class="flex h-9 min-w-[5.25rem] shrink-0 items-center justify-center"
+              >
+                <MidiChannelStepper
+                  accent={rowAccent}
+                  value={rowMidiChannel[row]}
+                  resetValue={1}
+                  ariaLabel="Row {row + 1} MIDI channel"
+                  muted={rowMuted[row]}
+                  onValueChange={(channel) => selectRowMidiChannel(row, channel)}
+                />
+              </div>
               <BipolarKnob
-                label="Offset"
                 accent={rowAccent}
                 options={timingOffsetOptions}
                 value={rowTimingOffset[row]}
@@ -1094,28 +1105,28 @@
           </div>
         {/each}
       </div>
-
-      <PianoRollPreview
-        notes={grid}
-        {rowColorsEnabled}
-        {rowMuted}
-        {rowReversed}
-        {rowTimingOffset}
-        {stepDurationFraction}
-        {stepTimingMultiplier}
-        {stepVelocity}
-        {stepMuted}
-        {stepSkipped}
-        stepProbability={stepProbability}
-        stepCycle={stepCycle}
-        stepCycleOffset={stepCycleOffset}
-        {pulseIndex}
-        loopEnabled={loopBraceEnabled}
-        loopStart={loopBraceStart}
-        loopEnd={loopBraceEnd}
-        {playbackBeat}
-        onLoopBraceChange={updateLoopBrace}
-      />
     </div>
+
+    <PianoRollPreview
+      notes={grid}
+      {rowColorsEnabled}
+      {rowMuted}
+      {rowReversed}
+      {rowTimingOffset}
+      {stepDurationFraction}
+      {stepTimingMultiplier}
+      {stepVelocity}
+      {stepMuted}
+      {stepSkipped}
+      stepProbability={stepProbability}
+      stepCycle={stepCycle}
+      stepCycleOffset={stepCycleOffset}
+      {pulseIndex}
+      loopEnabled={loopBraceEnabled}
+      loopStart={loopBraceStart}
+      loopEnd={loopBraceEnd}
+      {playbackBeat}
+      onLoopBraceChange={updateLoopBrace}
+    />
   </section>
 </main>

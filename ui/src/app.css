@@ -4,7 +4,15 @@
   html,
   body,
   #app {
-    @apply select-none;
+    height: 100%;
+    @apply overflow-hidden select-none;
+  }
+}
+
+/* JUCE WebView often ignores Tailwind cursor utilities on <button>; use attribute + !important. */
+@layer components {
+  [data-step-pointer] {
+    cursor: pointer !important;
   }
 }
 

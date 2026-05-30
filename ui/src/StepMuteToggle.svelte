@@ -23,11 +23,13 @@
 
 <button
   type="button"
+  data-step-pointer
   aria-label={ariaLabel}
   aria-pressed={value}
-  class="flex shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors {accent.ringFocusWithWidth} {iconClasses}"
+  style="cursor: pointer"
+  class="flex h-6 w-6 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors {accent.ringFocusWithWidth} {iconClasses}"
   onpointerdown={(event) => event.stopPropagation()}
   onclick={toggle}
 >
-  <SpeakerIcon class="h-3 w-3" />
+  <SpeakerIcon class="pointer-events-none h-3 w-3" />
 </button>
