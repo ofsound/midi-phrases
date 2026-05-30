@@ -1175,14 +1175,23 @@
         ></div>
         {#each grid as _row, row}
           {@const rowAccent = rowAccentFor(row, rowColorsEnabled)}
-          <div class="relative z-10 flex min-w-0 flex-1 items-center gap-2">
-            <div class="relative flex shrink-0 items-center gap-2">
+          <div class="relative z-10 flex min-w-0 flex-1 items-center gap-1">
+            <div class="relative flex shrink-0 items-center gap-1">
               {#if rowMuted[row]}
                 <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
               {/if}
-              <div
-                class="flex h-9 min-w-[5.25rem] shrink-0 items-center justify-center"
+              <button
+                type="button"
+                aria-label={rowMuted[row] ? "Turn row on" : "Turn row off"}
+                aria-pressed={!rowMuted[row]}
+                class="{rowMuteControlClasses} {rowAccent.controlFocus} {rowMuted[row]
+                  ? 'text-zinc-400'
+                  : rowAccent.textAccent}"
+                onclick={() => toggleRowMute(row)}
               >
+                <RowDisableIcon class="h-9 w-9" />
+              </button>
+              <div class="flex h-9 w-10 shrink-0 items-center justify-center">
                 <MidiChannelStepper
                   accent={rowAccent}
                   value={rowMidiChannel[row]}
@@ -1213,17 +1222,6 @@
                 onclick={() => toggleRowReverse(row)}
               >
                 Reverse
-              </button>
-              <button
-                type="button"
-                aria-label={rowMuted[row] ? "Unmute voice" : "Mute voice"}
-                aria-pressed={!rowMuted[row]}
-                class="{rowMuteControlClasses} {rowAccent.controlFocus} {rowMuted[row]
-                  ? 'border-zinc-600 text-zinc-400'
-                  : `border-zinc-700 ${rowAccent.textAccent}`}"
-                onclick={() => toggleRowMute(row)}
-              >
-                <RowDisableIcon class="h-4 w-4" />
               </button>
             </div>
             <PhraseRow

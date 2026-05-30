@@ -9,7 +9,9 @@
   import StepInsertZone from "./StepInsertZone.svelte";
   import StepCardFlip from "./StepCardFlip.svelte";
   import StepGearIcon from "./StepGearIcon.svelte";
+  import StepMutedOverlay from "./StepMutedOverlay.svelte";
   import StepMuteToggle from "./StepMuteToggle.svelte";
+  import StepSkippedOverlay from "./StepSkippedOverlay.svelte";
   import StepSkipToggle from "./StepSkipToggle.svelte";
   import ProbabilityDragInput from "./ProbabilityDragInput.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
@@ -879,7 +881,7 @@
         <div
           class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,opacity] duration-200 {stepCellSurfaceClass} {stepCellPlaybackClass(
             activeGates[step],
-          )} {stepIsSkipped ? 'opacity-50' : stepIsMuted ? 'opacity-55 saturate-[0.35]' : ''} {muted
+          )} {muted
             ? ''
             : accent.cellFocusWithinBorder}"
         >
@@ -943,7 +945,15 @@
             </div>
           {/if}
 
-          <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-1 px-1 py-1 {muted ? 'opacity-80' : ''}">
+          <div
+            class="relative flex min-h-0 min-w-0 flex-1 flex-col gap-1 px-1 py-1 {muted
+              ? 'opacity-80'
+              : stepIsSkipped
+                ? 'opacity-50'
+                : stepIsMuted
+                  ? 'opacity-55 saturate-[0.35]'
+                  : ''}"
+          >
             <DurationBar
               {accent}
               {muted}
@@ -981,6 +991,8 @@
                 title="Hold or double-click to open step settings"
               ></div>
             </div>
+            <StepSkippedOverlay active={stepIsSkipped && !stepFlipped} />
+            <StepMutedOverlay active={stepIsMuted && !stepIsSkipped && !stepFlipped} />
           </div>
 
           {@render stepSkipMuteFooter(step, stepFlipped)}

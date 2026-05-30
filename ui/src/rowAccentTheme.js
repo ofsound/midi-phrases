@@ -127,9 +127,9 @@ export function rowAccentFor(row, rowColorsEnabled) {
 export const rowMutedOverlayClasses =
   "pointer-events-none absolute inset-0 z-10 rounded-xl bg-zinc-950/50";
 
-/** Mute toggle stays above {@link rowMutedOverlayClasses}. */
+/** On/off toggle stays above {@link rowMutedOverlayClasses}. */
 export const rowMuteControlClasses =
-  "relative z-20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-zinc-900 transition-colors outline-none hover:border-zinc-600";
+  "relative z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 transition-colors outline-none hover:text-zinc-200";
 
 /** Reverse toggle in the row control strip (after offset). */
 export const rowReverseControlClasses =

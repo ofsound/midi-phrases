@@ -115,8 +115,6 @@
     >
       <div class="relative h-full min-h-0 w-full min-w-0">
         <slot name="front" />
-        <StepSkippedOverlay active={stepSkipped && !flipped} />
-        <StepMutedOverlay active={stepSilenced && !stepSkipped && !flipped} />
       </div>
     </div>
 
@@ -155,6 +153,8 @@
           title="Double-click empty area to close step settings"
         >
           <slot name="back" />
+          <StepSkippedOverlay active={stepSkipped && flipped} />
+          <StepMutedOverlay active={stepSilenced && !stepSkipped && flipped} />
         </div>
 
         <slot name="back-footer" />
