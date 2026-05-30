@@ -243,8 +243,9 @@ export function buildPhraseSchedule({
       const step = trigger.step;
       const velocity = stepVelocity[row][step];
       const rowStepMuted = stepMuted[row] ?? [];
+      const isStepMuted = rowStepMuted[step] ?? false;
 
-      if (velocity <= 0 || rowStepMuted[step]) continue;
+      if (velocity <= 0 && !isStepMuted) continue;
 
       const durationFraction = stepDurationFraction[row][step];
 
@@ -256,7 +257,7 @@ export function buildPhraseSchedule({
         start: triggerPpq,
         end: triggerPpq + gateQuarters,
         midi: rowNotes[step],
-        velocity,
+        velocity: isStepMuted ? 0 : velocity,
         row,
         step,
       };

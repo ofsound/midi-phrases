@@ -12,6 +12,7 @@
     defaultStepCycleGrid,
     defaultStepCycleOffsetGrid,
     defaultStepVelocityGrid,
+    defaultStepNote,
   } from "./midiNoteNames.js";
   import RowDisableIcon from "./RowDisableIcon.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
@@ -713,7 +714,6 @@
   }
 
   async function insertStep(row, step) {
-    const defaults = defaultPhraseGrid();
     const defaultDurations = defaultStepDurationGrid();
     const defaultMultipliers = defaultStepTimingMultiplierGrid();
     const defaultVelocities = defaultStepVelocityGrid();
@@ -722,9 +722,8 @@
     const defaultProbability = defaultStepProbabilityGrid();
     const defaultCycle = defaultStepCycleGrid();
     const defaultCycleOffset = defaultStepCycleOffsetGrid();
-    const defaultNote = defaults[row]?.[0] ?? 60;
 
-    grid[row].splice(step, 0, defaultNote);
+    grid[row].splice(step, 0, defaultStepNote);
     stepDurationFraction[row].splice(step, 0, defaultDurations[row]?.[0] ?? 1);
     stepTimingMultiplier[row].splice(
       step,

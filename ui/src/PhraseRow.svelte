@@ -15,7 +15,7 @@
   import { longPress } from "./longPressAction.js";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
   import {
-    defaultNoteForRow,
+    defaultStepNote,
     defaultStepDurationFraction,
     defaultStepVelocity,
   } from "./midiNoteNames.js";
@@ -877,7 +877,7 @@
                   {accent}
                   {muted}
                   value={notes[step]}
-                  resetValue={defaultNoteForRow(row)}
+                  resetValue={defaultStepNote}
                   ariaLabel="Step note"
                   onValueChange={(midi) => onNoteChange(row, step, midi)}
                 />

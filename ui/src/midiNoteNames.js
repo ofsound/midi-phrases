@@ -44,19 +44,22 @@ export const defaultRowTimingOffsetIndex = 3;
 /** Matches PluginProcessor::defaultStepVelocity. */
 export const defaultStepVelocity = 100;
 
+/** Matches PluginProcessor::defaultStepNote (C3). */
+export const defaultStepNote = 60;
+
 /** Matches PluginProcessor::defaultStepDurationFraction. */
 export const defaultStepDurationFraction = 1;
 
 export const defaultPhraseGrid = () => [
   [60, 60, 60, 60],
-  [64, 64, 64, 64],
-  [67, 67, 67, 67],
-  [72, 72, 72, 72],
+  [60, 60, 60, 60],
+  [60, 60, 60, 60],
+  [60, 60, 60, 60],
 ];
 
 /** Default MIDI note for a phrase row (matches PluginProcessor::defaultNoteForRow). */
-export function defaultNoteForRow(row) {
-  return defaultPhraseGrid()[row]?.[0] ?? 60;
+export function defaultNoteForRow(_row) {
+  return defaultStepNote;
 }
 
 export const defaultStepDurationGrid = () => [

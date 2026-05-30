@@ -85,6 +85,7 @@ public:
     double getPhraseStepDurationFraction (int row, int step) const;
 
     static constexpr int defaultStepVelocity = 100;
+    static constexpr int defaultStepNote = 60; // C3
 
     void setPhraseStepVelocity (int row, int step, int velocity);
     int getPhraseStepVelocity (int row, int step) const;

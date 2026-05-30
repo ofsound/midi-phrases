@@ -6,7 +6,6 @@
 
 namespace
 {
-constexpr int defaultRowNotes[] = { 60, 64, 67, 72 };
 constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr int phraseStateVersion = 8;
@@ -166,10 +165,8 @@ PluginProcessor::~PluginProcessor()
 
 int PluginProcessor::defaultNoteForRow (int row)
 {
-    if (row < 0 || row >= phraseRowCount)
-        return 60;
-
-    return defaultRowNotes[row];
+    juce::ignoreUnused (row);
+    return defaultStepNote;
 }
 
 bool PluginProcessor::isValidStep (const int row, const int step) const

@@ -353,7 +353,8 @@
             {/each}
 
             {#each scheduled as note (`${note.row}-${note.start}-${note.midi}`)}
-              {@const noteActive = isScheduledNoteActiveAtBeat(note, playbackBeat)}
+              {@const noteActive =
+                note.velocity > 0 && isScheduledNoteActiveAtBeat(note, playbackBeat)}
               {@const noteAccent = rowAccentFor(note.row, rowColorsEnabled)}
               <div
                 class="absolute rounded-[2px] border transition-[box-shadow,border-color,filter] duration-150 {noteActive
