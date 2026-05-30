@@ -8,6 +8,7 @@
   import VelocityDragInput from "./VelocityDragInput.svelte";
   import StepInsertZone from "./StepInsertZone.svelte";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
+  import { emeraldRowAccent } from "./rowAccentTheme.js";
   import {
     compensatedResizeBoundsPx,
     defaultStepTimingMultiplierIndex,
@@ -21,6 +22,8 @@
   } from "./stepCellLayout.js";
 
   export let row = 0;
+  /** @type {import('./rowAccentTheme.js').RowAccent} */
+  export let accent = emeraldRowAccent;
   /** Index into timingOffsetValues (default 3 = 0 quarters). */
   export let timingOffsetIndex = 3;
   export let pulseIndex = 1;
@@ -628,11 +631,9 @@
     };
   }
 
-  const stepCellPlaybackClass = (active) =>
-    active ? "border-emerald-400" : "border-zinc-700";
+  const stepCellPlaybackClass = (active) => (active ? accent.borderActive : "border-zinc-700");
 
-  const stepCellPlaybackGlowClass = (active) =>
-    active ? "shadow-[0_0_14px_rgba(52,211,153,0.55)]" : "";
+  const stepCellPlaybackGlowClass = (active) => (active ? accent.playbackGlow : "");
 </script>
 
 {#snippet stepHeaderRemoveButton(step)}
@@ -641,7 +642,7 @@
     data-remove-button
     aria-label="Remove step"
     disabled={removeBlocked}
-    class="z-10 flex h-4 w-4 shrink-0 items-center justify-start p-0 text-zinc-400 transition-colors outline-none hover:text-zinc-200 focus-visible:text-emerald-300 disabled:pointer-events-none disabled:opacity-50"
+    class="z-10 flex h-4 w-4 shrink-0 items-center justify-start p-0 text-zinc-400 transition-colors outline-none hover:text-zinc-200 {accent.textAccentFocus} disabled:pointer-events-none disabled:opacity-50"
     onpointerdown={(event) => event.stopPropagation()}
     onmousedown={(event) => event.stopPropagation()}
     onclick={(event) => handleRemoveClick(event, step)}
@@ -668,7 +669,7 @@
     <div
       class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 bg-zinc-900 outline-none transition-[border-color] duration-200 {stepCellPlaybackClass(
         activeGates[step],
-      )} focus-within:has-[:focus-visible]:border-emerald-500"
+      )} {accent.cellFocusWithinBorder}"
     >
       {#if reorderEnabled}
         <div
@@ -705,6 +706,7 @@
 
       <div class="flex min-w-0 flex-col gap-1 px-1 py-1">
         <DurationBar
+          {accent}
           value={stepDurationFraction[step]}
           velocity={stepVelocity[step]}
           ariaLabel="Step duration fraction"
@@ -713,11 +715,13 @@
         <div class="flex min-w-0 items-center pt-1 pb-1">
           <div class="flex min-w-0 items-baseline gap-1.5">
             <NoteDragInput
+              {accent}
               value={notes[step]}
               ariaLabel="Step note"
               onValueChange={(midi) => onNoteChange(row, step, midi)}
             />
             <VelocityDragInput
+              {accent}
               value={stepVelocity[step]}
               ariaLabel="Step velocity"
               onValueChange={(value) => onVelocityChange(row, step, value)}
@@ -732,7 +736,7 @@
       data-multiplier-resize
       aria-label="Resize step timing multiplier"
       disabled={isDragging || removeBlocked}
-      class="absolute top-0 bottom-0 right-0 z-[60] w-4 cursor-ew-resize touch-none select-none border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-emerald-400 disabled:pointer-events-none disabled:opacity-50"
+      class="absolute top-0 bottom-0 right-0 z-[60] w-4 cursor-ew-resize touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
       onpointerdown={(event) => beginMultiplierResize(event, step)}
       onmousedown={(event) => beginMultiplierResize(event, step)}
     ></button>
@@ -745,7 +749,7 @@
     class="pointer-events-auto absolute inset-y-0 z-50"
     style={gapInsertStyle()}
   >
-    <StepInsertZone onInsert={() => onInsertStep(row, insertStep)} />
+    <StepInsertZone {accent} onInsert={() => onInsertStep(row, insertStep)} />
   </div>
 {/snippet}
 
@@ -754,7 +758,7 @@
   style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex, pulseIndex)}px"
 >
   <div class="relative z-50 shrink-0 self-stretch">
-    <StepInsertZone onInsert={() => onInsertStep(row, 0)} />
+    <StepInsertZone {accent} onInsert={() => onInsertStep(row, 0)} />
   </div>
 
   {#if reorderDisabled}
@@ -809,6 +813,6 @@
   {/if}
 
   <div class="relative z-50 shrink-0 self-stretch">
-    <StepInsertZone onInsert={() => onInsertStep(row, stepIds.length)} />
+    <StepInsertZone {accent} onInsert={() => onInsertStep(row, stepIds.length)} />
   </div>
 </div>

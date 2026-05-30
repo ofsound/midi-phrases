@@ -1,9 +1,13 @@
 <script>
+  import { emeraldRowAccent } from "./rowAccentTheme.js";
+
   /** @type {{ index: number, label: string }[]} */
   export let options;
   export let value;
   export let label = "";
   export let ariaLabel = "Bipolar knob";
+  /** @type {import('./rowAccentTheme.js').RowAccent} */
+  export let accent = emeraldRowAccent;
   /** @type {(index: number) => void | Promise<void>} */
   export let onValueChange = () => {};
 
@@ -66,8 +70,8 @@
   {/if}
 
   <div
-    class="relative h-10 w-10 cursor-ns-resize touch-none select-none rounded-full border-2 bg-zinc-900 outline-none transition-[border-color,box-shadow] duration-75 focus-visible:border-emerald-500 focus-visible:ring-1 focus-visible:ring-emerald-400 {dragging
-      ? 'border-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.35)]'
+    class="relative h-10 w-10 cursor-ns-resize touch-none select-none rounded-full border-2 bg-zinc-900 outline-none transition-[border-color,box-shadow] duration-75 {accent.borderFocusVisible} focus-visible:ring-1 {accent.ringFocus} {dragging
+      ? `${accent.dragBorder} ${accent.dragShadow}`
       : 'border-zinc-600'}"
     role="slider"
     aria-label={ariaLabel}
@@ -98,13 +102,13 @@
       aria-hidden="true"
     >
       <span
-        class="absolute left-1/2 top-[2px] h-[3px] w-[3px] -translate-x-1/2 rounded-[1px] bg-emerald-400"
+        class="absolute left-1/2 top-[2px] h-[3px] w-[3px] -translate-x-1/2 rounded-[1px] {accent.bgAccent}"
       ></span>
     </div>
 
     <span
       class="pointer-events-none absolute inset-0 flex items-center justify-center font-mono text-[10px] leading-none font-semibold tabular-nums {dragging
-        ? 'text-emerald-300'
+        ? accent.textAccentLight
         : 'text-zinc-100'}"
       aria-hidden="true"
     >

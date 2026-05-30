@@ -2,6 +2,7 @@
   import { midiToNoteName } from "./midiNoteNames.js";
   import { beatFromClientX, clampLoopBrace } from "./loopBraceLayout.js";
   import { defaultPulseIndex } from "./pulseLayout.js";
+  import { rowAccentFor } from "./rowAccentTheme.js";
   import {
     buildPhraseSchedule,
     DEFAULT_PREVIEW_LENGTH_QUARTERS,
@@ -17,6 +18,7 @@
   export let stepTimingMultiplier = [];
   export let stepVelocity = [];
   export let pulseIndex = defaultPulseIndex;
+  export let rowColorsEnabled = false;
   export let lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS;
   export let loopEnabled = false;
   export let loopStart = 0;
@@ -76,24 +78,6 @@
   /** @param {number} start @param {number} end */
   function noteWidthPx(start, end) {
     return Math.max(1, (end - start) * pxPerQuarter - 1);
-  }
-
-  /** @param {number} row @param {boolean} active */
-  function noteClass(row, active) {
-    const classes = [
-      "absolute rounded-[2px] border transition-[box-shadow,border-color,filter] duration-150",
-      active
-        ? "border-emerald-200/90 bg-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.65)]"
-        : "border-emerald-300/20 bg-emerald-400/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
-    ];
-
-    if (row === 3) {
-      classes[1] = active
-        ? "bg-teal-300 shadow-[0_0_12px_rgba(45,212,191,0.55)]"
-        : "bg-teal-500/70";
-    }
-
-    return classes.join(" ");
   }
 
   /** @param {number} midi */
@@ -358,8 +342,11 @@
 
             {#each scheduled as note (`${note.row}-${note.start}-${note.midi}`)}
               {@const noteActive = isScheduledNoteActiveAtBeat(note, playbackBeat)}
+              {@const noteAccent = rowAccentFor(note.row, rowColorsEnabled)}
               <div
-                class={noteClass(note.row, noteActive)}
+                class="absolute rounded-[2px] border transition-[box-shadow,border-color,filter] duration-150 {noteActive
+                  ? noteAccent.pianoNoteActive
+                  : noteAccent.pianoNoteIdle}"
                 style:left="{note.start * pxPerQuarter}px"
                 style:top="{pitchTopPx(note.midi) + 1}px"
                 style:width="{noteWidthPx(note.start, note.end)}px"

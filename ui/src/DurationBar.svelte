@@ -1,4 +1,8 @@
 <script>
+  import { emeraldRowAccent } from "./rowAccentTheme.js";
+
+  /** @type {import('./rowAccentTheme.js').RowAccent} */
+  export let accent = emeraldRowAccent;
   export let value = 1;
   export let velocity = 127;
   export let ariaLabel = "Step duration";
@@ -70,7 +74,7 @@
 <div class="flex min-w-0 w-full flex-col gap-1">
   <div
     bind:this={trackEl}
-    class="relative h-4 cursor-pointer touch-none select-none bg-zinc-600 outline-none focus-visible:ring-1 focus-visible:ring-emerald-400"
+    class="relative h-4 cursor-pointer touch-none select-none bg-zinc-600 outline-none {accent.ringFocusWithWidth}"
     role="slider"
     aria-label={ariaLabel}
     aria-valuemin={0}
@@ -96,7 +100,7 @@
     }}
   >
     <div
-      class="absolute inset-y-0 left-0 bg-emerald-400 {dragging
+      class="absolute inset-y-0 left-0 {accent.bgAccent} {dragging
         ? ''
         : 'transition-[width,opacity] duration-75'}"
       style:width="{fillPercent}%"
@@ -109,7 +113,7 @@
       <button
         type="button"
         aria-label="Set duration to {snapValue}"
-        class="absolute top-0 h-2 w-3 -translate-x-1/2 cursor-pointer border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-emerald-400"
+        class="absolute top-0 h-2 w-3 -translate-x-1/2 cursor-pointer border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth}"
         style:left="{snapValue * 100}%"
         onpointerdown={(event) => event.stopPropagation()}
         onclick={(event) => handleTickClick(snapValue, event)}

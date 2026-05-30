@@ -1,4 +1,8 @@
 <script>
+  import { emeraldRowAccent } from "./rowAccentTheme.js";
+
+  /** @type {import('./rowAccentTheme.js').RowAccent} */
+  export let accent = emeraldRowAccent;
   export let value;
   export let min = 0;
   export let max = 127;
@@ -49,8 +53,8 @@
 </script>
 
 <div
-  class="inline-flex cursor-ns-resize touch-none select-none items-center rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-emerald-400 {dragging
-    ? 'text-emerald-300'
+  class="inline-flex cursor-ns-resize touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {dragging
+    ? accent.textAccentLight
     : 'text-zinc-100'}"
   role="slider"
   aria-label={ariaLabel}

@@ -1,0 +1,124 @@
+/** @typedef {{
+ *   borderActive: string,
+ *   borderFocus: string,
+ *   borderFocusVisible: string,
+ *   cellFocusWithinBorder: string,
+ *   ringFocus: string,
+ *   ringFocusWithWidth: string,
+ *   insertZoneFocus: string,
+ *   controlFocus: string,
+ *   textAccent: string,
+ *   textAccentLight: string,
+ *   textAccentFocus: string,
+ *   bgAccent: string,
+ *   bgAccentStrong: string,
+ *   dragBorder: string,
+ *   dragShadow: string,
+ *   playbackGlow: string,
+ *   pianoNoteIdle: string,
+ *   pianoNoteActive: string,
+ * }} RowAccent */
+
+/** @type {RowAccent} */
+export const emeraldRowAccent = {
+  borderActive: "border-emerald-400",
+  borderFocus: "border-emerald-500",
+  borderFocusVisible: "focus-visible:border-emerald-500",
+  cellFocusWithinBorder: "focus-within:has-[:focus-visible]:border-emerald-500",
+  ringFocus: "focus-visible:ring-emerald-400",
+  ringFocusWithWidth: "focus-visible:ring-1 focus-visible:ring-emerald-400",
+  insertZoneFocus: "focus-visible:ring-1 focus-visible:ring-emerald-500",
+  controlFocus: "focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500",
+  textAccent: "text-emerald-400",
+  textAccentLight: "text-emerald-300",
+  textAccentFocus: "focus-visible:text-emerald-300",
+  bgAccent: "bg-emerald-400",
+  bgAccentStrong: "bg-emerald-500",
+  dragBorder: "border-emerald-400",
+  dragShadow: "shadow-[0_0_10px_rgba(52,211,153,0.35)]",
+  playbackGlow: "shadow-[0_0_14px_rgba(52,211,153,0.55)]",
+  pianoNoteIdle:
+    "border-emerald-300/20 bg-emerald-400/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+  pianoNoteActive:
+    "border-emerald-200/90 bg-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.65)]",
+};
+
+/** Rows 2–4 (1-based): blue, orange, violet when row colors are enabled. */
+/** @type {RowAccent[]} */
+export const altRowAccents = [
+  {
+    borderActive: "border-blue-400",
+    borderFocus: "border-blue-500",
+    borderFocusVisible: "focus-visible:border-blue-500",
+    cellFocusWithinBorder: "focus-within:has-[:focus-visible]:border-blue-500",
+    ringFocus: "focus-visible:ring-blue-400",
+    ringFocusWithWidth: "focus-visible:ring-1 focus-visible:ring-blue-400",
+    insertZoneFocus: "focus-visible:ring-1 focus-visible:ring-blue-500",
+    controlFocus: "focus:border-blue-500 focus:ring-1 focus:ring-blue-500",
+    textAccent: "text-blue-400",
+    textAccentLight: "text-blue-300",
+    textAccentFocus: "focus-visible:text-blue-300",
+    bgAccent: "bg-blue-400",
+    bgAccentStrong: "bg-blue-500",
+    dragBorder: "border-blue-400",
+    dragShadow: "shadow-[0_0_10px_rgba(59,130,246,0.4)]",
+    playbackGlow: "shadow-[0_0_14px_rgba(59,130,246,0.55)]",
+    pianoNoteIdle:
+      "border-blue-300/25 bg-blue-500/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+    pianoNoteActive:
+      "border-blue-200/90 bg-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.65)]",
+  },
+  {
+    borderActive: "border-orange-400",
+    borderFocus: "border-orange-500",
+    borderFocusVisible: "focus-visible:border-orange-500",
+    cellFocusWithinBorder: "focus-within:has-[:focus-visible]:border-orange-500",
+    ringFocus: "focus-visible:ring-orange-400",
+    ringFocusWithWidth: "focus-visible:ring-1 focus-visible:ring-orange-400",
+    insertZoneFocus: "focus-visible:ring-1 focus-visible:ring-orange-500",
+    controlFocus: "focus:border-orange-500 focus:ring-1 focus:ring-orange-500",
+    textAccent: "text-orange-400",
+    textAccentLight: "text-orange-300",
+    textAccentFocus: "focus-visible:text-orange-300",
+    bgAccent: "bg-orange-400",
+    bgAccentStrong: "bg-orange-500",
+    dragBorder: "border-orange-400",
+    dragShadow: "shadow-[0_0_10px_rgba(249,115,22,0.4)]",
+    playbackGlow: "shadow-[0_0_14px_rgba(249,115,22,0.55)]",
+    pianoNoteIdle:
+      "border-orange-300/25 bg-orange-500/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+    pianoNoteActive:
+      "border-orange-200/90 bg-orange-300 shadow-[0_0_12px_rgba(249,115,22,0.65)]",
+  },
+  {
+    borderActive: "border-violet-400",
+    borderFocus: "border-violet-500",
+    borderFocusVisible: "focus-visible:border-violet-500",
+    cellFocusWithinBorder: "focus-within:has-[:focus-visible]:border-violet-500",
+    ringFocus: "focus-visible:ring-violet-400",
+    ringFocusWithWidth: "focus-visible:ring-1 focus-visible:ring-violet-400",
+    insertZoneFocus: "focus-visible:ring-1 focus-visible:ring-violet-500",
+    controlFocus: "focus:border-violet-500 focus:ring-1 focus:ring-violet-500",
+    textAccent: "text-violet-400",
+    textAccentLight: "text-violet-300",
+    textAccentFocus: "focus-visible:text-violet-300",
+    bgAccent: "bg-violet-400",
+    bgAccentStrong: "bg-violet-500",
+    dragBorder: "border-violet-400",
+    dragShadow: "shadow-[0_0_10px_rgba(139,92,246,0.4)]",
+    playbackGlow: "shadow-[0_0_14px_rgba(139,92,246,0.55)]",
+    pianoNoteIdle:
+      "border-violet-300/25 bg-violet-500/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+    pianoNoteActive:
+      "border-violet-200/90 bg-violet-300 shadow-[0_0_12px_rgba(139,92,246,0.65)]",
+  },
+];
+
+/** @param {number} row @param {boolean} rowColorsEnabled */
+export function rowAccentFor(row, rowColorsEnabled) {
+  if (!rowColorsEnabled || row <= 0) {
+    return emeraldRowAccent;
+  }
+
+  return altRowAccents[row - 1] ?? emeraldRowAccent;
+}

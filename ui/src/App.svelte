@@ -21,6 +21,7 @@
   import { sanitizeOrderedIds } from "./dndUtils.js";
   import { isStepActiveAtBeat } from "./phraseSchedule.js";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
+  import { rowAccentFor } from "./rowAccentTheme.js";
 
   let pluginName = "MIDI Phrases";
   let version = "0.0.1";
@@ -66,6 +67,7 @@
   let standalonePlaying = false;
   let standaloneTempoBpm = 120;
   let pulseIndex = defaultPulseIndex;
+  let rowColorsEnabled = false;
 
   function createStepId() {
     const id = `step-${nextStepId}`;
@@ -660,6 +662,14 @@
           {/each}
         </select>
       </label>
+      <label class="flex cursor-pointer items-center gap-2 pt-1 text-xs font-medium uppercase text-zinc-500">
+        Colors
+        <input
+          type="checkbox"
+          bind:checked={rowColorsEnabled}
+          class="h-4 w-4 rounded border-zinc-600 bg-zinc-950 text-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0 focus:ring-offset-zinc-950"
+        />
+      </label>
     </div>
     <div class="flex shrink-0 items-center gap-3">
       {#if standaloneTransportAvailable}
@@ -697,6 +707,7 @@
     <div class="w-full">
       <div class="flex flex-col gap-5">
         {#each grid as _row, row}
+          {@const rowAccent = rowAccentFor(row, rowColorsEnabled)}
           <div class="flex items-center gap-2">
             <MidiChannelStepper
               value={rowMidiChannel[row]}
@@ -705,6 +716,7 @@
             />
             <BipolarKnob
               label="Offset"
+              accent={rowAccent}
               options={timingOffsetOptions}
               value={rowTimingOffset[row]}
               ariaLabel="Row timing offset"
@@ -715,9 +727,9 @@
                 type="button"
                 aria-label={rowMuted[row] ? "Unmute voice" : "Mute voice"}
                 aria-pressed={!rowMuted[row]}
-                class="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 transition-colors outline-none hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 {rowMuted[row]
+                class="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 transition-colors outline-none hover:border-zinc-600 {rowAccent.controlFocus} {rowMuted[row]
                   ? 'text-zinc-500'
-                  : 'text-emerald-400'}"
+                  : rowAccent.textAccent}"
                 onclick={() => toggleRowMute(row)}
               >
                 <SpeakerIcon class="h-4 w-4" />
@@ -725,6 +737,7 @@
             </div>
             <PhraseRow
               {row}
+              accent={rowAccent}
               timingOffsetIndex={rowTimingOffset[row]}
               {pulseIndex}
               stepIds={stepIds[row]}
@@ -749,6 +762,7 @@
 
       <PianoRollPreview
         notes={grid}
+        {rowColorsEnabled}
         {rowMuted}
         {rowTimingOffset}
         {stepDurationFraction}
