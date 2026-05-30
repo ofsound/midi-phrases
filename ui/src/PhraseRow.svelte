@@ -148,6 +148,35 @@
     };
   }
 
+  /** @param {MouseEvent} event */
+  function shouldIgnoreFlipDoubleClick(event) {
+    const target = event.target;
+
+    if (!(target instanceof Element)) return true;
+
+    return Boolean(
+      target.closest(
+        "button, input, textarea, select, a, [contenteditable='true'], [data-remove-button], [data-multiplier-resize]",
+      ),
+    );
+  }
+
+  /** @param {MouseEvent} event @param {number} step */
+  function handleOpenFlipDoubleClick(event, step) {
+    if (stepFlipLongPressDisabled || shouldIgnoreFlipDoubleClick(event)) return;
+
+    event.preventDefault();
+    flippedStep = step;
+  }
+
+  /** @param {MouseEvent} event */
+  function handleCloseFlipDoubleClick(event) {
+    if (stepFlipLongPressDisabled || shouldIgnoreFlipDoubleClick(event)) return;
+
+    event.preventDefault();
+    flippedStep = -1;
+  }
+
   /** @param {number} step @param {boolean} flipped */
   function handleStepFlipChange(step, flipped) {
     if (flipped) {
@@ -432,15 +461,19 @@
     });
 
     const shell = cellShellElements.get(resizingStep);
-    const label = shell?.querySelector("[data-multiplier-label]");
+    const labels = shell?.querySelectorAll("[data-multiplier-label]");
 
-    if (label) {
+    if (labels?.length) {
       const previewIndex = multiplierIndexFromCompensatedWidth(
         stepTimingMultiplier,
         resizingStep,
         resizeDisplayWidth,
       );
-      label.textContent = multiplierLabelForIndex(previewIndex, timingMultiplierOptions);
+      const previewLabel = multiplierLabelForIndex(previewIndex, timingMultiplierOptions);
+
+      for (const label of labels) {
+        label.textContent = previewLabel;
+      }
     }
   }
 
@@ -741,6 +774,19 @@
   </button>
 {/snippet}
 
+{#snippet multiplierResizeHandle(step)}
+  <button
+    type="button"
+    data-multiplier-resize
+    data-no-long-press
+    aria-label="Resize step timing multiplier"
+    disabled={isDragging || removeBlocked}
+    class="absolute top-0 right-0 bottom-0 z-[60] w-4 cursor-ew-resize touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+    onpointerdown={(event) => beginMultiplierResize(event, step)}
+    onmousedown={(event) => beginMultiplierResize(event, step)}
+  ></button>
+{/snippet}
+
 {#snippet stepCell(step, reorderEnabled)}
   {@const multiplierLabel = multiplierLabelForStep(step)}
   {@const stepFlipped = flippedStep === step}
@@ -751,6 +797,7 @@
       activeGates[step],
     )}"
   >
+    <div class="relative z-0 h-full min-h-0 w-full min-w-0">
     <StepCardFlip
       {accent}
       {muted}
@@ -773,11 +820,14 @@
             : accent.cellFocusWithinBorder}"
         >
           {#if reorderEnabled}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               use:dragHandle
               use:longPress={longPressFlipParams(step)}
-              aria-label="Drag to reorder step. Hold to open step settings."
+              aria-label="Drag to reorder step. Hold or double-click header to open step settings."
               class="flex h-5 w-full shrink-0 cursor-grab items-center justify-start gap-1 px-1 active:cursor-grabbing {stepHeaderClass}"
+              ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
+              title="Hold or double-click to open step settings"
             >
               {@render stepHeaderRemoveButton(step)}
               <span
@@ -792,11 +842,13 @@
             <div
               role="presentation"
               use:longPress={longPressFlipParams(step)}
-              aria-label="Hold to open step settings"
+              aria-label="Hold or double-click header to open step settings"
               class="flex h-5 w-full shrink-0 cursor-default items-center justify-start gap-1 px-1 {stepHeaderClass} {muted
                 ? 'opacity-80'
                 : 'opacity-60'}"
               onpointerdown={stopPointerPropagation}
+              ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
+              title="Hold or double-click to open step settings"
             >
               {@render stepHeaderRemoveButton(step)}
               <span
@@ -842,19 +894,33 @@
                 use:longPress={longPressFlipParams(step)}
                 class="min-h-5 min-w-4 flex-1 touch-none"
                 role="presentation"
-                aria-label="Hold to open step settings"
+                aria-label="Hold or double-click to open step settings"
+                ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
+                title="Hold or double-click to open step settings"
               ></div>
             </div>
           </div>
         </div>
       </div>
 
-      <div slot="back" class="flex min-h-0 flex-1 flex-col justify-end gap-1">
-        <div class="flex items-center justify-between gap-1 px-0.5">
-          <span
-            class="shrink-0 font-sans text-[9px] font-semibold tracking-wide text-zinc-500 uppercase"
-            >Prob</span
-          >
+      <div
+        slot="back-header"
+        class="flex min-w-0 flex-1 items-center justify-start gap-1"
+      >
+        {@render stepHeaderRemoveButton(step)}
+        <span
+          data-multiplier-label
+          class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
+          aria-hidden="true"
+        >
+          {multiplierLabel}
+        </span>
+      </div>
+
+      <div slot="back" class="flex min-h-0 flex-1 flex-col items-start pb-1">
+        <div
+          class="grid h-full w-max shrink-0 grid-cols-[auto_auto] grid-rows-[1fr_1fr] items-center gap-x-1"
+        >
           <ProbabilityDragInput
             {accent}
             {muted}
@@ -863,65 +929,56 @@
             ariaLabel="Step probability"
             onValueChange={(value) => onStepProbabilityChange(row, step, value)}
           />
+          <div class="flex justify-end">
+            <StepSkipToggle
+              {accent}
+              {muted}
+              value={stepIsSkipped}
+              ariaLabel="Skip step in sequence"
+              onValueChange={(value) => onStepSkipChange(row, step, value)}
+            />
+          </div>
+          <div class="flex shrink-0 items-baseline justify-start gap-0.5">
+            <StepNumberDragInput
+              {accent}
+              {muted}
+              value={stepCycle[step] ?? 1}
+              min={1}
+              max={64}
+              resetValue={1}
+              ariaLabel="Step cycle length"
+              onValueChange={(value) => onStepCycleChange(row, step, value)}
+            />
+            <span
+              class="pointer-events-none cursor-default font-sans text-xs leading-none font-bold text-zinc-400 select-none"
+              aria-hidden="true">/</span
+            >
+            <StepNumberDragInput
+              {accent}
+              {muted}
+              value={stepCycleOffset[step] ?? 0}
+              min={0}
+              max={Math.max(0, (stepCycle[step] ?? 1) - 1)}
+              resetValue={0}
+              ariaLabel="Step cycle offset"
+              onValueChange={(value) => onStepCycleOffsetChange(row, step, value)}
+            />
+          </div>
+          <div class="flex justify-end">
+            <StepMuteToggle
+              {accent}
+              {muted}
+              value={stepIsMuted}
+              ariaLabel="Mute step"
+              onValueChange={(value) => onStepMuteChange(row, step, value)}
+            />
+          </div>
         </div>
-        <div class="flex items-center justify-between gap-1 px-0.5">
-          <span
-            class="shrink-0 font-sans text-[9px] font-semibold tracking-wide text-zinc-500 uppercase"
-            >Cyc</span
-          >
-          <StepNumberDragInput
-            {accent}
-            {muted}
-            value={stepCycle[step] ?? 1}
-            min={1}
-            max={64}
-            resetValue={1}
-            ariaLabel="Step cycle length"
-            onValueChange={(value) => onStepCycleChange(row, step, value)}
-          />
-          <span
-            class="shrink-0 font-sans text-[9px] font-semibold tracking-wide text-zinc-500 uppercase"
-            >Off</span
-          >
-          <StepNumberDragInput
-            {accent}
-            {muted}
-            value={stepCycleOffset[step] ?? 0}
-            min={0}
-            max={Math.max(0, (stepCycle[step] ?? 1) - 1)}
-            resetValue={0}
-            ariaLabel="Step cycle offset"
-            onValueChange={(value) => onStepCycleOffsetChange(row, step, value)}
-          />
-        </div>
-        <StepSkipToggle
-          {accent}
-          {muted}
-          value={stepIsSkipped}
-          ariaLabel="Skip step in sequence"
-          onValueChange={(value) => onStepSkipChange(row, step, value)}
-        />
-        <StepMuteToggle
-          {accent}
-          {muted}
-          value={stepIsMuted}
-          ariaLabel="Mute step"
-          onValueChange={(value) => onStepMuteChange(row, step, value)}
-        />
       </div>
     </StepCardFlip>
+    </div>
 
-    {#if !stepFlipped}
-      <button
-        type="button"
-        data-multiplier-resize
-        aria-label="Resize step timing multiplier"
-        disabled={isDragging || removeBlocked}
-        class="absolute top-0 bottom-0 right-0 z-[60] w-4 cursor-ew-resize touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
-        onpointerdown={(event) => beginMultiplierResize(event, step)}
-        onmousedown={(event) => beginMultiplierResize(event, step)}
-      ></button>
-    {/if}
+    {@render multiplierResizeHandle(step)}
   </div>
 {/snippet}
 

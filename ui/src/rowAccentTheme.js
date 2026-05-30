@@ -123,7 +123,7 @@ export function rowAccentFor(row, rowColorsEnabled) {
   return altRowAccents[row - 1] ?? emeraldRowAccent;
 }
 
-/** Absolute overlay on a phrase row when muted (pointer-events-none). */
+/** Dims row transport controls when muted; does not cover step cells. */
 export const rowMutedOverlayClasses =
   "pointer-events-none absolute inset-0 z-10 rounded-xl bg-zinc-950/50";
 

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && npm run zip",
-    "zip": "cd dist && zip -rq ../../assets/webview/ui.zip .",
+    "zip": "rm -f ../assets/webview/ui.zip && cd dist && zip -rq ../../assets/webview/ui.zip .",
     "preview": "vite preview"
   },
   "devDependencies": {

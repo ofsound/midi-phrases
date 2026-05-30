@@ -13,7 +13,7 @@
     defaultStepCycleOffsetGrid,
     defaultStepVelocityGrid,
   } from "./midiNoteNames.js";
-  import SpeakerIcon from "./SpeakerIcon.svelte";
+  import RowDisableIcon from "./RowDisableIcon.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
   import MidiChannelStepper from "./MidiChannelStepper.svelte";
   import PhraseRow from "./PhraseRow.svelte";
@@ -1014,49 +1014,51 @@
         {#each grid as _row, row}
           {@const rowAccent = rowAccentFor(row, rowColorsEnabled)}
           <div class="relative z-10 flex min-w-0 flex-1 items-center gap-2">
-            {#if rowMuted[row]}
-              <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
-            {/if}
-            <MidiChannelStepper
-              value={rowMidiChannel[row]}
-              ariaLabel="Row {row + 1} MIDI channel"
-              muted={rowMuted[row]}
-              onValueChange={(channel) => selectRowMidiChannel(row, channel)}
-            />
-            <BipolarKnob
-              label="Offset"
-              accent={rowAccent}
-              options={timingOffsetOptions}
-              value={rowTimingOffset[row]}
-              resetValue={defaultRowTimingOffsetIndex}
-              ariaLabel="Row timing offset"
-              muted={rowMuted[row]}
-              onValueChange={(offsetIndex) => selectRowTimingOffset(row, offsetIndex)}
-            />
-            <button
-              type="button"
-              aria-label={rowReversed[row] ? "Disable reverse playback" : "Enable reverse playback"}
-              aria-pressed={rowReversed[row]}
-              class="{rowReverseControlClasses} {rowAccent.controlFocus} {rowReversed[row] && !rowMuted[row]
-                ? `border-zinc-600 ${rowAccent.textAccent}`
-                : rowMuted[row]
-                  ? 'border-zinc-800/90 text-zinc-600'
-                  : 'border-zinc-700 text-zinc-500'}"
-              onclick={() => toggleRowReverse(row)}
-            >
-              Reverse
-            </button>
-            <button
-              type="button"
-              aria-label={rowMuted[row] ? "Unmute voice" : "Mute voice"}
-              aria-pressed={!rowMuted[row]}
-              class="{rowMuteControlClasses} {rowAccent.controlFocus} {rowMuted[row]
-                ? 'border-zinc-600 text-zinc-400'
-                : `border-zinc-700 ${rowAccent.textAccent}`}"
-              onclick={() => toggleRowMute(row)}
-            >
-              <SpeakerIcon class="h-4 w-4" />
-            </button>
+            <div class="relative flex shrink-0 items-center gap-2">
+              {#if rowMuted[row]}
+                <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
+              {/if}
+              <MidiChannelStepper
+                value={rowMidiChannel[row]}
+                ariaLabel="Row {row + 1} MIDI channel"
+                muted={rowMuted[row]}
+                onValueChange={(channel) => selectRowMidiChannel(row, channel)}
+              />
+              <BipolarKnob
+                label="Offset"
+                accent={rowAccent}
+                options={timingOffsetOptions}
+                value={rowTimingOffset[row]}
+                resetValue={defaultRowTimingOffsetIndex}
+                ariaLabel="Row timing offset"
+                muted={rowMuted[row]}
+                onValueChange={(offsetIndex) => selectRowTimingOffset(row, offsetIndex)}
+              />
+              <button
+                type="button"
+                aria-label={rowReversed[row] ? "Disable reverse playback" : "Enable reverse playback"}
+                aria-pressed={rowReversed[row]}
+                class="{rowReverseControlClasses} {rowAccent.controlFocus} {rowReversed[row] && !rowMuted[row]
+                  ? `border-zinc-600 ${rowAccent.textAccent}`
+                  : rowMuted[row]
+                    ? 'border-zinc-800/90 text-zinc-600'
+                    : 'border-zinc-700 text-zinc-500'}"
+                onclick={() => toggleRowReverse(row)}
+              >
+                Reverse
+              </button>
+              <button
+                type="button"
+                aria-label={rowMuted[row] ? "Unmute voice" : "Mute voice"}
+                aria-pressed={!rowMuted[row]}
+                class="{rowMuteControlClasses} {rowAccent.controlFocus} {rowMuted[row]
+                  ? 'border-zinc-600 text-zinc-400'
+                  : `border-zinc-700 ${rowAccent.textAccent}`}"
+                onclick={() => toggleRowMute(row)}
+              >
+                <RowDisableIcon class="h-4 w-4" />
+              </button>
+            </div>
             <PhraseRow
               {row}
               muted={rowMuted[row]}

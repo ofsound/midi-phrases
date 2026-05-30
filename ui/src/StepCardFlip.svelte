@@ -28,32 +28,71 @@
     }
   }
 
+  /** @param {MouseEvent} event */
+  function handleBackHeaderDoubleClick(event) {
+    if (disabled) return;
+
+    event.preventDefault();
+    closeFlip();
+  }
+
   $: longPressOptions = {
     duration: longPressMs,
     disabled,
     onLongPress: requestFlip,
   };
+
+  /**
+   * Each face stays visible for its outgoing flip, then hides after transitionend
+   * so WebView does not flash blank or bleed the hidden face (display:none breaks 3D).
+   */
+  let frontHidden = false;
+  let backHidden = true;
+
+  $: if (flipped) {
+    backHidden = false;
+  } else {
+    frontHidden = false;
+  }
+
+  /** @param {TransitionEvent} event */
+  function handleFlipTransitionEnd(event) {
+    if (event.propertyName !== "transform") return;
+
+    frontHidden = flipped;
+    backHidden = !flipped;
+  }
 </script>
 
-<div class="flip-scene relative h-full w-full min-w-0" style="perspective: 900px;">
-  <div class="flip-inner relative h-full w-full min-w-0 {flipped ? 'is-flipped' : ''}">
+<div
+  class="flip-scene pointer-events-none relative h-full w-full min-w-0"
+  style="perspective: 900px;"
+>
+  <div
+    class="flip-inner pointer-events-none relative h-full w-full min-w-0 {flipped ? 'is-flipped' : ''}"
+    ontransitionend={handleFlipTransitionEnd}
+  >
     <div
-      class="flip-face flip-front relative min-h-0 min-w-0 {flipped
-        ? 'pointer-events-none'
-        : ''}"
+      class="flip-face flip-front relative min-h-0 min-w-0 {frontHidden
+        ? 'pointer-events-none invisible'
+        : flipped
+          ? 'pointer-events-none'
+          : 'pointer-events-auto'}"
       aria-hidden={flipped}
     >
       <div class="relative h-full min-h-0 w-full min-w-0">
         <slot name="front" />
-        <StepSkippedOverlay active={stepSkipped} />
-        <StepMutedOverlay active={stepSilenced && !stepSkipped} />
+        <StepSkippedOverlay active={stepSkipped && !flipped} />
+        <StepMutedOverlay active={stepSilenced && !stepSkipped && !flipped} />
       </div>
     </div>
 
     <div
-      class="flip-face flip-back absolute inset-0 min-h-0 min-w-0 {flipped
-        ? ''
-        : 'pointer-events-none'}"
+      class="flip-face flip-back absolute inset-0 min-h-0 min-w-0 {backHidden
+        ? 'pointer-events-none invisible'
+        : flipped
+          ? 'pointer-events-auto'
+          : 'pointer-events-none'}"
       aria-hidden={!flipped}
       use:longPress={longPressOptions}
     >
@@ -62,27 +101,15 @@
           ? ''
           : accent.cellFocusWithinBorder}"
       >
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-          class="flex h-5 w-full shrink-0 items-center justify-start px-1 {headerClass}"
+          class="flex h-5 w-full shrink-0 cursor-default items-center justify-start gap-1 px-1 {headerClass}"
           use:longPress={longPressOptions}
+          ondblclick={handleBackHeaderDoubleClick}
+          title="Double-click to close step settings"
+          aria-label="Step settings. Double-click to close."
         >
-          <button
-            type="button"
-            aria-label="Close step settings"
-            class="z-10 flex h-4 w-4 shrink-0 items-center justify-start p-0 text-zinc-400 transition-colors outline-none hover:text-zinc-200"
-            onpointerdown={(event) => event.stopPropagation()}
-            onclick={closeFlip}
-          >
-            <svg viewBox="0 0 10 10" class="pointer-events-none h-2 w-2" aria-hidden="true">
-              <path
-                d="M2 2 L8 8 M8 2 L2 8"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.75"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
+          <slot name="back-header" />
         </div>
 
         <div
@@ -90,8 +117,6 @@
           use:longPress={longPressOptions}
         >
           <slot name="back" />
-          <StepSkippedOverlay active={stepSkipped} />
-          <StepMutedOverlay active={stepSilenced && !stepSkipped} />
         </div>
       </div>
     </div>

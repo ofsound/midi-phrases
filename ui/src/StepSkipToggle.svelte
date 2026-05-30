@@ -1,4 +1,5 @@
 <script>
+  import RowDisableIcon from "./RowDisableIcon.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
   /** @type {import('./rowAccentTheme.js').RowAccent} */
@@ -12,24 +13,21 @@
   function toggle() {
     onValueChange(!value);
   }
+
+  $: iconClasses = value
+    ? accent.textAccent
+    : muted
+      ? "text-zinc-600"
+      : "text-zinc-500 hover:text-zinc-300";
 </script>
 
 <button
   type="button"
   aria-label={ariaLabel}
   aria-pressed={value}
-  class="flex h-6 w-full items-center justify-between gap-2 rounded-sm border px-1.5 text-left outline-none transition-colors {accent.ringFocusWithWidth} {value
-    ? 'border-slate-400/70 bg-slate-900/90 text-slate-100'
-    : muted
-      ? 'border-zinc-800 bg-zinc-900/80 text-zinc-500'
-      : 'border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'}"
+  class="flex shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors {accent.ringFocusWithWidth} {iconClasses}"
   onpointerdown={(event) => event.stopPropagation()}
   onclick={toggle}
 >
-  <span class="font-sans text-[9px] font-semibold tracking-wide uppercase">Skip</span>
-  <span
-    class="font-sans text-[9px] font-bold tabular-nums {value ? 'text-slate-200' : 'text-zinc-500'}"
-  >
-    {value ? "On" : "Off"}
-  </span>
+  <RowDisableIcon class="h-3 w-3" />
 </button>
