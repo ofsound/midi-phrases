@@ -2,6 +2,7 @@
   export let value = 1;
   export let min = 1;
   export let max = 16;
+  export let muted = false;
   export let ariaLabel = "MIDI channel";
   /** @type {(channel: number) => void | Promise<void>} */
   export let onValueChange = () => {};
@@ -20,7 +21,9 @@
 </script>
 
 <div
-  class="flex h-9 items-stretch overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900"
+  class="flex h-9 items-stretch overflow-hidden rounded-lg border bg-zinc-900 transition-[border-color,opacity] duration-200 {muted
+    ? 'border-zinc-800/90 opacity-75'
+    : 'border-zinc-700'}"
   role="group"
   aria-label={ariaLabel}
 >
@@ -34,7 +37,9 @@
     −
   </button>
   <div
-    class="flex min-w-[1.75rem] items-center justify-center border-x border-zinc-700/80 px-1 text-sm font-semibold tabular-nums text-zinc-100"
+    class="flex min-w-[1.75rem] items-center justify-center border-x border-zinc-700/80 px-1 text-sm font-semibold tabular-nums {muted
+      ? 'text-zinc-500'
+      : 'text-zinc-100'}"
     aria-live="polite"
   >
     {value}
