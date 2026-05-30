@@ -758,6 +758,41 @@
     await insertPhraseStep(row, step);
   }
 
+  async function duplicateStep(row, step) {
+    if (step <= 0) return;
+
+    const source = step - 1;
+
+    grid[row].splice(step, 0, grid[row][source]);
+    stepDurationFraction[row].splice(step, 0, stepDurationFraction[row][source]);
+    stepTimingMultiplier[row].splice(step, 0, stepTimingMultiplier[row][source]);
+    stepVelocity[row].splice(step, 0, stepVelocity[row][source]);
+    stepMuted[row].splice(step, 0, stepMuted[row][source]);
+    stepSkipped[row].splice(step, 0, stepSkipped[row][source]);
+    stepProbability[row].splice(step, 0, stepProbability[row][source]);
+    stepCycle[row].splice(step, 0, stepCycle[row][source]);
+    stepCycleOffset[row].splice(step, 0, stepCycleOffset[row][source]);
+    activeGates[row].splice(step, 0, false);
+    stepIds[row].splice(step, 0, createStepId());
+
+    grid = grid;
+    stepDurationFraction = stepDurationFraction;
+    stepTimingMultiplier = stepTimingMultiplier;
+    stepVelocity = stepVelocity;
+    stepMuted = stepMuted;
+    stepSkipped = stepSkipped;
+    stepProbability = stepProbability;
+    stepCycle = stepCycle;
+    stepCycleOffset = stepCycleOffset;
+    activeGates = activeGates;
+    stepIds = stepIds;
+
+    if (!nativeFunctionAvailable("duplicatePhraseStep")) return;
+
+    const duplicatePhraseStep = getNativeFunction("duplicatePhraseStep");
+    await duplicatePhraseStep(row, step);
+  }
+
   async function pollPlaybackActivity() {
     const beatNativeName = nativeFunctionAvailable("getPlaybackBeat")
       ? "getPlaybackBeat"
@@ -1092,6 +1127,7 @@
               onMoveCommitted={commitRowMove}
               onRemoveStep={removeStep}
               onInsertStep={insertStep}
+              onDuplicateStep={duplicateStep}
               onNoteChange={setPhraseNoteValue}
               onMultiplierChange={selectStepTimingMultiplier}
               onDurationChange={selectStepDurationFraction}

@@ -405,6 +405,18 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                complete (juce::var {});
                            })
                        .withNativeFunction (
+                           "duplicatePhraseStep",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 2)
+                               {
+                                   processor.duplicatePhraseStep (varToInt (args[0]),
+                                                                  varToInt (args[1]));
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
                            "movePhraseStep",
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {

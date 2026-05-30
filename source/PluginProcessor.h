@@ -113,6 +113,7 @@ public:
 
     void removePhraseStep (int row, int step);
     void insertPhraseStep (int row, int step);
+    void duplicatePhraseStep (int row, int step);
     void movePhraseStep (int row, int fromStep, int toStep);
     int getPhraseRowStepCount (int row) const;
 
@@ -204,6 +205,7 @@ private:
             SetStepCycleOffset,
             RemoveStep,
             InsertStep,
+            DuplicateStep,
             MoveStep,
             ReplaceRow
         };

@@ -429,6 +429,41 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             }
             break;
 
+        case SequencerCommand::Type::DuplicateStep:
+            if (step > 0 && step <= row.stepCount && row.stepCount < maxPhraseStepsPerRow)
+            {
+                const auto sourceIndex = static_cast<size_t> (step - 1);
+
+                for (int i = row.stepCount; i > step; --i)
+                {
+                    const auto current = static_cast<size_t> (i);
+                    const auto previous = static_cast<size_t> (i - 1);
+                    row.notes[current] = row.notes[previous];
+                    row.timingMultiplier[current] = row.timingMultiplier[previous];
+                    row.durationFraction[current] = row.durationFraction[previous];
+                    row.velocity[current] = row.velocity[previous];
+                    row.stepMuted[current] = row.stepMuted[previous];
+                    row.stepSkipped[current] = row.stepSkipped[previous];
+                    row.probability[current] = row.probability[previous];
+                    row.cycle[current] = row.cycle[previous];
+                    row.cycleOffset[current] = row.cycleOffset[previous];
+                }
+
+                row.notes[index] = row.notes[sourceIndex];
+                row.timingMultiplier[index] = row.timingMultiplier[sourceIndex];
+                row.durationFraction[index] = row.durationFraction[sourceIndex];
+                row.velocity[index] = row.velocity[sourceIndex];
+                row.stepMuted[index] = row.stepMuted[sourceIndex];
+                row.stepSkipped[index] = row.stepSkipped[sourceIndex];
+                row.probability[index] = row.probability[sourceIndex];
+                row.cycle[index] = row.cycle[sourceIndex];
+                row.cycleOffset[index] = row.cycleOffset[sourceIndex];
+                ++row.stepCount;
+                rebuildRowTimingLayout (row);
+                resetStepCycleCountersForRow (command.row);
+            }
+            break;
+
         case SequencerCommand::Type::MoveStep:
             if (isValidAudioStep (audioState, command.row, command.step)
                 && isValidAudioStep (audioState, command.row, command.toStep)
@@ -1067,6 +1102,53 @@ void PluginProcessor::insertPhraseStep (const int row, const int step)
     rebuildRowTimingLayout (steps);
     SequencerCommand command;
     command.type = SequencerCommand::Type::InsertStep;
+    command.row = row;
+    command.step = step;
+    publishCommandToAudio (command);
+}
+
+void PluginProcessor::duplicatePhraseStep (const int row, const int step)
+{
+    if (row < 0 || row >= phraseRowCount || step <= 0)
+        return;
+
+    const auto count = getPhraseRowStepCount (row);
+
+    if (step > count || count >= maxPhraseStepsPerRow)
+        return;
+
+    auto& steps = modelRow (row);
+    const auto sourceIndex = static_cast<size_t> (step - 1);
+
+    for (int index = count; index > step; --index)
+    {
+        const auto current = static_cast<size_t> (index);
+        const auto previous = static_cast<size_t> (index - 1);
+        steps.notes[current] = steps.notes[previous];
+        steps.timingMultiplier[current] = steps.timingMultiplier[previous];
+        steps.durationFraction[current] = steps.durationFraction[previous];
+        steps.velocity[current] = steps.velocity[previous];
+        steps.stepMuted[current] = steps.stepMuted[previous];
+        steps.stepSkipped[current] = steps.stepSkipped[previous];
+        steps.probability[current] = steps.probability[previous];
+        steps.cycle[current] = steps.cycle[previous];
+        steps.cycleOffset[current] = steps.cycleOffset[previous];
+    }
+
+    const auto insertIndex = static_cast<size_t> (step);
+    steps.notes[insertIndex] = steps.notes[sourceIndex];
+    steps.timingMultiplier[insertIndex] = steps.timingMultiplier[sourceIndex];
+    steps.durationFraction[insertIndex] = steps.durationFraction[sourceIndex];
+    steps.velocity[insertIndex] = steps.velocity[sourceIndex];
+    steps.stepMuted[insertIndex] = steps.stepMuted[sourceIndex];
+    steps.stepSkipped[insertIndex] = steps.stepSkipped[sourceIndex];
+    steps.probability[insertIndex] = steps.probability[sourceIndex];
+    steps.cycle[insertIndex] = steps.cycle[sourceIndex];
+    steps.cycleOffset[insertIndex] = steps.cycleOffset[sourceIndex];
+    steps.stepCount = count + 1;
+    rebuildRowTimingLayout (steps);
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::DuplicateStep;
     command.row = row;
     command.step = step;
     publishCommandToAudio (command);

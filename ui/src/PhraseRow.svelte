@@ -74,6 +74,8 @@
   export let onRemoveStep = () => {};
   /** @type {(row: number, step: number) => void | Promise<void>} */
   export let onInsertStep = () => {};
+  /** @type {(row: number, step: number) => void | Promise<void>} */
+  export let onDuplicateStep = () => {};
   /** @type {(row: number, step: number, midi: number) => void | Promise<void>} */
   export let onNoteChange = () => {};
   /** @type {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} */
@@ -1009,7 +1011,12 @@
     class="pointer-events-auto absolute inset-y-0 z-50"
     style={gapInsertStyle()}
   >
-    <StepInsertZone {accent} {muted} onInsert={() => onInsertStep(row, insertStep)} />
+    <StepInsertZone
+      {accent}
+      {muted}
+      onInsert={() => onInsertStep(row, insertStep)}
+      onDuplicate={() => onDuplicateStep(row, insertStep)}
+    />
   </div>
 {/snippet}
 
@@ -1074,6 +1081,13 @@
   {/if}
 
   <div class="relative z-50 shrink-0 self-stretch">
-    <StepInsertZone {accent} {muted} onInsert={() => onInsertStep(row, stepIds.length)} />
+    <StepInsertZone
+      {accent}
+      {muted}
+      onInsert={() => onInsertStep(row, stepIds.length)}
+      onDuplicate={stepIds.length > 0
+        ? () => onDuplicateStep(row, stepIds.length)
+        : undefined}
+    />
   </div>
 </div>

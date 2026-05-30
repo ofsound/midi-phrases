@@ -497,6 +497,36 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseNote (0, 2) == 77);
     }
 
+    SECTION ("duplicate phrase step")
+    {
+        testPlugin.removePhraseStep (0, 3);
+        testPlugin.removePhraseStep (0, 2);
+
+        testPlugin.setPhraseNote (0, 0, 55);
+        testPlugin.setPhraseStepVelocity (0, 0, 42);
+        testPlugin.setPhraseStepTimingMultiplier (0, 0, 8);
+        testPlugin.setPhraseStepMuted (0, 0, true);
+        testPlugin.setPhraseStepSkipped (0, 0, true);
+        testPlugin.setPhraseStepProbability (0, 0, 25);
+        testPlugin.setPhraseStepCycle (0, 0, 4);
+        testPlugin.setPhraseStepCycleOffset (0, 0, 2);
+        testPlugin.setPhraseNote (0, 1, 77);
+
+        testPlugin.duplicatePhraseStep (0, 1);
+
+        CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::defaultPhraseStepsPerRow - 1);
+        CHECK (testPlugin.getPhraseNote (0, 0) == 55);
+        CHECK (testPlugin.getPhraseNote (0, 1) == 55);
+        CHECK (testPlugin.getPhraseNote (0, 2) == 77);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 1) == 42);
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 1) == 8);
+        CHECK (testPlugin.isPhraseStepMuted (0, 1));
+        CHECK (testPlugin.isPhraseStepSkipped (0, 1));
+        CHECK (testPlugin.getPhraseStepProbability (0, 1) == 25);
+        CHECK (testPlugin.getPhraseStepCycle (0, 1) == 4);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 1) == 2);
+    }
+
     SECTION ("move phrase step")
     {
         testPlugin.setPhraseNote (0, 0, 55);
