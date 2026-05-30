@@ -7,6 +7,12 @@
   import NoteDragInput from "./NoteDragInput.svelte";
   import VelocityDragInput from "./VelocityDragInput.svelte";
   import StepInsertZone from "./StepInsertZone.svelte";
+  import StepCardFlip from "./StepCardFlip.svelte";
+  import StepMuteToggle from "./StepMuteToggle.svelte";
+  import StepSkipToggle from "./StepSkipToggle.svelte";
+  import ProbabilityDragInput from "./ProbabilityDragInput.svelte";
+  import StepNumberDragInput from "./StepNumberDragInput.svelte";
+  import { longPress } from "./longPressAction.js";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
   import {
     defaultNoteForRow,
@@ -46,6 +52,16 @@
   /** @type {number[]} */
   export let stepVelocity = [];
   /** @type {boolean[]} */
+  export let stepMuted = [];
+  /** @type {boolean[]} */
+  export let stepSkipped = [];
+  /** @type {number[]} */
+  export let stepProbability = [];
+  /** @type {number[]} */
+  export let stepCycle = [];
+  /** @type {number[]} */
+  export let stepCycleOffset = [];
+  /** @type {boolean[]} */
   export let activeGates = [];
   /** @type {{ index: number, label: string }[]} */
   export let timingMultiplierOptions = [];
@@ -66,8 +82,19 @@
   export let onDurationChange = () => {};
   /** @type {(row: number, step: number, value: number) => void | Promise<void>} */
   export let onVelocityChange = () => {};
+  /** @type {(row: number, step: number, muted: boolean) => void | Promise<void>} */
+  export let onStepMuteChange = () => {};
+  /** @type {(row: number, step: number, skipped: boolean) => void | Promise<void>} */
+  export let onStepSkipChange = () => {};
+  /** @type {(row: number, step: number, probability: number) => void | Promise<void>} */
+  export let onStepProbabilityChange = () => {};
+  /** @type {(row: number, step: number, cycle: number) => void | Promise<void>} */
+  export let onStepCycleChange = () => {};
+  /** @type {(row: number, step: number, cycleOffset: number) => void | Promise<void>} */
+  export let onStepCycleOffsetChange = () => {};
   const flipDurationMs = 200;
   const removeBlockMs = 500;
+  const stepFlipLongPressMs = 800;
   const draggedElementId = "dnd-action-dragged-el";
 
   /** @type {{ id: string }[]} */
@@ -93,6 +120,7 @@
   let resizeFrameId = 0;
   let resizeEndHandled = false;
   let dragYLockFrameId = 0;
+  let flippedStep = -1;
   /** @type {Map<number, HTMLElement>} */
   const cellShellElements = new Map();
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
@@ -101,6 +129,36 @@
   const resizePassiveCapture = { capture: true, passive: true };
 
   $: reorderDisabled = stepIds.length <= 1;
+
+  $: if (flippedStep >= stepIds.length) {
+    flippedStep = -1;
+  }
+
+  $: stepFlipLongPressDisabled =
+    isDragging || removeBlocked || resizingStep >= 0;
+
+  /** @param {number} step */
+  function longPressFlipParams(step) {
+    return {
+      duration: stepFlipLongPressMs,
+      disabled: stepFlipLongPressDisabled,
+      onLongPress: () => {
+        flippedStep = step;
+      },
+    };
+  }
+
+  /** @param {number} step @param {boolean} flipped */
+  function handleStepFlipChange(step, flipped) {
+    if (flipped) {
+      flippedStep = step;
+      return;
+    }
+
+    if (flippedStep === step) {
+      flippedStep = -1;
+    }
+  }
 
   $: dndZoneOptions = {
     items: dndItems,
@@ -158,6 +216,7 @@
 
   function beginDragSession() {
     isDragging = true;
+    flippedStep = -1;
     blockRemoveTemporarily();
     startDragYLock();
   }
@@ -684,93 +743,185 @@
 
 {#snippet stepCell(step, reorderEnabled)}
   {@const multiplierLabel = multiplierLabelForStep(step)}
+  {@const stepFlipped = flippedStep === step}
+  {@const stepIsMuted = stepMuted[step]}
+  {@const stepIsSkipped = stepSkipped[step]}
   <div
     class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[box-shadow] duration-200 {stepCellPlaybackGlowClass(
       activeGates[step],
     )}"
   >
-    <div
-      class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color] duration-200 {stepCellSurfaceClass} {stepCellPlaybackClass(
-        activeGates[step],
-      )} {muted ? '' : accent.cellFocusWithinBorder}"
+    <StepCardFlip
+      {accent}
+      {muted}
+      flipped={stepFlipped}
+      stepSilenced={stepIsMuted}
+      stepSkipped={stepIsSkipped}
+      disabled={stepFlipLongPressDisabled}
+      longPressMs={stepFlipLongPressMs}
+      surfaceClass={stepCellSurfaceClass}
+      borderClass={stepCellPlaybackClass(activeGates[step])}
+      headerClass={stepHeaderClass}
+      onFlipChange={(flipped) => handleStepFlipChange(step, flipped)}
     >
-      {#if reorderEnabled}
+      <div slot="front" class="h-full min-h-0 w-full min-w-0">
         <div
-          use:dragHandle
-          aria-label="Drag to reorder step"
-          class="flex h-5 w-full shrink-0 cursor-grab items-center justify-start gap-1 px-1 active:cursor-grabbing {stepHeaderClass}"
+          class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,opacity] duration-200 {stepCellSurfaceClass} {stepCellPlaybackClass(
+            activeGates[step],
+          )} {stepIsSkipped ? 'opacity-50' : stepIsMuted ? 'opacity-55 saturate-[0.35]' : ''} {muted
+            ? ''
+            : accent.cellFocusWithinBorder}"
         >
-          {@render stepHeaderRemoveButton(step)}
-          <span
-            data-multiplier-label
-            class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
-            aria-hidden="true"
-          >
-            {multiplierLabel}
-          </span>
-        </div>
-      {:else}
-        <div
-          role="presentation"
-          aria-label="Reorder unavailable for single step"
-          class="flex h-5 w-full shrink-0 cursor-default items-center justify-start gap-1 px-1 {stepHeaderClass} {muted
-            ? 'opacity-80'
-            : 'opacity-60'}"
-          onpointerdown={stopPointerPropagation}
-        >
-          {@render stepHeaderRemoveButton(step)}
-          <span
-            data-multiplier-label
-            class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
-            aria-hidden="true"
-          >
-            {multiplierLabel}
-          </span>
-        </div>
-      {/if}
+          {#if reorderEnabled}
+            <div
+              use:dragHandle
+              use:longPress={longPressFlipParams(step)}
+              aria-label="Drag to reorder step. Hold to open step settings."
+              class="flex h-5 w-full shrink-0 cursor-grab items-center justify-start gap-1 px-1 active:cursor-grabbing {stepHeaderClass}"
+            >
+              {@render stepHeaderRemoveButton(step)}
+              <span
+                data-multiplier-label
+                class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
+                aria-hidden="true"
+              >
+                {multiplierLabel}
+              </span>
+            </div>
+          {:else}
+            <div
+              role="presentation"
+              use:longPress={longPressFlipParams(step)}
+              aria-label="Hold to open step settings"
+              class="flex h-5 w-full shrink-0 cursor-default items-center justify-start gap-1 px-1 {stepHeaderClass} {muted
+                ? 'opacity-80'
+                : 'opacity-60'}"
+              onpointerdown={stopPointerPropagation}
+            >
+              {@render stepHeaderRemoveButton(step)}
+              <span
+                data-multiplier-label
+                class="pointer-events-none ml-auto font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass}"
+                aria-hidden="true"
+              >
+                {multiplierLabel}
+              </span>
+            </div>
+          {/if}
 
-      <div class="flex min-w-0 flex-col gap-1 px-1 py-1 {muted ? 'opacity-80' : ''}">
-        <DurationBar
-          {accent}
-          {muted}
-          value={stepDurationFraction[step]}
-          velocity={stepVelocity[step]}
-          resetValue={defaultStepDurationFraction}
-          ariaLabel="Step duration fraction"
-          onValueChange={(fraction) => onDurationChange(row, step, fraction)}
-        />
-        <div class="flex min-w-0 items-center pt-1 pb-1">
-          <div class="flex min-w-0 items-baseline gap-1.5">
-            <NoteDragInput
+          <div class="flex min-w-0 flex-col gap-1 px-1 py-1 {muted ? 'opacity-80' : ''}">
+            <DurationBar
               {accent}
               {muted}
-              value={notes[step]}
-              resetValue={defaultNoteForRow(row)}
-              ariaLabel="Step note"
-              onValueChange={(midi) => onNoteChange(row, step, midi)}
+              value={stepDurationFraction[step]}
+              velocity={stepVelocity[step]}
+              resetValue={defaultStepDurationFraction}
+              ariaLabel="Step duration fraction"
+              onValueChange={(fraction) => onDurationChange(row, step, fraction)}
             />
-            <VelocityDragInput
-              {accent}
-              {muted}
-              value={stepVelocity[step]}
-              resetValue={defaultStepVelocity}
-              ariaLabel="Step velocity"
-              onValueChange={(value) => onVelocityChange(row, step, value)}
-            />
+            <div class="flex min-w-0 items-center pt-1 pb-1">
+              <div class="flex min-w-0 items-baseline gap-1.5">
+                <NoteDragInput
+                  {accent}
+                  {muted}
+                  value={notes[step]}
+                  resetValue={defaultNoteForRow(row)}
+                  ariaLabel="Step note"
+                  onValueChange={(midi) => onNoteChange(row, step, midi)}
+                />
+                <VelocityDragInput
+                  {accent}
+                  {muted}
+                  value={stepVelocity[step]}
+                  resetValue={defaultStepVelocity}
+                  ariaLabel="Step velocity"
+                  onValueChange={(value) => onVelocityChange(row, step, value)}
+                />
+              </div>
+              <div
+                use:longPress={longPressFlipParams(step)}
+                class="min-h-5 min-w-4 flex-1 touch-none"
+                role="presentation"
+                aria-label="Hold to open step settings"
+              ></div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <button
-      type="button"
-      data-multiplier-resize
-      aria-label="Resize step timing multiplier"
-      disabled={isDragging || removeBlocked}
-      class="absolute top-0 bottom-0 right-0 z-[60] w-4 cursor-ew-resize touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
-      onpointerdown={(event) => beginMultiplierResize(event, step)}
-      onmousedown={(event) => beginMultiplierResize(event, step)}
-    ></button>
+      <div slot="back" class="flex min-h-0 flex-1 flex-col justify-end gap-1">
+        <div class="flex items-center justify-between gap-1 px-0.5">
+          <span
+            class="shrink-0 font-sans text-[9px] font-semibold tracking-wide text-zinc-500 uppercase"
+            >Prob</span
+          >
+          <ProbabilityDragInput
+            {accent}
+            {muted}
+            value={stepProbability[step] ?? 100}
+            resetValue={100}
+            ariaLabel="Step probability"
+            onValueChange={(value) => onStepProbabilityChange(row, step, value)}
+          />
+        </div>
+        <div class="flex items-center justify-between gap-1 px-0.5">
+          <span
+            class="shrink-0 font-sans text-[9px] font-semibold tracking-wide text-zinc-500 uppercase"
+            >Cyc</span
+          >
+          <StepNumberDragInput
+            {accent}
+            {muted}
+            value={stepCycle[step] ?? 1}
+            min={1}
+            max={64}
+            resetValue={1}
+            ariaLabel="Step cycle length"
+            onValueChange={(value) => onStepCycleChange(row, step, value)}
+          />
+          <span
+            class="shrink-0 font-sans text-[9px] font-semibold tracking-wide text-zinc-500 uppercase"
+            >Off</span
+          >
+          <StepNumberDragInput
+            {accent}
+            {muted}
+            value={stepCycleOffset[step] ?? 0}
+            min={0}
+            max={Math.max(0, (stepCycle[step] ?? 1) - 1)}
+            resetValue={0}
+            ariaLabel="Step cycle offset"
+            onValueChange={(value) => onStepCycleOffsetChange(row, step, value)}
+          />
+        </div>
+        <StepSkipToggle
+          {accent}
+          {muted}
+          value={stepIsSkipped}
+          ariaLabel="Skip step in sequence"
+          onValueChange={(value) => onStepSkipChange(row, step, value)}
+        />
+        <StepMuteToggle
+          {accent}
+          {muted}
+          value={stepIsMuted}
+          ariaLabel="Mute step"
+          onValueChange={(value) => onStepMuteChange(row, step, value)}
+        />
+      </div>
+    </StepCardFlip>
+
+    {#if !stepFlipped}
+      <button
+        type="button"
+        data-multiplier-resize
+        aria-label="Resize step timing multiplier"
+        disabled={isDragging || removeBlocked}
+        class="absolute top-0 bottom-0 right-0 z-[60] w-4 cursor-ew-resize touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+        onpointerdown={(event) => beginMultiplierResize(event, step)}
+        onmousedown={(event) => beginMultiplierResize(event, step)}
+      ></button>
+    {/if}
   </div>
 {/snippet}
 

@@ -410,6 +410,60 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseStepVelocity (1, 2) == 0);
     }
 
+    SECTION ("step mute")
+    {
+        CHECK_FALSE (testPlugin.isPhraseStepMuted (0, 0));
+
+        testPlugin.setPhraseStepMuted (0, 1, true);
+        testPlugin.setPhraseStepMuted (2, 3, true);
+
+        CHECK (testPlugin.isPhraseStepMuted (0, 1));
+        CHECK (testPlugin.isPhraseStepMuted (2, 3));
+
+        testPlugin.setPhraseStepMuted (0, 1, false);
+        CHECK_FALSE (testPlugin.isPhraseStepMuted (0, 1));
+    }
+
+    SECTION ("step skip")
+    {
+        CHECK_FALSE (testPlugin.isPhraseStepSkipped (0, 0));
+
+        testPlugin.setPhraseStepSkipped (0, 1, true);
+        testPlugin.setPhraseStepSkipped (2, 3, true);
+
+        CHECK (testPlugin.isPhraseStepSkipped (0, 1));
+        CHECK (testPlugin.isPhraseStepSkipped (2, 3));
+
+        testPlugin.setPhraseStepSkipped (0, 1, false);
+        CHECK_FALSE (testPlugin.isPhraseStepSkipped (0, 1));
+    }
+
+    SECTION ("step probability")
+    {
+        CHECK (testPlugin.getPhraseStepProbability (0, 0) == PluginProcessor::defaultStepProbability);
+
+        testPlugin.setPhraseStepProbability (0, 1, 50);
+        CHECK (testPlugin.getPhraseStepProbability (0, 1) == 50);
+
+        testPlugin.setPhraseStepProbability (0, 1, 200);
+        CHECK (testPlugin.getPhraseStepProbability (0, 1) == 100);
+    }
+
+    SECTION ("step cycle")
+    {
+        CHECK (testPlugin.getPhraseStepCycle (0, 0) == PluginProcessor::defaultStepCycle);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 0) == PluginProcessor::defaultStepCycleOffset);
+
+        testPlugin.setPhraseStepCycle (0, 1, 3);
+        testPlugin.setPhraseStepCycleOffset (0, 1, 2);
+
+        CHECK (testPlugin.getPhraseStepCycle (0, 1) == 3);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 1) == 2);
+
+        testPlugin.setPhraseStepCycle (0, 1, 2);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 1) == 1);
+    }
+
     SECTION ("remove phrase step")
     {
         CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::defaultPhraseStepsPerRow);

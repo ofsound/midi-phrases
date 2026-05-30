@@ -18,6 +18,11 @@
   export let stepDurationFraction = [];
   export let stepTimingMultiplier = [];
   export let stepVelocity = [];
+  export let stepMuted = [];
+  export let stepSkipped = [];
+  export let stepProbability = [];
+  export let stepCycle = [];
+  export let stepCycleOffset = [];
   export let pulseIndex = defaultPulseIndex;
   export let rowColorsEnabled = false;
   export let lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS;
@@ -58,6 +63,11 @@
     stepDurationFraction,
     stepTimingMultiplier,
     stepVelocity,
+    stepMuted,
+    stepSkipped,
+    stepProbability,
+    stepCycle,
+    stepCycleOffset,
     pulseIndex,
     lengthQuarters,
   });

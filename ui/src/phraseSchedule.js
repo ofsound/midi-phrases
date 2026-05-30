@@ -5,6 +5,25 @@ export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
 
 const EPSILON = 1e-9;
 
+/** @param {number} triggerCount @param {number} cycle @param {number} cycleOffset */
+export function cycleGatePasses(triggerCount, cycle, cycleOffset) {
+  const length = Math.max(1, Math.round(cycle));
+
+  return triggerCount % length === Math.min(Math.max(0, Math.round(cycleOffset)), length - 1);
+}
+
+/** @param {number} step @param {number} triggerCount @param {number} probability */
+export function probabilityPasses(step, triggerCount, probability) {
+  const chance = Math.min(100, Math.max(0, Math.round(probability)));
+
+  if (chance >= 100) return true;
+  if (chance <= 0) return false;
+
+  const hash = (step * 2654435761 + triggerCount * 1597334677) >>> 0;
+
+  return hash % 100 < chance;
+}
+
 /**
  * @typedef {{ start: number, end: number, midi: number, velocity: number, row: number, step: number }} ScheduledNote
  */
@@ -18,7 +37,11 @@ export function rowTimingOffsetQuarters(offsetIndex, pulseIndex = defaultPulseIn
  * @param {number[]} timingMultiplierIndices
  * @param {number} [pulseIndex]
  */
-export function rowStepLayout(timingMultiplierIndices, pulseIndex = defaultPulseIndex) {
+export function rowStepLayout(
+  timingMultiplierIndices,
+  pulseIndex = defaultPulseIndex,
+  stepSkipped = [],
+) {
   const pulse = pulseQuartersForIndex(pulseIndex);
   /** @type {number[]} */
   const stepStartQuarters = [];
@@ -26,11 +49,15 @@ export function rowStepLayout(timingMultiplierIndices, pulseIndex = defaultPulse
   const stepLengthQuarters = [];
   let cycleLengthQuarters = 0;
 
-  for (const index of timingMultiplierIndices) {
+  for (let step = 0; step < timingMultiplierIndices.length; step += 1) {
+    const index = timingMultiplierIndices[step];
     stepStartQuarters.push(cycleLengthQuarters);
     const length = timingMultiplierAtIndex(index) * pulse;
     stepLengthQuarters.push(length);
-    cycleLengthQuarters += length;
+
+    if (!stepSkipped[step]) {
+      cycleLengthQuarters += length;
+    }
   }
 
   return { stepStartQuarters, stepLengthQuarters, cycleLengthQuarters };
@@ -44,7 +71,13 @@ export function rowStepLayout(timingMultiplierIndices, pulseIndex = defaultPulse
  * @param {number} step
  * @param {boolean} reversed
  */
-export function stepStartInCycleForStep(stepStartQuarters, stepLengthQuarters, step, reversed) {
+export function stepStartInCycleForStep(
+  stepStartQuarters,
+  stepLengthQuarters,
+  step,
+  reversed,
+  stepSkipped = [],
+) {
   if (!reversed) {
     return stepStartQuarters[step] ?? 0;
   }
@@ -52,6 +85,8 @@ export function stepStartInCycleForStep(stepStartQuarters, stepLengthQuarters, s
   let start = 0;
 
   for (let index = step + 1; index < stepLengthQuarters.length; index += 1) {
+    if (stepSkipped[index]) continue;
+
     start += stepLengthQuarters[index] ?? 0;
   }
 
@@ -69,6 +104,11 @@ export function stepStartInCycleForStep(stepStartQuarters, stepLengthQuarters, s
  * @param {number[][]} params.stepDurationFraction
  * @param {number[][]} params.stepTimingMultiplier
  * @param {number[][]} params.stepVelocity
+ * @param {boolean[][]} [params.stepMuted]
+ * @param {boolean[][]} [params.stepSkipped]
+ * @param {number[][]} [params.stepProbability]
+ * @param {number[][]} [params.stepCycle]
+ * @param {number[][]} [params.stepCycleOffset]
  * @param {number} [params.pulseIndex]
  * @param {number} [params.lengthQuarters]
  * @returns {ScheduledNote[]}
@@ -81,6 +121,11 @@ export function buildPhraseSchedule({
   stepDurationFraction,
   stepTimingMultiplier,
   stepVelocity,
+  stepMuted = [],
+  stepSkipped = [],
+  stepProbability = [],
+  stepCycle = [],
+  stepCycleOffset = [],
   pulseIndex = defaultPulseIndex,
   lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
 }) {
@@ -97,9 +142,14 @@ export function buildPhraseSchedule({
 
     if (stepCount <= 0) continue;
 
+    const rowSkipped = stepSkipped[row] ?? [];
+    const rowProbability = stepProbability[row] ?? [];
+    const rowCycle = stepCycle[row] ?? [];
+    const rowCycleOffset = stepCycleOffset[row] ?? [];
     const { stepStartQuarters, stepLengthQuarters, cycleLengthQuarters } = rowStepLayout(
       stepTimingMultiplier[row],
       pulseIndex,
+      rowSkipped,
     );
 
     if (cycleLengthQuarters <= 0) continue;
@@ -109,13 +159,18 @@ export function buildPhraseSchedule({
 
     /** @type {{ ppq: number, step: number }[]} */
     const triggers = [];
+    /** @type {number[]} */
+    const stepTriggerCounts = [];
 
     for (let step = 0; step < stepCount; step += 1) {
+      if (rowSkipped[step]) continue;
+
       const stepStartInCycle = stepStartInCycleForStep(
         stepStartQuarters,
         stepLengthQuarters,
         step,
         reversed,
+        rowSkipped,
       );
       const nMin = Math.ceil(
         (ppqStart - stepStartInCycle - offset - EPSILON) / cycleLengthQuarters,
@@ -124,10 +179,25 @@ export function buildPhraseSchedule({
         (ppqEnd - stepStartInCycle - offset - EPSILON) / cycleLengthQuarters,
       );
 
-      for (let cycle = nMin; cycle <= nMax; cycle += 1) {
-        const triggerPpq = cycle * cycleLengthQuarters + stepStartInCycle + offset;
+      for (let cycleIndex = nMin; cycleIndex <= nMax; cycleIndex += 1) {
+        const triggerPpq = cycleIndex * cycleLengthQuarters + stepStartInCycle + offset;
 
         if (triggerPpq < ppqStart - EPSILON || triggerPpq >= ppqEnd + EPSILON) continue;
+
+        const triggerCount = stepTriggerCounts[step] ?? 0;
+        stepTriggerCounts[step] = triggerCount + 1;
+
+        const stepCycleLength = Math.max(1, rowCycle[step] ?? 1);
+        const stepCyclePhase = Math.min(
+          Math.max(0, rowCycleOffset[step] ?? 0),
+          stepCycleLength - 1,
+        );
+
+        if (!cycleGatePasses(triggerCount, stepCycleLength, stepCyclePhase)) continue;
+
+        const probability = rowProbability[step] ?? 100;
+
+        if (!probabilityPasses(step, triggerCount, probability)) continue;
 
         triggers.push({ ppq: triggerPpq, step });
       }
@@ -172,8 +242,9 @@ export function buildPhraseSchedule({
 
       const step = trigger.step;
       const velocity = stepVelocity[row][step];
+      const rowStepMuted = stepMuted[row] ?? [];
 
-      if (velocity <= 0) continue;
+      if (velocity <= 0 || rowStepMuted[step]) continue;
 
       const durationFraction = stepDurationFraction[row][step];
 
@@ -246,6 +317,11 @@ export function isScheduledNoteActiveAtBeat(note, beat) {
  * @param {number[]} params.stepDurationFraction
  * @param {number[]} params.stepTimingMultiplier
  * @param {number[]} params.stepVelocity
+ * @param {boolean[]} [params.stepMuted]
+ * @param {boolean[]} [params.stepSkipped]
+ * @param {number} [params.stepProbability]
+ * @param {number} [params.stepCycle]
+ * @param {number} [params.stepCycleOffset]
  * @param {number} [params.pulseIndex]
  */
 export function isStepActiveAtBeat({
@@ -258,31 +334,53 @@ export function isStepActiveAtBeat({
   stepDurationFraction,
   stepTimingMultiplier,
   stepVelocity,
+  stepMuted = [],
+  stepSkipped = [],
+  stepProbability = [],
+  stepCycle = [],
+  stepCycleOffset = [],
   pulseIndex = defaultPulseIndex,
 }) {
   if (beat < 0 || rowMuted || step < 0 || step >= rowNotes.length) return false;
-  if ((stepVelocity[step] ?? 0) <= 0 || (stepDurationFraction[step] ?? 0) <= 0) return false;
+  if (
+    stepSkipped[step] ||
+    stepMuted[step] ||
+    (stepVelocity[step] ?? 0) <= 0 ||
+    (stepDurationFraction[step] ?? 0) <= 0
+  )
+    return false;
+
+  const cycle = Math.max(1, stepCycle[step] ?? 1);
+  const cycleOffset = Math.min(Math.max(0, stepCycleOffset[step] ?? 0), cycle - 1);
+  const probability = stepProbability[step] ?? 100;
 
   const { stepStartQuarters, stepLengthQuarters, cycleLengthQuarters } = rowStepLayout(
     stepTimingMultiplier,
     pulseIndex,
+    stepSkipped,
   );
 
   if (cycleLengthQuarters <= 0 || (stepLengthQuarters[step] ?? 0) <= 0) return false;
 
-  const offset = rowTimingOffsetQuarters(rowTimingOffset, pulseIndex);
+  const rowOffsetQuarters = rowTimingOffsetQuarters(rowTimingOffset, pulseIndex);
   const stepStartInCycle = stepStartInCycleForStep(
     stepStartQuarters,
     stepLengthQuarters,
     step,
     rowReversed,
+    stepSkipped,
   );
-  const relativeBeat = beat - stepStartInCycle - offset;
+  const relativeBeat = beat - stepStartInCycle - rowOffsetQuarters;
 
   if (relativeBeat < -EPSILON) return false;
 
   const cycleIndex = Math.floor((relativeBeat + EPSILON) / cycleLengthQuarters);
-  const triggerBeat = cycleIndex * cycleLengthQuarters + stepStartInCycle + offset;
+
+  if (cycle > 1 && !cycleGatePasses(cycleIndex, cycle, cycleOffset)) return false;
+
+  if (!probabilityPasses(step, cycleIndex, probability)) return false;
+
+  const triggerBeat = cycleIndex * cycleLengthQuarters + stepStartInCycle + rowOffsetQuarters;
   const gateEnd = triggerBeat + stepLengthQuarters[step] * stepDurationFraction[step];
 
   return beat >= triggerBeat - EPSILON && beat < gateEnd - EPSILON;

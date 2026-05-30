@@ -2,6 +2,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstdint>
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -88,6 +89,27 @@ public:
     void setPhraseStepVelocity (int row, int step, int velocity);
     int getPhraseStepVelocity (int row, int step) const;
 
+    void setPhraseStepMuted (int row, int step, bool muted);
+    bool isPhraseStepMuted (int row, int step) const;
+
+    void setPhraseStepSkipped (int row, int step, bool skipped);
+    bool isPhraseStepSkipped (int row, int step) const;
+
+    static constexpr int defaultStepProbability = 100;
+    static constexpr int minStepCycle = 1;
+    static constexpr int maxStepCycle = 64;
+    static constexpr int defaultStepCycle = 1;
+    static constexpr int defaultStepCycleOffset = 0;
+
+    void setPhraseStepProbability (int row, int step, int probability);
+    int getPhraseStepProbability (int row, int step) const;
+
+    void setPhraseStepCycle (int row, int step, int cycle);
+    int getPhraseStepCycle (int row, int step) const;
+
+    void setPhraseStepCycleOffset (int row, int step, int cycleOffset);
+    int getPhraseStepCycleOffset (int row, int step) const;
+
     void removePhraseStep (int row, int step);
     void insertPhraseStep (int row, int step);
     void movePhraseStep (int row, int fromStep, int toStep);
@@ -131,6 +153,11 @@ private:
         std::array<int, maxPhraseStepsPerRow> timingMultiplier {};
         std::array<double, maxPhraseStepsPerRow> durationFraction {};
         std::array<int, maxPhraseStepsPerRow> velocity {};
+        std::array<int, maxPhraseStepsPerRow> stepMuted {};
+        std::array<int, maxPhraseStepsPerRow> stepSkipped {};
+        std::array<int, maxPhraseStepsPerRow> probability {};
+        std::array<int, maxPhraseStepsPerRow> cycle {};
+        std::array<int, maxPhraseStepsPerRow> cycleOffset {};
         std::array<double, maxPhraseStepsPerRow> stepLengthQuarters {};
         std::array<double, maxPhraseStepsPerRow> stepStartQuarters {};
         double cycleLengthQuarters = 0.0;
@@ -169,6 +196,11 @@ private:
             SetStepTimingMultiplier,
             SetStepDurationFraction,
             SetStepVelocity,
+            SetStepMuted,
+            SetStepSkipped,
+            SetStepProbability,
+            SetStepCycle,
+            SetStepCycleOffset,
             RemoveStep,
             InsertStep,
             MoveStep,
@@ -190,6 +222,8 @@ private:
     void resetPhraseStepToDefaults (int row, int step);
     void resetPendingNoteOffs();
     void resetLastEmittedTriggers();
+    void resetStepCycleCounters();
+    void resetStepCycleCountersForRow (int row);
     bool isValidStep (int row, int step) const;
     bool isValidAudioStep (const SequencerState& state, int row, int step) const;
     void initialiseRowDefaults (PhraseRowSteps& steps, int row, int stepCount);
@@ -231,6 +265,8 @@ private:
     std::array<PendingNoteOff, phraseRowCount> pendingNoteOffs {};
     std::array<double, phraseRowCount> lastEmittedTriggerPpq {};
     std::array<ProcessScratch, phraseRowCount> processScratch {};
+    std::array<std::array<std::uint32_t, maxPhraseStepsPerRow>, phraseRowCount> stepCycleCounters {};
+    std::uint32_t playbackRandomState = 0xA5C3F17Du;
     std::atomic<double> currentPlaybackPpq { -1.0 };
     std::atomic<int> pulseIndex { defaultPulseIndex };
     std::atomic<int> loopBraceEnabled { 0 };

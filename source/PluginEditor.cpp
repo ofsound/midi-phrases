@@ -11,7 +11,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     webView = std::make_unique<juce::WebBrowserComponent> (WebViewResources::makeBrowserOptions (processorRef));
     addAndMakeVisible (*webView);
 
-   #if JUCE_DEBUG
+   #if JUCE_DEBUG && defined (MIDI_PHRASES_UI_DEV_SERVER)
     webView->goToURL ("http://localhost:5174");
    #else
     webView->goToURL (juce::WebBrowserComponent::getResourceProviderRoot());

@@ -139,6 +139,11 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
     juce::Array<juce::var> phraseStepDurationFraction;
     juce::Array<juce::var> phraseStepTimingMultiplier;
     juce::Array<juce::var> phraseStepVelocity;
+    juce::Array<juce::var> phraseStepMuted;
+    juce::Array<juce::var> phraseStepSkipped;
+    juce::Array<juce::var> phraseStepProbability;
+    juce::Array<juce::var> phraseStepCycle;
+    juce::Array<juce::var> phraseStepCycleOffset;
 
     for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
     {
@@ -146,6 +151,11 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
         juce::Array<juce::var> stepDurations;
         juce::Array<juce::var> stepTimingMultipliers;
         juce::Array<juce::var> stepVelocities;
+        juce::Array<juce::var> stepMutedFlags;
+        juce::Array<juce::var> stepSkippedFlags;
+        juce::Array<juce::var> stepProbabilityValues;
+        juce::Array<juce::var> stepCycleValues;
+        juce::Array<juce::var> stepCycleOffsetValues;
 
         for (int step = 0; step < processor.getPhraseRowStepCount (row); ++step)
         {
@@ -153,6 +163,11 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
             stepTimingMultipliers.add (processor.getPhraseStepTimingMultiplier (row, step));
             stepDurations.add (processor.getPhraseStepDurationFraction (row, step));
             stepVelocities.add (processor.getPhraseStepVelocity (row, step));
+            stepMutedFlags.add (processor.isPhraseStepMuted (row, step));
+            stepSkippedFlags.add (processor.isPhraseStepSkipped (row, step));
+            stepProbabilityValues.add (processor.getPhraseStepProbability (row, step));
+            stepCycleValues.add (processor.getPhraseStepCycle (row, step));
+            stepCycleOffsetValues.add (processor.getPhraseStepCycleOffset (row, step));
         }
 
         phraseRows.add (steps);
@@ -163,6 +178,11 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
         phraseStepTimingMultiplier.add (stepTimingMultipliers);
         phraseStepDurationFraction.add (stepDurations);
         phraseStepVelocity.add (stepVelocities);
+        phraseStepMuted.add (stepMutedFlags);
+        phraseStepSkipped.add (stepSkippedFlags);
+        phraseStepProbability.add (stepProbabilityValues);
+        phraseStepCycle.add (stepCycleValues);
+        phraseStepCycleOffset.add (stepCycleOffsetValues);
     }
 
     auto options = Options{}
@@ -177,6 +197,11 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("phraseStepDurationFraction", phraseStepDurationFraction)
                        .withInitialisationData ("phraseStepTimingMultiplier", phraseStepTimingMultiplier)
                        .withInitialisationData ("phraseStepVelocity", phraseStepVelocity)
+                       .withInitialisationData ("phraseStepMuted", phraseStepMuted)
+                       .withInitialisationData ("phraseStepSkipped", phraseStepSkipped)
+                       .withInitialisationData ("phraseStepProbability", phraseStepProbability)
+                       .withInitialisationData ("phraseStepCycle", phraseStepCycle)
+                       .withInitialisationData ("phraseStepCycleOffset", phraseStepCycleOffset)
                        .withInitialisationData ("pulseIndex", processor.getPulseIndex())
                        .withInitialisationData ("loopBraceEnabled",
                                                 processor.isLoopBraceEnabled() ? 1 : 0)
@@ -286,6 +311,71 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.setPhraseStepVelocity (varToInt (args[0]),
                                                                     varToInt (args[1]),
                                                                     varToInt (args[2]));
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setPhraseStepMuted",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 3)
+                               {
+                                   processor.setPhraseStepMuted (varToInt (args[0]),
+                                                                 varToInt (args[1]),
+                                                                 varToInt (args[2]) != 0);
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setPhraseStepSkipped",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 3)
+                               {
+                                   processor.setPhraseStepSkipped (varToInt (args[0]),
+                                                                   varToInt (args[1]),
+                                                                   varToInt (args[2]) != 0);
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setPhraseStepProbability",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 3)
+                               {
+                                   processor.setPhraseStepProbability (varToInt (args[0]),
+                                                                       varToInt (args[1]),
+                                                                       varToInt (args[2]));
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setPhraseStepCycle",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 3)
+                               {
+                                   processor.setPhraseStepCycle (varToInt (args[0]),
+                                                                 varToInt (args[1]),
+                                                                 varToInt (args[2]));
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setPhraseStepCycleOffset",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 3)
+                               {
+                                   processor.setPhraseStepCycleOffset (varToInt (args[0]),
+                                                                       varToInt (args[1]),
+                                                                       varToInt (args[2]));
                                }
 
                                complete (juce::var {});

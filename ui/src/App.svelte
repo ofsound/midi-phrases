@@ -6,6 +6,11 @@
     defaultRowTimingOffsetIndex,
     defaultStepDurationGrid,
     defaultStepTimingMultiplierGrid,
+    defaultStepMutedGrid,
+    defaultStepSkippedGrid,
+    defaultStepProbabilityGrid,
+    defaultStepCycleGrid,
+    defaultStepCycleOffsetGrid,
     defaultStepVelocityGrid,
   } from "./midiNoteNames.js";
   import SpeakerIcon from "./SpeakerIcon.svelte";
@@ -55,6 +60,16 @@
   let stepTimingMultiplier = defaultStepTimingMultiplierGrid();
   /** @type {number[][]} */
   let stepVelocity = defaultStepVelocityGrid();
+  /** @type {boolean[][]} */
+  let stepMuted = defaultStepMutedGrid();
+  /** @type {boolean[][]} */
+  let stepSkipped = defaultStepSkippedGrid();
+  /** @type {number[][]} */
+  let stepProbability = defaultStepProbabilityGrid();
+  /** @type {number[][]} */
+  let stepCycle = defaultStepCycleGrid();
+  /** @type {number[][]} */
+  let stepCycleOffset = defaultStepCycleOffsetGrid();
   /** @type {boolean[][]} */
   let activeGates = defaultPhraseGrid().map((row) => row.map(() => false));
   /** @type {string[][]} */
@@ -112,6 +127,11 @@
     stepDurationFraction[row] = reorder(stepDurationFraction[row]);
     stepTimingMultiplier[row] = reorder(stepTimingMultiplier[row]);
     stepVelocity[row] = reorder(stepVelocity[row]);
+    stepMuted[row] = reorder(stepMuted[row]);
+    stepSkipped[row] = reorder(stepSkipped[row]);
+    stepProbability[row] = reorder(stepProbability[row]);
+    stepCycle[row] = reorder(stepCycle[row]);
+    stepCycleOffset[row] = reorder(stepCycleOffset[row]);
     activeGates[row] = reorder(activeGates[row]);
     stepIds[row] = validIds;
 
@@ -119,6 +139,11 @@
     stepDurationFraction = stepDurationFraction;
     stepTimingMultiplier = stepTimingMultiplier;
     stepVelocity = stepVelocity;
+    stepMuted = stepMuted;
+    stepSkipped = stepSkipped;
+    stepProbability = stepProbability;
+    stepCycle = stepCycle;
+    stepCycleOffset = stepCycleOffset;
     activeGates = activeGates;
     stepIds = stepIds;
   }
@@ -154,6 +179,11 @@
             stepDurationFraction: stepDurationFraction[row],
             stepTimingMultiplier: stepTimingMultiplier[row],
             stepVelocity: stepVelocity[row],
+            stepMuted: stepMuted[row],
+            stepSkipped: stepSkipped[row],
+            stepProbability: stepProbability[row],
+            stepCycle: stepCycle[row],
+            stepCycleOffset: stepCycleOffset[row],
             pulseIndex,
           });
         }
@@ -342,6 +372,123 @@
     stepVelocity = next;
   }
 
+  function loadStepMutedFromInitialisation() {
+    const init = unwrapJuceInit("phraseStepMuted");
+
+    if (!Array.isArray(init)) return;
+
+    const defaults = defaultStepMutedGrid();
+    const next = [];
+
+    for (let row = 0; row < 4; row += 1) {
+      const rowData = init[row];
+      const stepCount = grid[row]?.length ?? defaults[row].length;
+      next[row] = [];
+
+      for (let step = 0; step < stepCount; step += 1) {
+        const raw = rowData?.[step] ?? defaults[row][step];
+        next[row][step] = raw === true || raw === 1 || raw === "1";
+      }
+    }
+
+    stepMuted = next;
+  }
+
+  function loadStepSkippedFromInitialisation() {
+    const init = unwrapJuceInit("phraseStepSkipped");
+
+    if (!Array.isArray(init)) return;
+
+    const defaults = defaultStepSkippedGrid();
+    const next = [];
+
+    for (let row = 0; row < 4; row += 1) {
+      const rowData = init[row];
+      const stepCount = grid[row]?.length ?? defaults[row].length;
+      next[row] = [];
+
+      for (let step = 0; step < stepCount; step += 1) {
+        const raw = rowData?.[step] ?? defaults[row][step];
+        next[row][step] = raw === true || raw === 1 || raw === "1";
+      }
+    }
+
+    stepSkipped = next;
+  }
+
+  function loadStepProbabilityFromInitialisation() {
+    const init = unwrapJuceInit("phraseStepProbability");
+
+    if (!Array.isArray(init)) return;
+
+    const defaults = defaultStepProbabilityGrid();
+    const next = [];
+
+    for (let row = 0; row < 4; row += 1) {
+      const rowData = init[row];
+      const stepCount = grid[row]?.length ?? defaults[row].length;
+      next[row] = [];
+
+      for (let step = 0; step < stepCount; step += 1) {
+        const value = Number.parseInt(String(rowData?.[step] ?? defaults[row][step]), 10);
+        next[row][step] = Number.isNaN(value)
+          ? defaults[row][step] ?? 100
+          : Math.min(100, Math.max(0, value));
+      }
+    }
+
+    stepProbability = next;
+  }
+
+  function loadStepCycleFromInitialisation() {
+    const init = unwrapJuceInit("phraseStepCycle");
+
+    if (!Array.isArray(init)) return;
+
+    const defaults = defaultStepCycleGrid();
+    const next = [];
+
+    for (let row = 0; row < 4; row += 1) {
+      const rowData = init[row];
+      const stepCount = grid[row]?.length ?? defaults[row].length;
+      next[row] = [];
+
+      for (let step = 0; step < stepCount; step += 1) {
+        const value = Number.parseInt(String(rowData?.[step] ?? defaults[row][step]), 10);
+        next[row][step] = Number.isNaN(value)
+          ? defaults[row][step] ?? 1
+          : Math.min(64, Math.max(1, value));
+      }
+    }
+
+    stepCycle = next;
+  }
+
+  function loadStepCycleOffsetFromInitialisation() {
+    const init = unwrapJuceInit("phraseStepCycleOffset");
+
+    if (!Array.isArray(init)) return;
+
+    const defaults = defaultStepCycleOffsetGrid();
+    const next = [];
+
+    for (let row = 0; row < 4; row += 1) {
+      const rowData = init[row];
+      const stepCount = grid[row]?.length ?? defaults[row].length;
+      next[row] = [];
+
+      for (let step = 0; step < stepCount; step += 1) {
+        const cycle = stepCycle[row]?.[step] ?? defaults[row][step] ?? 1;
+        const value = Number.parseInt(String(rowData?.[step] ?? defaults[row][step]), 10);
+        next[row][step] = Number.isNaN(value)
+          ? defaults[row][step] ?? 0
+          : Math.min(Math.max(0, cycle - 1), Math.max(0, value));
+      }
+    }
+
+    stepCycleOffset = next;
+  }
+
   async function pushMovePhraseStep(row, fromStep, toStep) {
     if (!nativeFunctionAvailable("movePhraseStep")) return;
 
@@ -414,6 +561,41 @@
     await setPhraseStepVelocity(row, step, stepVelocity[row][step]);
   }
 
+  async function pushStepMuted(row, step) {
+    if (!nativeFunctionAvailable("setPhraseStepMuted")) return;
+
+    const setPhraseStepMuted = getNativeFunction("setPhraseStepMuted");
+    await setPhraseStepMuted(row, step, stepMuted[row][step] ? 1 : 0);
+  }
+
+  async function pushStepSkipped(row, step) {
+    if (!nativeFunctionAvailable("setPhraseStepSkipped")) return;
+
+    const setPhraseStepSkipped = getNativeFunction("setPhraseStepSkipped");
+    await setPhraseStepSkipped(row, step, stepSkipped[row][step] ? 1 : 0);
+  }
+
+  async function pushStepProbability(row, step) {
+    if (!nativeFunctionAvailable("setPhraseStepProbability")) return;
+
+    const setPhraseStepProbability = getNativeFunction("setPhraseStepProbability");
+    await setPhraseStepProbability(row, step, stepProbability[row][step]);
+  }
+
+  async function pushStepCycle(row, step) {
+    if (!nativeFunctionAvailable("setPhraseStepCycle")) return;
+
+    const setPhraseStepCycle = getNativeFunction("setPhraseStepCycle");
+    await setPhraseStepCycle(row, step, stepCycle[row][step]);
+  }
+
+  async function pushStepCycleOffset(row, step) {
+    if (!nativeFunctionAvailable("setPhraseStepCycleOffset")) return;
+
+    const setPhraseStepCycleOffset = getNativeFunction("setPhraseStepCycleOffset");
+    await setPhraseStepCycleOffset(row, step, stepCycleOffset[row][step]);
+  }
+
   async function setPhraseNoteValue(row, step, midi) {
     grid[row][step] = Math.min(127, Math.max(0, midi));
     grid = grid;
@@ -462,6 +644,41 @@
     await pushStepVelocity(row, step);
   }
 
+  async function setStepMuted(row, step, muted) {
+    stepMuted[row][step] = muted;
+    stepMuted = stepMuted;
+    await pushStepMuted(row, step);
+  }
+
+  async function setStepSkipped(row, step, skipped) {
+    stepSkipped[row][step] = skipped;
+    stepSkipped = stepSkipped;
+    await pushStepSkipped(row, step);
+  }
+
+  async function setStepProbability(row, step, probability) {
+    stepProbability[row][step] = Math.min(100, Math.max(0, probability));
+    stepProbability = stepProbability;
+    await pushStepProbability(row, step);
+  }
+
+  async function setStepCycle(row, step, cycle) {
+    const nextCycle = Math.min(64, Math.max(1, cycle));
+    stepCycle[row][step] = nextCycle;
+    stepCycleOffset[row][step] = Math.min(stepCycleOffset[row][step], nextCycle - 1);
+    stepCycle = stepCycle;
+    stepCycleOffset = stepCycleOffset;
+    await pushStepCycle(row, step);
+    await pushStepCycleOffset(row, step);
+  }
+
+  async function setStepCycleOffset(row, step, cycleOffset) {
+    const maxOffset = Math.max(0, (stepCycle[row][step] ?? 1) - 1);
+    stepCycleOffset[row][step] = Math.min(maxOffset, Math.max(0, cycleOffset));
+    stepCycleOffset = stepCycleOffset;
+    await pushStepCycleOffset(row, step);
+  }
+
   async function removeStep(row, step) {
     if (step < 0 || step >= grid[row].length) return;
 
@@ -469,6 +686,11 @@
     stepDurationFraction[row].splice(step, 1);
     stepTimingMultiplier[row].splice(step, 1);
     stepVelocity[row].splice(step, 1);
+    stepMuted[row].splice(step, 1);
+    stepSkipped[row].splice(step, 1);
+    stepProbability[row].splice(step, 1);
+    stepCycle[row].splice(step, 1);
+    stepCycleOffset[row].splice(step, 1);
     activeGates[row].splice(step, 1);
     stepIds[row].splice(step, 1);
 
@@ -476,6 +698,11 @@
     stepDurationFraction = stepDurationFraction;
     stepTimingMultiplier = stepTimingMultiplier;
     stepVelocity = stepVelocity;
+    stepMuted = stepMuted;
+    stepSkipped = stepSkipped;
+    stepProbability = stepProbability;
+    stepCycle = stepCycle;
+    stepCycleOffset = stepCycleOffset;
     activeGates = activeGates;
     stepIds = stepIds;
 
@@ -490,6 +717,11 @@
     const defaultDurations = defaultStepDurationGrid();
     const defaultMultipliers = defaultStepTimingMultiplierGrid();
     const defaultVelocities = defaultStepVelocityGrid();
+    const defaultMuted = defaultStepMutedGrid();
+    const defaultSkipped = defaultStepSkippedGrid();
+    const defaultProbability = defaultStepProbabilityGrid();
+    const defaultCycle = defaultStepCycleGrid();
+    const defaultCycleOffset = defaultStepCycleOffsetGrid();
     const defaultNote = defaults[row]?.[0] ?? 60;
 
     grid[row].splice(step, 0, defaultNote);
@@ -500,6 +732,11 @@
       defaultMultipliers[row]?.[0] ?? defaultStepTimingMultiplierIndex,
     );
     stepVelocity[row].splice(step, 0, defaultVelocities[row]?.[0] ?? 100);
+    stepMuted[row].splice(step, 0, defaultMuted[row]?.[0] ?? false);
+    stepSkipped[row].splice(step, 0, defaultSkipped[row]?.[0] ?? false);
+    stepProbability[row].splice(step, 0, defaultProbability[row]?.[0] ?? 100);
+    stepCycle[row].splice(step, 0, defaultCycle[row]?.[0] ?? 1);
+    stepCycleOffset[row].splice(step, 0, defaultCycleOffset[row]?.[0] ?? 0);
     activeGates[row].splice(step, 0, false);
     stepIds[row].splice(step, 0, createStepId());
 
@@ -507,6 +744,11 @@
     stepDurationFraction = stepDurationFraction;
     stepTimingMultiplier = stepTimingMultiplier;
     stepVelocity = stepVelocity;
+    stepMuted = stepMuted;
+    stepSkipped = stepSkipped;
+    stepProbability = stepProbability;
+    stepCycle = stepCycle;
+    stepCycleOffset = stepCycleOffset;
     activeGates = activeGates;
     stepIds = stepIds;
 
@@ -679,6 +921,11 @@
     loadStepDurationFromInitialisation();
     loadStepTimingMultiplierFromInitialisation();
     loadStepVelocityFromInitialisation();
+    loadStepMutedFromInitialisation();
+    loadStepSkippedFromInitialisation();
+    loadStepProbabilityFromInitialisation();
+    loadStepCycleFromInitialisation();
+    loadStepCycleOffsetFromInitialisation();
     loadPulseFromInitialisation();
   loadLoopBraceFromInitialisation();
     loadStandaloneTransportFromInitialisation();
@@ -822,6 +1069,11 @@
               stepDurationFraction={stepDurationFraction[row]}
               stepTimingMultiplier={stepTimingMultiplier[row]}
               stepVelocity={stepVelocity[row]}
+              stepMuted={stepMuted[row]}
+              stepSkipped={stepSkipped[row]}
+              stepProbability={stepProbability[row]}
+              stepCycle={stepCycle[row]}
+              stepCycleOffset={stepCycleOffset[row]}
               activeGates={activeGates[row]}
               {timingMultiplierOptions}
               onReorder={reorderRowByIds}
@@ -832,6 +1084,11 @@
               onMultiplierChange={selectStepTimingMultiplier}
               onDurationChange={selectStepDurationFraction}
               onVelocityChange={setStepVelocity}
+              onStepMuteChange={setStepMuted}
+              onStepSkipChange={setStepSkipped}
+              onStepProbabilityChange={setStepProbability}
+              onStepCycleChange={setStepCycle}
+              onStepCycleOffsetChange={setStepCycleOffset}
             />
           </div>
         {/each}
@@ -846,6 +1103,11 @@
         {stepDurationFraction}
         {stepTimingMultiplier}
         {stepVelocity}
+        {stepMuted}
+        {stepSkipped}
+        stepProbability={stepProbability}
+        stepCycle={stepCycle}
+        stepCycleOffset={stepCycleOffset}
         {pulseIndex}
         loopEnabled={loopBraceEnabled}
         loopStart={loopBraceStart}

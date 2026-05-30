@@ -9,7 +9,36 @@ namespace
 constexpr int defaultRowNotes[] = { 60, 64, 67, 72 };
 constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
-constexpr int phraseStateVersion = 5;
+constexpr int phraseStateVersion = 8;
+
+int clampStepProbability (const int probability)
+{
+    return juce::jlimit (0, 100, probability);
+}
+
+int clampStepCycle (const int cycle)
+{
+    return juce::jlimit (PluginProcessor::minStepCycle, PluginProcessor::maxStepCycle, cycle);
+}
+
+int clampStepCycleOffset (const int cycleOffset, const int cycle)
+{
+    return juce::jlimit (0, clampStepCycle (cycle) - 1, cycleOffset);
+}
+
+bool cycleGateMatches (const int count, const int cycle, const int cycleOffset)
+{
+    return count % cycle == cycleOffset;
+}
+
+float nextRandomUnit (std::uint32_t& state)
+{
+    state ^= state << 13;
+    state ^= state >> 17;
+    state ^= state << 5;
+
+    return static_cast<float> (state & 0x00FFFFFFu) / static_cast<float> (0x01000000u);
+}
 
 int stepTimingMultiplierIndexFromState (const int storedIndex, const int stateVersion)
 {
@@ -82,6 +111,22 @@ void PluginProcessor::resetLastEmittedTriggers()
 {
     for (auto& lastTrigger : lastEmittedTriggerPpq)
         lastTrigger = -1.0;
+
+    resetStepCycleCounters();
+}
+
+void PluginProcessor::resetStepCycleCounters()
+{
+    for (auto& rowCounters : stepCycleCounters)
+        rowCounters.fill (0);
+}
+
+void PluginProcessor::resetStepCycleCountersForRow (const int row)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return;
+
+    stepCycleCounters[static_cast<size_t> (row)].fill (0);
 }
 
 PluginProcessor::BusesProperties PluginProcessor::createBusesProperties()
@@ -163,6 +208,11 @@ void PluginProcessor::initialiseRowDefaults (PhraseRowSteps& steps, const int ro
         steps.timingMultiplier[static_cast<size_t> (step)] = defaultStepTimingMultiplierIndex;
         steps.durationFraction[static_cast<size_t> (step)] = defaultStepDurationFraction;
         steps.velocity[static_cast<size_t> (step)] = defaultStepVelocity;
+        steps.stepMuted[static_cast<size_t> (step)] = 0;
+        steps.stepSkipped[static_cast<size_t> (step)] = 0;
+        steps.probability[static_cast<size_t> (step)] = PluginProcessor::defaultStepProbability;
+        steps.cycle[static_cast<size_t> (step)] = PluginProcessor::defaultStepCycle;
+        steps.cycleOffset[static_cast<size_t> (step)] = PluginProcessor::PluginProcessor::defaultStepCycleOffset;
     }
 
     rebuildRowTimingLayout (steps);
@@ -175,19 +225,16 @@ void PluginProcessor::rebuildRowTimingLayout (PhraseRowSteps& steps)
 
     for (int step = 0; step < maxPhraseStepsPerRow; ++step)
     {
-        steps.stepStartQuarters[static_cast<size_t> (step)] = cycleLengthQuarters;
+        const auto index = static_cast<size_t> (step);
+        const auto inCount = step < steps.stepCount;
+        const auto length =
+            inCount ? stepTimingMultiplierForIndex (steps.timingMultiplier[index]) * pulse : 0.0;
 
-        if (step < steps.stepCount)
-        {
-            steps.stepLengthQuarters[static_cast<size_t> (step)] =
-                stepTimingMultiplierForIndex (steps.timingMultiplier[static_cast<size_t> (step)])
-                * pulse;
-            cycleLengthQuarters += steps.stepLengthQuarters[static_cast<size_t> (step)];
-        }
-        else
-        {
-            steps.stepLengthQuarters[static_cast<size_t> (step)] = 0.0;
-        }
+        steps.stepLengthQuarters[index] = length;
+        steps.stepStartQuarters[index] = cycleLengthQuarters;
+
+        if (inCount && steps.stepSkipped[index] == 0)
+            cycleLengthQuarters += length;
     }
 
     steps.cycleLengthQuarters = cycleLengthQuarters;
@@ -203,7 +250,14 @@ double PluginProcessor::stepStartInCycleForPlayback (const PhraseRowSteps& steps
     auto start = 0.0;
 
     for (int index = step + 1; index < steps.stepCount; ++index)
-        start += steps.stepLengthQuarters[static_cast<size_t> (index)];
+    {
+        const auto slot = static_cast<size_t> (index);
+
+        if (steps.stepSkipped[slot] != 0)
+            continue;
+
+        start += steps.stepLengthQuarters[slot];
+    }
 
     return start;
 }
@@ -288,6 +342,39 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
                 row.velocity[index] = juce::jlimit (0, 127, command.intValue);
             break;
 
+        case SequencerCommand::Type::SetStepMuted:
+            if (isValidAudioStep (audioState, command.row, step))
+                row.stepMuted[index] = command.intValue != 0 ? 1 : 0;
+            break;
+
+        case SequencerCommand::Type::SetStepSkipped:
+            if (isValidAudioStep (audioState, command.row, step))
+            {
+                row.stepSkipped[index] = command.intValue != 0 ? 1 : 0;
+                rebuildRowTimingLayout (row);
+            }
+            break;
+
+        case SequencerCommand::Type::SetStepProbability:
+            if (isValidAudioStep (audioState, command.row, step))
+                row.probability[index] = command.intValue;
+            break;
+
+        case SequencerCommand::Type::SetStepCycle:
+            if (isValidAudioStep (audioState, command.row, step))
+            {
+                row.cycle[index] = command.intValue;
+                row.cycleOffset[index] =
+                    clampStepCycleOffset (row.cycleOffset[index], row.cycle[index]);
+            }
+            break;
+
+        case SequencerCommand::Type::SetStepCycleOffset:
+            if (isValidAudioStep (audioState, command.row, step))
+                row.cycleOffset[index] =
+                    clampStepCycleOffset (command.intValue, row.cycle[index]);
+            break;
+
         case SequencerCommand::Type::RemoveStep:
             if (isValidAudioStep (audioState, command.row, step))
             {
@@ -299,10 +386,16 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
                     row.timingMultiplier[current] = row.timingMultiplier[next];
                     row.durationFraction[current] = row.durationFraction[next];
                     row.velocity[current] = row.velocity[next];
+                    row.stepMuted[current] = row.stepMuted[next];
+                    row.stepSkipped[current] = row.stepSkipped[next];
+                    row.probability[current] = row.probability[next];
+                    row.cycle[current] = row.cycle[next];
+                    row.cycleOffset[current] = row.cycleOffset[next];
                 }
 
                 --row.stepCount;
                 rebuildRowTimingLayout (row);
+                resetStepCycleCountersForRow (command.row);
             }
             break;
 
@@ -317,14 +410,25 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
                     row.timingMultiplier[current] = row.timingMultiplier[previous];
                     row.durationFraction[current] = row.durationFraction[previous];
                     row.velocity[current] = row.velocity[previous];
+                    row.stepMuted[current] = row.stepMuted[previous];
+                    row.stepSkipped[current] = row.stepSkipped[previous];
+                    row.probability[current] = row.probability[previous];
+                    row.cycle[current] = row.cycle[previous];
+                    row.cycleOffset[current] = row.cycleOffset[previous];
                 }
 
                 row.notes[index] = defaultNoteForRow (command.row);
                 row.timingMultiplier[index] = defaultStepTimingMultiplierIndex;
                 row.durationFraction[index] = defaultStepDurationFraction;
                 row.velocity[index] = defaultStepVelocity;
+                row.stepMuted[index] = 0;
+                row.stepSkipped[index] = 0;
+                row.probability[index] = PluginProcessor::defaultStepProbability;
+                row.cycle[index] = PluginProcessor::defaultStepCycle;
+                row.cycleOffset[index] = PluginProcessor::defaultStepCycleOffset;
                 ++row.stepCount;
                 rebuildRowTimingLayout (row);
+                resetStepCycleCountersForRow (command.row);
             }
             break;
 
@@ -337,6 +441,11 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
                 const auto timingMultiplier = row.timingMultiplier[static_cast<size_t> (command.step)];
                 const auto durationFraction = row.durationFraction[static_cast<size_t> (command.step)];
                 const auto velocity = row.velocity[static_cast<size_t> (command.step)];
+                const auto stepMuted = row.stepMuted[static_cast<size_t> (command.step)];
+                const auto stepSkipped = row.stepSkipped[static_cast<size_t> (command.step)];
+                const auto probability = row.probability[static_cast<size_t> (command.step)];
+                const auto cycle = row.cycle[static_cast<size_t> (command.step)];
+                const auto cycleOffset = row.cycleOffset[static_cast<size_t> (command.step)];
 
                 if (command.step < command.toStep)
                 {
@@ -348,6 +457,11 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
                         row.timingMultiplier[current] = row.timingMultiplier[next];
                         row.durationFraction[current] = row.durationFraction[next];
                         row.velocity[current] = row.velocity[next];
+                        row.stepMuted[current] = row.stepMuted[next];
+                        row.stepSkipped[current] = row.stepSkipped[next];
+                        row.probability[current] = row.probability[next];
+                        row.cycle[current] = row.cycle[next];
+                        row.cycleOffset[current] = row.cycleOffset[next];
                     }
                 }
                 else
@@ -360,6 +474,11 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
                         row.timingMultiplier[current] = row.timingMultiplier[previous];
                         row.durationFraction[current] = row.durationFraction[previous];
                         row.velocity[current] = row.velocity[previous];
+                        row.stepMuted[current] = row.stepMuted[previous];
+                        row.stepSkipped[current] = row.stepSkipped[previous];
+                        row.probability[current] = row.probability[previous];
+                        row.cycle[current] = row.cycle[previous];
+                        row.cycleOffset[current] = row.cycleOffset[previous];
                     }
                 }
 
@@ -368,7 +487,13 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
                 row.timingMultiplier[destination] = timingMultiplier;
                 row.durationFraction[destination] = durationFraction;
                 row.velocity[destination] = velocity;
+                row.stepMuted[destination] = stepMuted;
+                row.stepSkipped[destination] = stepSkipped;
+                row.probability[destination] = probability;
+                row.cycle[destination] = cycle;
+                row.cycleOffset[destination] = cycleOffset;
                 rebuildRowTimingLayout (row);
+                resetStepCycleCountersForRow (command.row);
             }
             break;
 
@@ -376,6 +501,7 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             row = command.rowState;
             row.stepCount = juce::jlimit (0, maxPhraseStepsPerRow, row.stepCount);
             rebuildRowTimingLayout (row);
+            resetStepCycleCountersForRow (command.row);
             break;
     }
 }
@@ -402,6 +528,11 @@ void PluginProcessor::resetPhraseStepToDefaults (const int row, const int step)
     steps.timingMultiplier[static_cast<size_t> (step)] = defaultStepTimingMultiplierIndex;
     steps.durationFraction[static_cast<size_t> (step)] = defaultStepDurationFraction;
     steps.velocity[static_cast<size_t> (step)] = defaultStepVelocity;
+    steps.stepMuted[static_cast<size_t> (step)] = 0;
+    steps.stepSkipped[static_cast<size_t> (step)] = 0;
+    steps.probability[static_cast<size_t> (step)] = PluginProcessor::defaultStepProbability;
+    steps.cycle[static_cast<size_t> (step)] = PluginProcessor::defaultStepCycle;
+    steps.cycleOffset[static_cast<size_t> (step)] = PluginProcessor::defaultStepCycleOffset;
     rebuildRowTimingLayout (steps);
     publishRowToAudio (row);
 }
@@ -715,6 +846,145 @@ int PluginProcessor::getPhraseStepVelocity (const int row, const int step) const
     return modelRow (row).velocity[static_cast<size_t> (step)];
 }
 
+void PluginProcessor::setPhraseStepMuted (const int row, const int step, const bool muted)
+{
+    if (! isValidStep (row, step))
+        return;
+
+    const auto value = muted ? 1 : 0;
+    modelRow (row).stepMuted[static_cast<size_t> (step)] = value;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetStepMuted;
+    command.row = row;
+    command.step = step;
+    command.intValue = value;
+    publishCommandToAudio (command);
+}
+
+bool PluginProcessor::isPhraseStepMuted (const int row, const int step) const
+{
+    if (! isValidStep (row, step))
+        return false;
+
+    return modelRow (row).stepMuted[static_cast<size_t> (step)] != 0;
+}
+
+void PluginProcessor::setPhraseStepSkipped (const int row, const int step, const bool skipped)
+{
+    if (! isValidStep (row, step))
+        return;
+
+    auto& steps = modelRow (row);
+    const auto index = static_cast<size_t> (step);
+    const auto value = skipped ? 1 : 0;
+    steps.stepSkipped[index] = value;
+    rebuildRowTimingLayout (steps);
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetStepSkipped;
+    command.row = row;
+    command.step = step;
+    command.intValue = value;
+    publishCommandToAudio (command);
+}
+
+bool PluginProcessor::isPhraseStepSkipped (const int row, const int step) const
+{
+    if (! isValidStep (row, step))
+        return false;
+
+    return modelRow (row).stepSkipped[static_cast<size_t> (step)] != 0;
+}
+
+void PluginProcessor::setPhraseStepProbability (const int row, const int step, const int probability)
+{
+    if (! isValidStep (row, step))
+        return;
+
+    const auto value = clampStepProbability (probability);
+    modelRow (row).probability[static_cast<size_t> (step)] = value;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetStepProbability;
+    command.row = row;
+    command.step = step;
+    command.intValue = value;
+    publishCommandToAudio (command);
+}
+
+int PluginProcessor::getPhraseStepProbability (const int row, const int step) const
+{
+    if (! isValidStep (row, step))
+        return PluginProcessor::defaultStepProbability;
+
+    return modelRow (row).probability[static_cast<size_t> (step)];
+}
+
+void PluginProcessor::setPhraseStepCycle (const int row, const int step, const int cycle)
+{
+    if (! isValidStep (row, step))
+        return;
+
+    auto& steps = modelRow (row);
+    const auto index = static_cast<size_t> (step);
+    const auto value = clampStepCycle (cycle);
+    const auto previousOffset = steps.cycleOffset[index];
+    steps.cycle[index] = value;
+    steps.cycleOffset[index] = clampStepCycleOffset (previousOffset, value);
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetStepCycle;
+    command.row = row;
+    command.step = step;
+    command.intValue = value;
+    publishCommandToAudio (command);
+
+    if (steps.cycleOffset[index] != previousOffset)
+    {
+        SequencerCommand offsetCommand;
+        offsetCommand.type = SequencerCommand::Type::SetStepCycleOffset;
+        offsetCommand.row = row;
+        offsetCommand.step = step;
+        offsetCommand.intValue = steps.cycleOffset[index];
+        publishCommandToAudio (offsetCommand);
+    }
+}
+
+int PluginProcessor::getPhraseStepCycle (const int row, const int step) const
+{
+    if (! isValidStep (row, step))
+        return PluginProcessor::defaultStepCycle;
+
+    return modelRow (row).cycle[static_cast<size_t> (step)];
+}
+
+void PluginProcessor::setPhraseStepCycleOffset (const int row, const int step, const int cycleOffset)
+{
+    if (! isValidStep (row, step))
+        return;
+
+    auto& steps = modelRow (row);
+    const auto index = static_cast<size_t> (step);
+    const auto value = clampStepCycleOffset (cycleOffset, steps.cycle[index]);
+    steps.cycleOffset[index] = value;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetStepCycleOffset;
+    command.row = row;
+    command.step = step;
+    command.intValue = value;
+    publishCommandToAudio (command);
+}
+
+int PluginProcessor::getPhraseStepCycleOffset (const int row, const int step) const
+{
+    if (! isValidStep (row, step))
+        return PluginProcessor::defaultStepCycleOffset;
+
+    return modelRow (row).cycleOffset[static_cast<size_t> (step)];
+}
+
 int PluginProcessor::getPhraseRowStepCount (const int row) const
 {
     if (row < 0 || row >= phraseRowCount)
@@ -743,6 +1013,11 @@ void PluginProcessor::removePhraseStep (const int row, const int step)
         steps.timingMultiplier[current] = steps.timingMultiplier[next];
         steps.durationFraction[current] = steps.durationFraction[next];
         steps.velocity[current] = steps.velocity[next];
+        steps.stepMuted[current] = steps.stepMuted[next];
+        steps.stepSkipped[current] = steps.stepSkipped[next];
+        steps.probability[current] = steps.probability[next];
+        steps.cycle[current] = steps.cycle[next];
+        steps.cycleOffset[current] = steps.cycleOffset[next];
     }
 
     steps.stepCount = count - 1;
@@ -774,6 +1049,11 @@ void PluginProcessor::insertPhraseStep (const int row, const int step)
         steps.timingMultiplier[current] = steps.timingMultiplier[previous];
         steps.durationFraction[current] = steps.durationFraction[previous];
         steps.velocity[current] = steps.velocity[previous];
+        steps.stepMuted[current] = steps.stepMuted[previous];
+        steps.stepSkipped[current] = steps.stepSkipped[previous];
+        steps.probability[current] = steps.probability[previous];
+        steps.cycle[current] = steps.cycle[previous];
+        steps.cycleOffset[current] = steps.cycleOffset[previous];
     }
 
     const auto insertIndex = static_cast<size_t> (step);
@@ -781,6 +1061,11 @@ void PluginProcessor::insertPhraseStep (const int row, const int step)
     steps.timingMultiplier[insertIndex] = defaultStepTimingMultiplierIndex;
     steps.durationFraction[insertIndex] = defaultStepDurationFraction;
     steps.velocity[insertIndex] = defaultStepVelocity;
+    steps.stepMuted[insertIndex] = 0;
+    steps.stepSkipped[insertIndex] = 0;
+    steps.probability[insertIndex] = PluginProcessor::defaultStepProbability;
+    steps.cycle[insertIndex] = PluginProcessor::defaultStepCycle;
+    steps.cycleOffset[insertIndex] = PluginProcessor::defaultStepCycleOffset;
     steps.stepCount = count + 1;
     rebuildRowTimingLayout (steps);
     SequencerCommand command;
@@ -805,6 +1090,11 @@ void PluginProcessor::movePhraseStep (const int row, const int fromStep, const i
     const auto timingMultiplier = steps.timingMultiplier[static_cast<size_t> (fromStep)];
     const auto durationFraction = steps.durationFraction[static_cast<size_t> (fromStep)];
     const auto velocity = steps.velocity[static_cast<size_t> (fromStep)];
+    const auto stepMuted = steps.stepMuted[static_cast<size_t> (fromStep)];
+    const auto stepSkipped = steps.stepSkipped[static_cast<size_t> (fromStep)];
+    const auto probability = steps.probability[static_cast<size_t> (fromStep)];
+    const auto cycle = steps.cycle[static_cast<size_t> (fromStep)];
+    const auto cycleOffset = steps.cycleOffset[static_cast<size_t> (fromStep)];
 
     if (fromStep < toStep)
     {
@@ -818,6 +1108,13 @@ void PluginProcessor::movePhraseStep (const int row, const int fromStep, const i
             steps.durationFraction[static_cast<size_t> (index)] =
                 steps.durationFraction[static_cast<size_t> (nextIndex)];
             steps.velocity[static_cast<size_t> (index)] = steps.velocity[static_cast<size_t> (nextIndex)];
+            steps.stepMuted[static_cast<size_t> (index)] = steps.stepMuted[static_cast<size_t> (nextIndex)];
+            steps.stepSkipped[static_cast<size_t> (index)] = steps.stepSkipped[static_cast<size_t> (nextIndex)];
+            steps.probability[static_cast<size_t> (index)] =
+                steps.probability[static_cast<size_t> (nextIndex)];
+            steps.cycle[static_cast<size_t> (index)] = steps.cycle[static_cast<size_t> (nextIndex)];
+            steps.cycleOffset[static_cast<size_t> (index)] =
+                steps.cycleOffset[static_cast<size_t> (nextIndex)];
         }
     }
     else
@@ -832,6 +1129,13 @@ void PluginProcessor::movePhraseStep (const int row, const int fromStep, const i
             steps.durationFraction[static_cast<size_t> (index)] =
                 steps.durationFraction[static_cast<size_t> (prevIndex)];
             steps.velocity[static_cast<size_t> (index)] = steps.velocity[static_cast<size_t> (prevIndex)];
+            steps.stepMuted[static_cast<size_t> (index)] = steps.stepMuted[static_cast<size_t> (prevIndex)];
+            steps.stepSkipped[static_cast<size_t> (index)] = steps.stepSkipped[static_cast<size_t> (prevIndex)];
+            steps.probability[static_cast<size_t> (index)] =
+                steps.probability[static_cast<size_t> (prevIndex)];
+            steps.cycle[static_cast<size_t> (index)] = steps.cycle[static_cast<size_t> (prevIndex)];
+            steps.cycleOffset[static_cast<size_t> (index)] =
+                steps.cycleOffset[static_cast<size_t> (prevIndex)];
         }
     }
 
@@ -839,6 +1143,11 @@ void PluginProcessor::movePhraseStep (const int row, const int fromStep, const i
     steps.timingMultiplier[static_cast<size_t> (toStep)] = timingMultiplier;
     steps.durationFraction[static_cast<size_t> (toStep)] = durationFraction;
     steps.velocity[static_cast<size_t> (toStep)] = velocity;
+    steps.stepMuted[static_cast<size_t> (toStep)] = stepMuted;
+    steps.stepSkipped[static_cast<size_t> (toStep)] = stepSkipped;
+    steps.probability[static_cast<size_t> (toStep)] = probability;
+    steps.cycle[static_cast<size_t> (toStep)] = cycle;
+    steps.cycleOffset[static_cast<size_t> (toStep)] = cycleOffset;
     rebuildRowTimingLayout (steps);
     SequencerCommand command;
     command.type = SequencerCommand::Type::MoveStep;
@@ -1015,6 +1324,9 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
         for (int step = 0; step < stepCount; ++step)
         {
+            if (rowSteps.stepSkipped[static_cast<size_t> (step)] != 0)
+                continue;
+
             const auto stepStartInCycle =
                 stepStartInCycleForPlayback (rowSteps, step, reversed);
             const auto nMin = static_cast<int> (std::ceil (
@@ -1090,7 +1402,31 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             const auto note = rowSteps.notes[static_cast<size_t> (slot)];
             const auto velocity = rowSteps.velocity[static_cast<size_t> (slot)];
 
-            if (velocity <= 0)
+            if (velocity <= 0 || rowSteps.stepMuted[static_cast<size_t> (slot)] != 0)
+                continue;
+
+            const auto cycle = clampStepCycle (rowSteps.cycle[static_cast<size_t> (slot)]);
+            const auto cycleOffset =
+                clampStepCycleOffset (rowSteps.cycleOffset[static_cast<size_t> (slot)], cycle);
+
+            if (cycle > 1)
+            {
+                auto& counter = stepCycleCounters[static_cast<size_t> (row)][static_cast<size_t> (slot)];
+                const auto count = static_cast<int> (counter++);
+
+                if (! cycleGateMatches (count, cycle, cycleOffset))
+                    continue;
+            }
+
+            const auto probability =
+                clampStepProbability (rowSteps.probability[static_cast<size_t> (slot)]);
+
+            if (probability <= 0)
+                continue;
+
+            if (probability < 100
+                && nextRandomUnit (playbackRandomState) * 100.0f
+                       >= static_cast<float> (probability))
                 continue;
 
             const auto stepLength = rowSteps.stepLengthQuarters[static_cast<size_t> (slot)];
@@ -1367,11 +1703,21 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
             const auto propName = "step" + juce::String (step);
             const auto durationPropName = "duration" + juce::String (step);
             const auto velocityPropName = "velocity" + juce::String (step);
+            const auto stepMutedPropName = "stepMuted" + juce::String (step);
+            const auto stepSkippedPropName = "stepSkipped" + juce::String (step);
+            const auto probabilityPropName = "probability" + juce::String (step);
+            const auto cyclePropName = "cycle" + juce::String (step);
+            const auto cycleOffsetPropName = "cycleOffset" + juce::String (step);
             const auto timingMultiplierPropName = "timingMultiplier" + juce::String (step);
             rowTree.setProperty (propName, getPhraseNote (row, step), nullptr);
             rowTree.setProperty (timingMultiplierPropName, getPhraseStepTimingMultiplier (row, step), nullptr);
             rowTree.setProperty (durationPropName, getPhraseStepDurationFraction (row, step), nullptr);
             rowTree.setProperty (velocityPropName, getPhraseStepVelocity (row, step), nullptr);
+            rowTree.setProperty (stepMutedPropName, isPhraseStepMuted (row, step), nullptr);
+            rowTree.setProperty (stepSkippedPropName, isPhraseStepSkipped (row, step), nullptr);
+            rowTree.setProperty (probabilityPropName, getPhraseStepProbability (row, step), nullptr);
+            rowTree.setProperty (cyclePropName, getPhraseStepCycle (row, step), nullptr);
+            rowTree.setProperty (cycleOffsetPropName, getPhraseStepCycleOffset (row, step), nullptr);
         }
 
         rowTree.setProperty ("muted", isPhraseRowMuted (row), nullptr);
@@ -1436,6 +1782,11 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             const auto propName = "step" + juce::String (step);
             const auto durationPropName = "duration" + juce::String (step);
             const auto velocityPropName = "velocity" + juce::String (step);
+            const auto stepMutedPropName = "stepMuted" + juce::String (step);
+            const auto stepSkippedPropName = "stepSkipped" + juce::String (step);
+            const auto probabilityPropName = "probability" + juce::String (step);
+            const auto cyclePropName = "cycle" + juce::String (step);
+            const auto cycleOffsetPropName = "cycleOffset" + juce::String (step);
             const auto timingMultiplierPropName = "timingMultiplier" + juce::String (step);
             const auto note = static_cast<int> (rowTree.getProperty (propName, defaultNoteForRow (row)));
             steps.notes[static_cast<size_t> (step)] = juce::jlimit (0, 127, note);
@@ -1450,6 +1801,22 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                 0,
                 127,
                 static_cast<int> (rowTree.getProperty (velocityPropName, defaultStepVelocity)));
+            steps.stepMuted[static_cast<size_t> (step)] =
+                static_cast<bool> (rowTree.getProperty (stepMutedPropName, false)) ? 1 : 0;
+            steps.stepSkipped[static_cast<size_t> (step)] =
+                static_cast<bool> (rowTree.getProperty (stepSkippedPropName, false)) ? 1 : 0;
+
+            if (stateVersion >= 8)
+            {
+                steps.probability[static_cast<size_t> (step)] = clampStepProbability (
+                    static_cast<int> (rowTree.getProperty (probabilityPropName, PluginProcessor::defaultStepProbability)));
+                const auto cycle = clampStepCycle (
+                    static_cast<int> (rowTree.getProperty (cyclePropName, PluginProcessor::defaultStepCycle)));
+                steps.cycle[static_cast<size_t> (step)] = cycle;
+                steps.cycleOffset[static_cast<size_t> (step)] = clampStepCycleOffset (
+                    static_cast<int> (rowTree.getProperty (cycleOffsetPropName, PluginProcessor::defaultStepCycleOffset)),
+                    cycle);
+            }
         }
 
         modelState.muted[static_cast<size_t> (row)] =

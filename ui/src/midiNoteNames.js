@@ -79,3 +79,38 @@ export const defaultStepVelocityGrid = () => [
   [100, 100, 100, 100],
   [100, 100, 100, 100],
 ];
+
+export const defaultStepMutedGrid = () => [
+  [false, false, false, false],
+  [false, false, false, false],
+  [false, false, false, false],
+  [false, false, false, false],
+];
+
+export const defaultStepSkippedGrid = () => [
+  [false, false, false, false],
+  [false, false, false, false],
+  [false, false, false, false],
+  [false, false, false, false],
+];
+
+export const defaultStepProbabilityGrid = () => [
+  [100, 100, 100, 100],
+  [100, 100, 100, 100],
+  [100, 100, 100, 100],
+  [100, 100, 100, 100],
+];
+
+export const defaultStepCycleGrid = () => [
+  [1, 1, 1, 1],
+  [1, 1, 1, 1],
+  [1, 1, 1, 1],
+  [1, 1, 1, 1],
+];
+
+export const defaultStepCycleOffsetGrid = () => [
+  [0, 0, 0, 0],
+  [0, 0, 0, 0],
+  [0, 0, 0, 0],
+  [0, 0, 0, 0],
+];
