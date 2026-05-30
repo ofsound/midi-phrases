@@ -1,9 +1,13 @@
 <script>
   import { emeraldRowAccent } from "./rowAccentTheme.js";
+  import StepMutedOverlay from "./StepMutedOverlay.svelte";
 
   /** @type {import('./rowAccentTheme.js').RowAccent} */
   export let accent = emeraldRowAccent;
+  /** Row off or step skipped — gray duration chrome, no hatch. */
   export let muted = false;
+  /** Per-step mute — front only: empty duration bar + hatch on track background. */
+  export let stepMuted = false;
   export let value = 1;
   export let velocity = 127;
   /** Duration fraction restored on double-click; omit to disable reset. */
@@ -20,6 +24,8 @@
 
   $: fillPercent = Math.min(100, Math.max(0, value * 100));
   $: fillOpacity = 0.2 + (Math.min(127, Math.max(0, velocity)) / 127) * 0.8;
+  $: showMutedHatch = stepMuted && !muted;
+  $: displayFillPercent = showMutedHatch ? 0 : fillPercent;
 
   function clampFraction(fraction) {
     return Math.min(1, Math.max(0, fraction));
@@ -115,13 +121,18 @@
       }
     }}
   >
-    <div
-      class="absolute inset-y-0 left-0 {muted ? 'bg-zinc-600' : accent.bgAccent} {dragging
-        ? ''
-        : 'transition-[width,opacity] duration-75'}"
-      style:width="{fillPercent}%"
-      style:opacity={fillOpacity}
-    ></div>
+    {#if showMutedHatch}
+      <StepMutedOverlay active={true} />
+    {/if}
+    {#if displayFillPercent > 0}
+      <div
+        class="absolute inset-y-0 left-0 {muted ? 'bg-zinc-600' : accent.bgAccent} {dragging
+          ? ''
+          : 'transition-[width,opacity] duration-75'}"
+        style:width="{displayFillPercent}%"
+        style:opacity={fillOpacity}
+      ></div>
+    {/if}
   </div>
 
   <div class="relative h-2.5">

@@ -1,6 +1,10 @@
 <script>
   import SpeakerIcon from "./SpeakerIcon.svelte";
-  import { emeraldRowAccent } from "./rowAccentTheme.js";
+  import {
+    emeraldRowAccent,
+    toggleIconActiveClasses,
+    toggleIconRestClasses,
+  } from "./rowAccentTheme.js";
 
   /** @type {import('./rowAccentTheme.js').RowAccent} */
   export let accent = emeraldRowAccent;
@@ -16,11 +20,11 @@
     onValueChange(!value);
   }
 
-  $: iconClasses = value
-    ? "text-zinc-500 hover:text-zinc-300"
-    : muted
-      ? "text-zinc-600"
-      : accent.textAccent;
+  $: iconClasses = muted
+    ? "text-zinc-600"
+    : value
+      ? toggleIconRestClasses
+      : toggleIconActiveClasses;
 
   $: resolvedButtonClass =
     buttonClass ||

@@ -1,5 +1,5 @@
 <script>
-  /** When true, draws a strong diagonal hatch over the step card. */
+  /** When true, draws a diagonal hatch (e.g. over the duration track only). */
   export let active = false;
 </script>
 

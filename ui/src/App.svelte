@@ -37,7 +37,11 @@
     rowAccentFor,
     rowMutedOverlayClasses,
     rowMuteControlClasses,
+    rowPowerToggleOffClasses,
+    rowPowerToggleOnClasses,
     rowReverseControlClasses,
+    toggleIconActiveClasses,
+    toggleIconRestClasses,
   } from "./rowAccentTheme.js";
 
   let pluginName = "MIDI Phrases";
@@ -1064,8 +1068,8 @@
         aria-label={rowColorsEnabled ? "Disable row colors" : "Enable row colors"}
         aria-pressed={rowColorsEnabled}
         class="mt-1 {rowReverseControlClasses} {emeraldRowAccent.controlFocus} {rowColorsEnabled
-          ? `border-zinc-600 ${emeraldRowAccent.textAccent}`
-          : 'border-zinc-700 text-zinc-500'}"
+          ? `border-zinc-600 ${toggleIconActiveClasses}`
+          : `border-zinc-700 ${toggleIconRestClasses}`}"
         onclick={() => {
           rowColorsEnabled = !rowColorsEnabled;
         }}
@@ -1184,9 +1188,9 @@
                 type="button"
                 aria-label={rowMuted[row] ? "Turn row on" : "Turn row off"}
                 aria-pressed={!rowMuted[row]}
-                class="{rowMuteControlClasses} {rowAccent.controlFocus} {rowMuted[row]
-                  ? 'text-zinc-400'
-                  : rowAccent.textAccent}"
+                class="{rowMuteControlClasses} {rowMuted[row]
+                  ? rowPowerToggleOffClasses
+                  : rowPowerToggleOnClasses}"
                 onclick={() => toggleRowMute(row)}
               >
                 <RowDisableIcon class="h-9 w-9" />
@@ -1215,10 +1219,10 @@
                 aria-label={rowReversed[row] ? "Disable reverse playback" : "Enable reverse playback"}
                 aria-pressed={rowReversed[row]}
                 class="{rowReverseControlClasses} {rowAccent.controlFocus} {rowReversed[row] && !rowMuted[row]
-                  ? `border-zinc-600 ${rowAccent.textAccent}`
+                  ? `border-zinc-600 ${toggleIconActiveClasses}`
                   : rowMuted[row]
                     ? 'border-zinc-800/90 text-zinc-600'
-                    : 'border-zinc-700 text-zinc-500'}"
+                    : `border-zinc-700 ${toggleIconRestClasses}`}"
                 onclick={() => toggleRowReverse(row)}
               >
                 Reverse

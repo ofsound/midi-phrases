@@ -2,9 +2,6 @@
   import { doubleClick } from "./doubleClickAction.js";
   import { longPress } from "./longPressAction.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
-  import StepMutedOverlay from "./StepMutedOverlay.svelte";
-  import StepSkippedOverlay from "./StepSkippedOverlay.svelte";
-
   /** @type {import('./rowAccentTheme.js').RowAccent} */
   export let accent = emeraldRowAccent;
   export let muted = false;
@@ -14,8 +11,6 @@
   export let surfaceClass = "bg-zinc-900";
   export let borderClass = "border-zinc-700";
   export let headerClass = "border-b border-zinc-800 bg-zinc-800/60";
-  export let stepSilenced = false;
-  export let stepSkipped = false;
   /** @type {(flipped: boolean) => void} */
   export let onFlipChange = () => {};
 
@@ -153,8 +148,6 @@
           title="Double-click empty area to close step settings"
         >
           <slot name="back" />
-          <StepSkippedOverlay active={stepSkipped && flipped} />
-          <StepMutedOverlay active={stepSilenced && !stepSkipped && flipped} />
         </div>
 
         <slot name="back-footer" />

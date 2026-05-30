@@ -127,9 +127,17 @@ export function rowAccentFor(row, rowColorsEnabled) {
 export const rowMutedOverlayClasses =
   "pointer-events-none absolute inset-0 z-10 rounded-xl bg-zinc-950/50";
 
+/** Icon toggles: off/on gray levels only (no hover; no row accent). */
+export const toggleIconRestClasses = "text-zinc-500";
+export const toggleIconActiveClasses = "text-zinc-300";
+
+/** Row power toggle (larger icon) — on matches {@link rowMuteControlClasses} hover. */
+export const rowPowerToggleOffClasses = "text-zinc-600";
+export const rowPowerToggleOnClasses = "text-zinc-200";
+
 /** On/off toggle stays above {@link rowMutedOverlayClasses}. */
 export const rowMuteControlClasses =
-  "relative z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 transition-colors outline-none hover:text-zinc-200";
+  "relative z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 transition-colors outline-none hover:text-zinc-200 focus-visible:ring-1 focus-visible:ring-zinc-500";
 
 /** Reverse toggle in the row control strip (after offset). */
 export const rowReverseControlClasses =
