@@ -34,6 +34,23 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK_FALSE (testPlugin.isPhraseRowMuted (0));
     }
 
+    SECTION ("pulse")
+    {
+        CHECK (testPlugin.getPulseIndex() == PluginProcessor::defaultPulseIndex);
+        CHECK (PluginProcessor::pulseQuartersForIndex (0) == Catch::Approx (0.5));
+        CHECK (PluginProcessor::pulseQuartersForIndex (1) == Catch::Approx (1.0));
+        CHECK (PluginProcessor::pulseQuartersForIndex (2) == Catch::Approx (2.0));
+        CHECK (PluginProcessor::pulseQuartersForIndex (3) == Catch::Approx (4.0));
+
+        testPlugin.setPulseIndex (0);
+        CHECK (testPlugin.getPulseIndex() == 0);
+
+        testPlugin.setPulseIndex (99);
+        CHECK (testPlugin.getPulseIndex() == PluginProcessor::pulseCount - 1);
+
+        testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    }
+
     SECTION ("row timing offset")
     {
         CHECK (testPlugin.getPhraseRowTimingOffset (0) == PluginProcessor::defaultRowTimingOffsetIndex);
@@ -50,16 +67,39 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseRowTimingOffset (0) == PluginProcessor::rowTimingOffsetCount - 1);
     }
 
+    SECTION ("row MIDI channel")
+    {
+        CHECK (testPlugin.getPhraseRowMidiChannel (0) == PluginProcessor::defaultPhraseRowMidiChannel);
+
+        testPlugin.setPhraseRowMidiChannel (0, 5);
+        testPlugin.setPhraseRowMidiChannel (1, 16);
+
+        CHECK (testPlugin.getPhraseRowMidiChannel (0) == 5);
+        CHECK (testPlugin.getPhraseRowMidiChannel (1) == 16);
+
+        testPlugin.setPhraseRowMidiChannel (0, 0);
+        CHECK (testPlugin.getPhraseRowMidiChannel (0) == PluginProcessor::minPhraseRowMidiChannel);
+
+        testPlugin.setPhraseRowMidiChannel (0, 99);
+        CHECK (testPlugin.getPhraseRowMidiChannel (0) == PluginProcessor::maxPhraseRowMidiChannel);
+    }
+
     SECTION ("step timing multiplier")
     {
         CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 0)
                == PluginProcessor::defaultStepTimingMultiplierIndex);
 
         testPlugin.setPhraseStepTimingMultiplier (0, 1, 0);
-        testPlugin.setPhraseStepTimingMultiplier (2, 3, 4);
+        testPlugin.setPhraseStepTimingMultiplier (2, 3, 15);
 
         CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 1) == 0);
-        CHECK (testPlugin.getPhraseStepTimingMultiplier (2, 3) == 4);
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (2, 3) == 15);
+        CHECK (PluginProcessor::stepTimingMultiplierForIndex (0)
+               == Catch::Approx (0.25));
+        CHECK (PluginProcessor::stepTimingMultiplierForIndex (3)
+               == Catch::Approx (1.0));
+        CHECK (PluginProcessor::stepTimingMultiplierForIndex (15)
+               == Catch::Approx (4.0));
         CHECK (PluginProcessor::stepTimingMultiplierForIndex (0)
                < PluginProcessor::stepTimingMultiplierForIndex (4));
 
@@ -135,7 +175,7 @@ TEST_CASE ("Plugin instance", "[instance]")
                     testPlugin.setPhraseStepVelocity (row, step, 0);
 
                 testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
-                testPlugin.setPhraseStepTimingMultiplier (row, step, 2);
+                testPlugin.setPhraseStepTimingMultiplier (row, step, 3);
             }
         }
 

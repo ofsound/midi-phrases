@@ -1,3 +1,4 @@
+import { defaultPulseIndex, pulseQuartersForIndex } from "./pulseLayout.js";
 import { timingMultiplierAtIndex, timingOffsetValues } from "./stepCellLayout.js";
 
 export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
@@ -8,15 +9,17 @@ const EPSILON = 1e-9;
  * @typedef {{ start: number, end: number, midi: number, velocity: number, row: number, step: number }} ScheduledNote
  */
 
-/** @param {number} offsetIndex */
-export function rowTimingOffsetQuarters(offsetIndex) {
-  return timingOffsetValues[offsetIndex] ?? 0;
+/** @param {number} offsetIndex @param {number} [pulseIndex] */
+export function rowTimingOffsetQuarters(offsetIndex, pulseIndex = defaultPulseIndex) {
+  return (timingOffsetValues[offsetIndex] ?? 0) * pulseQuartersForIndex(pulseIndex);
 }
 
 /**
  * @param {number[]} timingMultiplierIndices
+ * @param {number} [pulseIndex]
  */
-export function rowStepLayout(timingMultiplierIndices) {
+export function rowStepLayout(timingMultiplierIndices, pulseIndex = defaultPulseIndex) {
+  const pulse = pulseQuartersForIndex(pulseIndex);
   /** @type {number[]} */
   const stepStartQuarters = [];
   /** @type {number[]} */
@@ -25,7 +28,7 @@ export function rowStepLayout(timingMultiplierIndices) {
 
   for (const index of timingMultiplierIndices) {
     stepStartQuarters.push(cycleLengthQuarters);
-    const length = timingMultiplierAtIndex(index);
+    const length = timingMultiplierAtIndex(index) * pulse;
     stepLengthQuarters.push(length);
     cycleLengthQuarters += length;
   }
@@ -43,6 +46,7 @@ export function rowStepLayout(timingMultiplierIndices) {
  * @param {number[][]} params.stepDurationFraction
  * @param {number[][]} params.stepTimingMultiplier
  * @param {number[][]} params.stepVelocity
+ * @param {number} [params.pulseIndex]
  * @param {number} [params.lengthQuarters]
  * @returns {ScheduledNote[]}
  */
@@ -53,6 +57,7 @@ export function buildPhraseSchedule({
   stepDurationFraction,
   stepTimingMultiplier,
   stepVelocity,
+  pulseIndex = defaultPulseIndex,
   lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
 }) {
   const ppqStart = 0;
@@ -70,11 +75,12 @@ export function buildPhraseSchedule({
 
     const { stepStartQuarters, stepLengthQuarters, cycleLengthQuarters } = rowStepLayout(
       stepTimingMultiplier[row],
+      pulseIndex,
     );
 
     if (cycleLengthQuarters <= 0) continue;
 
-    const offset = rowTimingOffsetQuarters(rowTimingOffset[row]);
+    const offset = rowTimingOffsetQuarters(rowTimingOffset[row], pulseIndex);
 
     /** @type {{ ppq: number, step: number }[]} */
     const triggers = [];
@@ -209,6 +215,7 @@ export function isScheduledNoteActiveAtBeat(note, beat) {
  * @param {number[]} params.stepDurationFraction
  * @param {number[]} params.stepTimingMultiplier
  * @param {number[]} params.stepVelocity
+ * @param {number} [params.pulseIndex]
  */
 export function isStepActiveAtBeat({
   beat,
@@ -219,16 +226,19 @@ export function isStepActiveAtBeat({
   stepDurationFraction,
   stepTimingMultiplier,
   stepVelocity,
+  pulseIndex = defaultPulseIndex,
 }) {
   if (beat < 0 || rowMuted || step < 0 || step >= rowNotes.length) return false;
   if ((stepVelocity[step] ?? 0) <= 0 || (stepDurationFraction[step] ?? 0) <= 0) return false;
 
-  const { stepStartQuarters, stepLengthQuarters, cycleLengthQuarters } =
-    rowStepLayout(stepTimingMultiplier);
+  const { stepStartQuarters, stepLengthQuarters, cycleLengthQuarters } = rowStepLayout(
+    stepTimingMultiplier,
+    pulseIndex,
+  );
 
   if (cycleLengthQuarters <= 0 || (stepLengthQuarters[step] ?? 0) <= 0) return false;
 
-  const offset = rowTimingOffsetQuarters(rowTimingOffset);
+  const offset = rowTimingOffsetQuarters(rowTimingOffset, pulseIndex);
   const relativeBeat = beat - stepStartQuarters[step] - offset;
 
   if (relativeBeat < -EPSILON) return false;

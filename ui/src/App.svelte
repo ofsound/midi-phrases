@@ -9,11 +9,18 @@
   } from "./midiNoteNames.js";
   import SpeakerIcon from "./SpeakerIcon.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
+  import MidiChannelStepper from "./MidiChannelStepper.svelte";
   import PhraseRow from "./PhraseRow.svelte";
   import PianoRollPreview from "./PianoRollPreview.svelte";
-  import { findSingleMove } from "./stepCellLayout.js";
+  import {
+    defaultStepTimingMultiplierIndex,
+    findSingleMove,
+    stepTimingMultiplierCount,
+    timingMultiplierOptions,
+  } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
   import { isStepActiveAtBeat } from "./phraseSchedule.js";
+  import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
 
   let pluginName = "MIDI Phrases";
   let version = "0.0.1";
@@ -22,6 +29,8 @@
   let rowMuted = [false, false, false, false];
   /** @type {number[]} */
   let rowTimingOffset = [3, 3, 3, 3];
+  /** @type {number[]} */
+  let rowMidiChannel = [1, 1, 1, 1];
   /** @type {number[][]} */
   let stepDurationFraction = defaultStepDurationGrid();
   /** @type {number[][]} */
@@ -47,19 +56,16 @@
     { index: 6, label: ".75" },
   ];
 
-  const timingMultiplierOptions = [
-    { index: 0, label: ".25" },
-    { index: 1, label: ".5" },
-    { index: 2, label: "1" },
-    { index: 3, label: "2" },
-    { index: 4, label: "4" },
-  ];
 
   let nextStepId = defaultPhraseGrid().reduce((count, row) => count + row.length, 0);
   let loopBraceEnabled = false;
   let loopBraceStart = 0;
   let loopBraceEnd = 8;
   let playbackBeat = -1;
+  let standaloneTransportAvailable = false;
+  let standalonePlaying = false;
+  let standaloneTempoBpm = 120;
+  let pulseIndex = defaultPulseIndex;
 
   function createStepId() {
     const id = `step-${nextStepId}`;
@@ -122,6 +128,7 @@
             stepDurationFraction: stepDurationFraction[row],
             stepTimingMultiplier: stepTimingMultiplier[row],
             stepVelocity: stepVelocity[row],
+            pulseIndex,
           });
         }
       }
@@ -201,6 +208,24 @@
     rowTimingOffset = next;
   }
 
+  function loadRowMidiChannelFromInitialisation() {
+    const init = unwrapJuceInit("phraseRowMidiChannel");
+
+    if (!Array.isArray(init)) return;
+
+    const next = [1, 1, 1, 1];
+
+    for (let row = 0; row < 4; row += 1) {
+      const value = Number.parseInt(String(init[row]), 10);
+
+      if (Number.isNaN(value)) continue;
+
+      next[row] = Math.min(16, Math.max(1, value));
+    }
+
+    rowMidiChannel = next;
+  }
+
   function loadStepDurationFromInitialisation() {
     const init = unwrapJuceInit("phraseStepDurationFraction");
 
@@ -245,7 +270,7 @@
 
         next[row][step] = Number.isNaN(value)
           ? defaults[row][step] ?? defaults[row][0]
-          : Math.min(4, Math.max(0, value));
+          : Math.min(stepTimingMultiplierCount - 1, Math.max(0, value));
       }
     }
 
@@ -314,6 +339,13 @@
     await setPhraseRowTimingOffset(row, rowTimingOffset[row]);
   }
 
+  async function pushRowMidiChannel(row) {
+    if (!nativeFunctionAvailable("setPhraseRowMidiChannel")) return;
+
+    const setPhraseRowMidiChannel = getNativeFunction("setPhraseRowMidiChannel");
+    await setPhraseRowMidiChannel(row, rowMidiChannel[row]);
+  }
+
   async function pushStepTimingMultiplier(row, step) {
     if (!nativeFunctionAvailable("setPhraseStepTimingMultiplier")) return;
 
@@ -351,6 +383,12 @@
     rowTimingOffset[row] = offsetIndex;
     rowTimingOffset = rowTimingOffset;
     await pushRowTimingOffset(row);
+  }
+
+  async function selectRowMidiChannel(row, channel) {
+    rowMidiChannel[row] = Math.min(16, Math.max(1, channel));
+    rowMidiChannel = rowMidiChannel;
+    await pushRowMidiChannel(row);
   }
 
   async function selectStepTimingMultiplier(row, step, multiplierIndex) {
@@ -403,7 +441,11 @@
 
     grid[row].splice(step, 0, defaultNote);
     stepDurationFraction[row].splice(step, 0, defaultDurations[row]?.[0] ?? 1);
-    stepTimingMultiplier[row].splice(step, 0, defaultMultipliers[row]?.[0] ?? 2);
+    stepTimingMultiplier[row].splice(
+      step,
+      0,
+      defaultMultipliers[row]?.[0] ?? defaultStepTimingMultiplierIndex,
+    );
     stepVelocity[row].splice(step, 0, defaultVelocities[row]?.[0] ?? 100);
     activeGates[row].splice(step, 0, false);
     stepIds[row].splice(step, 0, createStepId());
@@ -443,6 +485,36 @@
     }
 
     playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
+  }
+
+  function loadPulseFromInitialisation() {
+    const init = unwrapJuceInit("pulseIndex");
+
+    if (init === null) return;
+
+    const raw = Array.isArray(init) ? init[0] : init;
+    const value = Number.parseInt(String(raw), 10);
+
+    if (!Number.isNaN(value)) {
+      pulseIndex = Math.min(pulseOptions.length - 1, Math.max(0, value));
+    }
+  }
+
+  async function setPulseFromSelect(event) {
+    const nextIndex = Number.parseInt(event.currentTarget.value, 10);
+
+    if (Number.isNaN(nextIndex)) return;
+
+    pulseIndex = Math.min(pulseOptions.length - 1, Math.max(0, nextIndex));
+
+    if (!nativeFunctionAvailable("setPulseIndex")) return;
+
+    const result = await getNativeFunction("setPulseIndex")(pulseIndex);
+    const confirmed = Number.parseInt(String(result), 10);
+
+    if (!Number.isNaN(confirmed)) {
+      pulseIndex = Math.min(pulseOptions.length - 1, Math.max(0, confirmed));
+    }
   }
 
   function loadLoopBraceFromInitialisation() {
@@ -511,14 +583,51 @@
     }
   }
 
+  function loadStandaloneTransportFromInitialisation() {
+    const available = unwrapJuceInit("standaloneTransportAvailable");
+    const playing = unwrapJuceInit("standaloneTransportPlaying");
+    const tempo = unwrapJuceInit("standaloneTempoBpm");
+
+    standaloneTransportAvailable = Boolean(Number.parseInt(String(available ?? 0), 10));
+    standalonePlaying = Boolean(Number.parseInt(String(playing ?? 0), 10));
+
+    const parsedTempo = Number.parseFloat(String(tempo ?? 120));
+    if (!Number.isNaN(parsedTempo)) standaloneTempoBpm = Math.min(300, Math.max(20, parsedTempo));
+  }
+
+  async function toggleStandaloneTransport() {
+    if (!nativeFunctionAvailable("setStandaloneTransportPlaying")) return;
+
+    const nextPlaying = !standalonePlaying;
+    standalonePlaying = nextPlaying;
+
+    await getNativeFunction("setStandaloneTransportPlaying")(nextPlaying ? 1 : 0);
+  }
+
+  async function setStandaloneTempoFromInput(event) {
+    const nextTempo = Number.parseFloat(event.currentTarget.value);
+    if (Number.isNaN(nextTempo)) return;
+
+    standaloneTempoBpm = Math.min(300, Math.max(20, nextTempo));
+
+    if (!nativeFunctionAvailable("setStandaloneTempoBpm")) return;
+
+    const result = await getNativeFunction("setStandaloneTempoBpm")(standaloneTempoBpm);
+    const confirmedTempo = Number.parseFloat(String(result));
+    if (!Number.isNaN(confirmedTempo)) standaloneTempoBpm = confirmedTempo;
+  }
+
   function loadInitialStateFromJuce() {
     loadGridFromInitialisation();
     loadRowMutedFromInitialisation();
     loadRowTimingOffsetFromInitialisation();
+    loadRowMidiChannelFromInitialisation();
     loadStepDurationFromInitialisation();
     loadStepTimingMultiplierFromInitialisation();
     loadStepVelocityFromInitialisation();
-    loadLoopBraceFromInitialisation();
+    loadPulseFromInitialisation();
+  loadLoopBraceFromInitialisation();
+    loadStandaloneTransportFromInitialisation();
   }
 
   loadInitialStateFromJuce();
@@ -534,11 +643,54 @@
 
 <main class="flex min-h-screen flex-col p-6">
   <header class="flex items-start justify-between gap-4">
-    <div>
-      <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
-      <h1 class="mt-1 text-xl font-semibold tracking-tight text-zinc-100">{pluginName}</h1>
+    <div class="flex min-w-0 flex-1 items-start gap-6">
+      <div>
+        <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
+        <h1 class="mt-1 text-xl font-semibold tracking-tight text-zinc-100">{pluginName}</h1>
+      </div>
+      <label class="flex items-center gap-2 pt-1 text-xs font-medium uppercase text-zinc-500">
+        Pulse
+        <select
+          class="h-8 min-w-[6.5rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-sm font-semibold normal-case text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+          value={pulseIndex}
+          onchange={setPulseFromSelect}
+        >
+          {#each pulseOptions as option (option.index)}
+            <option value={option.index}>{option.label}</option>
+          {/each}
+        </select>
+      </label>
     </div>
-    <p class="shrink-0 pt-0.5 text-sm text-zinc-500">v{version}</p>
+    <div class="flex shrink-0 items-center gap-3">
+      {#if standaloneTransportAvailable}
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label={standalonePlaying ? "Stop standalone transport" : "Start standalone transport"}
+            aria-pressed={standalonePlaying}
+            class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 {standalonePlaying
+              ? 'border-emerald-500 bg-emerald-500 text-zinc-950'
+              : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-600'}"
+            onclick={toggleStandaloneTransport}
+          >
+            {standalonePlaying ? "Stop" : "Play"}
+          </button>
+          <label class="flex items-center gap-1.5 text-xs font-medium uppercase text-zinc-500">
+            BPM
+            <input
+              type="number"
+              min="20"
+              max="300"
+              step="1"
+              value={Math.round(standaloneTempoBpm)}
+              class="h-8 w-[4.5rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-sm font-semibold text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              onchange={setStandaloneTempoFromInput}
+            />
+          </label>
+        </div>
+      {/if}
+      <p class="pt-0.5 text-sm text-zinc-500">v{version}</p>
+    </div>
   </header>
 
   <section class="mt-4 flex flex-1 flex-col items-start justify-start">
@@ -546,6 +698,11 @@
       <div class="flex flex-col gap-5">
         {#each grid as _row, row}
           <div class="flex items-center gap-2">
+            <MidiChannelStepper
+              value={rowMidiChannel[row]}
+              ariaLabel="Row {row + 1} MIDI channel"
+              onValueChange={(channel) => selectRowMidiChannel(row, channel)}
+            />
             <BipolarKnob
               label="Offset"
               options={timingOffsetOptions}
@@ -569,6 +726,7 @@
             <PhraseRow
               {row}
               timingOffsetIndex={rowTimingOffset[row]}
+              {pulseIndex}
               stepIds={stepIds[row]}
               notes={grid[row]}
               stepDurationFraction={stepDurationFraction[row]}
@@ -596,6 +754,7 @@
         {stepDurationFraction}
         {stepTimingMultiplier}
         {stepVelocity}
+        {pulseIndex}
         loopEnabled={loopBraceEnabled}
         loopStart={loopBraceStart}
         loopEnd={loopBraceEnd}

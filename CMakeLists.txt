@@ -148,6 +148,15 @@ target_link_libraries(SharedCode
 # Link the JUCE plugin targets our SharedCode target
 target_link_libraries("${PROJECT_NAME}" PRIVATE SharedCode)
 
+if (TARGET "${PROJECT_NAME}_Standalone")
+    target_compile_definitions("${PROJECT_NAME}_Standalone"
+        PRIVATE
+            JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1)
+    target_sources("${PROJECT_NAME}_Standalone"
+        PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/standalone/StandaloneApp.cpp")
+endif()
+
 # IPP support (SIMD DSP) — not needed for MIDI Phrases
 # include(PamplejuceIPP)
 

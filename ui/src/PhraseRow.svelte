@@ -10,6 +10,7 @@
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
   import {
     compensatedResizeBoundsPx,
+    defaultStepTimingMultiplierIndex,
     multiplierIndexFromCompensatedWidth,
     multiplierLabelForIndex,
     rowCellDisplayWidthsPx,
@@ -22,6 +23,7 @@
   export let row = 0;
   /** Index into timingOffsetValues (default 3 = 0 quarters). */
   export let timingOffsetIndex = 3;
+  export let pulseIndex = 1;
   /** @type {string[]} */
   export let stepIds = [];
   /** @type {number[]} */
@@ -169,7 +171,10 @@
 
   /** @param {number} step */
   function cellWidthForStep(step) {
-    return rowDisplayWidths[step] ?? stepCellWidthPx(stepTimingMultiplier[step] ?? 2);
+    return (
+      rowDisplayWidths[step]
+      ?? stepCellWidthPx(stepTimingMultiplier[step] ?? defaultStepTimingMultiplierIndex)
+    );
   }
 
   /** @param {number} step */
@@ -746,7 +751,7 @@
 
 <div
   class="flex min-w-0 flex-1 overflow-x-auto pt-2 pr-2 pb-2 pl-2"
-  style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex)}px"
+  style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex, pulseIndex)}px"
 >
   <div class="relative z-50 shrink-0 self-stretch">
     <StepInsertZone onInsert={() => onInsertStep(row, 0)} />

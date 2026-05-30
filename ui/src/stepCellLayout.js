@@ -1,9 +1,26 @@
-export const timingMultiplierValues = [0.25, 0.5, 1, 2, 4];
+import { defaultPulseIndex, pulseQuartersForIndex } from "./pulseLayout.js";
+
+export const stepTimingMultiplierQuarterStep = 0.25;
+export const stepTimingMultiplierMin = 0.25;
+export const stepTimingMultiplierMax = 4;
+
+/** Index 0 = 0.25× … index 15 = 4× in 0.25 steps. */
+export const stepTimingMultiplierCount = Math.round(
+  (stepTimingMultiplierMax - stepTimingMultiplierMin) / stepTimingMultiplierQuarterStep,
+) + 1;
+
+export const timingMultiplierValues = Array.from(
+  { length: stepTimingMultiplierCount },
+  (_, index) => stepTimingMultiplierMin + index * stepTimingMultiplierQuarterStep,
+);
+
+/** Default index for 1× step length. */
+export const defaultStepTimingMultiplierIndex = timingMultiplierValues.indexOf(1);
 
 /** Minimum shell width for the smallest (0.25×) step cell — fits G3 + 127 aligned with bar/header. */
 export const stepCellMinWidthPx = 64;
 
-/** Base pixel width for a step with timing multiplier index 2 (value 1). */
+/** Base pixel width for a step with timing multiplier index at 1×. */
 export const stepCellBaseWidthPx = stepCellMinWidthPx / timingMultiplierValues[0];
 
 /** Width of the insert divider control between cells. */
@@ -12,9 +29,9 @@ export const stepInsertZoneWidthPx = 16;
 /** Row timing offset in quarter notes; matches PluginProcessor::rowTimingOffsetValues. */
 export const timingOffsetValues = [-0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75];
 
-/** @param {number} offsetIndex */
-export function rowTimingOffsetShiftPx(offsetIndex) {
-  const offset = timingOffsetValues[offsetIndex] ?? 0;
+/** @param {number} offsetIndex @param {number} [pulseIndex] */
+export function rowTimingOffsetShiftPx(offsetIndex, pulseIndex = defaultPulseIndex) {
+  const offset = (timingOffsetValues[offsetIndex] ?? 0) * pulseQuartersForIndex(pulseIndex);
 
   return Math.round(stepCellBaseWidthPx * offset);
 }
@@ -23,6 +40,22 @@ export function rowTimingOffsetShiftPx(offsetIndex) {
 export function timingMultiplierAtIndex(multiplierIndex) {
   return timingMultiplierValues[multiplierIndex] ?? 1;
 }
+
+/** @param {number} value */
+export function formatTimingMultiplierLabel(value) {
+  if (value < 1) {
+    const text = value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+
+    return text.startsWith("0.") ? text.slice(1) : text;
+  }
+
+  return Number.isInteger(value) ? String(value) : String(value);
+}
+
+export const timingMultiplierOptions = timingMultiplierValues.map((value, index) => ({
+  index,
+  label: formatTimingMultiplierLabel(value),
+}));
 
 /** @param {number} multiplierIndex */
 export function stepCellWidthPx(multiplierIndex) {

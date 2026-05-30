@@ -58,8 +58,18 @@ public:
     int getPhraseRowTimingOffset (int row) const;
     static double rowTimingOffsetForIndex (int offsetIndex);
 
-    static constexpr int stepTimingMultiplierCount = 5;
-    static constexpr int defaultStepTimingMultiplierIndex = 2;
+    static constexpr int minPhraseRowMidiChannel = 1;
+    static constexpr int maxPhraseRowMidiChannel = 16;
+    static constexpr int defaultPhraseRowMidiChannel = 1;
+
+    void setPhraseRowMidiChannel (int row, int channel);
+    int getPhraseRowMidiChannel (int row) const;
+
+    static constexpr int stepTimingMultiplierCount = 16;
+    static constexpr int defaultStepTimingMultiplierIndex = 3;
+    static constexpr double stepTimingMultiplierQuarterStep = 0.25;
+    static constexpr double stepTimingMultiplierMin = 0.25;
+    static constexpr double stepTimingMultiplierMax = 4.0;
 
     void setPhraseStepTimingMultiplier (int row, int step, int multiplierIndex);
     int getPhraseStepTimingMultiplier (int row, int step) const;
@@ -97,6 +107,19 @@ public:
     /** Beat used for UI playhead and step highlighting; -1 when not playing. */
     double getPlaybackBeat() const;
 
+    bool hasStandaloneTransport() const;
+    void setStandaloneTransportPlaying (bool shouldPlay);
+    bool isStandaloneTransportPlaying() const;
+    void setStandaloneTempoBpm (double bpm);
+    double getStandaloneTempoBpm() const;
+
+    static constexpr int pulseCount = 4;
+    static constexpr int defaultPulseIndex = 1;
+
+    void setPulseIndex (int pulseIndex);
+    int getPulseIndex() const;
+    static double pulseQuartersForIndex (int pulseIndex);
+
 private:
     struct PhraseRowSteps
     {
@@ -127,6 +150,7 @@ private:
         std::array<PhraseRowSteps, phraseRowCount> rows {};
         std::array<int, phraseRowCount> muted {};
         std::array<int, phraseRowCount> timingOffset {};
+        std::array<int, phraseRowCount> midiChannel {};
     };
 
     struct SequencerCommand
@@ -136,6 +160,7 @@ private:
             SetNote,
             SetRowMuted,
             SetRowTimingOffset,
+            SetRowMidiChannel,
             SetStepTimingMultiplier,
             SetStepDurationFraction,
             SetStepVelocity,
@@ -184,6 +209,7 @@ private:
 
     struct PendingNoteOff
     {
+        int channel = 1;
         int note = -1;
         int samplesRemaining = 0;
     };
@@ -200,9 +226,14 @@ private:
     std::array<double, phraseRowCount> lastEmittedTriggerPpq {};
     std::array<ProcessScratch, phraseRowCount> processScratch {};
     std::atomic<double> currentPlaybackPpq { -1.0 };
+    std::atomic<int> pulseIndex { defaultPulseIndex };
     std::atomic<int> loopBraceEnabled { 0 };
     std::atomic<int> loopBraceStartQuarters { defaultLoopBraceStartQuarters };
     std::atomic<int> loopBraceEndQuarters { defaultLoopBraceEndQuarters };
+    std::atomic<int> standaloneTransportPlaying { 0 };
+    std::atomic<int> standaloneTransportResetRequested { 0 };
+    std::atomic<double> standaloneTempoBpm { 120.0 };
+    std::atomic<double> standaloneTransportPpqPosition { 0.0 };
     double sampleRateHz = 44100.0;
     bool wasPlaying = false;
 

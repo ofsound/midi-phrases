@@ -12,7 +12,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addAndMakeVisible (*webView);
 
    #if JUCE_DEBUG
-    webView->goToURL ("http://localhost:5173");
+    webView->goToURL ("http://localhost:5174");
    #else
     webView->goToURL (juce::WebBrowserComponent::getResourceProviderRoot());
    #endif

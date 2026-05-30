@@ -8,8 +8,18 @@ namespace
 {
 constexpr int defaultRowNotes[] = { 60, 64, 67, 72 };
 constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
-constexpr double stepTimingMultiplierValues[] = { 0.25, 0.5, 1.0, 2.0, 4.0 };
-constexpr int phraseStateVersion = 3;
+constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
+constexpr int phraseStateVersion = 4;
+
+int stepTimingMultiplierIndexFromState (const int storedIndex, const int stateVersion)
+{
+    if (stateVersion >= 4)
+        return juce::jlimit (0, PluginProcessor::stepTimingMultiplierCount - 1, storedIndex);
+
+    constexpr int legacyToNew[] = { 0, 1, 3, 7, 15 };
+
+    return legacyToNew[juce::jlimit (0, 4, storedIndex)];
+}
 constexpr double legacyStepDurationFractionValues[] = { 0.25, 0.5, 0.75, 1.0 };
 
 double clampStepDurationFraction (const double fraction)
@@ -52,6 +62,11 @@ int clampLoopBraceEnd (const int endQuarters, const int startQuarters)
 {
     return juce::jmax (startQuarters + 1, endQuarters);
 }
+
+double clampStandaloneTempoBpm (const double bpm)
+{
+    return juce::jlimit (20.0, 300.0, bpm);
+}
 } // namespace
 
 void PluginProcessor::resetPendingNoteOffs()
@@ -88,8 +103,10 @@ PluginProcessor::PluginProcessor()
         initialiseRowDefaults (audioState.rows[static_cast<size_t> (row)], row, defaultPhraseStepsPerRow);
         modelState.muted[static_cast<size_t> (row)] = 0;
         modelState.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
+        modelState.midiChannel[static_cast<size_t> (row)] = defaultPhraseRowMidiChannel;
         audioState.muted[static_cast<size_t> (row)] = 0;
         audioState.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
+        audioState.midiChannel[static_cast<size_t> (row)] = defaultPhraseRowMidiChannel;
         phraseRowFlushNoteOff[static_cast<size_t> (row)].store (0);
     }
 
@@ -151,6 +168,7 @@ void PluginProcessor::initialiseRowDefaults (PhraseRowSteps& steps, const int ro
 
 void PluginProcessor::rebuildRowTimingLayout (PhraseRowSteps& steps)
 {
+    const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
     auto cycleLengthQuarters = 0.0;
 
     for (int step = 0; step < maxPhraseStepsPerRow; ++step)
@@ -159,8 +177,9 @@ void PluginProcessor::rebuildRowTimingLayout (PhraseRowSteps& steps)
 
         if (step < steps.stepCount)
         {
-            steps.stepLengthQuarters[static_cast<size_t> (step)] = stepTimingMultiplierForIndex (
-                steps.timingMultiplier[static_cast<size_t> (step)]);
+            steps.stepLengthQuarters[static_cast<size_t> (step)] =
+                stepTimingMultiplierForIndex (steps.timingMultiplier[static_cast<size_t> (step)])
+                * pulse;
             cycleLengthQuarters += steps.stepLengthQuarters[static_cast<size_t> (step)];
         }
         else
@@ -222,6 +241,11 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
         case SequencerCommand::Type::SetRowTimingOffset:
             audioState.timingOffset[static_cast<size_t> (command.row)] =
                 juce::jlimit (0, rowTimingOffsetCount - 1, command.intValue);
+            break;
+
+        case SequencerCommand::Type::SetRowMidiChannel:
+            audioState.midiChannel[static_cast<size_t> (command.row)] =
+                juce::jlimit (minPhraseRowMidiChannel, maxPhraseRowMidiChannel, command.intValue);
             break;
 
         case SequencerCommand::Type::SetStepTimingMultiplier:
@@ -370,7 +394,30 @@ double PluginProcessor::rowTimingOffsetForIndex (const int offsetIndex)
 double PluginProcessor::stepTimingMultiplierForIndex (const int multiplierIndex)
 {
     const auto index = juce::jlimit (0, stepTimingMultiplierCount - 1, multiplierIndex);
-    return stepTimingMultiplierValues[static_cast<size_t> (index)];
+    return stepTimingMultiplierMin
+           + static_cast<double> (index) * stepTimingMultiplierQuarterStep;
+}
+
+double PluginProcessor::pulseQuartersForIndex (const int pulseIndexIn)
+{
+    const auto index = juce::jlimit (0, pulseCount - 1, pulseIndexIn);
+    return pulseQuartersTable[static_cast<size_t> (index)];
+}
+
+void PluginProcessor::setPulseIndex (const int pulseIndexIn)
+{
+    pulseIndex.store (juce::jlimit (0, pulseCount - 1, pulseIndexIn), std::memory_order_relaxed);
+
+    for (int row = 0; row < phraseRowCount; ++row)
+    {
+        rebuildRowTimingLayout (modelRow (row));
+        publishRowToAudio (row);
+    }
+}
+
+int PluginProcessor::getPulseIndex() const
+{
+    return pulseIndex.load (std::memory_order_relaxed);
 }
 
 const juce::String PluginProcessor::getName() const
@@ -515,6 +562,31 @@ int PluginProcessor::getPhraseRowTimingOffset (const int row) const
         return defaultRowTimingOffsetIndex;
 
     return modelState.timingOffset[static_cast<size_t> (row)];
+}
+
+void PluginProcessor::setPhraseRowMidiChannel (const int row, const int channel)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return;
+
+    const auto value =
+        juce::jlimit (minPhraseRowMidiChannel, maxPhraseRowMidiChannel, channel);
+    modelState.midiChannel[static_cast<size_t> (row)] = value;
+    phraseRowFlushNoteOff[static_cast<size_t> (row)].store (1);
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetRowMidiChannel;
+    command.row = row;
+    command.intValue = value;
+    publishCommandToAudio (command);
+}
+
+int PluginProcessor::getPhraseRowMidiChannel (const int row) const
+{
+    if (row < 0 || row >= phraseRowCount)
+        return defaultPhraseRowMidiChannel;
+
+    return modelState.midiChannel[static_cast<size_t> (row)];
 }
 
 void PluginProcessor::setPhraseStepTimingMultiplier (const int row,
@@ -789,6 +861,46 @@ double PluginProcessor::getLoopPlaybackBeat() const
     return getPlaybackBeat();
 }
 
+bool PluginProcessor::hasStandaloneTransport() const
+{
+    return wrapperType == wrapperType_Standalone;
+}
+
+void PluginProcessor::setStandaloneTransportPlaying (const bool shouldPlay)
+{
+    if (! hasStandaloneTransport())
+        return;
+
+    const auto nextPlaying = shouldPlay ? 1 : 0;
+    const auto wasStandalonePlaying = standaloneTransportPlaying.exchange (
+        nextPlaying,
+        std::memory_order_relaxed);
+
+    if (nextPlaying != 0 && wasStandalonePlaying == 0)
+    {
+        standaloneTransportPpqPosition.store (0.0, std::memory_order_relaxed);
+        standaloneTransportResetRequested.store (1, std::memory_order_relaxed);
+    }
+}
+
+bool PluginProcessor::isStandaloneTransportPlaying() const
+{
+    return standaloneTransportPlaying.load (std::memory_order_relaxed) != 0;
+}
+
+void PluginProcessor::setStandaloneTempoBpm (const double bpm)
+{
+    if (! hasStandaloneTransport())
+        return;
+
+    standaloneTempoBpm.store (clampStandaloneTempoBpm (bpm), std::memory_order_relaxed);
+}
+
+double PluginProcessor::getStandaloneTempoBpm() const
+{
+    return standaloneTempoBpm.load (std::memory_order_relaxed);
+}
+
 void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                              const double schedulePpqEnd,
                                              const double segmentTransportStartPpq,
@@ -817,7 +929,9 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             if (pending.note < 0)
                 continue;
 
-            midiMessages.addEvent (juce::MidiMessage::noteOff (1, pending.note), segmentSampleOffset);
+            midiMessages.addEvent (
+                juce::MidiMessage::noteOff (pending.channel, pending.note),
+                segmentSampleOffset);
             pending.note = -1;
             pending.samplesRemaining = 0;
         }
@@ -828,7 +942,10 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
         if (audioState.muted[static_cast<size_t> (row)] != 0)
             continue;
 
-        const auto offset = rowTimingOffsetForIndex (audioState.timingOffset[static_cast<size_t> (row)]);
+        const auto midiChannel = audioState.midiChannel[static_cast<size_t> (row)];
+        const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
+        const auto offset = rowTimingOffsetForIndex (audioState.timingOffset[static_cast<size_t> (row)])
+                            * pulse;
 
         const auto stepCount = audioState.rows[static_cast<size_t> (row)].stepCount;
 
@@ -911,7 +1028,9 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
             if (pending.note >= 0)
             {
-                midiMessages.addEvent (juce::MidiMessage::noteOff (1, pending.note), sampleOffset);
+                midiMessages.addEvent (
+                    juce::MidiMessage::noteOff (pending.channel, pending.note),
+                    sampleOffset);
                 pending.note = -1;
                 pending.samplesRemaining = 0;
             }
@@ -958,16 +1077,19 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                                        gateQuarters / ppqPerSample)));
 
             midiMessages.addEvent (
-                juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (velocity)),
+                juce::MidiMessage::noteOn (midiChannel, note, static_cast<juce::uint8> (velocity)),
                 sampleOffset);
             const auto samplesUntilOff = sampleOffset + noteGateSamples;
 
             if (samplesUntilOff < bufferSamples)
             {
-                midiMessages.addEvent (juce::MidiMessage::noteOff (1, note), samplesUntilOff);
+                midiMessages.addEvent (
+                    juce::MidiMessage::noteOff (midiChannel, note),
+                    samplesUntilOff);
             }
             else
             {
+                pending.channel = midiChannel;
                 pending.note = note;
                 pending.samplesRemaining = samplesUntilOff - bufferSamples;
             }
@@ -1018,15 +1140,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     drainSequencerCommands();
 
-    const auto* playHead = getPlayHead();
-
-    if (playHead == nullptr)
-        return;
-
-    const auto position = playHead->getPosition();
-
-    if (! position.hasValue() || ! position->getIsPlaying())
-    {
+    const auto stopPlayback = [&] {
         if (wasPlaying)
         {
             for (int ch = 1; ch <= 16; ++ch)
@@ -1037,8 +1151,51 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         resetLastEmittedTriggers();
         resetPendingNoteOffs();
         currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
-        return;
+    };
+
+    double ppqStart = 0.0;
+    double bpm = 120.0;
+
+    if (hasStandaloneTransport())
+    {
+        if (standaloneTransportResetRequested.exchange (0, std::memory_order_relaxed) != 0)
+        {
+            wasPlaying = false;
+            resetLastEmittedTriggers();
+            resetPendingNoteOffs();
+            currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
+        }
+
+        if (! isStandaloneTransportPlaying())
+        {
+            stopPlayback();
+            return;
+        }
+
+        ppqStart = standaloneTransportPpqPosition.load (std::memory_order_relaxed);
+        bpm = clampStandaloneTempoBpm (standaloneTempoBpm.load (std::memory_order_relaxed));
     }
+    else
+    {
+        const auto* playHead = getPlayHead();
+
+        if (playHead == nullptr)
+            return;
+
+        const auto position = playHead->getPosition();
+
+        if (! position.hasValue() || ! position->getIsPlaying())
+        {
+            stopPlayback();
+            return;
+        }
+
+        ppqStart = position->getPpqPosition().orFallback (0.0);
+        bpm = position->getBpm().orFallback (120.0);
+    }
+
+    if (bpm <= 0.0)
+        return;
 
     wasPlaying = true;
 
@@ -1053,7 +1210,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
         if (pending.note >= 0)
         {
-            midiMessages.addEvent (juce::MidiMessage::noteOff (1, pending.note), 0);
+            midiMessages.addEvent (juce::MidiMessage::noteOff (pending.channel, pending.note), 0);
             pending.note = -1;
             pending.samplesRemaining = 0;
         }
@@ -1066,7 +1223,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
         if (pending.samplesRemaining < bufferSamples)
         {
-            midiMessages.addEvent (juce::MidiMessage::noteOff (1, pending.note),
+            midiMessages.addEvent (juce::MidiMessage::noteOff (pending.channel, pending.note),
                                    pending.samplesRemaining);
             pending.note = -1;
             pending.samplesRemaining = 0;
@@ -1077,11 +1234,12 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         }
     }
 
-    const auto ppqStart = position->getPpqPosition().orFallback (0.0);
-    const auto bpm = position->getBpm().orFallback (120.0);
     const auto ppqPerSample = (bpm / 60.0) / sampleRateHz;
     const auto ppqEnd = ppqStart + static_cast<double> (bufferSamples) * ppqPerSample;
     currentPlaybackPpq.store (ppqEnd, std::memory_order_relaxed);
+
+    if (hasStandaloneTransport())
+        standaloneTransportPpqPosition.store (ppqEnd, std::memory_order_relaxed);
 
     const auto loopEnabled = loopBraceEnabled.load (std::memory_order_relaxed) != 0;
     const auto loopStart = static_cast<double> (loopBraceStartQuarters.load (std::memory_order_relaxed));
@@ -1166,9 +1324,11 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 
         rowTree.setProperty ("muted", isPhraseRowMuted (row), nullptr);
         rowTree.setProperty ("timingOffset", getPhraseRowTimingOffset (row), nullptr);
+        rowTree.setProperty ("midiChannel", getPhraseRowMidiChannel (row), nullptr);
         state.appendChild (rowTree, nullptr);
     }
 
+    state.setProperty ("pulseIndex", getPulseIndex(), nullptr);
     state.setProperty ("loopBraceEnabled", isLoopBraceEnabled(), nullptr);
     state.setProperty ("loopBraceStart", getLoopBraceStartQuarters(), nullptr);
     state.setProperty ("loopBraceEnd", getLoopBraceEndQuarters(), nullptr);
@@ -1226,11 +1386,10 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             const auto timingMultiplierPropName = "timingMultiplier" + juce::String (step);
             const auto note = static_cast<int> (rowTree.getProperty (propName, defaultNoteForRow (row)));
             steps.notes[static_cast<size_t> (step)] = juce::jlimit (0, 127, note);
-            steps.timingMultiplier[static_cast<size_t> (step)] = juce::jlimit (
-                0,
-                stepTimingMultiplierCount - 1,
+            steps.timingMultiplier[static_cast<size_t> (step)] = stepTimingMultiplierIndexFromState (
                 static_cast<int> (rowTree.getProperty (timingMultiplierPropName,
-                                                         defaultStepTimingMultiplierIndex)));
+                                                       defaultStepTimingMultiplierIndex)),
+                stateVersion);
             steps.durationFraction[static_cast<size_t> (step)] = durationFractionFromStateProperty (
                 rowTree.getProperty (durationPropName, defaultStepDurationFraction),
                 stateVersion);
@@ -1246,6 +1405,10 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             0,
             rowTimingOffsetCount - 1,
             static_cast<int> (rowTree.getProperty ("timingOffset", defaultRowTimingOffsetIndex)));
+        modelState.midiChannel[static_cast<size_t> (row)] = juce::jlimit (
+            minPhraseRowMidiChannel,
+            maxPhraseRowMidiChannel,
+            static_cast<int> (rowTree.getProperty ("midiChannel", defaultPhraseRowMidiChannel)));
         rebuildRowTimingLayout (steps);
         publishRowToAudio (row);
 
@@ -1260,7 +1423,15 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         timingCommand.row = row;
         timingCommand.intValue = modelState.timingOffset[static_cast<size_t> (row)];
         publishCommandToAudio (timingCommand);
+
+        SequencerCommand channelCommand;
+        channelCommand.type = SequencerCommand::Type::SetRowMidiChannel;
+        channelCommand.row = row;
+        channelCommand.intValue = modelState.midiChannel[static_cast<size_t> (row)];
+        publishCommandToAudio (channelCommand);
     }
+
+    setPulseIndex (static_cast<int> (state.getProperty ("pulseIndex", defaultPulseIndex)));
 
     setLoopBraceStartQuarters (static_cast<int> (state.getProperty ("loopBraceStart",
                                                                      defaultLoopBraceStartQuarters)));

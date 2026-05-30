@@ -1,6 +1,7 @@
 <script>
   import { midiToNoteName } from "./midiNoteNames.js";
   import { beatFromClientX, clampLoopBrace } from "./loopBraceLayout.js";
+  import { defaultPulseIndex } from "./pulseLayout.js";
   import {
     buildPhraseSchedule,
     DEFAULT_PREVIEW_LENGTH_QUARTERS,
@@ -15,6 +16,7 @@
   export let stepDurationFraction = [];
   export let stepTimingMultiplier = [];
   export let stepVelocity = [];
+  export let pulseIndex = defaultPulseIndex;
   export let lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS;
   export let loopEnabled = false;
   export let loopStart = 0;
@@ -52,6 +54,7 @@
     stepDurationFraction,
     stepTimingMultiplier,
     stepVelocity,
+    pulseIndex,
     lengthQuarters,
   });
 
