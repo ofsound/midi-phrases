@@ -522,6 +522,21 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK_FALSE (testPlugin.isPhraseStepSkipped (0, 1));
     }
 
+    SECTION ("step mute and skip are mutually exclusive")
+    {
+        testPlugin.setPhraseStepMuted (0, 1, true);
+        CHECK (testPlugin.isPhraseStepMuted (0, 1));
+        CHECK_FALSE (testPlugin.isPhraseStepSkipped (0, 1));
+
+        testPlugin.setPhraseStepSkipped (0, 1, true);
+        CHECK (testPlugin.isPhraseStepSkipped (0, 1));
+        CHECK_FALSE (testPlugin.isPhraseStepMuted (0, 1));
+
+        testPlugin.setPhraseStepMuted (0, 1, true);
+        CHECK (testPlugin.isPhraseStepMuted (0, 1));
+        CHECK_FALSE (testPlugin.isPhraseStepSkipped (0, 1));
+    }
+
     SECTION ("step probability")
     {
         CHECK (testPlugin.getPhraseStepProbability (0, 0) == PluginProcessor::defaultStepProbability);
@@ -604,7 +619,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseNote (0, 2) == 77);
         CHECK (testPlugin.getPhraseStepVelocity (0, 1) == 42);
         CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 1) == 8);
-        CHECK (testPlugin.isPhraseStepMuted (0, 1));
+        CHECK_FALSE (testPlugin.isPhraseStepMuted (0, 1));
         CHECK (testPlugin.isPhraseStepSkipped (0, 1));
         CHECK (testPlugin.getPhraseStepProbability (0, 1) == 25);
         CHECK (testPlugin.getPhraseStepCycle (0, 1) == 4);

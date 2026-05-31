@@ -13,6 +13,9 @@ export const pulseOptions = [
   { index: 3, label: "Whole" },
 ];
 
+/** @type {('eighth' | 'quarter' | 'half' | 'whole')[]} */
+export const pulseNoteKinds = ["eighth", "quarter", "half", "whole"];
+
 /** @param {number} pulseIndex */
 export function pulseQuartersForIndex(pulseIndex) {
   const index = Math.min(pulseCount - 1, Math.max(0, Math.trunc(pulseIndex)));

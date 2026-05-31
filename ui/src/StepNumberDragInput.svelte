@@ -12,8 +12,13 @@
   export let resetValue = undefined;
   export let ariaLabel = "Value";
   export let disabled = false;
+  /** When true, use header control box styling (matches DiscreteDragSelect). */
+  export let boxed = false;
   /** @type {(value: number) => void | Promise<void>} */
   export let onValueChange = () => {};
+
+  const boxedControlClasses =
+    "flex h-8 w-[4.5rem] items-center justify-center rounded-md border bg-gradient-to-b from-zinc-700/50 to-zinc-950 px-2 text-sm font-semibold tabular-nums transition-[border-color,box-shadow] duration-75";
 
   const pixelsPerStep = 4;
 
@@ -70,9 +75,17 @@
 </script>
 
 <div
-  class="inline-flex touch-none select-none items-center rounded-sm outline-none {disabled
+  class="touch-none select-none outline-none {boxed
+    ? boxedControlClasses
+    : 'inline-flex items-center rounded-sm'} {disabled
     ? 'cursor-default opacity-50'
-    : 'cursor-ns-resize'} {accent.ringFocusWithWidth} {muted
+    : 'cursor-ns-resize'} {accent.ringFocusWithWidth} {boxed
+    ? dragging && !muted
+      ? `${accent.dragBorder} ${accent.dragShadow}`
+      : muted
+        ? 'border-zinc-800'
+        : 'border-zinc-700'
+    : ''} {muted
     ? 'text-zinc-500'
     : dragging
       ? accent.textAccentLight
@@ -107,5 +120,10 @@
     }
   }}
 >
-  <span class="font-sans text-xs leading-none font-bold tabular-nums">{displayValue}</span>
+  <span
+    class="font-sans leading-none tabular-nums {boxed
+      ? ''
+      : 'text-xs font-bold'} {dragging && !muted ? accent.textAccentLight : ''}"
+    >{displayValue}</span
+  >
 </div>

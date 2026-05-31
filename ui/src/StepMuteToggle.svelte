@@ -1,5 +1,5 @@
 <script>
-  import SpeakerIcon from "./SpeakerIcon.svelte";
+  import StepMuteIcon from "./StepMuteIcon.svelte";
   import {
     emeraldRowAccent,
     toggleIconActiveClasses,
@@ -13,6 +13,8 @@
   export let ariaLabel = "Mute step";
   export let buttonClass = "";
   export let iconClass = "pointer-events-none h-3 w-3";
+  /** @type {string | undefined} */
+  export let style = undefined;
   /** @type {(value: boolean) => void | Promise<void>} */
   export let onValueChange = () => {};
 
@@ -23,8 +25,8 @@
   $: iconClasses = muted
     ? "text-zinc-600"
     : value
-      ? toggleIconRestClasses
-      : toggleIconActiveClasses;
+      ? toggleIconActiveClasses
+      : toggleIconRestClasses;
 
   $: resolvedButtonClass =
     buttonClass ||
@@ -36,10 +38,10 @@
   data-step-pointer
   aria-label={ariaLabel}
   aria-pressed={value}
-  style="cursor: pointer"
+  style={style ? `cursor: pointer; ${style}` : "cursor: pointer"}
   class="{resolvedButtonClass} {iconClasses}"
   onpointerdown={(event) => event.stopPropagation()}
   onclick={toggle}
 >
-  <SpeakerIcon class={iconClass} />
+  <StepMuteIcon class={iconClass} />
 </button>

@@ -6,6 +6,13 @@ export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
 const EPSILON = 1e-9;
 export const swingSubdivisionValues = [0.25, 0.5, 1];
 
+/** @type {{ index: number, label: string }[]} */
+export const swingSubdivisionOptions = [
+  { index: 0, label: ".25" },
+  { index: 1, label: ".5" },
+  { index: 2, label: "1" },
+];
+
 /** @param {number} triggerCount @param {number} cycle @param {number} cycleOffset */
 export function cycleGatePasses(triggerCount, cycle, cycleOffset) {
   const length = Math.max(1, Math.round(cycle));

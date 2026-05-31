@@ -18,6 +18,7 @@
   import BipolarKnob from "./BipolarKnob.svelte";
   import MidiChannelStepper from "./MidiChannelStepper.svelte";
   import PhraseRow from "./PhraseRow.svelte";
+  import StepNumberDragInput from "./StepNumberDragInput.svelte";
   import PianoRollPreview from "./PianoRollPreview.svelte";
   import {
     defaultStepTimingMultiplierIndex,
@@ -26,11 +27,19 @@
     timingMultiplierOptions,
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
-  import { isStepActiveAtBeat, swingSubdivisionValues } from "./phraseSchedule.js";
+  import {
+    isStepActiveAtBeat,
+    swingSubdivisionOptions,
+    swingSubdivisionValues,
+  } from "./phraseSchedule.js";
+  import DiscreteDragSelect from "./DiscreteDragSelect.svelte";
+  import PulseNoteButtonGroup from "./PulseNoteButtonGroup.svelte";
+  import ColorsToggle from "./ColorsToggle.svelte";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
     phraseBeatGuideGlobalLeftPx,
     phraseGridVisualOffsetCompensationPx,
+    phraseRowLeadingControlsAfterMuteWidthPx,
   } from "./phraseRowLayout.js";
   import {
     emeraldRowAccent,
@@ -38,7 +47,6 @@
     rowMutedOverlayClasses,
     rowMuteControlClasses,
     rowPowerToggleOffClasses,
-    rowPowerToggleOnClasses,
     rowReverseControlClasses,
     toggleIconActiveClasses,
     toggleIconRestClasses,
@@ -658,14 +666,38 @@
 
   async function setStepMuted(row, step, muted) {
     stepMuted[row][step] = muted;
+    let clearedSkip = false;
+
+    if (muted && stepSkipped[row][step]) {
+      stepSkipped[row][step] = false;
+      clearedSkip = true;
+      stepSkipped = stepSkipped;
+    }
+
     stepMuted = stepMuted;
     await pushStepMuted(row, step);
+
+    if (clearedSkip) {
+      await pushStepSkipped(row, step);
+    }
   }
 
   async function setStepSkipped(row, step, skipped) {
     stepSkipped[row][step] = skipped;
+    let clearedMute = false;
+
+    if (skipped && stepMuted[row][step]) {
+      stepMuted[row][step] = false;
+      clearedMute = true;
+      stepMuted = stepMuted;
+    }
+
     stepSkipped = stepSkipped;
     await pushStepSkipped(row, step);
+
+    if (clearedMute) {
+      await pushStepMuted(row, step);
+    }
   }
 
   async function setStepProbability(row, step, probability) {
@@ -840,11 +872,7 @@
     }
   }
 
-  async function setPulseFromSelect(event) {
-    const nextIndex = Number.parseInt(event.currentTarget.value, 10);
-
-    if (Number.isNaN(nextIndex)) return;
-
+  async function applyPulseIndex(nextIndex) {
     pulseIndex = Math.min(pulseOptions.length - 1, Math.max(0, nextIndex));
 
     if (!nativeFunctionAvailable("setPulseIndex")) return;
@@ -885,22 +913,18 @@
     }
   }
 
-  async function setGlobalPercent(event, nativeName, assign) {
-    const next = clampPercent(event.currentTarget.value);
-    assign(next);
+  async function applyGlobalPercent(next, nativeName, assign) {
+    const clamped = clampPercent(next);
+    assign(clamped);
 
     if (!nativeFunctionAvailable(nativeName)) return;
 
-    const result = await getNativeFunction(nativeName)(next);
+    const result = await getNativeFunction(nativeName)(clamped);
     const confirmed = clampPercent(result);
     assign(confirmed);
   }
 
-  async function setSwingSubdivisionFromSelect(event) {
-    const nextIndex = Number.parseInt(event.currentTarget.value, 10);
-
-    if (Number.isNaN(nextIndex)) return;
-
+  async function applySwingSubdivisionIndex(nextIndex) {
     swingSubdivisionIndex = Math.min(swingSubdivisionValues.length - 1, Math.max(0, nextIndex));
 
     if (!nativeFunctionAvailable("setSwingSubdivisionIndex")) return;
@@ -1045,97 +1069,110 @@
 </script>
 
 <main class="flex h-full flex-col overflow-hidden p-6">
-  <header class="flex shrink-0 items-start justify-between gap-4">
-    <div class="flex min-w-0 flex-1 items-start gap-6">
-      <div>
+  <div class="shrink-0 -mx-6">
+  <header class="flex items-end justify-between gap-4 px-6 pb-6">
+    <div class="flex min-w-0 flex-1 items-end gap-1">
+      <div class="flex w-10 shrink-0 flex-col items-start self-start">
         <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
-        <h1 class="text-xl font-semibold tracking-tight text-zinc-100">{pluginName}</h1>
+        <h1 class="whitespace-nowrap text-xl font-semibold tracking-tight text-zinc-100">
+          {pluginName}
+        </h1>
       </div>
-      <label class="flex items-center gap-2 pt-1 text-xs font-medium uppercase text-zinc-500">
-        Pulse
-        <select
-          class="h-8 min-w-[6.5rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-sm font-semibold normal-case text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-          value={pulseIndex}
-          onchange={setPulseFromSelect}
-        >
-          {#each pulseOptions as option (option.index)}
-            <option value={option.index}>{option.label}</option>
-          {/each}
-        </select>
-      </label>
-      <button
-        type="button"
-        aria-label={rowColorsEnabled ? "Disable row colors" : "Enable row colors"}
-        aria-pressed={rowColorsEnabled}
-        class="mt-1 {rowReverseControlClasses} {emeraldRowAccent.controlFocus} {rowColorsEnabled
-          ? `border-zinc-600 ${toggleIconActiveClasses}`
-          : `border-zinc-700 ${toggleIconRestClasses}`}"
-        onclick={() => {
-          rowColorsEnabled = !rowColorsEnabled;
-        }}
-      >
-        Colors
-      </button>
-      <div class="mt-0.5 flex items-end gap-3 border-l border-r border-zinc-700/80 px-4">
-        <label class="flex flex-col gap-1 text-xs font-semibold text-zinc-500">
-          Swing
-          <input
-            type="number"
-            min="0"
-            max="100"
-            step="1"
-            value={swingPercent}
-            class="h-8 w-[5.25rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-center text-lg font-medium text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-            onchange={(event) =>
-              setGlobalPercent(event, "setSwingPercent", (value) => {
-                swingPercent = value;
-              })}
+
+      <!-- Mute column + gap + rest of row leading controls | PhraseRow (pl-2 + insert + steps) -->
+      <div class="flex min-w-0 flex-1 items-end gap-1">
+        <div
+          class="shrink-0"
+          style:width="{phraseRowLeadingControlsAfterMuteWidthPx}px"
+          aria-hidden="true"
+        ></div>
+        <div class="flex min-w-0 items-end gap-6 pl-2">
+        <div class="w-4 shrink-0 self-stretch" aria-hidden="true"></div>
+        <div class="flex flex-col items-start gap-1">
+          <span class="text-xs font-semibold leading-none text-zinc-500">Pulse</span>
+          <PulseNoteButtonGroup
+            accent={emeraldRowAccent}
+            value={pulseIndex}
+            onValueChange={applyPulseIndex}
           />
-        </label>
-        <label class="flex flex-col gap-1 text-xs font-semibold text-zinc-500">
-          Sub
-          <select
-            class="h-8 w-[4.5rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-sm font-semibold text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-            value={swingSubdivisionIndex}
-            onchange={setSwingSubdivisionFromSelect}
-          >
-            <option value={0}>.25</option>
-            <option value={1}>.5</option>
-            <option value={2}>1</option>
-          </select>
-        </label>
-        <label class="flex flex-col gap-1 text-xs font-semibold text-zinc-500">
-          Vel %
-          <input
-            type="number"
-            min="0"
-            max="100"
-            step="1"
-            value={velocityHumanizePercent}
-            class="h-8 w-[5.25rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-center text-lg font-medium text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-            onchange={(event) =>
-              setGlobalPercent(event, "setVelocityHumanizePercent", (value) => {
-                velocityHumanizePercent = value;
-              })}
-          />
-        </label>
-        <label class="flex flex-col gap-1 text-xs font-semibold text-zinc-500">
-          Time %
-          <input
-            type="number"
-            min="0"
-            max="100"
-            step="1"
-            value={timingHumanizePercent}
-            class="h-8 w-[5.25rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-center text-lg font-medium text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-            onchange={(event) =>
-              setGlobalPercent(event, "setTimingHumanizePercent", (value) => {
-                timingHumanizePercent = value;
-              })}
-          />
-        </label>
+        </div>
+        <div class="flex items-end">
+          <div class="flex items-end gap-3">
+            <div class="flex flex-col items-start gap-1">
+              <span class="text-xs font-semibold leading-none text-zinc-500">Swing</span>
+              <StepNumberDragInput
+                boxed
+                accent={emeraldRowAccent}
+                value={swingPercent}
+                min={0}
+                max={100}
+                resetValue={0}
+                ariaLabel="Swing"
+                onValueChange={(value) =>
+                  applyGlobalPercent(value, "setSwingPercent", (next) => {
+                    swingPercent = next;
+                  })}
+              />
+            </div>
+            <div class="flex flex-col items-start gap-1">
+              <span class="text-xs font-semibold leading-none text-zinc-500">Sub</span>
+              <DiscreteDragSelect
+                accent={emeraldRowAccent}
+                options={swingSubdivisionOptions}
+                value={swingSubdivisionIndex}
+                resetValue={1}
+                ariaLabel="Swing subdivision"
+                onValueChange={applySwingSubdivisionIndex}
+              />
+            </div>
+          </div>
+          <div class="w-5 shrink-0" aria-hidden="true"></div>
+          <div class="flex items-end gap-3">
+            <div class="flex flex-col items-start gap-1">
+              <span class="text-xs font-semibold leading-none text-zinc-500">Vel %</span>
+            <StepNumberDragInput
+              boxed
+              accent={emeraldRowAccent}
+              value={velocityHumanizePercent}
+              min={0}
+              max={100}
+              resetValue={0}
+              ariaLabel="Velocity humanize percent"
+              onValueChange={(value) =>
+                applyGlobalPercent(value, "setVelocityHumanizePercent", (next) => {
+                  velocityHumanizePercent = next;
+                })}
+            />
+          </div>
+          <div class="flex flex-col items-start gap-1">
+            <span class="text-xs font-semibold leading-none text-zinc-500">Time %</span>
+            <StepNumberDragInput
+              boxed
+              accent={emeraldRowAccent}
+              value={timingHumanizePercent}
+              min={0}
+              max={100}
+              resetValue={0}
+              ariaLabel="Timing humanize percent"
+              onValueChange={(value) =>
+                applyGlobalPercent(value, "setTimingHumanizePercent", (next) => {
+                  timingHumanizePercent = next;
+                })}
+            />
+          </div>
+          </div>
+        </div>
+        <ColorsToggle
+          accent={emeraldRowAccent}
+          enabled={rowColorsEnabled}
+          onChange={(next) => {
+            rowColorsEnabled = next;
+          }}
+        />
+        </div>
       </div>
     </div>
+
     <div class="flex shrink-0 items-center gap-3">
       {#if standaloneTransportAvailable}
         <div class="flex items-center gap-2">
@@ -1167,6 +1204,8 @@
       <p class="pt-0.5 text-sm text-zinc-500">v{version}</p>
     </div>
   </header>
+  <div class="h-0.5 w-full bg-zinc-500/40" role="separator" aria-hidden="true"></div>
+  </div>
 
   <section class="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
     <div class="w-full shrink-0">
@@ -1190,7 +1229,7 @@
                 aria-pressed={!rowMuted[row]}
                 class="{rowMuteControlClasses} {rowMuted[row]
                   ? rowPowerToggleOffClasses
-                  : rowPowerToggleOnClasses}"
+                  : rowAccent.textAccent}"
                 onclick={() => toggleRowMute(row)}
               >
                 <RowDisableIcon class="h-9 w-9" />

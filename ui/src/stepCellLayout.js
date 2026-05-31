@@ -20,6 +20,9 @@ export const defaultStepTimingMultiplierIndex = timingMultiplierValues.indexOf(1
 /** Minimum shell width for the smallest (0.25×) step cell — fits G3 + 127 aligned with bar/header. */
 export const stepCellMinWidthPx = 64;
 
+/** Width of one skip / mute / gear slot in the 0.25× step footer (three equal columns). */
+export const stepFooterActionSlotWidthPx = stepCellMinWidthPx / 3;
+
 /** Base pixel width for a step with timing multiplier index at 1×. */
 export const stepCellBaseWidthPx = stepCellMinWidthPx / timingMultiplierValues[0];
 

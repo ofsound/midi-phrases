@@ -403,12 +403,20 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
 
         case SequencerCommand::Type::SetStepMuted:
             if (isValidAudioStep (audioState, command.row, step))
+            {
                 row.stepMuted[index] = command.intValue != 0 ? 1 : 0;
+
+                if (command.intValue != 0)
+                    row.stepSkipped[index] = 0;
+            }
             break;
 
         case SequencerCommand::Type::SetStepSkipped:
             if (isValidAudioStep (audioState, command.row, step))
             {
+                if (command.intValue != 0)
+                    row.stepMuted[index] = 0;
+
                 row.stepSkipped[index] = command.intValue != 0 ? 1 : 0;
                 rebuildRowTimingLayout (row);
             }
@@ -994,8 +1002,18 @@ void PluginProcessor::setPhraseStepMuted (const int row, const int step, const b
     if (! isValidStep (row, step))
         return;
 
+    auto& steps = modelRow (row);
+    const auto index = static_cast<size_t> (step);
     const auto value = muted ? 1 : 0;
-    modelRow (row).stepMuted[static_cast<size_t> (step)] = value;
+    steps.stepMuted[index] = value;
+
+    const auto clearedSkip = muted && steps.stepSkipped[index] != 0;
+
+    if (clearedSkip)
+    {
+        steps.stepSkipped[index] = 0;
+        rebuildRowTimingLayout (steps);
+    }
 
     SequencerCommand command;
     command.type = SequencerCommand::Type::SetStepMuted;
@@ -1003,6 +1021,16 @@ void PluginProcessor::setPhraseStepMuted (const int row, const int step, const b
     command.step = step;
     command.intValue = value;
     publishCommandToAudio (command);
+
+    if (clearedSkip)
+    {
+        SequencerCommand skipCommand;
+        skipCommand.type = SequencerCommand::Type::SetStepSkipped;
+        skipCommand.row = row;
+        skipCommand.step = step;
+        skipCommand.intValue = 0;
+        publishCommandToAudio (skipCommand);
+    }
 }
 
 bool PluginProcessor::isPhraseStepMuted (const int row, const int step) const
@@ -1021,8 +1049,23 @@ void PluginProcessor::setPhraseStepSkipped (const int row, const int step, const
     auto& steps = modelRow (row);
     const auto index = static_cast<size_t> (step);
     const auto value = skipped ? 1 : 0;
+    const auto clearedMute = skipped && steps.stepMuted[index] != 0;
+
+    if (clearedMute)
+        steps.stepMuted[index] = 0;
+
     steps.stepSkipped[index] = value;
     rebuildRowTimingLayout (steps);
+
+    if (clearedMute)
+    {
+        SequencerCommand muteCommand;
+        muteCommand.type = SequencerCommand::Type::SetStepMuted;
+        muteCommand.row = row;
+        muteCommand.step = step;
+        muteCommand.intValue = 0;
+        publishCommandToAudio (muteCommand);
+    }
 
     SequencerCommand command;
     command.type = SequencerCommand::Type::SetStepSkipped;
@@ -2097,6 +2140,10 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                 static_cast<bool> (rowTree.getProperty (stepMutedPropName, false)) ? 1 : 0;
             steps.stepSkipped[static_cast<size_t> (step)] =
                 static_cast<bool> (rowTree.getProperty (stepSkippedPropName, false)) ? 1 : 0;
+
+            if (steps.stepMuted[static_cast<size_t> (step)] != 0
+                && steps.stepSkipped[static_cast<size_t> (step)] != 0)
+                steps.stepMuted[static_cast<size_t> (step)] = 0;
 
             if (stateVersion >= 8)
             {

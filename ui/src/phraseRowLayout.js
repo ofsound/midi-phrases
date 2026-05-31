@@ -43,6 +43,10 @@ export const phraseRowLeadingControlsWidthPx =
   phraseRowReverseControlWidthPx +
   phraseRowHeaderGapPx;
 
+/** Row leading controls after the mute button (MIDI, knob, reverse + gaps). */
+export const phraseRowLeadingControlsAfterMuteWidthPx =
+  phraseRowLeadingControlsWidthPx - phraseRowMuteControlWidthPx;
+
 /**
  * UI-only horizontal shift for the phrase grid and beat guide.
  * When any row has a negative timing offset, returns a positive px value so the
@@ -72,4 +76,13 @@ export function phraseGridVisualOffsetCompensationPx(rowTimingOffsetIndices, pul
  */
 export function phraseBeatGuideGlobalLeftPx(visualCompensationPx = 0) {
   return phraseRowLeadingControlsWidthPx + phraseBeatGuideOffsetPx + visualCompensationPx;
+}
+
+/**
+ * Global X for the left edge of step 0 when that row’s timing offset is 0.
+ * Use to align header controls (e.g. pulse) with the phrase grid.
+ * @param {number} [visualCompensationPx] UI shift from {@link phraseGridVisualOffsetCompensationPx}
+ */
+export function phraseFirstStepGlobalLeftPx(visualCompensationPx = 0) {
+  return phraseRowLeadingControlsWidthPx + phraseFirstStepLeftOffsetPx + visualCompensationPx;
 }

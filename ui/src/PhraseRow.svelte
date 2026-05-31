@@ -34,6 +34,7 @@
     rowTimingOffsetShiftPx,
     stepCellBaseWidthPx,
     stepCellWidthPx,
+    stepFooterActionSlotWidthPx,
     stepInsertZoneWidthPx,
   } from "./stepCellLayout.js";
 
@@ -753,27 +754,25 @@
   }
 
   /** Row muted or step skipped — same grayed-out step chrome. */
-  const stepVisuallyDimmed = (skipped) => muted || skipped;
-
-  const stepCellPlaybackClass = (active, skipped = false) => {
-    if (stepVisuallyDimmed(skipped)) return "border-zinc-800/90";
+  const stepCellPlaybackClass = (active, dimmed) => {
+    if (dimmed) return "border-zinc-800/90";
 
     return active ? accent.borderActive : "border-zinc-700";
   };
 
-  const stepCellPlaybackGlowClass = (active, skipped = false) =>
-    stepVisuallyDimmed(skipped) || !active ? "" : accent.playbackGlow;
+  const stepCellPlaybackGlowClass = (active, dimmed) =>
+    dimmed || !active ? "" : accent.playbackGlow;
 
-  const stepCellSurfaceClass = (skipped = false) =>
-    stepVisuallyDimmed(skipped) ? "bg-zinc-950/95" : "bg-zinc-900";
+  const stepCellSurfaceClass = (dimmed) =>
+    dimmed ? "bg-zinc-950/95" : "bg-zinc-900";
 
-  const stepHeaderClass = (skipped = false) =>
-    stepVisuallyDimmed(skipped)
+  const stepHeaderClass = (dimmed) =>
+    dimmed
       ? "border-b border-zinc-800/90 bg-zinc-900/70"
       : "border-b border-zinc-800 bg-zinc-800/60";
 
-  const stepHeaderLabelClass = (skipped = false) =>
-    stepVisuallyDimmed(skipped) ? "text-zinc-500" : "text-zinc-300";
+  const stepHeaderLabelClass = (dimmed) =>
+    dimmed ? "text-zinc-500" : "text-zinc-300";
 </script>
 
 {#snippet stepHeaderRemoveButton(step, dimmed)}
@@ -819,47 +818,95 @@
 {#snippet stepSkipMuteFooter(step, isFlipped)}
   {@const stepIsMuted = stepMuted[step]}
   {@const stepIsSkipped = stepSkipped[step]}
-  {@const footerDimmed = stepVisuallyDimmed(stepIsSkipped)}
+  {@const footerDimmed = muted || stepIsSkipped}
+  {@const multiplierIndex = stepTimingMultiplier[step] ?? defaultStepTimingMultiplierIndex}
+  {@const isQuarterStep = multiplierIndex === 0}
+  {@const footerShellClass = footerDimmed
+    ? "border-t border-zinc-800/90 bg-zinc-900/70"
+    : "border-t border-zinc-800 bg-zinc-800/60"}
+  {@const footerButtonClass = `flex h-full shrink-0 items-center justify-center border-0 bg-zinc-800/30 p-0 outline-none ${accent.ringFocusWithWidth}`}
+  {@const footerSlotStyle = `width: ${stepFooterActionSlotWidthPx}px`}
   <div
-    class="flex h-5 w-full shrink-0 divide-x divide-zinc-800 {footerDimmed
-      ? 'border-t border-zinc-800/90 bg-zinc-900/70'
-      : 'border-t border-zinc-800 bg-zinc-800/60'}"
+    class="flex h-5 w-full shrink-0 {isQuarterStep
+      ? 'divide-x divide-zinc-800'
+      : 'justify-between'} {footerShellClass}"
     data-no-long-press
   >
-    <StepSkipToggle
-      {accent}
-      {muted}
-      value={stepIsSkipped}
-      buttonClass={`flex h-full min-w-0 flex-1 basis-0 items-center justify-center border-0 bg-zinc-800/30 p-0 outline-none ${accent.ringFocusWithWidth}`}
-      iconClass="pointer-events-none h-3 w-3"
-      ariaLabel="Skip step in sequence"
-      onValueChange={(value) => onStepSkipChange(row, step, value)}
-    />
-    <StepMuteToggle
-      {accent}
-      {muted}
-      value={stepIsMuted}
-      buttonClass={`flex h-full min-w-0 flex-1 basis-0 items-center justify-center border-0 bg-zinc-800/30 p-0 outline-none ${accent.ringFocusWithWidth}`}
-      iconClass="pointer-events-none h-3 w-3"
-      ariaLabel="Mute step"
-      onValueChange={(value) => onStepMuteChange(row, step, value)}
-    />
-    <button
-      type="button"
-      data-step-pointer
-      aria-label={isFlipped ? "Close step settings" : "Open step settings"}
-      aria-pressed={isFlipped}
-      disabled={stepFlipLongPressDisabled}
-      style="cursor: pointer"
-      class="flex h-full min-w-0 flex-1 basis-0 items-center justify-center border-0 bg-zinc-800/30 p-0 outline-none disabled:pointer-events-none disabled:opacity-50 {isFlipped
-        ? toggleIconActiveClasses
-        : toggleIconRestClasses} {accent.ringFocusWithWidth}"
-      onpointerdown={(event) => event.stopPropagation()}
-      onmousedown={(event) => event.stopPropagation()}
-      onclick={() => handleStepFlipChange(step, !isFlipped)}
-    >
-      <StepGearIcon class="pointer-events-none h-3 w-3" />
-    </button>
+    {#if isQuarterStep}
+      <StepSkipToggle
+        {accent}
+        {muted}
+        value={stepIsSkipped}
+        buttonClass={`${footerButtonClass} min-w-0 flex-1 basis-0`}
+        iconClass="pointer-events-none h-3 w-3"
+        ariaLabel="Skip step in sequence"
+        onValueChange={(value) => onStepSkipChange(row, step, value)}
+      />
+      <StepMuteToggle
+        {accent}
+        {muted}
+        value={stepIsMuted}
+        buttonClass={`${footerButtonClass} min-w-0 flex-1 basis-0`}
+        iconClass="pointer-events-none h-3 w-3"
+        ariaLabel="Mute step"
+        onValueChange={(value) => onStepMuteChange(row, step, value)}
+      />
+      <button
+        type="button"
+        data-step-pointer
+        aria-label={isFlipped ? "Close step settings" : "Open step settings"}
+        aria-pressed={isFlipped}
+        disabled={stepFlipLongPressDisabled}
+        style="cursor: pointer"
+        class="{footerButtonClass} min-w-0 flex-1 basis-0 disabled:pointer-events-none disabled:opacity-50 {isFlipped
+          ? toggleIconActiveClasses
+          : toggleIconRestClasses}"
+        onpointerdown={(event) => event.stopPropagation()}
+        onmousedown={(event) => event.stopPropagation()}
+        onclick={() => handleStepFlipChange(step, !isFlipped)}
+      >
+        <StepGearIcon class="pointer-events-none h-3 w-3" />
+      </button>
+    {:else}
+      <div class="flex shrink-0 divide-x divide-zinc-800">
+        <StepSkipToggle
+          {accent}
+          {muted}
+          value={stepIsSkipped}
+          buttonClass={footerButtonClass}
+          iconClass="pointer-events-none h-3 w-3"
+          ariaLabel="Skip step in sequence"
+          onValueChange={(value) => onStepSkipChange(row, step, value)}
+          style={footerSlotStyle}
+        />
+        <StepMuteToggle
+          {accent}
+          {muted}
+          value={stepIsMuted}
+          buttonClass={footerButtonClass}
+          iconClass="pointer-events-none h-3 w-3"
+          ariaLabel="Mute step"
+          onValueChange={(value) => onStepMuteChange(row, step, value)}
+          style={footerSlotStyle}
+        />
+      </div>
+      <button
+        type="button"
+        data-step-pointer
+        aria-label={isFlipped ? "Close step settings" : "Open step settings"}
+        aria-pressed={isFlipped}
+        disabled={stepFlipLongPressDisabled}
+        style="cursor: pointer; {footerSlotStyle};"
+        class="{footerButtonClass} disabled:pointer-events-none disabled:opacity-50 {isFlipped
+          ? toggleIconActiveClasses
+          : toggleIconRestClasses}"
+        onpointerdown={(event) => event.stopPropagation()}
+        onmousedown={(event) => event.stopPropagation()}
+        onclick={() => handleStepFlipChange(step, !isFlipped)}
+      >
+        <StepGearIcon class="pointer-events-none h-3 w-3" />
+      </button>
+    {/if}
   </div>
 {/snippet}
 
@@ -868,11 +915,11 @@
   {@const stepFlipped = flippedSteps.has(step)}
   {@const stepIsMuted = stepMuted[step]}
   {@const stepIsSkipped = stepSkipped[step]}
-  {@const stepDimmed = stepVisuallyDimmed(stepIsSkipped)}
+  {@const stepDimmed = muted || stepIsSkipped}
   <div
     class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[box-shadow] duration-200 {stepCellPlaybackGlowClass(
       activeGates[step],
-      stepIsSkipped,
+      stepDimmed,
     )}"
   >
     <div class="relative z-0 h-full min-h-0 w-full min-w-0">
@@ -882,22 +929,22 @@
       flipped={stepFlipped}
       disabled={stepFlipLongPressDisabled}
       longPressMs={stepFlipLongPressMs}
-      surfaceClass={stepCellSurfaceClass(stepIsSkipped)}
-      borderClass={stepCellPlaybackClass(activeGates[step], stepIsSkipped)}
-      headerClass={stepHeaderClass(stepIsSkipped)}
+      surfaceClass={stepCellSurfaceClass(stepDimmed)}
+      borderClass={stepCellPlaybackClass(activeGates[step], stepDimmed)}
+      headerClass={stepHeaderClass(stepDimmed)}
       onFlipChange={(flipped) => handleStepFlipChange(step, flipped)}
     >
       <div slot="front" class="h-full min-h-0 w-full min-w-0">
         <div
           class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,opacity] duration-200 {stepCellSurfaceClass(
-            stepIsSkipped,
-          )} {stepCellPlaybackClass(activeGates[step], stepIsSkipped)} {stepDimmed
+            stepDimmed,
+          )} {stepCellPlaybackClass(activeGates[step], stepDimmed)} {stepDimmed
             ? ''
             : accent.cellFocusWithinBorder}"
         >
           {#if reorderEnabled}
             <div
-              class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepIsSkipped)}"
+              class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
               data-no-long-press
             >
               {#if !stepFlipped}
@@ -917,7 +964,7 @@
                 <span
                   data-multiplier-label
                   class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
-                    stepIsSkipped,
+                    stepDimmed,
                   )}"
                   aria-hidden="true"
                 >
@@ -927,7 +974,7 @@
             </div>
           {:else}
             <div
-              class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepIsSkipped)}"
+              class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
               data-no-long-press
             >
               {#if !stepFlipped}
@@ -949,7 +996,7 @@
                 <span
                   data-multiplier-label
                   class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
-                    stepIsSkipped,
+                    stepDimmed,
                   )}"
                   aria-hidden="true"
                 >
@@ -1024,7 +1071,7 @@
           <span
             data-multiplier-label
             class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
-              stepIsSkipped,
+              stepDimmed,
             )}"
           >
             {multiplierLabel}

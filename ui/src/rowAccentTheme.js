@@ -131,13 +131,12 @@ export const rowMutedOverlayClasses =
 export const toggleIconRestClasses = "text-zinc-500";
 export const toggleIconActiveClasses = "text-zinc-300";
 
-/** Row power toggle (larger icon) — on matches {@link rowMuteControlClasses} hover. */
+/** Row power toggle when row is off — darker gray only (on uses row accent). */
 export const rowPowerToggleOffClasses = "text-zinc-600";
-export const rowPowerToggleOnClasses = "text-zinc-200";
 
 /** On/off toggle stays above {@link rowMutedOverlayClasses}. */
 export const rowMuteControlClasses =
-  "relative z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 transition-colors outline-none hover:text-zinc-200 focus-visible:ring-1 focus-visible:ring-zinc-500";
+  "relative z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-zinc-500";
 
 /** Reverse toggle in the row control strip (after offset). */
 export const rowReverseControlClasses =
