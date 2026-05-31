@@ -1,7 +1,7 @@
 <script>
   /** Dice icon for row step-order randomization. */
   /** @type {{ class?: string }} */
-  let { class: className = "h-5 w-5" } = $props();
+  let { class: className = "h-6 w-6" } = $props();
 </script>
 
 <svg
@@ -18,7 +18,7 @@
     rx="3"
     fill="none"
     stroke="currentColor"
-    stroke-width="2"
+    stroke-width="2.25"
   />
   <circle cx="8.5" cy="8.5" r="1.3" fill="currentColor" />
   <circle cx="15.5" cy="8.5" r="1.3" fill="currentColor" />

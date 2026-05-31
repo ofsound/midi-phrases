@@ -1,7 +1,7 @@
 <script>
-  /** Two opposing block arrows based on the step skip arrow shape. */
+  /** Opposing arrows for reverse step order. */
   /** @type {{ class?: string }} */
-  let { class: className = "h-5 w-5" } = $props();
+  let { class: className = "h-6 w-6" } = $props();
 </script>
 
 <svg
@@ -9,13 +9,12 @@
   viewBox="0 0 24 24"
   class={className}
   aria-hidden="true"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2.25"
+  stroke-linecap="round"
+  stroke-linejoin="round"
 >
-  <path
-    fill="currentColor"
-    d="M3 5.5 13.5 5.5 13.5 3 22 8.5 13.5 14 13.5 11.5 3 11.5Z"
-  />
-  <path
-    fill="currentColor"
-    d="M21 18.5 10.5 18.5 10.5 21 2 15.5 10.5 10 10.5 12.5 21 12.5Z"
-  />
+  <path d="M4 8.5h11M11 5.5 15 8.5 11 11.5" />
+  <path d="M20 15.5H9M13 12.5 9 15.5 13 18.5" />
 </svg>

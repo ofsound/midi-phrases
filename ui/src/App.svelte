@@ -50,8 +50,7 @@
     rowMutedOverlayClasses,
     rowMuteControlClasses,
     rowPowerToggleOffClasses,
-    rowRandomizeControlClasses,
-    rowReverseControlClasses,
+    rowActionIconControlClasses,
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
 
@@ -1718,35 +1717,35 @@
               <button
                 type="button"
                 aria-label="Reverse row step order"
-                class="{rowReverseControlClasses} {rowAccent.controlFocus} {rowMuted[row]
-                  ? 'border-zinc-800/90 text-zinc-600'
-                  : `border-zinc-700 ${toggleIconRestClasses}`}"
+                class="{rowActionIconControlClasses} {rowMuted[row]
+                  ? 'text-zinc-600'
+                  : `${toggleIconRestClasses} hover:text-zinc-300`}"
                 onclick={() => reverseRowStepOrder(row)}
                 title="Reverse row step order"
               >
-                <RowReverseOrderIcon class="pointer-events-none h-5 w-5" />
+                <RowReverseOrderIcon class="pointer-events-none h-6 w-6" />
               </button>
               <button
                 type="button"
                 aria-label="Randomize row step order"
-                class="{rowRandomizeControlClasses} {rowAccent.controlFocus} {rowMuted[row]
-                  ? 'border-zinc-800/90 text-zinc-600'
-                  : `border-zinc-700 ${toggleIconRestClasses}`}"
+                class="{rowActionIconControlClasses} {rowMuted[row]
+                  ? 'text-zinc-600'
+                  : `${toggleIconRestClasses} hover:text-zinc-300`}"
                 onclick={() => randomizeRowStepOrder(row)}
                 title="Randomize row step order"
               >
-                <RowRandomizeOrderIcon class="pointer-events-none h-5 w-5" />
+                <RowRandomizeOrderIcon class="pointer-events-none h-6 w-6" />
               </button>
               <button
                 type="button"
                 aria-label="Randomize row octaves"
-                class="{rowRandomizeControlClasses} {rowAccent.controlFocus} {rowMuted[row]
-                  ? 'border-zinc-800/90 text-zinc-600'
-                  : `border-zinc-700 ${toggleIconRestClasses}`}"
+                class="{rowActionIconControlClasses} {rowMuted[row]
+                  ? 'text-zinc-600'
+                  : `${toggleIconRestClasses} hover:text-zinc-300`}"
                 onclick={() => randomizeRowOctaves(row)}
                 title="Randomize row octaves"
               >
-                <RowRandomizeOctaveIcon class="pointer-events-none h-5 w-5" />
+                <RowRandomizeOctaveIcon class="pointer-events-none h-6 w-6" />
               </button>
             </div>
             <PhraseRow

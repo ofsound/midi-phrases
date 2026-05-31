@@ -14,14 +14,8 @@ export const phraseFirstStepLeftOffsetPx =
 export const phraseBeatGuideOffsetPx =
   phraseFirstStepLeftOffsetPx - stepInsertZoneWidthPx / 2;
 
-/** Matches row reverse-order action `min-w-[3.75rem]` + horizontal padding. */
-export const phraseRowReverseControlWidthPx = 60;
-
-/** Matches row randomize-order action `h-9 w-9`. */
-export const phraseRowRandomizeControlWidthPx = 36;
-
-/** Matches row randomize-octave action `h-9 w-9`. */
-export const phraseRowRandomizeOctaveControlWidthPx = 36;
+/** Matches row action icon buttons `h-9 w-9`. */
+export const phraseRowActionIconControlWidthPx = 36;
 
 /** Matches row on/off toggle `h-10 w-10`. */
 export const phraseRowMuteControlWidthPx = 40;
@@ -46,11 +40,11 @@ export const phraseRowLeadingControlsWidthPx =
   phraseRowHeaderGapPx +
   phraseRowOffsetKnobWidthPx +
   phraseRowHeaderGapPx +
-  phraseRowReverseControlWidthPx +
+  phraseRowActionIconControlWidthPx +
   phraseRowHeaderGapPx +
-  phraseRowRandomizeControlWidthPx +
+  phraseRowActionIconControlWidthPx +
   phraseRowHeaderGapPx +
-  phraseRowRandomizeOctaveControlWidthPx +
+  phraseRowActionIconControlWidthPx +
   phraseRowHeaderGapPx;
 
 /** Row leading controls after the mute button (MIDI, knob, order actions + gaps). */

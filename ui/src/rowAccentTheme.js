@@ -138,10 +138,10 @@ export const rowPowerToggleOffClasses = "text-zinc-600";
 export const rowMuteControlClasses =
   "relative z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-zinc-500";
 
-/** Destructive row reverse action in the row control strip (after offset). */
+/** Bordered control in the global header (e.g. Colors toggle). */
 export const rowReverseControlClasses =
   "relative z-20 flex h-9 min-w-[3.75rem] shrink-0 items-center justify-center rounded-lg border bg-zinc-900 px-2 transition-colors outline-none hover:border-zinc-600";
 
-/** Destructive row randomize action in the row control strip. */
-export const rowRandomizeControlClasses =
-  "relative z-20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-zinc-900 p-0 transition-colors outline-none hover:border-zinc-600";
+/** Row reverse / randomize icon actions — borderless, equal hit target. */
+export const rowActionIconControlClasses =
+  "relative z-20 flex h-9 w-9 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none";

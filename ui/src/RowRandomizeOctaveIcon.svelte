@@ -1,7 +1,7 @@
 <script>
   /** Octave-shift randomization icon for row notes. */
   /** @type {{ class?: string }} */
-  let { class: className = "h-5 w-5" } = $props();
+  let { class: className = "h-6 w-6" } = $props();
 </script>
 
 <svg
@@ -14,7 +14,7 @@
     d="M12 6v9"
     fill="none"
     stroke="currentColor"
-    stroke-width="2"
+    stroke-width="2.25"
     stroke-linecap="round"
   />
   <ellipse
@@ -24,13 +24,13 @@
     ry="2.4"
     fill="none"
     stroke="currentColor"
-    stroke-width="2"
+    stroke-width="2.25"
   />
   <path
     d="M6.5 8.5 4 6l2.5-2.5M4 6h4"
     fill="none"
     stroke="currentColor"
-    stroke-width="2"
+    stroke-width="2.25"
     stroke-linecap="round"
     stroke-linejoin="round"
   />
@@ -38,7 +38,7 @@
     d="m17.5 15.5 2.5 2.5-2.5 2.5M20 18h-4"
     fill="none"
     stroke="currentColor"
-    stroke-width="2"
+    stroke-width="2.25"
     stroke-linecap="round"
     stroke-linejoin="round"
   />
