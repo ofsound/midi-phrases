@@ -59,6 +59,9 @@
   let grid = defaultPhraseGrid();
   /** @type {boolean[]} */
   let rowMuted = [false, false, false, false];
+  let soloRow = -1;
+  /** @type {boolean[] | null} */
+  let rowSoloRestoreMuted = null;
   /** @type {number[]} */
   let rowTimingOffset = [
     defaultRowTimingOffsetIndex,
@@ -263,6 +266,8 @@
     }
 
     rowMuted = next;
+    soloRow = -1;
+    rowSoloRestoreMuted = null;
   }
 
   function loadRowTimingOffsetFromInitialisation() {
@@ -517,11 +522,22 @@
     await setPhraseNote(row, step, grid[row][step]);
   }
 
-  async function pushRowMuted(row) {
+  async function pushRowMutedValue(row, muted) {
     if (!nativeFunctionAvailable("setPhraseRowMuted")) return;
 
     const setPhraseRowMuted = getNativeFunction("setPhraseRowMuted");
-    await setPhraseRowMuted(row, rowMuted[row] ? 1 : 0);
+    await setPhraseRowMuted(row, muted ? 1 : 0);
+  }
+
+  async function applyRowMutedState(nextMuted) {
+    const previousMuted = rowMuted;
+    rowMuted = nextMuted;
+
+    for (let row = 0; row < nextMuted.length; row += 1) {
+      if (previousMuted[row] !== nextMuted[row]) {
+        await pushRowMutedValue(row, nextMuted[row]);
+      }
+    }
   }
 
   async function pushReversePhraseRowSteps(row) {
@@ -614,10 +630,28 @@
     await pushNote(row, step);
   }
 
-  async function toggleRowMute(row) {
-    rowMuted[row] = !rowMuted[row];
-    rowMuted = rowMuted;
-    await pushRowMuted(row);
+  async function toggleRowMute(row, soloRequested = false) {
+    if (soloRequested) {
+      if (soloRow === row && rowSoloRestoreMuted) {
+        const restoreMuted = [...rowSoloRestoreMuted];
+        soloRow = -1;
+        rowSoloRestoreMuted = null;
+        await applyRowMutedState(restoreMuted);
+        return;
+      }
+
+      if (!rowSoloRestoreMuted) {
+        rowSoloRestoreMuted = [...rowMuted];
+      }
+
+      soloRow = row;
+      await applyRowMutedState(rowMuted.map((_, index) => index !== row));
+      return;
+    }
+
+    const nextMuted = [...rowMuted];
+    nextMuted[row] = !nextMuted[row];
+    await applyRowMutedState(nextMuted);
   }
 
   async function reverseRowStepOrder(row) {
@@ -1278,7 +1312,8 @@
                 class="{rowMuteControlClasses} {rowMuted[row]
                   ? rowPowerToggleOffClasses
                   : rowAccent.textAccent}"
-                onclick={() => toggleRowMute(row)}
+                onclick={(event) => toggleRowMute(row, event.shiftKey)}
+                title="Shift-click to solo row"
               >
                 <RowDisableIcon class="h-9 w-9" />
               </button>
