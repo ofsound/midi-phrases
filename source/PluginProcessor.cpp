@@ -10,7 +10,7 @@ constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5,
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 9;
+constexpr int phraseStateVersion = 10;
 
 int clampStepProbability (const int probability)
 {
@@ -135,14 +135,23 @@ double positiveMod (const double value, const double modulus)
     return remainder;
 }
 
-int clampLoopBraceStart (const int startQuarters, const int endQuarters)
+double snapLoopBraceQuarters (const double quarters)
 {
-    return juce::jmax (0, juce::jmin (startQuarters, endQuarters - 1));
+    return std::round (quarters / PluginProcessor::loopBraceSnapQuarters)
+           * PluginProcessor::loopBraceSnapQuarters;
 }
 
-int clampLoopBraceEnd (const int endQuarters, const int startQuarters)
+double clampLoopBraceStart (const double startQuarters, const double endQuarters)
 {
-    return juce::jmax (startQuarters + 1, endQuarters);
+    return juce::jmax (0.0,
+                       juce::jmin (snapLoopBraceQuarters (startQuarters),
+                                   endQuarters - PluginProcessor::loopBraceSnapQuarters));
+}
+
+double clampLoopBraceEnd (const double endQuarters, const double startQuarters)
+{
+    return juce::jmax (startQuarters + PluginProcessor::loopBraceSnapQuarters,
+                       snapLoopBraceQuarters (endQuarters));
 }
 
 double clampStandaloneTempoBpm (const double bpm)
@@ -1440,8 +1449,8 @@ double PluginProcessor::playbackBeatForUi() const
 
     if (loopBraceEnabled.load (std::memory_order_relaxed) != 0)
     {
-        const auto loopStart = static_cast<double> (loopBraceStartQuarters.load (std::memory_order_relaxed));
-        const auto loopEnd = static_cast<double> (loopBraceEndQuarters.load (std::memory_order_relaxed));
+        const auto loopStart = loopBraceStartQuarters.load (std::memory_order_relaxed);
+        const auto loopEnd = loopBraceEndQuarters.load (std::memory_order_relaxed);
         const auto loopLength = loopEnd - loopStart;
 
         if (loopLength > 0.0)
@@ -1461,24 +1470,24 @@ bool PluginProcessor::isLoopBraceEnabled() const
     return loopBraceEnabled.load() != 0;
 }
 
-void PluginProcessor::setLoopBraceStartQuarters (const int startQuarters)
+void PluginProcessor::setLoopBraceStartQuarters (const double startQuarters)
 {
     const auto end = loopBraceEndQuarters.load();
     loopBraceStartQuarters.store (clampLoopBraceStart (startQuarters, end));
 }
 
-int PluginProcessor::getLoopBraceStartQuarters() const
+double PluginProcessor::getLoopBraceStartQuarters() const
 {
     return loopBraceStartQuarters.load();
 }
 
-void PluginProcessor::setLoopBraceEndQuarters (const int endQuarters)
+void PluginProcessor::setLoopBraceEndQuarters (const double endQuarters)
 {
     const auto start = loopBraceStartQuarters.load();
     loopBraceEndQuarters.store (clampLoopBraceEnd (endQuarters, start));
 }
 
-int PluginProcessor::getLoopBraceEndQuarters() const
+double PluginProcessor::getLoopBraceEndQuarters() const
 {
     return loopBraceEndQuarters.load();
 }
@@ -1999,8 +2008,8 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         standaloneTransportPpqPosition.store (ppqEnd, std::memory_order_relaxed);
 
     const auto loopEnabled = loopBraceEnabled.load (std::memory_order_relaxed) != 0;
-    const auto loopStart = static_cast<double> (loopBraceStartQuarters.load (std::memory_order_relaxed));
-    const auto loopEnd = static_cast<double> (loopBraceEndQuarters.load (std::memory_order_relaxed));
+    const auto loopStart = loopBraceStartQuarters.load (std::memory_order_relaxed);
+    const auto loopEnd = loopBraceEndQuarters.load (std::memory_order_relaxed);
     const auto loopLength = loopEnd - loopStart;
 
     if (loopEnabled && loopLength > 0.0)
@@ -2236,10 +2245,22 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     setSwingSubdivisionIndex (
         static_cast<int> (state.getProperty ("swingSubdivisionIndex", defaultSwingSubdivisionIndex)));
 
-    setLoopBraceStartQuarters (static_cast<int> (state.getProperty ("loopBraceStart",
-                                                                     defaultLoopBraceStartQuarters)));
-    setLoopBraceEndQuarters (static_cast<int> (state.getProperty ("loopBraceEnd",
-                                                                  defaultLoopBraceEndQuarters)));
+    const auto storedLoopStart = static_cast<double> (state.getProperty ("loopBraceStart",
+                                                                         defaultLoopBraceStartQuarters));
+    const auto storedLoopEnd = static_cast<double> (state.getProperty ("loopBraceEnd",
+                                                                       defaultLoopBraceEndQuarters));
+
+    if (storedLoopStart > getLoopBraceStartQuarters())
+    {
+        setLoopBraceEndQuarters (storedLoopEnd);
+        setLoopBraceStartQuarters (storedLoopStart);
+    }
+    else
+    {
+        setLoopBraceStartQuarters (storedLoopStart);
+        setLoopBraceEndQuarters (storedLoopEnd);
+    }
+
     setLoopBraceEnabled (static_cast<bool> (state.getProperty ("loopBraceEnabled", false)));
 }
 

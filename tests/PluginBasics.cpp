@@ -185,6 +185,49 @@ TEST_CASE ("Plugin instance", "[instance]")
                == PluginProcessor::swingSubdivisionCount - 1);
     }
 
+    SECTION ("loop brace snaps to eighth notes")
+    {
+        CHECK (testPlugin.getLoopBraceStartQuarters()
+               == Catch::Approx (PluginProcessor::defaultLoopBraceStartQuarters));
+        CHECK (testPlugin.getLoopBraceEndQuarters()
+               == Catch::Approx (PluginProcessor::defaultLoopBraceEndQuarters));
+
+        testPlugin.setLoopBraceStartQuarters (0.49);
+        testPlugin.setLoopBraceEndQuarters (3.26);
+
+        CHECK (testPlugin.getLoopBraceStartQuarters() == Catch::Approx (0.5));
+        CHECK (testPlugin.getLoopBraceEndQuarters() == Catch::Approx (3.5));
+
+        testPlugin.setLoopBraceStartQuarters (3.4);
+        CHECK (testPlugin.getLoopBraceStartQuarters() == Catch::Approx (3.0));
+
+        testPlugin.setLoopBraceEndQuarters (3.24);
+        CHECK (testPlugin.getLoopBraceEndQuarters() == Catch::Approx (3.5));
+    }
+
+    SECTION ("loop brace state loads fractional ranges beyond defaults")
+    {
+        juce::ValueTree state ("MidiPhrases");
+        state.setProperty ("version", 10, nullptr);
+        state.setProperty ("loopBraceStart", 20.5, nullptr);
+        state.setProperty ("loopBraceEnd", 28.5, nullptr);
+        state.setProperty ("loopBraceEnabled", true, nullptr);
+
+        juce::MemoryBlock block;
+
+        if (auto xml = state.createXml())
+        {
+            juce::MemoryOutputStream stream (block, true);
+            xml->writeTo (stream);
+        }
+
+        testPlugin.setStateInformation (block.getData(), static_cast<int> (block.getSize()));
+
+        CHECK (testPlugin.isLoopBraceEnabled());
+        CHECK (testPlugin.getLoopBraceStartQuarters() == Catch::Approx (20.5));
+        CHECK (testPlugin.getLoopBraceEndQuarters() == Catch::Approx (28.5));
+    }
+
     SECTION ("row timing offset")
     {
         CHECK (testPlugin.getPhraseRowTimingOffset (0) == PluginProcessor::defaultRowTimingOffsetIndex);

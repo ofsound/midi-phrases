@@ -512,7 +512,7 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
                                if (args.size() >= 1)
-                                   processor.setLoopBraceStartQuarters (varToInt (args[0]));
+                                   processor.setLoopBraceStartQuarters (varToDouble (args[0]));
 
                                complete (juce::var {});
                            })
@@ -521,7 +521,7 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
                                if (args.size() >= 1)
-                                   processor.setLoopBraceEndQuarters (varToInt (args[0]));
+                                   processor.setLoopBraceEndQuarters (varToDouble (args[0]));
 
                                complete (juce::var {});
                            })

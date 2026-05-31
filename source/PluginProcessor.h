@@ -122,15 +122,16 @@ public:
 
     static constexpr int defaultLoopBraceStartQuarters = 0;
     static constexpr int defaultLoopBraceEndQuarters = 8;
+    static constexpr double loopBraceSnapQuarters = 0.5;
 
     void setLoopBraceEnabled (bool enabled);
     bool isLoopBraceEnabled() const;
 
-    void setLoopBraceStartQuarters (int startQuarters);
-    int getLoopBraceStartQuarters() const;
+    void setLoopBraceStartQuarters (double startQuarters);
+    double getLoopBraceStartQuarters() const;
 
-    void setLoopBraceEndQuarters (int endQuarters);
-    int getLoopBraceEndQuarters() const;
+    void setLoopBraceEndQuarters (double endQuarters);
+    double getLoopBraceEndQuarters() const;
 
     double getLoopPlaybackBeat() const;
 
@@ -323,8 +324,8 @@ private:
     std::atomic<int> timingHumanizePercent { defaultTimingHumanizePercent };
     std::atomic<int> swingSubdivisionIndex { defaultSwingSubdivisionIndex };
     std::atomic<int> loopBraceEnabled { 0 };
-    std::atomic<int> loopBraceStartQuarters { defaultLoopBraceStartQuarters };
-    std::atomic<int> loopBraceEndQuarters { defaultLoopBraceEndQuarters };
+    std::atomic<double> loopBraceStartQuarters { defaultLoopBraceStartQuarters };
+    std::atomic<double> loopBraceEndQuarters { defaultLoopBraceEndQuarters };
     std::atomic<int> standaloneTransportPlaying { 0 };
     std::atomic<int> standaloneTransportResetRequested { 0 };
     std::atomic<double> standaloneTempoBpm { 120.0 };

@@ -1,6 +1,6 @@
 <script>
   import { midiToNoteName } from "./midiNoteNames.js";
-  import { beatFromClientX, clampLoopBrace } from "./loopBraceLayout.js";
+  import { beatFromClientX, clampLoopBrace, loopBraceSnapQuarters } from "./loopBraceLayout.js";
   import { defaultPulseIndex } from "./pulseLayout.js";
   import { rowAccentFor } from "./rowAccentTheme.js";
   import {
@@ -78,7 +78,7 @@
   $: pitchSpan = pitchRange.maxMidi - pitchRange.minMidi + 1;
   $: rollWidthPx = lengthQuarters * pxPerQuarter;
   $: rollHeightPx = pitchSpan * rowHeightPx;
-  $: loopSpan = Math.max(1, displayEnd - displayStart);
+  $: loopSpan = Math.max(loopBraceSnapQuarters, displayEnd - displayStart);
   $: loopLeftPx = displayStart * pxPerQuarter;
   $: loopWidthPx = loopSpan * pxPerQuarter;
   $: showPlaybackPlayhead = playbackBeat >= 0;
@@ -92,6 +92,11 @@
   /** @param {number} start @param {number} end */
   function noteWidthPx(start, end) {
     return Math.max(1, (end - start) * pxPerQuarter - 1);
+  }
+
+  /** @param {number} beat */
+  function formatBeat(beat) {
+    return Number.isInteger(beat) ? String(beat) : beat.toFixed(1);
   }
 
   /** @param {number} midi */
@@ -161,11 +166,11 @@
     }
 
     if (dragMode === "start") {
-      displayStart = Math.min(beat, displayEnd - 1);
+      displayStart = Math.min(beat, displayEnd - loopBraceSnapQuarters);
       return;
     }
 
-    displayEnd = Math.max(beat, displayStart + 1);
+    displayEnd = Math.max(beat, displayStart + loopBraceSnapQuarters);
   }
 
   /** @param {PointerEvent} event */
@@ -195,8 +200,8 @@
 
     let delta = 0;
 
-    if (event.key === "ArrowLeft") delta = -1;
-    if (event.key === "ArrowRight") delta = 1;
+    if (event.key === "ArrowLeft") delta = -loopBraceSnapQuarters;
+    if (event.key === "ArrowRight") delta = loopBraceSnapQuarters;
 
     if (delta === 0) return;
 
@@ -239,7 +244,7 @@
       </button>
     </div>
     <p class="text-xs text-zinc-600">
-      {lengthQuarters} quarter notes · loop {displayStart}–{displayEnd} ({loopSpan} beats)
+      {lengthQuarters} quarter notes · loop {formatBeat(displayStart)}–{formatBeat(displayEnd)} ({formatBeat(loopSpan)} beats)
     </p>
   </div>
 

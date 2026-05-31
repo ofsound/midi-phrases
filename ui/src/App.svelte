@@ -1032,7 +1032,7 @@
 
     if (startInit !== null) {
       const raw = Array.isArray(startInit) ? startInit[0] : startInit;
-      const value = Number.parseInt(String(raw), 10);
+      const value = Number.parseFloat(String(raw));
 
       if (!Number.isNaN(value)) loopBraceStart = Math.max(0, value);
     }
@@ -1041,9 +1041,9 @@
 
     if (endInit !== null) {
       const raw = Array.isArray(endInit) ? endInit[0] : endInit;
-      const value = Number.parseInt(String(raw), 10);
+      const value = Number.parseFloat(String(raw));
 
-      if (!Number.isNaN(value)) loopBraceEnd = Math.max(loopBraceStart + 1, value);
+      if (!Number.isNaN(value)) loopBraceEnd = Math.max(loopBraceStart + 0.5, value);
     }
   }
 
@@ -1070,20 +1070,31 @@
 
   /** @param {{ enabled?: boolean, start?: number, end?: number }} next */
   async function updateLoopBrace(next) {
+    const previousStart = loopBraceStart;
+    const nextStart = next.start ?? loopBraceStart;
+    const nextEnd = next.end ?? loopBraceEnd;
+
     if (next.enabled !== undefined) {
       loopBraceEnabled = next.enabled;
       await pushLoopBraceEnabled(next.enabled);
     }
 
-    if (next.start !== undefined) {
-      loopBraceStart = next.start;
-      await pushLoopBraceStart(next.start);
+    loopBraceStart = nextStart;
+    loopBraceEnd = nextEnd;
+
+    if (next.start !== undefined && next.end !== undefined) {
+      if (nextStart > previousStart) {
+        await pushLoopBraceEnd(nextEnd);
+        await pushLoopBraceStart(nextStart);
+      } else {
+        await pushLoopBraceStart(nextStart);
+        await pushLoopBraceEnd(nextEnd);
+      }
+      return;
     }
 
-    if (next.end !== undefined) {
-      loopBraceEnd = next.end;
-      await pushLoopBraceEnd(next.end);
-    }
+    if (next.start !== undefined) await pushLoopBraceStart(nextStart);
+    if (next.end !== undefined) await pushLoopBraceEnd(nextEnd);
   }
 
   function loadStandaloneTransportFromInitialisation() {
