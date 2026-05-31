@@ -20,6 +20,9 @@ export const phraseRowReverseControlWidthPx = 60;
 /** Matches row randomize-order action `h-9 w-9`. */
 export const phraseRowRandomizeControlWidthPx = 36;
 
+/** Matches row randomize-octave action `h-9 w-9`. */
+export const phraseRowRandomizeOctaveControlWidthPx = 36;
+
 /** Matches row on/off toggle `h-10 w-10`. */
 export const phraseRowMuteControlWidthPx = 40;
 
@@ -46,6 +49,8 @@ export const phraseRowLeadingControlsWidthPx =
   phraseRowReverseControlWidthPx +
   phraseRowHeaderGapPx +
   phraseRowRandomizeControlWidthPx +
+  phraseRowHeaderGapPx +
+  phraseRowRandomizeOctaveControlWidthPx +
   phraseRowHeaderGapPx;
 
 /** Row leading controls after the mute button (MIDI, knob, order actions + gaps). */

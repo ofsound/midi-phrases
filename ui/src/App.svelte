@@ -15,6 +15,7 @@
     defaultStepNote,
   } from "./midiNoteNames.js";
   import RowDisableIcon from "./RowDisableIcon.svelte";
+  import RowRandomizeOctaveIcon from "./RowRandomizeOctaveIcon.svelte";
   import RowRandomizeOrderIcon from "./RowRandomizeOrderIcon.svelte";
   import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
@@ -121,6 +122,20 @@
   let timingHumanizePercent = 0;
   let swingSubdivisionIndex = 1;
   let rowColorsEnabled = false;
+  let undoStack = [];
+  let redoStack = [];
+
+  const historyLimit = 100;
+  const historyButtonBaseClasses =
+    "flex h-8 w-8 items-center justify-center rounded-md border bg-zinc-900 transition-colors outline-none focus:ring-1 focus:ring-emerald-400 disabled:cursor-default disabled:border-zinc-800 disabled:text-zinc-700";
+
+  function historyButtonClasses(enabled) {
+    return `${historyButtonBaseClasses} ${
+      enabled
+        ? "border-zinc-700 text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
+        : "border-zinc-800 text-zinc-700"
+    }`;
+  }
 
   /** UI-only; shifts phrase rows and beat-one guide when any row has a negative offset. */
   $: phraseVisualOffsetCompensationPx = phraseGridVisualOffsetCompensationPx(
@@ -132,6 +147,216 @@
     const id = `step-${nextStepId}`;
     nextStepId += 1;
     return id;
+  }
+
+  function cloneMatrix(matrix) {
+    return matrix.map((row) => [...row]);
+  }
+
+  function createHistorySnapshot() {
+    return {
+      grid: cloneMatrix(grid),
+      rowMuted: [...rowMuted],
+      soloRow,
+      rowSoloRestoreMuted: rowSoloRestoreMuted ? [...rowSoloRestoreMuted] : null,
+      rowTimingOffset: [...rowTimingOffset],
+      rowMidiChannel: [...rowMidiChannel],
+      stepDurationFraction: cloneMatrix(stepDurationFraction),
+      stepTimingMultiplier: cloneMatrix(stepTimingMultiplier),
+      stepVelocity: cloneMatrix(stepVelocity),
+      stepMuted: cloneMatrix(stepMuted),
+      stepSkipped: cloneMatrix(stepSkipped),
+      stepProbability: cloneMatrix(stepProbability),
+      stepCycle: cloneMatrix(stepCycle),
+      stepCycleOffset: cloneMatrix(stepCycleOffset),
+      stepIds: cloneMatrix(stepIds),
+      nextStepId,
+      pulseIndex,
+      swingPercent,
+      velocityHumanizePercent,
+      timingHumanizePercent,
+      swingSubdivisionIndex,
+      loopBraceEnabled,
+      loopBraceStart,
+      loopBraceEnd,
+    };
+  }
+
+  function cloneSnapshot(snapshot) {
+    return {
+      ...snapshot,
+      grid: cloneMatrix(snapshot.grid),
+      rowMuted: [...snapshot.rowMuted],
+      rowSoloRestoreMuted: snapshot.rowSoloRestoreMuted ? [...snapshot.rowSoloRestoreMuted] : null,
+      rowTimingOffset: [...snapshot.rowTimingOffset],
+      rowMidiChannel: [...snapshot.rowMidiChannel],
+      stepDurationFraction: cloneMatrix(snapshot.stepDurationFraction),
+      stepTimingMultiplier: cloneMatrix(snapshot.stepTimingMultiplier),
+      stepVelocity: cloneMatrix(snapshot.stepVelocity),
+      stepMuted: cloneMatrix(snapshot.stepMuted),
+      stepSkipped: cloneMatrix(snapshot.stepSkipped),
+      stepProbability: cloneMatrix(snapshot.stepProbability),
+      stepCycle: cloneMatrix(snapshot.stepCycle),
+      stepCycleOffset: cloneMatrix(snapshot.stepCycleOffset),
+      stepIds: cloneMatrix(snapshot.stepIds),
+    };
+  }
+
+  function snapshotsEqual(left, right) {
+    return JSON.stringify(left) === JSON.stringify(right);
+  }
+
+  function assignSnapshot(snapshot) {
+    const next = cloneSnapshot(snapshot);
+
+    grid = next.grid;
+    rowMuted = next.rowMuted;
+    soloRow = next.soloRow;
+    rowSoloRestoreMuted = next.rowSoloRestoreMuted;
+    rowTimingOffset = next.rowTimingOffset;
+    rowMidiChannel = next.rowMidiChannel;
+    stepDurationFraction = next.stepDurationFraction;
+    stepTimingMultiplier = next.stepTimingMultiplier;
+    stepVelocity = next.stepVelocity;
+    stepMuted = next.stepMuted;
+    stepSkipped = next.stepSkipped;
+    stepProbability = next.stepProbability;
+    stepCycle = next.stepCycle;
+    stepCycleOffset = next.stepCycleOffset;
+    stepIds = next.stepIds;
+    nextStepId = next.nextStepId;
+    pulseIndex = next.pulseIndex;
+    swingPercent = next.swingPercent;
+    velocityHumanizePercent = next.velocityHumanizePercent;
+    timingHumanizePercent = next.timingHumanizePercent;
+    swingSubdivisionIndex = next.swingSubdivisionIndex;
+    loopBraceEnabled = next.loopBraceEnabled;
+    loopBraceStart = next.loopBraceStart;
+    loopBraceEnd = next.loopBraceEnd;
+  }
+
+  function pushHistoryEntry(label, before, after) {
+    if (snapshotsEqual(before, after)) return;
+
+    undoStack = [
+      ...undoStack,
+      {
+        label,
+        before: cloneSnapshot(before),
+        after: cloneSnapshot(after),
+      },
+    ].slice(-historyLimit);
+    redoStack = [];
+  }
+
+  async function commitHistory(label, mutation) {
+    const before = createHistorySnapshot();
+    await mutation();
+    const after = createHistorySnapshot();
+
+    pushHistoryEntry(label, before, after);
+  }
+
+  function snapshotWithRowOrder(snapshot, row, targetIds, currentIds) {
+    const next = cloneSnapshot(snapshot);
+    const idToIndex = Object.fromEntries(currentIds.map((id, index) => [id, index]));
+    const reorder = (values) => targetIds.map((id) => values[idToIndex[id]]);
+
+    next.grid[row] = reorder(next.grid[row]);
+    next.stepDurationFraction[row] = reorder(next.stepDurationFraction[row]);
+    next.stepTimingMultiplier[row] = reorder(next.stepTimingMultiplier[row]);
+    next.stepVelocity[row] = reorder(next.stepVelocity[row]);
+    next.stepMuted[row] = reorder(next.stepMuted[row]);
+    next.stepSkipped[row] = reorder(next.stepSkipped[row]);
+    next.stepProbability[row] = reorder(next.stepProbability[row]);
+    next.stepCycle[row] = reorder(next.stepCycle[row]);
+    next.stepCycleOffset[row] = reorder(next.stepCycleOffset[row]);
+    next.stepIds[row] = [...targetIds];
+
+    return next;
+  }
+
+  async function syncSnapshotToNative(snapshot, previousSnapshot) {
+    if (nativeFunctionAvailable("replacePhraseRow")) {
+      const replacePhraseRow = getNativeFunction("replacePhraseRow");
+
+      for (let row = 0; row < snapshot.grid.length; row += 1) {
+        await replacePhraseRow(
+          row,
+          snapshot.grid[row],
+          snapshot.stepTimingMultiplier[row],
+          snapshot.stepDurationFraction[row],
+          snapshot.stepVelocity[row],
+          snapshot.stepMuted[row].map((muted) => (muted ? 1 : 0)),
+          snapshot.stepSkipped[row].map((skipped) => (skipped ? 1 : 0)),
+          snapshot.stepProbability[row],
+          snapshot.stepCycle[row],
+          snapshot.stepCycleOffset[row],
+        );
+      }
+    }
+
+    for (let row = 0; row < snapshot.grid.length; row += 1) {
+      await pushRowMutedValue(row, snapshot.rowMuted[row]);
+      await pushRowTimingOffset(row);
+      await pushRowMidiChannel(row);
+    }
+
+    if (nativeFunctionAvailable("setPulseIndex")) {
+      await getNativeFunction("setPulseIndex")(snapshot.pulseIndex);
+    }
+
+    if (nativeFunctionAvailable("setSwingPercent")) {
+      await getNativeFunction("setSwingPercent")(snapshot.swingPercent);
+    }
+
+    if (nativeFunctionAvailable("setVelocityHumanizePercent")) {
+      await getNativeFunction("setVelocityHumanizePercent")(snapshot.velocityHumanizePercent);
+    }
+
+    if (nativeFunctionAvailable("setTimingHumanizePercent")) {
+      await getNativeFunction("setTimingHumanizePercent")(snapshot.timingHumanizePercent);
+    }
+
+    if (nativeFunctionAvailable("setSwingSubdivisionIndex")) {
+      await getNativeFunction("setSwingSubdivisionIndex")(snapshot.swingSubdivisionIndex);
+    }
+
+    if (snapshot.loopBraceStart > previousSnapshot.loopBraceStart) {
+      await pushLoopBraceEnd(snapshot.loopBraceEnd);
+      await pushLoopBraceStart(snapshot.loopBraceStart);
+    } else {
+      await pushLoopBraceStart(snapshot.loopBraceStart);
+      await pushLoopBraceEnd(snapshot.loopBraceEnd);
+    }
+
+    await pushLoopBraceEnabled(snapshot.loopBraceEnabled);
+  }
+
+  async function applyHistorySnapshot(snapshot) {
+    const previousSnapshot = createHistorySnapshot();
+    assignSnapshot(snapshot);
+    await syncSnapshotToNative(snapshot, previousSnapshot);
+  }
+
+  async function undo() {
+    const entry = undoStack[undoStack.length - 1];
+
+    if (!entry) return;
+
+    undoStack = undoStack.slice(0, -1);
+    redoStack = [...redoStack, entry];
+    await applyHistorySnapshot(entry.before);
+  }
+
+  async function redo() {
+    const entry = redoStack[redoStack.length - 1];
+
+    if (!entry) return;
+
+    redoStack = redoStack.slice(0, -1);
+    undoStack = [...undoStack, entry];
+    await applyHistorySnapshot(entry.after);
   }
 
   /** @param {number} row @param {string[]} orderedIds */
@@ -512,6 +737,10 @@
 
     if (!move || move.from === move.to) return;
 
+    const after = createHistorySnapshot();
+    const before = snapshotWithRowOrder(after, row, beforeIds, afterIds);
+    pushHistoryEntry("Move step", before, after);
+
     await pushMovePhraseStep(row, move.from, move.to);
   }
 
@@ -552,6 +781,29 @@
 
     const reorderPhraseRowSteps = getNativeFunction("reorderPhraseRowSteps");
     await reorderPhraseRowSteps(row, stepOrder);
+  }
+
+  async function pushCurrentPhraseRow(row) {
+    if (nativeFunctionAvailable("replacePhraseRow")) {
+      const replacePhraseRow = getNativeFunction("replacePhraseRow");
+      await replacePhraseRow(
+        row,
+        grid[row],
+        stepTimingMultiplier[row],
+        stepDurationFraction[row],
+        stepVelocity[row],
+        stepMuted[row].map((muted) => (muted ? 1 : 0)),
+        stepSkipped[row].map((skipped) => (skipped ? 1 : 0)),
+        stepProbability[row],
+        stepCycle[row],
+        stepCycleOffset[row],
+      );
+      return;
+    }
+
+    for (let step = 0; step < grid[row].length; step += 1) {
+      await pushNote(row, step);
+    }
   }
 
   async function pushRowTimingOffset(row) {
@@ -625,44 +877,50 @@
   }
 
   async function setPhraseNoteValue(row, step, midi) {
-    grid[row][step] = Math.min(127, Math.max(0, midi));
-    grid = grid;
-    await pushNote(row, step);
+    await commitHistory("Change note", async () => {
+      grid[row][step] = Math.min(127, Math.max(0, midi));
+      grid = grid;
+      await pushNote(row, step);
+    });
   }
 
   async function toggleRowMute(row, soloRequested = false) {
-    if (soloRequested) {
-      if (soloRow === row && rowSoloRestoreMuted) {
-        const restoreMuted = [...rowSoloRestoreMuted];
-        soloRow = -1;
-        rowSoloRestoreMuted = null;
-        await applyRowMutedState(restoreMuted);
+    await commitHistory(soloRequested ? "Solo row" : "Toggle row mute", async () => {
+      if (soloRequested) {
+        if (soloRow === row && rowSoloRestoreMuted) {
+          const restoreMuted = [...rowSoloRestoreMuted];
+          soloRow = -1;
+          rowSoloRestoreMuted = null;
+          await applyRowMutedState(restoreMuted);
+          return;
+        }
+
+        if (!rowSoloRestoreMuted) {
+          rowSoloRestoreMuted = [...rowMuted];
+        }
+
+        soloRow = row;
+        await applyRowMutedState(rowMuted.map((_, index) => index !== row));
         return;
       }
 
-      if (!rowSoloRestoreMuted) {
-        rowSoloRestoreMuted = [...rowMuted];
-      }
-
-      soloRow = row;
-      await applyRowMutedState(rowMuted.map((_, index) => index !== row));
-      return;
-    }
-
-    const nextMuted = [...rowMuted];
-    nextMuted[row] = !nextMuted[row];
-    await applyRowMutedState(nextMuted);
+      const nextMuted = [...rowMuted];
+      nextMuted[row] = !nextMuted[row];
+      await applyRowMutedState(nextMuted);
+    });
   }
 
   async function reverseRowStepOrder(row) {
     if (!grid[row] || grid[row].length <= 1) return;
 
-    applyRowStepOrder(
-      row,
-      grid[row].map((_, step) => grid[row].length - 1 - step),
-    );
+    await commitHistory("Reverse row", async () => {
+      applyRowStepOrder(
+        row,
+        grid[row].map((_, step) => grid[row].length - 1 - step),
+      );
 
-    await pushReversePhraseRowSteps(row);
+      await pushReversePhraseRowSteps(row);
+    });
   }
 
   function applyRowStepOrder(row, stepOrder) {
@@ -712,210 +970,251 @@
   async function randomizeRowStepOrder(row) {
     if (!grid[row] || grid[row].length <= 1) return;
 
-    const stepOrder = randomStepOrder(grid[row].length);
-    applyRowStepOrder(row, stepOrder);
-    await pushReorderPhraseRowSteps(row, stepOrder);
+    await commitHistory("Randomize row", async () => {
+      const stepOrder = randomStepOrder(grid[row].length);
+      applyRowStepOrder(row, stepOrder);
+      await pushReorderPhraseRowSteps(row, stepOrder);
+    });
+  }
+
+  async function randomizeRowOctaves(row) {
+    if (!grid[row] || grid[row].length === 0) return;
+
+    await commitHistory("Randomize row octaves", async () => {
+      grid[row] = grid[row].map((midi) => {
+        const shift = Math.random() < 0.5 ? -12 : 12;
+        return Math.min(127, Math.max(0, midi + shift));
+      });
+      grid = grid;
+      await pushCurrentPhraseRow(row);
+    });
   }
 
   async function selectRowTimingOffset(row, offsetIndex) {
-    rowTimingOffset[row] = offsetIndex;
-    rowTimingOffset = rowTimingOffset;
-    await pushRowTimingOffset(row);
+    await commitHistory("Change row timing", async () => {
+      rowTimingOffset[row] = offsetIndex;
+      rowTimingOffset = rowTimingOffset;
+      await pushRowTimingOffset(row);
+    });
   }
 
   async function selectRowMidiChannel(row, channel) {
-    rowMidiChannel[row] = Math.min(16, Math.max(1, channel));
-    rowMidiChannel = rowMidiChannel;
-    await pushRowMidiChannel(row);
+    await commitHistory("Change MIDI channel", async () => {
+      rowMidiChannel[row] = Math.min(16, Math.max(1, channel));
+      rowMidiChannel = rowMidiChannel;
+      await pushRowMidiChannel(row);
+    });
   }
 
   async function selectStepTimingMultiplier(row, step, multiplierIndex) {
-    stepTimingMultiplier[row][step] = multiplierIndex;
-    stepTimingMultiplier = stepTimingMultiplier;
-    await pushStepTimingMultiplier(row, step);
+    await commitHistory("Change step timing", async () => {
+      stepTimingMultiplier[row][step] = multiplierIndex;
+      stepTimingMultiplier = stepTimingMultiplier;
+      await pushStepTimingMultiplier(row, step);
+    });
   }
 
   async function selectStepDurationFraction(row, step, fraction) {
-    stepDurationFraction[row][step] = Math.min(1, Math.max(0, fraction));
-    stepDurationFraction = stepDurationFraction;
-    await pushStepDurationFraction(row, step);
+    await commitHistory("Change duration", async () => {
+      stepDurationFraction[row][step] = Math.min(1, Math.max(0, fraction));
+      stepDurationFraction = stepDurationFraction;
+      await pushStepDurationFraction(row, step);
+    });
   }
 
   async function setStepVelocity(row, step, value) {
-    stepVelocity[row][step] = Math.min(127, Math.max(0, value));
-    stepVelocity = stepVelocity;
-    await pushStepVelocity(row, step);
+    await commitHistory("Change velocity", async () => {
+      stepVelocity[row][step] = Math.min(127, Math.max(0, value));
+      stepVelocity = stepVelocity;
+      await pushStepVelocity(row, step);
+    });
   }
 
   async function setStepMuted(row, step, muted) {
-    stepMuted[row][step] = muted;
-    let clearedSkip = false;
+    await commitHistory("Toggle step mute", async () => {
+      stepMuted[row][step] = muted;
+      let clearedSkip = false;
 
-    if (muted && stepSkipped[row][step]) {
-      stepSkipped[row][step] = false;
-      clearedSkip = true;
-      stepSkipped = stepSkipped;
-    }
+      if (muted && stepSkipped[row][step]) {
+        stepSkipped[row][step] = false;
+        clearedSkip = true;
+        stepSkipped = stepSkipped;
+      }
 
-    stepMuted = stepMuted;
-    await pushStepMuted(row, step);
+      stepMuted = stepMuted;
+      await pushStepMuted(row, step);
 
-    if (clearedSkip) {
-      await pushStepSkipped(row, step);
-    }
+      if (clearedSkip) {
+        await pushStepSkipped(row, step);
+      }
+    });
   }
 
   async function setStepSkipped(row, step, skipped) {
-    stepSkipped[row][step] = skipped;
-    let clearedMute = false;
+    await commitHistory("Toggle step skip", async () => {
+      stepSkipped[row][step] = skipped;
+      let clearedMute = false;
 
-    if (skipped && stepMuted[row][step]) {
-      stepMuted[row][step] = false;
-      clearedMute = true;
-      stepMuted = stepMuted;
-    }
+      if (skipped && stepMuted[row][step]) {
+        stepMuted[row][step] = false;
+        clearedMute = true;
+        stepMuted = stepMuted;
+      }
 
-    stepSkipped = stepSkipped;
-    await pushStepSkipped(row, step);
+      stepSkipped = stepSkipped;
+      await pushStepSkipped(row, step);
 
-    if (clearedMute) {
-      await pushStepMuted(row, step);
-    }
+      if (clearedMute) {
+        await pushStepMuted(row, step);
+      }
+    });
   }
 
   async function setStepProbability(row, step, probability) {
-    stepProbability[row][step] = Math.min(100, Math.max(0, probability));
-    stepProbability = stepProbability;
-    await pushStepProbability(row, step);
+    await commitHistory("Change probability", async () => {
+      stepProbability[row][step] = Math.min(100, Math.max(0, probability));
+      stepProbability = stepProbability;
+      await pushStepProbability(row, step);
+    });
   }
 
   async function setStepCycle(row, step, cycle) {
-    const nextCycle = Math.min(64, Math.max(1, cycle));
-    stepCycle[row][step] = nextCycle;
-    stepCycleOffset[row][step] = Math.min(stepCycleOffset[row][step], nextCycle - 1);
-    stepCycle = stepCycle;
-    stepCycleOffset = stepCycleOffset;
-    await pushStepCycle(row, step);
-    await pushStepCycleOffset(row, step);
+    await commitHistory("Change cycle", async () => {
+      const nextCycle = Math.min(64, Math.max(1, cycle));
+      stepCycle[row][step] = nextCycle;
+      stepCycleOffset[row][step] = Math.min(stepCycleOffset[row][step], nextCycle - 1);
+      stepCycle = stepCycle;
+      stepCycleOffset = stepCycleOffset;
+      await pushStepCycle(row, step);
+      await pushStepCycleOffset(row, step);
+    });
   }
 
   async function setStepCycleOffset(row, step, cycleOffset) {
-    const maxOffset = Math.max(0, (stepCycle[row][step] ?? 1) - 1);
-    stepCycleOffset[row][step] = Math.min(maxOffset, Math.max(0, cycleOffset));
-    stepCycleOffset = stepCycleOffset;
-    await pushStepCycleOffset(row, step);
+    await commitHistory("Change cycle offset", async () => {
+      const maxOffset = Math.max(0, (stepCycle[row][step] ?? 1) - 1);
+      stepCycleOffset[row][step] = Math.min(maxOffset, Math.max(0, cycleOffset));
+      stepCycleOffset = stepCycleOffset;
+      await pushStepCycleOffset(row, step);
+    });
   }
 
   async function removeStep(row, step) {
     if (step < 0 || step >= grid[row].length) return;
 
-    grid[row].splice(step, 1);
-    stepDurationFraction[row].splice(step, 1);
-    stepTimingMultiplier[row].splice(step, 1);
-    stepVelocity[row].splice(step, 1);
-    stepMuted[row].splice(step, 1);
-    stepSkipped[row].splice(step, 1);
-    stepProbability[row].splice(step, 1);
-    stepCycle[row].splice(step, 1);
-    stepCycleOffset[row].splice(step, 1);
-    activeGates[row].splice(step, 1);
-    stepIds[row].splice(step, 1);
+    await commitHistory("Remove step", async () => {
+      grid[row].splice(step, 1);
+      stepDurationFraction[row].splice(step, 1);
+      stepTimingMultiplier[row].splice(step, 1);
+      stepVelocity[row].splice(step, 1);
+      stepMuted[row].splice(step, 1);
+      stepSkipped[row].splice(step, 1);
+      stepProbability[row].splice(step, 1);
+      stepCycle[row].splice(step, 1);
+      stepCycleOffset[row].splice(step, 1);
+      activeGates[row].splice(step, 1);
+      stepIds[row].splice(step, 1);
 
-    grid = grid;
-    stepDurationFraction = stepDurationFraction;
-    stepTimingMultiplier = stepTimingMultiplier;
-    stepVelocity = stepVelocity;
-    stepMuted = stepMuted;
-    stepSkipped = stepSkipped;
-    stepProbability = stepProbability;
-    stepCycle = stepCycle;
-    stepCycleOffset = stepCycleOffset;
-    activeGates = activeGates;
-    stepIds = stepIds;
+      grid = grid;
+      stepDurationFraction = stepDurationFraction;
+      stepTimingMultiplier = stepTimingMultiplier;
+      stepVelocity = stepVelocity;
+      stepMuted = stepMuted;
+      stepSkipped = stepSkipped;
+      stepProbability = stepProbability;
+      stepCycle = stepCycle;
+      stepCycleOffset = stepCycleOffset;
+      activeGates = activeGates;
+      stepIds = stepIds;
 
-    if (!nativeFunctionAvailable("removePhraseStep")) return;
+      if (!nativeFunctionAvailable("removePhraseStep")) return;
 
-    const removePhraseStep = getNativeFunction("removePhraseStep");
-    await removePhraseStep(row, step);
+      const removePhraseStep = getNativeFunction("removePhraseStep");
+      await removePhraseStep(row, step);
+    });
   }
 
   async function insertStep(row, step) {
-    const defaultDurations = defaultStepDurationGrid();
-    const defaultMultipliers = defaultStepTimingMultiplierGrid();
-    const defaultVelocities = defaultStepVelocityGrid();
-    const defaultMuted = defaultStepMutedGrid();
-    const defaultSkipped = defaultStepSkippedGrid();
-    const defaultProbability = defaultStepProbabilityGrid();
-    const defaultCycle = defaultStepCycleGrid();
-    const defaultCycleOffset = defaultStepCycleOffsetGrid();
+    await commitHistory("Insert step", async () => {
+      const defaultDurations = defaultStepDurationGrid();
+      const defaultMultipliers = defaultStepTimingMultiplierGrid();
+      const defaultVelocities = defaultStepVelocityGrid();
+      const defaultMuted = defaultStepMutedGrid();
+      const defaultSkipped = defaultStepSkippedGrid();
+      const defaultProbability = defaultStepProbabilityGrid();
+      const defaultCycle = defaultStepCycleGrid();
+      const defaultCycleOffset = defaultStepCycleOffsetGrid();
 
-    grid[row].splice(step, 0, defaultStepNote);
-    stepDurationFraction[row].splice(step, 0, defaultDurations[row]?.[0] ?? 1);
-    stepTimingMultiplier[row].splice(
-      step,
-      0,
-      defaultMultipliers[row]?.[0] ?? defaultStepTimingMultiplierIndex,
-    );
-    stepVelocity[row].splice(step, 0, defaultVelocities[row]?.[0] ?? 100);
-    stepMuted[row].splice(step, 0, defaultMuted[row]?.[0] ?? false);
-    stepSkipped[row].splice(step, 0, defaultSkipped[row]?.[0] ?? false);
-    stepProbability[row].splice(step, 0, defaultProbability[row]?.[0] ?? 100);
-    stepCycle[row].splice(step, 0, defaultCycle[row]?.[0] ?? 1);
-    stepCycleOffset[row].splice(step, 0, defaultCycleOffset[row]?.[0] ?? 0);
-    activeGates[row].splice(step, 0, false);
-    stepIds[row].splice(step, 0, createStepId());
+      grid[row].splice(step, 0, defaultStepNote);
+      stepDurationFraction[row].splice(step, 0, defaultDurations[row]?.[0] ?? 1);
+      stepTimingMultiplier[row].splice(
+        step,
+        0,
+        defaultMultipliers[row]?.[0] ?? defaultStepTimingMultiplierIndex,
+      );
+      stepVelocity[row].splice(step, 0, defaultVelocities[row]?.[0] ?? 100);
+      stepMuted[row].splice(step, 0, defaultMuted[row]?.[0] ?? false);
+      stepSkipped[row].splice(step, 0, defaultSkipped[row]?.[0] ?? false);
+      stepProbability[row].splice(step, 0, defaultProbability[row]?.[0] ?? 100);
+      stepCycle[row].splice(step, 0, defaultCycle[row]?.[0] ?? 1);
+      stepCycleOffset[row].splice(step, 0, defaultCycleOffset[row]?.[0] ?? 0);
+      activeGates[row].splice(step, 0, false);
+      stepIds[row].splice(step, 0, createStepId());
 
-    grid = grid;
-    stepDurationFraction = stepDurationFraction;
-    stepTimingMultiplier = stepTimingMultiplier;
-    stepVelocity = stepVelocity;
-    stepMuted = stepMuted;
-    stepSkipped = stepSkipped;
-    stepProbability = stepProbability;
-    stepCycle = stepCycle;
-    stepCycleOffset = stepCycleOffset;
-    activeGates = activeGates;
-    stepIds = stepIds;
+      grid = grid;
+      stepDurationFraction = stepDurationFraction;
+      stepTimingMultiplier = stepTimingMultiplier;
+      stepVelocity = stepVelocity;
+      stepMuted = stepMuted;
+      stepSkipped = stepSkipped;
+      stepProbability = stepProbability;
+      stepCycle = stepCycle;
+      stepCycleOffset = stepCycleOffset;
+      activeGates = activeGates;
+      stepIds = stepIds;
 
-    if (!nativeFunctionAvailable("insertPhraseStep")) return;
+      if (!nativeFunctionAvailable("insertPhraseStep")) return;
 
-    const insertPhraseStep = getNativeFunction("insertPhraseStep");
-    await insertPhraseStep(row, step);
+      const insertPhraseStep = getNativeFunction("insertPhraseStep");
+      await insertPhraseStep(row, step);
+    });
   }
 
   async function duplicateStep(row, step) {
     if (step <= 0) return;
 
-    const source = step - 1;
+    await commitHistory("Duplicate step", async () => {
+      const source = step - 1;
 
-    grid[row].splice(step, 0, grid[row][source]);
-    stepDurationFraction[row].splice(step, 0, stepDurationFraction[row][source]);
-    stepTimingMultiplier[row].splice(step, 0, stepTimingMultiplier[row][source]);
-    stepVelocity[row].splice(step, 0, stepVelocity[row][source]);
-    stepMuted[row].splice(step, 0, stepMuted[row][source]);
-    stepSkipped[row].splice(step, 0, stepSkipped[row][source]);
-    stepProbability[row].splice(step, 0, stepProbability[row][source]);
-    stepCycle[row].splice(step, 0, stepCycle[row][source]);
-    stepCycleOffset[row].splice(step, 0, stepCycleOffset[row][source]);
-    activeGates[row].splice(step, 0, false);
-    stepIds[row].splice(step, 0, createStepId());
+      grid[row].splice(step, 0, grid[row][source]);
+      stepDurationFraction[row].splice(step, 0, stepDurationFraction[row][source]);
+      stepTimingMultiplier[row].splice(step, 0, stepTimingMultiplier[row][source]);
+      stepVelocity[row].splice(step, 0, stepVelocity[row][source]);
+      stepMuted[row].splice(step, 0, stepMuted[row][source]);
+      stepSkipped[row].splice(step, 0, stepSkipped[row][source]);
+      stepProbability[row].splice(step, 0, stepProbability[row][source]);
+      stepCycle[row].splice(step, 0, stepCycle[row][source]);
+      stepCycleOffset[row].splice(step, 0, stepCycleOffset[row][source]);
+      activeGates[row].splice(step, 0, false);
+      stepIds[row].splice(step, 0, createStepId());
 
-    grid = grid;
-    stepDurationFraction = stepDurationFraction;
-    stepTimingMultiplier = stepTimingMultiplier;
-    stepVelocity = stepVelocity;
-    stepMuted = stepMuted;
-    stepSkipped = stepSkipped;
-    stepProbability = stepProbability;
-    stepCycle = stepCycle;
-    stepCycleOffset = stepCycleOffset;
-    activeGates = activeGates;
-    stepIds = stepIds;
+      grid = grid;
+      stepDurationFraction = stepDurationFraction;
+      stepTimingMultiplier = stepTimingMultiplier;
+      stepVelocity = stepVelocity;
+      stepMuted = stepMuted;
+      stepSkipped = stepSkipped;
+      stepProbability = stepProbability;
+      stepCycle = stepCycle;
+      stepCycleOffset = stepCycleOffset;
+      activeGates = activeGates;
+      stepIds = stepIds;
 
-    if (!nativeFunctionAvailable("duplicatePhraseStep")) return;
+      if (!nativeFunctionAvailable("duplicatePhraseStep")) return;
 
-    const duplicatePhraseStep = getNativeFunction("duplicatePhraseStep");
-    await duplicatePhraseStep(row, step);
+      const duplicatePhraseStep = getNativeFunction("duplicatePhraseStep");
+      await duplicatePhraseStep(row, step);
+    });
   }
 
   async function pollPlaybackActivity() {
@@ -956,16 +1255,18 @@
   }
 
   async function applyPulseIndex(nextIndex) {
-    pulseIndex = Math.min(pulseOptions.length - 1, Math.max(0, nextIndex));
+    await commitHistory("Change pulse", async () => {
+      pulseIndex = Math.min(pulseOptions.length - 1, Math.max(0, nextIndex));
 
-    if (!nativeFunctionAvailable("setPulseIndex")) return;
+      if (!nativeFunctionAvailable("setPulseIndex")) return;
 
-    const result = await getNativeFunction("setPulseIndex")(pulseIndex);
-    const confirmed = Number.parseInt(String(result), 10);
+      const result = await getNativeFunction("setPulseIndex")(pulseIndex);
+      const confirmed = Number.parseInt(String(result), 10);
 
-    if (!Number.isNaN(confirmed)) {
-      pulseIndex = Math.min(pulseOptions.length - 1, Math.max(0, confirmed));
-    }
+      if (!Number.isNaN(confirmed)) {
+        pulseIndex = Math.min(pulseOptions.length - 1, Math.max(0, confirmed));
+      }
+    });
   }
 
   function clampPercent(value) {
@@ -997,27 +1298,31 @@
   }
 
   async function applyGlobalPercent(next, nativeName, assign) {
-    const clamped = clampPercent(next);
-    assign(clamped);
+    await commitHistory("Change percent", async () => {
+      const clamped = clampPercent(next);
+      assign(clamped);
 
-    if (!nativeFunctionAvailable(nativeName)) return;
+      if (!nativeFunctionAvailable(nativeName)) return;
 
-    const result = await getNativeFunction(nativeName)(clamped);
-    const confirmed = clampPercent(result);
-    assign(confirmed);
+      const result = await getNativeFunction(nativeName)(clamped);
+      const confirmed = clampPercent(result);
+      assign(confirmed);
+    });
   }
 
   async function applySwingSubdivisionIndex(nextIndex) {
-    swingSubdivisionIndex = Math.min(swingSubdivisionValues.length - 1, Math.max(0, nextIndex));
+    await commitHistory("Change swing subdivision", async () => {
+      swingSubdivisionIndex = Math.min(swingSubdivisionValues.length - 1, Math.max(0, nextIndex));
 
-    if (!nativeFunctionAvailable("setSwingSubdivisionIndex")) return;
+      if (!nativeFunctionAvailable("setSwingSubdivisionIndex")) return;
 
-    const result = await getNativeFunction("setSwingSubdivisionIndex")(swingSubdivisionIndex);
-    const confirmed = Number.parseInt(String(result), 10);
+      const result = await getNativeFunction("setSwingSubdivisionIndex")(swingSubdivisionIndex);
+      const confirmed = Number.parseInt(String(result), 10);
 
-    if (!Number.isNaN(confirmed)) {
-      swingSubdivisionIndex = Math.min(swingSubdivisionValues.length - 1, Math.max(0, confirmed));
-    }
+      if (!Number.isNaN(confirmed)) {
+        swingSubdivisionIndex = Math.min(swingSubdivisionValues.length - 1, Math.max(0, confirmed));
+      }
+    });
   }
 
   function loadLoopBraceFromInitialisation() {
@@ -1070,31 +1375,33 @@
 
   /** @param {{ enabled?: boolean, start?: number, end?: number }} next */
   async function updateLoopBrace(next) {
-    const previousStart = loopBraceStart;
-    const nextStart = next.start ?? loopBraceStart;
-    const nextEnd = next.end ?? loopBraceEnd;
+    await commitHistory("Change loop brace", async () => {
+      const previousStart = loopBraceStart;
+      const nextStart = next.start ?? loopBraceStart;
+      const nextEnd = next.end ?? loopBraceEnd;
 
-    if (next.enabled !== undefined) {
-      loopBraceEnabled = next.enabled;
-      await pushLoopBraceEnabled(next.enabled);
-    }
-
-    loopBraceStart = nextStart;
-    loopBraceEnd = nextEnd;
-
-    if (next.start !== undefined && next.end !== undefined) {
-      if (nextStart > previousStart) {
-        await pushLoopBraceEnd(nextEnd);
-        await pushLoopBraceStart(nextStart);
-      } else {
-        await pushLoopBraceStart(nextStart);
-        await pushLoopBraceEnd(nextEnd);
+      if (next.enabled !== undefined) {
+        loopBraceEnabled = next.enabled;
+        await pushLoopBraceEnabled(next.enabled);
       }
-      return;
-    }
 
-    if (next.start !== undefined) await pushLoopBraceStart(nextStart);
-    if (next.end !== undefined) await pushLoopBraceEnd(nextEnd);
+      loopBraceStart = nextStart;
+      loopBraceEnd = nextEnd;
+
+      if (next.start !== undefined && next.end !== undefined) {
+        if (nextStart > previousStart) {
+          await pushLoopBraceEnd(nextEnd);
+          await pushLoopBraceStart(nextStart);
+        } else {
+          await pushLoopBraceStart(nextStart);
+          await pushLoopBraceEnd(nextEnd);
+        }
+        return;
+      }
+
+      if (next.start !== undefined) await pushLoopBraceStart(nextStart);
+      if (next.end !== undefined) await pushLoopBraceEnd(nextEnd);
+    });
   }
 
   function loadStandaloneTransportFromInitialisation() {
@@ -1153,9 +1460,24 @@
   loadInitialStateFromJuce();
 
   onMount(() => {
+    const handleKeydown = (event) => {
+      if (!event.metaKey || event.altKey || event.ctrlKey) return;
+      if (event.key.toLowerCase() !== "z") return;
+
+      event.preventDefault();
+
+      if (event.shiftKey) {
+        redo();
+      } else {
+        undo();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeydown);
     playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
 
     return () => {
+      window.removeEventListener("keydown", handleKeydown);
       cancelAnimationFrame(playbackPollFrameId);
     };
   });
@@ -1262,6 +1584,52 @@
             rowColorsEnabled = next;
           }}
         />
+        <div class="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label="Undo"
+            title="Undo"
+            disabled={undoStack.length === 0}
+            class={historyButtonClasses(undoStack.length > 0)}
+            onclick={undo}
+          >
+            <svg
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 14 4 9l5-5" />
+              <path d="M4 9h10a6 6 0 0 1 0 12h-2" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            aria-label="Redo"
+            title="Redo"
+            disabled={redoStack.length === 0}
+            class={historyButtonClasses(redoStack.length > 0)}
+            onclick={redo}
+          >
+            <svg
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m15 14 5-5-5-5" />
+              <path d="M20 9H10a6 6 0 0 0 0 12h2" />
+            </svg>
+          </button>
+        </div>
         </div>
       </div>
     </div>
@@ -1368,6 +1736,17 @@
                 title="Randomize row step order"
               >
                 <RowRandomizeOrderIcon class="pointer-events-none h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Randomize row octaves"
+                class="{rowRandomizeControlClasses} {rowAccent.controlFocus} {rowMuted[row]
+                  ? 'border-zinc-800/90 text-zinc-600'
+                  : `border-zinc-700 ${toggleIconRestClasses}`}"
+                onclick={() => randomizeRowOctaves(row)}
+                title="Randomize row octaves"
+              >
+                <RowRandomizeOctaveIcon class="pointer-events-none h-5 w-5" />
               </button>
             </div>
             <PhraseRow

@@ -809,6 +809,68 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseNote (0, 3) == 88);
     }
 
+    SECTION ("replace phrase row steps")
+    {
+        std::array<int, PluginProcessor::maxPhraseStepsPerRow> notes {};
+        std::array<int, PluginProcessor::maxPhraseStepsPerRow> timingMultiplier {};
+        std::array<double, PluginProcessor::maxPhraseStepsPerRow> durationFraction {};
+        std::array<int, PluginProcessor::maxPhraseStepsPerRow> velocity {};
+        std::array<int, PluginProcessor::maxPhraseStepsPerRow> stepMuted {};
+        std::array<int, PluginProcessor::maxPhraseStepsPerRow> stepSkipped {};
+        std::array<int, PluginProcessor::maxPhraseStepsPerRow> probability {};
+        std::array<int, PluginProcessor::maxPhraseStepsPerRow> cycle {};
+        std::array<int, PluginProcessor::maxPhraseStepsPerRow> cycleOffset {};
+
+        notes[0] = 44;
+        notes[1] = 155;
+        timingMultiplier[0] = 4;
+        timingMultiplier[1] = 99;
+        durationFraction[0] = 0.5;
+        durationFraction[1] = 2.0;
+        velocity[0] = 64;
+        velocity[1] = 200;
+        stepMuted[0] = 1;
+        stepMuted[1] = 1;
+        stepSkipped[1] = 1;
+        probability[0] = 80;
+        probability[1] = -10;
+        cycle[0] = 4;
+        cycle[1] = 100;
+        cycleOffset[0] = 2;
+        cycleOffset[1] = 100;
+
+        testPlugin.replacePhraseRowSteps (0,
+                                          2,
+                                          notes,
+                                          timingMultiplier,
+                                          durationFraction,
+                                          velocity,
+                                          stepMuted,
+                                          stepSkipped,
+                                          probability,
+                                          cycle,
+                                          cycleOffset);
+
+        CHECK (testPlugin.getPhraseRowStepCount (0) == 2);
+        CHECK (testPlugin.getPhraseNote (0, 0) == 44);
+        CHECK (testPlugin.getPhraseNote (0, 1) == 127);
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 0) == 4);
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 1) == 15);
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 0) == 0.5);
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 1) == 1.0);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 0) == 64);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 1) == 127);
+        CHECK (testPlugin.isPhraseStepMuted (0, 0));
+        CHECK_FALSE (testPlugin.isPhraseStepMuted (0, 1));
+        CHECK (testPlugin.isPhraseStepSkipped (0, 1));
+        CHECK (testPlugin.getPhraseStepProbability (0, 0) == 80);
+        CHECK (testPlugin.getPhraseStepProbability (0, 1) == 0);
+        CHECK (testPlugin.getPhraseStepCycle (0, 0) == 4);
+        CHECK (testPlugin.getPhraseStepCycle (0, 1) == PluginProcessor::maxStepCycle);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 0) == 2);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 1) == PluginProcessor::maxStepCycle - 1);
+    }
+
     SECTION ("insert phrase step beyond default row length")
     {
         for (int i = 0; i < 3; ++i)

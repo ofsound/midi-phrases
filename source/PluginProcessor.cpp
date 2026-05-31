@@ -1229,6 +1229,49 @@ int PluginProcessor::getPhraseRowStepCount (const int row) const
     return modelRow (row).stepCount;
 }
 
+void PluginProcessor::replacePhraseRowSteps (
+    const int row,
+    const int stepCount,
+    const std::array<int, maxPhraseStepsPerRow>& notes,
+    const std::array<int, maxPhraseStepsPerRow>& timingMultiplier,
+    const std::array<double, maxPhraseStepsPerRow>& durationFraction,
+    const std::array<int, maxPhraseStepsPerRow>& velocity,
+    const std::array<int, maxPhraseStepsPerRow>& stepMuted,
+    const std::array<int, maxPhraseStepsPerRow>& stepSkipped,
+    const std::array<int, maxPhraseStepsPerRow>& probability,
+    const std::array<int, maxPhraseStepsPerRow>& cycle,
+    const std::array<int, maxPhraseStepsPerRow>& cycleOffset)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return;
+
+    auto& steps = modelRow (row);
+    initialiseRowDefaults (steps, row, juce::jlimit (0, maxPhraseStepsPerRow, stepCount));
+
+    for (int step = 0; step < steps.stepCount; ++step)
+    {
+        const auto index = static_cast<size_t> (step);
+        steps.notes[index] = juce::jlimit (0, 127, notes[index]);
+        steps.timingMultiplier[index] =
+            juce::jlimit (0, stepTimingMultiplierCount - 1, timingMultiplier[index]);
+        steps.durationFraction[index] = clampStepDurationFraction (durationFraction[index]);
+        steps.velocity[index] = juce::jlimit (0, 127, velocity[index]);
+        steps.stepMuted[index] = stepMuted[index] != 0 ? 1 : 0;
+        steps.stepSkipped[index] = stepSkipped[index] != 0 ? 1 : 0;
+
+        if (steps.stepMuted[index] != 0 && steps.stepSkipped[index] != 0)
+            steps.stepMuted[index] = 0;
+
+        steps.probability[index] = clampStepProbability (probability[index]);
+        steps.cycle[index] = clampStepCycle (cycle[index]);
+        steps.cycleOffset[index] = clampStepCycleOffset (cycleOffset[index], steps.cycle[index]);
+    }
+
+    rebuildRowTimingLayout (steps);
+    phraseRowFlushNoteOff[static_cast<size_t> (row)].store (1);
+    publishRowToAudio (row);
+}
+
 void PluginProcessor::removePhraseStep (const int row, const int step)
 {
     if (row < 0 || row >= phraseRowCount || step < 0)

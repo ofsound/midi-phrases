@@ -119,6 +119,17 @@ public:
     void duplicatePhraseStep (int row, int step);
     void movePhraseStep (int row, int fromStep, int toStep);
     int getPhraseRowStepCount (int row) const;
+    void replacePhraseRowSteps (int row,
+                                 int stepCount,
+                                 const std::array<int, maxPhraseStepsPerRow>& notes,
+                                 const std::array<int, maxPhraseStepsPerRow>& timingMultiplier,
+                                 const std::array<double, maxPhraseStepsPerRow>& durationFraction,
+                                 const std::array<int, maxPhraseStepsPerRow>& velocity,
+                                 const std::array<int, maxPhraseStepsPerRow>& stepMuted,
+                                 const std::array<int, maxPhraseStepsPerRow>& stepSkipped,
+                                 const std::array<int, maxPhraseStepsPerRow>& probability,
+                                 const std::array<int, maxPhraseStepsPerRow>& cycle,
+                                 const std::array<int, maxPhraseStepsPerRow>& cycleOffset);
 
     static constexpr int defaultLoopBraceStartQuarters = 0;
     static constexpr int defaultLoopBraceEndQuarters = 8;

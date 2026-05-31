@@ -44,6 +44,32 @@ int varToInt (const juce::var& value)
     return static_cast<int> (value);
 }
 
+void copyIntArray (const juce::var& value,
+                   std::array<int, PluginProcessor::maxPhraseStepsPerRow>& target)
+{
+    if (! value.isArray())
+        return;
+
+    const auto* values = value.getArray();
+    const auto count = juce::jmin (values->size(), PluginProcessor::maxPhraseStepsPerRow);
+
+    for (int index = 0; index < count; ++index)
+        target[static_cast<size_t> (index)] = varToInt ((*values)[index]);
+}
+
+void copyDoubleArray (const juce::var& value,
+                      std::array<double, PluginProcessor::maxPhraseStepsPerRow>& target)
+{
+    if (! value.isArray())
+        return;
+
+    const auto* values = value.getArray();
+    const auto count = juce::jmin (values->size(), PluginProcessor::maxPhraseStepsPerRow);
+
+    for (int index = 0; index < count; ++index)
+        target[static_cast<size_t> (index)] = varToDouble ((*values)[index]);
+}
+
 std::unique_ptr<juce::ZipFile> uiZip;
 
 juce::ZipFile* getUiZip()
@@ -272,6 +298,47 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.reorderPhraseRowSteps (varToInt (args[0]),
                                                                      stepOrder,
                                                                      orderSize);
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "replacePhraseRow",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 10 && args[1].isArray())
+                               {
+                                   std::array<int, PluginProcessor::maxPhraseStepsPerRow> notes {};
+                                   std::array<int, PluginProcessor::maxPhraseStepsPerRow> timingMultiplier {};
+                                   std::array<double, PluginProcessor::maxPhraseStepsPerRow> durationFraction {};
+                                   std::array<int, PluginProcessor::maxPhraseStepsPerRow> velocity {};
+                                   std::array<int, PluginProcessor::maxPhraseStepsPerRow> stepMuted {};
+                                   std::array<int, PluginProcessor::maxPhraseStepsPerRow> stepSkipped {};
+                                   std::array<int, PluginProcessor::maxPhraseStepsPerRow> probability {};
+                                   std::array<int, PluginProcessor::maxPhraseStepsPerRow> cycle {};
+                                   std::array<int, PluginProcessor::maxPhraseStepsPerRow> cycleOffset {};
+
+                                   copyIntArray (args[1], notes);
+                                   copyIntArray (args[2], timingMultiplier);
+                                   copyDoubleArray (args[3], durationFraction);
+                                   copyIntArray (args[4], velocity);
+                                   copyIntArray (args[5], stepMuted);
+                                   copyIntArray (args[6], stepSkipped);
+                                   copyIntArray (args[7], probability);
+                                   copyIntArray (args[8], cycle);
+                                   copyIntArray (args[9], cycleOffset);
+
+                                   processor.replacePhraseRowSteps (varToInt (args[0]),
+                                                                     args[1].getArray()->size(),
+                                                                     notes,
+                                                                     timingMultiplier,
+                                                                     durationFraction,
+                                                                     velocity,
+                                                                     stepMuted,
+                                                                     stepSkipped,
+                                                                     probability,
+                                                                     cycle,
+                                                                     cycleOffset);
                                }
 
                                complete (juce::var {});
