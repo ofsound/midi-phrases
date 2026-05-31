@@ -8,6 +8,8 @@
   export let min = 0;
   export let max = 127;
   export let formatValue = undefined;
+  /** Added to the stored value for display and aria only (e.g. 1 for 1-based cycle offset). */
+  export let displayAdd = 0;
   /** Value restored on double-click; omit to disable reset. */
   export let resetValue = undefined;
   export let ariaLabel = "Value";
@@ -27,7 +29,12 @@
   let dragStartValue = 0;
 
   $: displayValue =
-    formatValue !== undefined ? formatValue(value) : String(Math.round(value));
+    formatValue !== undefined
+      ? formatValue(value)
+      : String(Math.round(value + displayAdd));
+  $: ariaValueMin = min + displayAdd;
+  $: ariaValueMax = max + displayAdd;
+  $: ariaValueNow = value + displayAdd;
 
   function clampValue(next) {
     return Math.min(max, Math.max(min, Math.round(next)));
@@ -92,9 +99,9 @@
       : 'text-zinc-100'}"
   role="slider"
   aria-label={ariaLabel}
-  aria-valuemin={min}
-  aria-valuemax={max}
-  aria-valuenow={value}
+  aria-valuemin={ariaValueMin}
+  aria-valuemax={ariaValueMax}
+  aria-valuenow={ariaValueNow}
   aria-valuetext={displayValue}
   aria-disabled={disabled}
   tabindex={disabled ? -1 : 0}

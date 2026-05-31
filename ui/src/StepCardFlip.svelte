@@ -1,22 +1,16 @@
 <script>
   import { doubleClick } from "./doubleClickAction.js";
-  import { longPress } from "./longPressAction.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   /** @type {import('./rowAccentTheme.js').RowAccent} */
   export let accent = emeraldRowAccent;
   export let muted = false;
   export let flipped = false;
   export let disabled = false;
-  export let longPressMs = 800;
   export let surfaceClass = "bg-zinc-900";
   export let borderClass = "border-zinc-700";
   export let headerClass = "border-b border-zinc-800 bg-zinc-800/60";
   /** @type {(flipped: boolean) => void} */
   export let onFlipChange = () => {};
-
-  function requestFlip() {
-    onFlipChange(!flipped);
-  }
 
   function closeFlip() {
     if (flipped) {
@@ -62,12 +56,6 @@
     disabled: disabled || !flipped,
     shouldIgnore: shouldIgnoreBackPointerDoubleClick,
     onDoubleClick: handleBackBodyDoubleClick,
-  };
-
-  $: longPressOptions = {
-    duration: longPressMs,
-    disabled,
-    onLongPress: requestFlip,
   };
 
   /**
@@ -142,7 +130,6 @@
           class="relative flex min-h-0 w-full min-w-0 flex-1 flex-col gap-1 px-1 py-1 {muted
             ? 'opacity-80'
             : ''}"
-          use:longPress={longPressOptions}
           use:doubleClick={backBodyDoubleClickOptions}
           ondblclick={handleBackBodyDoubleClick}
           title="Double-click empty area to close step settings"

@@ -13,7 +13,6 @@
   import StepSkipToggle from "./StepSkipToggle.svelte";
   import ProbabilityDragInput from "./ProbabilityDragInput.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
-  import { longPress } from "./longPressAction.js";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
   import {
     defaultStepNote,
@@ -102,7 +101,6 @@
   export let onStepCycleOffsetChange = () => {};
   const flipDurationMs = 200;
   const removeBlockMs = 500;
-  const stepFlipLongPressMs = 800;
   const draggedElementId = "dnd-action-dragged-el";
 
   /** @type {{ id: string }[]} */
@@ -149,19 +147,8 @@
     }
   }
 
-  $: stepFlipLongPressDisabled =
+  $: stepFlipInteractionDisabled =
     isDragging || removeBlocked || resizingStep >= 0;
-
-  /** @param {number} step */
-  function longPressFlipParams(step) {
-    return {
-      duration: stepFlipLongPressMs,
-      disabled: stepFlipLongPressDisabled,
-      onLongPress: () => {
-        setStepFlipped(step, true);
-      },
-    };
-  }
 
   /** @param {MouseEvent} event */
   function shouldIgnoreFlipDoubleClick(event) {
@@ -178,7 +165,7 @@
 
   /** @param {MouseEvent} event @param {number} step */
   function handleOpenFlipDoubleClick(event, step) {
-    if (stepFlipLongPressDisabled || shouldIgnoreFlipDoubleClick(event)) return;
+    if (stepFlipInteractionDisabled || shouldIgnoreFlipDoubleClick(event)) return;
 
     event.preventDefault();
     setStepFlipped(step, true);
@@ -856,7 +843,7 @@
         data-step-pointer
         aria-label={isFlipped ? "Close step settings" : "Open step settings"}
         aria-pressed={isFlipped}
-        disabled={stepFlipLongPressDisabled}
+        disabled={stepFlipInteractionDisabled}
         style="cursor: pointer"
         class="{footerButtonClass} min-w-0 flex-1 basis-0 disabled:pointer-events-none disabled:opacity-50 {isFlipped
           ? toggleIconActiveClasses
@@ -895,7 +882,7 @@
         data-step-pointer
         aria-label={isFlipped ? "Close step settings" : "Open step settings"}
         aria-pressed={isFlipped}
-        disabled={stepFlipLongPressDisabled}
+        disabled={stepFlipInteractionDisabled}
         style="cursor: pointer; {footerSlotStyle};"
         class="{footerButtonClass} disabled:pointer-events-none disabled:opacity-50 {isFlipped
           ? toggleIconActiveClasses
@@ -927,8 +914,7 @@
       {accent}
       muted={stepDimmed}
       flipped={stepFlipped}
-      disabled={stepFlipLongPressDisabled}
-      longPressMs={stepFlipLongPressMs}
+      disabled={stepFlipInteractionDisabled}
       surfaceClass={stepCellSurfaceClass(stepDimmed)}
       borderClass={stepCellPlaybackClass(activeGates[step], stepDimmed)}
       headerClass={stepHeaderClass(stepDimmed)}
@@ -955,11 +941,10 @@
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 use:dragHandle
-                use:longPress={longPressFlipParams(step)}
-                aria-label="Drag to reorder step. Hold or double-click header to open step settings."
+                aria-label="Drag to reorder step. Double-click header to open step settings."
                 class="flex min-h-5 min-w-0 flex-1 cursor-grab items-center justify-end active:cursor-grabbing"
                 ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
-                title="Hold or double-click to open step settings"
+                title="Double-click to open step settings"
               >
                 <span
                   data-multiplier-label
@@ -984,14 +969,13 @@
               {/if}
               <div
                 role="presentation"
-                use:longPress={longPressFlipParams(step)}
-                aria-label="Hold or double-click header to open step settings."
+                aria-label="Double-click header to open step settings."
                 class="flex min-h-5 min-w-0 flex-1 cursor-default items-center justify-end {stepDimmed
                   ? 'opacity-80'
                   : 'opacity-60'}"
                 onpointerdown={stopPointerPropagation}
                 ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
-                title="Hold or double-click to open step settings"
+                title="Double-click to open step settings"
               >
                 <span
                   data-multiplier-label
@@ -1041,12 +1025,11 @@
                 />
               </div>
               <div
-                use:longPress={longPressFlipParams(step)}
                 class="min-h-5 min-w-4 flex-1 touch-none"
                 role="presentation"
-                aria-label="Hold or double-click to open step settings"
+                aria-label="Double-click to open step settings"
                 ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
-                title="Hold or double-click to open step settings"
+                title="Double-click to open step settings"
               ></div>
             </div>
           </div>
@@ -1113,6 +1096,7 @@
               value={stepCycleOffset[step] ?? 0}
               min={0}
               max={Math.max(0, (stepCycle[step] ?? 1) - 1)}
+              displayAdd={1}
               resetValue={0}
               ariaLabel="Step cycle offset"
               onValueChange={(value) => onStepCycleOffsetChange(row, step, value)}
