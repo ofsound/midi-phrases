@@ -15,6 +15,7 @@
     defaultStepNote,
   } from "./midiNoteNames.js";
   import RowDisableIcon from "./RowDisableIcon.svelte";
+  import RowRandomizeOrderIcon from "./RowRandomizeOrderIcon.svelte";
   import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
   import MidiChannelStepper from "./MidiChannelStepper.svelte";
@@ -48,6 +49,7 @@
     rowMutedOverlayClasses,
     rowMuteControlClasses,
     rowPowerToggleOffClasses,
+    rowRandomizeControlClasses,
     rowReverseControlClasses,
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
@@ -529,6 +531,13 @@
     await reversePhraseRowSteps(row);
   }
 
+  async function pushReorderPhraseRowSteps(row, stepOrder) {
+    if (!nativeFunctionAvailable("reorderPhraseRowSteps")) return;
+
+    const reorderPhraseRowSteps = getNativeFunction("reorderPhraseRowSteps");
+    await reorderPhraseRowSteps(row, stepOrder);
+  }
+
   async function pushRowTimingOffset(row) {
     if (!nativeFunctionAvailable("setPhraseRowTimingOffset")) return;
 
@@ -614,17 +623,28 @@
   async function reverseRowStepOrder(row) {
     if (!grid[row] || grid[row].length <= 1) return;
 
-    grid[row].reverse();
-    stepDurationFraction[row].reverse();
-    stepTimingMultiplier[row].reverse();
-    stepVelocity[row].reverse();
-    stepMuted[row].reverse();
-    stepSkipped[row].reverse();
-    stepProbability[row].reverse();
-    stepCycle[row].reverse();
-    stepCycleOffset[row].reverse();
-    activeGates[row].reverse();
-    stepIds[row].reverse();
+    applyRowStepOrder(
+      row,
+      grid[row].map((_, step) => grid[row].length - 1 - step),
+    );
+
+    await pushReversePhraseRowSteps(row);
+  }
+
+  function applyRowStepOrder(row, stepOrder) {
+    const reorder = (values) => stepOrder.map((sourceStep) => values[sourceStep]);
+
+    grid[row] = reorder(grid[row]);
+    stepDurationFraction[row] = reorder(stepDurationFraction[row]);
+    stepTimingMultiplier[row] = reorder(stepTimingMultiplier[row]);
+    stepVelocity[row] = reorder(stepVelocity[row]);
+    stepMuted[row] = reorder(stepMuted[row]);
+    stepSkipped[row] = reorder(stepSkipped[row]);
+    stepProbability[row] = reorder(stepProbability[row]);
+    stepCycle[row] = reorder(stepCycle[row]);
+    stepCycleOffset[row] = reorder(stepCycleOffset[row]);
+    activeGates[row] = reorder(activeGates[row]);
+    stepIds[row] = reorder(stepIds[row]);
 
     grid = grid;
     stepDurationFraction = stepDurationFraction;
@@ -637,8 +657,30 @@
     stepCycleOffset = stepCycleOffset;
     activeGates = activeGates;
     stepIds = stepIds;
+  }
 
-    await pushReversePhraseRowSteps(row);
+  function randomStepOrder(stepCount) {
+    const stepOrder = Array.from({ length: stepCount }, (_, step) => step);
+
+    for (let index = stepOrder.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [stepOrder[index], stepOrder[swapIndex]] = [stepOrder[swapIndex], stepOrder[index]];
+    }
+
+    if (stepCount > 1 && stepOrder.every((sourceStep, step) => sourceStep === step)) {
+      const swapIndex = 1 + Math.floor(Math.random() * (stepCount - 1));
+      [stepOrder[0], stepOrder[swapIndex]] = [stepOrder[swapIndex], stepOrder[0]];
+    }
+
+    return stepOrder;
+  }
+
+  async function randomizeRowStepOrder(row) {
+    if (!grid[row] || grid[row].length <= 1) return;
+
+    const stepOrder = randomStepOrder(grid[row].length);
+    applyRowStepOrder(row, stepOrder);
+    await pushReorderPhraseRowSteps(row, stepOrder);
   }
 
   async function selectRowTimingOffset(row, offsetIndex) {
@@ -1269,6 +1311,17 @@
                 title="Reverse row step order"
               >
                 <RowReverseOrderIcon class="pointer-events-none h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Randomize row step order"
+                class="{rowRandomizeControlClasses} {rowAccent.controlFocus} {rowMuted[row]
+                  ? 'border-zinc-800/90 text-zinc-600'
+                  : `border-zinc-700 ${toggleIconRestClasses}`}"
+                onclick={() => randomizeRowStepOrder(row)}
+                title="Randomize row step order"
+              >
+                <RowRandomizeOrderIcon class="pointer-events-none h-5 w-5" />
               </button>
             </div>
             <PhraseRow

@@ -141,3 +141,7 @@ export const rowMuteControlClasses =
 /** Destructive row reverse action in the row control strip (after offset). */
 export const rowReverseControlClasses =
   "relative z-20 flex h-9 min-w-[3.75rem] shrink-0 items-center justify-center rounded-lg border bg-zinc-900 px-2 transition-colors outline-none hover:border-zinc-600";
+
+/** Destructive row randomize action in the row control strip. */
+export const rowRandomizeControlClasses =
+  "relative z-20 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-zinc-900 p-0 transition-colors outline-none hover:border-zinc-600";

@@ -44,7 +44,7 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
     static constexpr int phraseRowCount = 4;
-    static constexpr int defaultPhraseStepsPerRow = 4;
+    static constexpr int defaultPhraseStepsPerRow = 1;
     static constexpr int maxPhraseStepsPerRow = 64;
 
     void setPhraseNote (int row, int step, int noteNumber);
@@ -54,6 +54,9 @@ public:
     bool isPhraseRowMuted (int row) const;
 
     void reversePhraseRowSteps (int row);
+    void reorderPhraseRowSteps (int row,
+                                 const std::array<int, maxPhraseStepsPerRow>& stepOrder,
+                                 int orderSize);
 
     static constexpr int rowTimingOffsetCount = 7;
     static constexpr int defaultRowTimingOffsetIndex = 3;
@@ -259,6 +262,9 @@ private:
     void initialiseRowDefaults (PhraseRowSteps& steps, int row, int stepCount);
     void rebuildRowTimingLayout (PhraseRowSteps& steps);
     void reverseRowSteps (PhraseRowSteps& steps);
+    bool applyRowStepOrder (PhraseRowSteps& steps,
+                            const std::array<int, maxPhraseStepsPerRow>& stepOrder,
+                            int orderSize);
     void publishCommandToAudio (const SequencerCommand& command);
     void publishRowToAudio (int row);
     void drainSequencerCommands();

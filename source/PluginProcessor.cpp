@@ -207,10 +207,11 @@ PluginProcessor::PluginProcessor()
     {
         initialiseRowDefaults (modelState.rows[static_cast<size_t> (row)], row, defaultPhraseStepsPerRow);
         initialiseRowDefaults (audioState.rows[static_cast<size_t> (row)], row, defaultPhraseStepsPerRow);
-        modelState.muted[static_cast<size_t> (row)] = 0;
+        const auto rowMuted = row == 0 ? 0 : 1;
+        modelState.muted[static_cast<size_t> (row)] = rowMuted;
         modelState.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
         modelState.midiChannel[static_cast<size_t> (row)] = defaultPhraseRowMidiChannel;
-        audioState.muted[static_cast<size_t> (row)] = 0;
+        audioState.muted[static_cast<size_t> (row)] = rowMuted;
         audioState.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
         audioState.midiChannel[static_cast<size_t> (row)] = defaultPhraseRowMidiChannel;
         phraseRowFlushNoteOff[static_cast<size_t> (row)].store (0);
@@ -848,6 +849,66 @@ void PluginProcessor::reversePhraseRowSteps (const int row)
         return;
 
     reverseRowSteps (steps);
+    phraseRowFlushNoteOff[static_cast<size_t> (row)].store (1);
+    publishRowToAudio (row);
+}
+
+bool PluginProcessor::applyRowStepOrder (PhraseRowSteps& steps,
+                                         const std::array<int, maxPhraseStepsPerRow>& stepOrder,
+                                         const int orderSize)
+{
+    if (orderSize != steps.stepCount || orderSize <= 1)
+        return false;
+
+    std::array<int, maxPhraseStepsPerRow> seen {};
+
+    for (int index = 0; index < orderSize; ++index)
+    {
+        const auto source = stepOrder[static_cast<size_t> (index)];
+
+        if (source < 0 || source >= orderSize)
+            return false;
+
+        if (seen[static_cast<size_t> (source)] != 0)
+            return false;
+
+        seen[static_cast<size_t> (source)] = 1;
+    }
+
+    const auto original = steps;
+
+    for (int destination = 0; destination < orderSize; ++destination)
+    {
+        const auto destinationIndex = static_cast<size_t> (destination);
+        const auto sourceIndex = static_cast<size_t> (stepOrder[destinationIndex]);
+
+        steps.notes[destinationIndex] = original.notes[sourceIndex];
+        steps.timingMultiplier[destinationIndex] = original.timingMultiplier[sourceIndex];
+        steps.durationFraction[destinationIndex] = original.durationFraction[sourceIndex];
+        steps.velocity[destinationIndex] = original.velocity[sourceIndex];
+        steps.stepMuted[destinationIndex] = original.stepMuted[sourceIndex];
+        steps.stepSkipped[destinationIndex] = original.stepSkipped[sourceIndex];
+        steps.probability[destinationIndex] = original.probability[sourceIndex];
+        steps.cycle[destinationIndex] = original.cycle[sourceIndex];
+        steps.cycleOffset[destinationIndex] = original.cycleOffset[sourceIndex];
+    }
+
+    rebuildRowTimingLayout (steps);
+    return true;
+}
+
+void PluginProcessor::reorderPhraseRowSteps (const int row,
+                                             const std::array<int, maxPhraseStepsPerRow>& stepOrder,
+                                             const int orderSize)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return;
+
+    auto& steps = modelRow (row);
+
+    if (! applyRowStepOrder (steps, stepOrder, orderSize))
+        return;
+
     phraseRowFlushNoteOff[static_cast<size_t> (row)].store (1);
     publishRowToAudio (row);
 }

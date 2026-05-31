@@ -254,6 +254,29 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                complete (juce::var {});
                            })
                        .withNativeFunction (
+                           "reorderPhraseRowSteps",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 2 && args[1].isArray())
+                               {
+                                   std::array<int, PluginProcessor::maxPhraseStepsPerRow> stepOrder {};
+                                   const auto* orderValues = args[1].getArray();
+                                   const auto orderSize = juce::jmin (
+                                       orderValues->size(),
+                                       PluginProcessor::maxPhraseStepsPerRow);
+
+                                   for (int index = 0; index < orderSize; ++index)
+                                       stepOrder[static_cast<size_t> (index)] =
+                                           varToInt ((*orderValues)[index]);
+
+                                   processor.reorderPhraseRowSteps (varToInt (args[0]),
+                                                                     stepOrder,
+                                                                     orderSize);
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
                            "setPhraseRowTimingOffset",
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
