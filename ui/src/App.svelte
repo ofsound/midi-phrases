@@ -15,6 +15,7 @@
     defaultStepNote,
   } from "./midiNoteNames.js";
   import RowDisableIcon from "./RowDisableIcon.svelte";
+  import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
   import MidiChannelStepper from "./MidiChannelStepper.svelte";
   import PhraseRow from "./PhraseRow.svelte";
@@ -48,7 +49,6 @@
     rowMuteControlClasses,
     rowPowerToggleOffClasses,
     rowReverseControlClasses,
-    toggleIconActiveClasses,
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
 
@@ -57,8 +57,6 @@
   let grid = defaultPhraseGrid();
   /** @type {boolean[]} */
   let rowMuted = [false, false, false, false];
-  /** @type {boolean[]} */
-  let rowReversed = [false, false, false, false];
   /** @type {number[]} */
   let rowTimingOffset = [
     defaultRowTimingOffsetIndex,
@@ -192,7 +190,6 @@
             step,
             rowNotes: grid[row],
             rowMuted: rowMuted[row],
-            rowReversed: rowReversed[row],
             rowTimingOffset: rowTimingOffset[row],
             stepDurationFraction: stepDurationFraction[row],
             stepTimingMultiplier: stepTimingMultiplier[row],
@@ -264,20 +261,6 @@
     }
 
     rowMuted = next;
-  }
-
-  function loadRowReversedFromInitialisation() {
-    const init = unwrapJuceInit("phraseRowReversed");
-
-    if (!Array.isArray(init)) return;
-
-    const next = [false, false, false, false];
-
-    for (let row = 0; row < 4; row += 1) {
-      next[row] = Boolean(init[row]);
-    }
-
-    rowReversed = next;
   }
 
   function loadRowTimingOffsetFromInitialisation() {
@@ -539,11 +522,11 @@
     await setPhraseRowMuted(row, rowMuted[row] ? 1 : 0);
   }
 
-  async function pushRowReversed(row) {
-    if (!nativeFunctionAvailable("setPhraseRowReversed")) return;
+  async function pushReversePhraseRowSteps(row) {
+    if (!nativeFunctionAvailable("reversePhraseRowSteps")) return;
 
-    const setPhraseRowReversed = getNativeFunction("setPhraseRowReversed");
-    await setPhraseRowReversed(row, rowReversed[row] ? 1 : 0);
+    const reversePhraseRowSteps = getNativeFunction("reversePhraseRowSteps");
+    await reversePhraseRowSteps(row);
   }
 
   async function pushRowTimingOffset(row) {
@@ -628,10 +611,34 @@
     await pushRowMuted(row);
   }
 
-  async function toggleRowReverse(row) {
-    rowReversed[row] = !rowReversed[row];
-    rowReversed = rowReversed;
-    await pushRowReversed(row);
+  async function reverseRowStepOrder(row) {
+    if (!grid[row] || grid[row].length <= 1) return;
+
+    grid[row].reverse();
+    stepDurationFraction[row].reverse();
+    stepTimingMultiplier[row].reverse();
+    stepVelocity[row].reverse();
+    stepMuted[row].reverse();
+    stepSkipped[row].reverse();
+    stepProbability[row].reverse();
+    stepCycle[row].reverse();
+    stepCycleOffset[row].reverse();
+    activeGates[row].reverse();
+    stepIds[row].reverse();
+
+    grid = grid;
+    stepDurationFraction = stepDurationFraction;
+    stepTimingMultiplier = stepTimingMultiplier;
+    stepVelocity = stepVelocity;
+    stepMuted = stepMuted;
+    stepSkipped = stepSkipped;
+    stepProbability = stepProbability;
+    stepCycle = stepCycle;
+    stepCycleOffset = stepCycleOffset;
+    activeGates = activeGates;
+    stepIds = stepIds;
+
+    await pushReversePhraseRowSteps(row);
   }
 
   async function selectRowTimingOffset(row, offsetIndex) {
@@ -1040,7 +1047,6 @@
   function loadInitialStateFromJuce() {
     loadGridFromInitialisation();
     loadRowMutedFromInitialisation();
-    loadRowReversedFromInitialisation();
     loadRowTimingOffsetFromInitialisation();
     loadRowMidiChannelFromInitialisation();
     loadStepDurationFromInitialisation();
@@ -1255,16 +1261,14 @@
               />
               <button
                 type="button"
-                aria-label={rowReversed[row] ? "Disable reverse playback" : "Enable reverse playback"}
-                aria-pressed={rowReversed[row]}
-                class="{rowReverseControlClasses} {rowAccent.controlFocus} {rowReversed[row] && !rowMuted[row]
-                  ? `border-zinc-600 ${toggleIconActiveClasses}`
-                  : rowMuted[row]
-                    ? 'border-zinc-800/90 text-zinc-600'
-                    : `border-zinc-700 ${toggleIconRestClasses}`}"
-                onclick={() => toggleRowReverse(row)}
+                aria-label="Reverse row step order"
+                class="{rowReverseControlClasses} {rowAccent.controlFocus} {rowMuted[row]
+                  ? 'border-zinc-800/90 text-zinc-600'
+                  : `border-zinc-700 ${toggleIconRestClasses}`}"
+                onclick={() => reverseRowStepOrder(row)}
+                title="Reverse row step order"
               >
-                Reverse
+                <RowReverseOrderIcon class="pointer-events-none h-5 w-5" />
               </button>
             </div>
             <PhraseRow
@@ -1310,7 +1314,6 @@
       notes={grid}
       {rowColorsEnabled}
       {rowMuted}
-      {rowReversed}
       {rowTimingOffset}
       {stepDurationFraction}
       {stepTimingMultiplier}

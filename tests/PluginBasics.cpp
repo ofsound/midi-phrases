@@ -34,18 +34,36 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK_FALSE (testPlugin.isPhraseRowMuted (0));
     }
 
-    SECTION ("row reverse")
+    SECTION ("row step order reverse")
     {
-        CHECK_FALSE (testPlugin.isPhraseRowReversed (0));
+        for (int step = 0; step < testPlugin.getPhraseRowStepCount (0); ++step)
+        {
+            testPlugin.setPhraseNote (0, step, 60 + step);
+            testPlugin.setPhraseStepVelocity (0, step, 20 + step);
+            testPlugin.setPhraseStepDurationFraction (0, step, 0.25 * static_cast<double> (step + 1));
+            testPlugin.setPhraseStepProbability (0, step, 50 + step);
+            testPlugin.setPhraseStepCycle (0, step, 4 + step);
+            testPlugin.setPhraseStepCycleOffset (0, step, step);
+        }
 
-        testPlugin.setPhraseRowReversed (0, true);
-        testPlugin.setPhraseRowReversed (1, false);
+        testPlugin.reversePhraseRowSteps (0);
 
-        CHECK (testPlugin.isPhraseRowReversed (0));
-        CHECK_FALSE (testPlugin.isPhraseRowReversed (1));
+        CHECK (testPlugin.getPhraseNote (0, 0) == 63);
+        CHECK (testPlugin.getPhraseNote (0, 3) == 60);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 0) == 23);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 3) == 20);
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 0) == Catch::Approx (1.0));
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 3) == Catch::Approx (0.25));
+        CHECK (testPlugin.getPhraseStepProbability (0, 0) == 53);
+        CHECK (testPlugin.getPhraseStepProbability (0, 3) == 50);
+        CHECK (testPlugin.getPhraseStepCycle (0, 0) == 7);
+        CHECK (testPlugin.getPhraseStepCycle (0, 3) == 4);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 0) == 3);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 3) == 0);
 
-        testPlugin.setPhraseRowReversed (0, false);
-        CHECK_FALSE (testPlugin.isPhraseRowReversed (0));
+        testPlugin.reversePhraseRowSteps (0);
+        CHECK (testPlugin.getPhraseNote (0, 0) == 60);
+        CHECK (testPlugin.getPhraseNote (0, 3) == 63);
     }
 
     SECTION ("pulse")
@@ -299,7 +317,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPlayHead (nullptr);
     }
 
-    SECTION ("row reverse plays rightmost step first")
+    SECTION ("row order reverse makes former rightmost step play first")
     {
         testPlugin.prepareToPlay (44100.0, 512);
 
@@ -352,11 +370,11 @@ TEST_CASE ("Plugin instance", "[instance]")
             return -1;
         };
 
-        testPlugin.setPhraseRowReversed (0, true);
+        testPlugin.reversePhraseRowSteps (0);
         testPlugin.processBlock (buffer, midi);
         CHECK (firstNoteOn() == 72);
 
-        testPlugin.setPhraseRowReversed (0, false);
+        testPlugin.reversePhraseRowSteps (0);
         midi.clear();
         playHead.info.setPpqPosition (8.0);
         testPlugin.processBlock (buffer, midi);

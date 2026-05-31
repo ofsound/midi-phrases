@@ -5,41 +5,47 @@ alwaysApply: true
 
 # Rebuild after changes
 
-After any change that affects what the user sees in the app, rebuild and report success or errors. Do not ask the user to rebuild manually unless the toolchain is broken.
+After any change that affects what the user sees in the app (`ui/`, `source/`, `CMakeLists.txt`, or plugin-related CMake), **rebuild every shipping format** and report success or errors. Do not ask the user to rebuild manually unless the toolchain is broken.
+
+## Required build (always)
+
+**Do not** build only `MidiPhrases_Standalone`. Standalone and DAW plugins are separate binaries; a standalone-only build leaves VST3/AU stale with an old embedded UI.
+
+**Always** run the full default build:
+
+```bash
+cmake --build Builds
+```
+
+That rebuilds **Standalone**, **AU**, **VST3**, and **AUv3**, refreshes `assets/webview/ui.zip` in BinaryData when `ui/` changed, and copies AU/VST3 to `~/Library/Audio/Plug-Ins/` via `COPY_PLUGIN_AFTER_BUILD`.
+
+Equivalent explicit targets (only if you truly need a subset — prefer full build):
+
+```bash
+cmake --build Builds --target MidiPhrases_Standalone MidiPhrases_VST3 MidiPhrases_AU MidiPhrases_AUv3
+```
 
 ## WebView UI (`ui/`)
 
-The standalone and plugin editors load the UI from **`assets/webview/ui.zip` embedded in BinaryData**, not from `ui/dist` directly.
+Editors load the UI from **`assets/webview/ui.zip` embedded in BinaryData**, not from `ui/dist` directly.
 
-1. `npm run build` in `ui/` (or let CMake run it) updates the zip only.
-2. **Always** run a plugin build so BinaryData and the binary are refreshed:
-   ```bash
-   cmake --build Builds --target MidiPhrases_Standalone
-   ```
-3. For DAW testing as well, a full build is fine:
-   ```bash
-   cmake --build Builds
-   ```
-   (CMake depends on `WebViewUIBuild`, so `ui/` edits trigger `npm run build` automatically when using Ninja.)
+1. `npm run build` in `ui/` (or let CMake run it via `WebViewUIBuild`) updates the zip only.
+2. **Still run `cmake --build Builds`** so every binary embeds the new zip.
 
-**Default verification target:** `MidiPhrases_Standalone` — treat the standalone as the primary UI check after minor UI edits.
+`npm run dev` alone does **not** update standalone or plugins unless the build defines `MIDI_PHRASES_UI_DEV_SERVER` and the dev server on port **5174** is running.
 
-Built app (Debug):
+Built standalone (Debug):
 
 `Builds/MidiPhrases_artefacts/Debug/Standalone/MIDI Phrases.app`
 
 Remind the user to **fully quit and reopen** the standalone after a rebuild; relaunching an already-running instance keeps the old embedded UI.
 
-`npm run dev` alone does **not** update the standalone unless the Debug build is compiled with `MIDI_PHRASES_UI_DEV_SERVER` and the dev server on port **5174** is running.
-
 ## Plugin C++ (`source/`), CMake, tests
 
 1. If `CMakeLists.txt` changed: `cmake -B Builds -G Ninja -DCMAKE_BUILD_TYPE=Debug`
-2. Always run: `cmake --build Builds`
-3. Prefer install targets when checking in a DAW: `MidiPhrases_VST3`, `MidiPhrases_AU`, and `MidiPhrases_Standalone` (full `cmake --build Builds` is fine).
+2. **Always:** `cmake --build Builds` (all formats above)
+3. Run `./Builds/Tests` when test or processor behavior changes.
 
-Plugins install to `~/Library/Audio/Plug-Ins/` (VST3, AU) via `COPY_PLUGIN_AFTER_BUILD`. Remind the user to rescan in the DAW only when plugin binaries change, not for every edit.
+## DAW reload
 
-## Both UI and C++
-
-Run `cmake --build Builds` (or at minimum `MidiPhrases_Standalone` if the change is UI-only and standalone is enough for the task).
+After plugin binaries change, tell the user to **remove the plugin instance and reopen it** (or restart the DAW). Rescan plug-in folders only when the host does not pick up replaced bundles automatically.

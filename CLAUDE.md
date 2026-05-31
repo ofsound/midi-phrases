@@ -67,13 +67,15 @@ Melatonin Inspector was removed — it only applies to native JUCE widgets, not 
 
 ## Agent workflow (rebuild every time)
 
-After any change to `source/`, `CMakeLists.txt`, or plugin-related CMake modules:
+After any change to `ui/`, `source/`, `CMakeLists.txt`, or plugin-related CMake modules:
 
 1. Reconfigure only if CMake changed: `cmake -B Builds -G Ninja -DCMAKE_BUILD_TYPE=Debug`
-2. Build: `cmake --build Builds` (installs VST3, AU, Standalone, CLAP to system plugin folders)
+2. **Always** build all formats: `cmake --build Builds` (Standalone, AU, VST3, AUv3 — installs AU/VST3 to `~/Library/Audio/Plug-Ins/`). **Never** use only `MidiPhrases_Standalone`; DAW plugins will stay stale.
 3. Fix compile errors before finishing the task; do not leave rebuilds to the user unless their toolchain is missing (cmake/ninja/Xcode).
 
 Run `./Builds/Tests` when test or processor behavior changes.
+
+See `.cursor/rules/rebuild-after-changes.mdc` for WebView zip / DAW reload notes.
 
 ## Project Structure
 

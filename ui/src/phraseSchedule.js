@@ -95,33 +95,13 @@ export function rowStepLayout(
 }
 
 /**
- * Step trigger position within a cycle (forward or reverse playback order).
+ * Step trigger position within a cycle.
  *
  * @param {number[]} stepStartQuarters
- * @param {number[]} stepLengthQuarters
  * @param {number} step
- * @param {boolean} reversed
  */
-export function stepStartInCycleForStep(
-  stepStartQuarters,
-  stepLengthQuarters,
-  step,
-  reversed,
-  stepSkipped = [],
-) {
-  if (!reversed) {
-    return stepStartQuarters[step] ?? 0;
-  }
-
-  let start = 0;
-
-  for (let index = step + 1; index < stepLengthQuarters.length; index += 1) {
-    if (stepSkipped[index]) continue;
-
-    start += stepLengthQuarters[index] ?? 0;
-  }
-
-  return start;
+export function stepStartInCycleForStep(stepStartQuarters, step) {
+  return stepStartQuarters[step] ?? 0;
 }
 
 /**
@@ -130,7 +110,6 @@ export function stepStartInCycleForStep(
  * @param {object} params
  * @param {number[][]} params.notes
  * @param {boolean[]} params.rowMuted
- * @param {boolean[]} [params.rowReversed]
  * @param {number[]} params.rowTimingOffset
  * @param {number[][]} params.stepDurationFraction
  * @param {number[][]} params.stepTimingMultiplier
@@ -149,7 +128,6 @@ export function stepStartInCycleForStep(
 export function buildPhraseSchedule({
   notes,
   rowMuted,
-  rowReversed = [],
   rowTimingOffset,
   stepDurationFraction,
   stepTimingMultiplier,
@@ -190,8 +168,6 @@ export function buildPhraseSchedule({
     if (cycleLengthQuarters <= 0) continue;
 
     const offset = rowTimingOffsetQuarters(rowTimingOffset[row], pulseIndex);
-    const reversed = rowReversed[row] ?? false;
-
     /** @type {{ ppq: number, step: number }[]} */
     const triggers = [];
     /** @type {number[]} */
@@ -200,13 +176,7 @@ export function buildPhraseSchedule({
     for (let step = 0; step < stepCount; step += 1) {
       if (rowSkipped[step]) continue;
 
-      const stepStartInCycle = stepStartInCycleForStep(
-        stepStartQuarters,
-        stepLengthQuarters,
-        step,
-        reversed,
-        rowSkipped,
-      );
+      const stepStartInCycle = stepStartInCycleForStep(stepStartQuarters, step);
       const nMin = Math.ceil(
         (ppqStart - stepStartInCycle - offset - EPSILON) / cycleLengthQuarters,
       );
@@ -352,7 +322,6 @@ export function isScheduledNoteActiveAtBeat(note, beat) {
  * @param {number} params.step
  * @param {number[]} params.rowNotes
  * @param {boolean} params.rowMuted
- * @param {boolean} [params.rowReversed]
  * @param {number} params.rowTimingOffset
  * @param {number[]} params.stepDurationFraction
  * @param {number[]} params.stepTimingMultiplier
@@ -371,7 +340,6 @@ export function isStepActiveAtBeat({
   step,
   rowNotes,
   rowMuted,
-  rowReversed = false,
   rowTimingOffset,
   stepDurationFraction,
   stepTimingMultiplier,
@@ -407,13 +375,7 @@ export function isStepActiveAtBeat({
   if (cycleLengthQuarters <= 0 || (stepLengthQuarters[step] ?? 0) <= 0) return false;
 
   const rowOffsetQuarters = rowTimingOffsetQuarters(rowTimingOffset, pulseIndex);
-  const stepStartInCycle = stepStartInCycleForStep(
-    stepStartQuarters,
-    stepLengthQuarters,
-    step,
-    rowReversed,
-    stepSkipped,
-  );
+  const stepStartInCycle = stepStartInCycleForStep(stepStartQuarters, step);
   const relativeBeat = beat - stepStartInCycle - rowOffsetQuarters;
 
   if (relativeBeat < -EPSILON) return false;

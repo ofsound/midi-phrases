@@ -14,7 +14,7 @@ export const phraseFirstStepLeftOffsetPx =
 export const phraseBeatGuideOffsetPx =
   phraseFirstStepLeftOffsetPx - stepInsertZoneWidthPx / 2;
 
-/** Matches row reverse toggle `min-w-[3.75rem]` + horizontal padding. */
+/** Matches row reverse-order action `min-w-[3.75rem]` + horizontal padding. */
 export const phraseRowReverseControlWidthPx = 60;
 
 /** Matches row on/off toggle `h-10 w-10`. */
@@ -43,7 +43,7 @@ export const phraseRowLeadingControlsWidthPx =
   phraseRowReverseControlWidthPx +
   phraseRowHeaderGapPx;
 
-/** Row leading controls after the mute button (MIDI, knob, reverse + gaps). */
+/** Row leading controls after the mute button (MIDI, knob, reverse order + gaps). */
 export const phraseRowLeadingControlsAfterMuteWidthPx =
   phraseRowLeadingControlsWidthPx - phraseRowMuteControlWidthPx;
 

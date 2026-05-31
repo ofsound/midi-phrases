@@ -31,6 +31,30 @@
     return Math.min(1, Math.max(0, fraction));
   }
 
+  function snapFraction(fraction) {
+    return snapValues.reduce((closest, snapValue) =>
+      Math.abs(snapValue - fraction) < Math.abs(closest - fraction) ? snapValue : closest,
+    );
+  }
+
+  function nextSnapValue(direction) {
+    const epsilon = 0.0001;
+
+    if (direction < 0) {
+      for (let index = snapValues.length - 1; index >= 0; index -= 1) {
+        if (snapValues[index] < value - epsilon) return snapValues[index];
+      }
+
+      return snapValues[0];
+    }
+
+    for (const snapValue of snapValues) {
+      if (snapValue > value + epsilon) return snapValue;
+    }
+
+    return snapValues[snapValues.length - 1];
+  }
+
   function fractionFromClientX(clientX) {
     if (!trackEl) return value;
 
@@ -40,8 +64,9 @@
     return clampFraction(ratio);
   }
 
-  function updateFromClientX(clientX) {
-    const next = fractionFromClientX(clientX);
+  function updateFromClientX(clientX, constrained) {
+    const fraction = fractionFromClientX(clientX);
+    const next = constrained ? snapFraction(fraction) : fraction;
 
     if (Math.abs(next - value) < 0.0001) return;
 
@@ -54,29 +79,20 @@
 
     trackEl?.setPointerCapture(event.pointerId);
     dragging = true;
-    updateFromClientX(event.clientX);
+    updateFromClientX(event.clientX, event.shiftKey);
   }
 
   /** @param {PointerEvent} event */
   function onTrackPointerMove(event) {
     if (!dragging) return;
 
-    updateFromClientX(event.clientX);
+    updateFromClientX(event.clientX, event.shiftKey);
   }
 
   /** @param {PointerEvent} event */
   function onTrackPointerUp(event) {
     dragging = false;
     trackEl?.releasePointerCapture(event.pointerId);
-  }
-
-  /** @param {number} snapValue @param {PointerEvent} event */
-  function handleTickClick(snapValue, event) {
-    event.stopPropagation();
-
-    if (snapValue === value) return;
-
-    onValueChange(snapValue);
   }
 
   /** @param {MouseEvent} event */
@@ -89,7 +105,7 @@
   }
 </script>
 
-<div class="flex min-w-0 w-full flex-col gap-1">
+<div class="flex min-w-0 w-full flex-col">
   <div
     bind:this={trackEl}
     class="relative h-4 cursor-pointer touch-none select-none outline-none {accent.ringFocusWithWidth} {muted
@@ -106,18 +122,18 @@
     onpointerup={onTrackPointerUp}
     onpointercancel={onTrackPointerUp}
     ondblclick={onDoubleClick}
-    title={resetValue !== undefined ? "Drag to change · double-click to reset" : undefined}
+    title={resetValue !== undefined
+      ? "Drag to change · hold Shift to snap · double-click to reset"
+      : "Drag to change · hold Shift to snap"}
     onkeydown={(event) => {
-      const step = event.shiftKey ? 0.01 : 0.05;
-
       if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
         event.preventDefault();
 
-        if (value > 0) onValueChange(clampFraction(value - step));
+        if (value > 0) onValueChange(event.shiftKey ? nextSnapValue(-1) : clampFraction(value - 0.05));
       } else if (event.key === "ArrowRight" || event.key === "ArrowUp") {
         event.preventDefault();
 
-        if (value < 1) onValueChange(clampFraction(value + step));
+        if (value < 1) onValueChange(event.shiftKey ? nextSnapValue(1) : clampFraction(value + 0.05));
       }
     }}
   >
@@ -133,20 +149,5 @@
         style:opacity={fillOpacity}
       ></div>
     {/if}
-  </div>
-
-  <div class="relative h-2.5">
-    {#each snapValues as snapValue}
-      <button
-        type="button"
-        aria-label="Set duration to {snapValue}"
-        class="absolute top-0 h-2 w-3 -translate-x-1/2 cursor-pointer border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth}"
-        style:left="{snapValue * 100}%"
-        onpointerdown={(event) => event.stopPropagation()}
-        onclick={(event) => handleTickClick(snapValue, event)}
-      >
-        <span class="mx-auto block h-2 w-px bg-zinc-500" aria-hidden="true"></span>
-      </button>
-    {/each}
   </div>
 </div>
