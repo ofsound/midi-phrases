@@ -150,6 +150,7 @@ public:
     int getCurrentPatternSlot() const;
     int getAudioPatternSlot() const;
     void clearPatternSlot (int patternSlot);
+    void copyPatternSlot (int sourcePatternSlot, int destinationPatternSlot);
 
     int getPatternPhraseRowStepCount (int patternSlot, int row) const;
     int getPatternPhraseNote (int patternSlot, int row, int step) const;

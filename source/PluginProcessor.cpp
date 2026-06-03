@@ -1747,6 +1747,20 @@ void PluginProcessor::clearPatternSlot (const int patternSlot)
         currentLoopSlot.store (-1, std::memory_order_release);
 }
 
+void PluginProcessor::copyPatternSlot (const int sourcePatternSlot,
+                                       const int destinationPatternSlot)
+{
+    const auto sourceSlot = clampPatternSlot (sourcePatternSlot);
+    const auto destinationSlot = clampPatternSlot (destinationPatternSlot);
+
+    if (sourceSlot == destinationSlot)
+        return;
+
+    modelPatterns[static_cast<size_t> (destinationSlot)] =
+        modelPatterns[static_cast<size_t> (sourceSlot)];
+    publishPatternToAudio (destinationSlot);
+}
+
 int PluginProcessor::getPatternPhraseRowStepCount (const int patternSlot, const int row) const
 {
     if (row < 0 || row >= phraseRowCount)

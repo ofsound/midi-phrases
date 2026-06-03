@@ -373,6 +373,19 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                                     : processor.getCurrentPatternSlot()));
                            })
                        .withNativeFunction (
+                           "copyPatternSlot",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 2)
+                                   processor.copyPatternSlot (varToInt (args[0]),
+                                                              varToInt (args[1]));
+
+                               complete (createPatternStateVar (
+                                   processor,
+                                   args.size() >= 2 ? varToInt (args[1])
+                                                    : processor.getCurrentPatternSlot()));
+                           })
+                       .withNativeFunction (
                            "saveCurrentBraceToLoopSlot",
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {

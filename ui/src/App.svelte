@@ -116,6 +116,7 @@
   let standalonePlaying = false;
   let standaloneTempoBpm = 120;
   let activePatternSlot = 0;
+  let patternCopySource = -1;
   let activeLoopSlot = -1;
   let loopSlotAssigned = Array.from({ length: 8 }, () => false);
   let loopSlotPattern = Array.from({ length: 8 }, () => 0);
@@ -140,14 +141,14 @@
     }`;
   }
 
-  function slotButtonClasses(active, assigned = true) {
+  function slotButtonClasses(active, assigned = true, copySource = false) {
     return `flex h-7 w-7 items-center justify-center rounded-sm border text-xs font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
       active
         ? "border-emerald-400 bg-emerald-400 text-zinc-950"
         : assigned
           ? "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
           : "border-zinc-800 bg-zinc-950 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400"
-    }`;
+    } ${copySource ? "ring-1 ring-amber-300" : ""}`;
   }
 
   function clearPatternButtonClasses(enabled) {
@@ -1529,15 +1530,56 @@
     assignPatternState(state);
   }
 
+  function beginPatternCopy(slot) {
+    patternCopySource = Math.min(7, Math.max(0, slot));
+  }
+
+  function cancelPatternCopy() {
+    patternCopySource = -1;
+  }
+
+  async function copyPatternToSlot(slot) {
+    const source = patternCopySource;
+    const nextSlot = Math.min(7, Math.max(0, slot));
+
+    if (source < 0 || source === nextSlot || !nativeFunctionAvailable("copyPatternSlot")) return;
+
+    await getNativeFunction("copyPatternSlot")(source, nextSlot);
+    patternCopySource = -1;
+    await selectPatternSlot(nextSlot);
+  }
+
+  async function handlePatternSlotClick(event, slot) {
+    const nextSlot = Math.min(7, Math.max(0, slot));
+
+    if (event.shiftKey) {
+      if (patternCopySource === nextSlot) {
+        cancelPatternCopy();
+      } else {
+        beginPatternCopy(nextSlot);
+      }
+      return;
+    }
+
+    if (patternCopySource >= 0) {
+      await copyPatternToSlot(nextSlot);
+      return;
+    }
+
+    await selectPatternSlot(nextSlot);
+  }
+
   async function clearSelectedPatternSlot() {
     if (!nativeFunctionAvailable("clearPatternSlot")) return;
 
+    cancelPatternCopy();
     const state = await getNativeFunction("clearPatternSlot")(activePatternSlot);
     assignPatternState(state);
   }
 
   async function handleLoopSlotClick(event, slot) {
     const nextSlot = Math.min(7, Math.max(0, slot));
+    cancelPatternCopy();
 
     if (event.shiftKey) {
       if (!nativeFunctionAvailable("saveCurrentBraceToLoopSlot")) return;
@@ -1763,10 +1805,15 @@
             {#each Array.from({ length: 8 }, (_, index) => index) as slot}
               <button
                 type="button"
-                aria-label="Select pattern {slot + 1}"
+                aria-label={patternCopySource === slot
+                  ? `Pattern ${slot + 1} selected as copy source`
+                  : `Select pattern ${slot + 1}`}
                 aria-pressed={activePatternSlot === slot}
-                class={slotButtonClasses(activePatternSlot === slot)}
-                onclick={() => selectPatternSlot(slot)}
+                title={patternCopySource === slot
+                  ? "Copy source selected"
+                  : "Shift-click to copy from this pattern"}
+                class={slotButtonClasses(activePatternSlot === slot, true, patternCopySource === slot)}
+                onclick={(event) => handlePatternSlotClick(event, slot)}
               >
                 {slot + 1}
               </button>

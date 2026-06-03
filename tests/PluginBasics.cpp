@@ -260,6 +260,77 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (reloaded.getLoopBraceEndQuarters() == Catch::Approx (6.0));
     }
 
+    SECTION ("copy pattern slot duplicates pattern content without copying loop slot assignments")
+    {
+        ensurePhraseRowStepCount (testPlugin, 0, 3);
+        ensurePhraseRowStepCount (testPlugin, 1, 2);
+
+        testPlugin.setPhraseRowMuted (0, true);
+        testPlugin.setPhraseRowMuted (1, false);
+        testPlugin.setPhraseRowTimingOffset (0, 1);
+        testPlugin.setPhraseRowTimingOffset (1, 6);
+        testPlugin.setPhraseRowMidiChannel (0, 5);
+        testPlugin.setPhraseRowMidiChannel (1, 12);
+
+        testPlugin.setPhraseNote (0, 0, 48);
+        testPlugin.setPhraseStepVelocity (0, 0, 42);
+        testPlugin.setPhraseStepTimingMultiplier (0, 0, 8);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 0.5);
+        testPlugin.setPhraseStepMuted (0, 0, true);
+        testPlugin.setPhraseStepProbability (0, 0, 25);
+        testPlugin.setPhraseStepCycle (0, 0, 4);
+        testPlugin.setPhraseStepCycleOffset (0, 0, 2);
+
+        testPlugin.setPhraseNote (1, 1, 72);
+        testPlugin.setPhraseStepVelocity (1, 1, 96);
+        testPlugin.setPhraseStepSkipped (1, 1, true);
+        testPlugin.setLoopBraceStartQuarters (1.0);
+        testPlugin.setLoopBraceEndQuarters (5.0);
+        testPlugin.setLoopBraceEnabled (true);
+        testPlugin.saveCurrentBraceToLoopSlot (0);
+
+        testPlugin.setCurrentPatternSlot (2);
+        testPlugin.setLoopBraceStartQuarters (6.0);
+        testPlugin.setLoopBraceEndQuarters (7.0);
+        testPlugin.saveCurrentBraceToLoopSlot (1);
+
+        testPlugin.copyPatternSlot (0, 1);
+
+        CHECK (testPlugin.getCurrentPatternSlot() == 2);
+        CHECK (testPlugin.getLoopSlotPatternSlot (0) == 0);
+        CHECK (testPlugin.getLoopSlotPatternSlot (1) == 2);
+
+        CHECK (testPlugin.getPatternPhraseRowStepCount (1, 0) == 3);
+        CHECK (testPlugin.getPatternPhraseRowStepCount (1, 1) == 2);
+        CHECK (testPlugin.isPatternPhraseRowMuted (1, 0));
+        CHECK_FALSE (testPlugin.isPatternPhraseRowMuted (1, 1));
+        CHECK (testPlugin.getPatternPhraseRowTimingOffset (1, 0) == 1);
+        CHECK (testPlugin.getPatternPhraseRowTimingOffset (1, 1) == 6);
+        CHECK (testPlugin.getPatternPhraseRowMidiChannel (1, 0) == 5);
+        CHECK (testPlugin.getPatternPhraseRowMidiChannel (1, 1) == 12);
+
+        CHECK (testPlugin.getPatternPhraseNote (1, 0, 0) == 48);
+        CHECK (testPlugin.getPatternPhraseStepVelocity (1, 0, 0) == 42);
+        CHECK (testPlugin.getPatternPhraseStepTimingMultiplier (1, 0, 0) == 8);
+        CHECK (testPlugin.getPatternPhraseStepDurationFraction (1, 0, 0)
+               == Catch::Approx (0.5));
+        CHECK (testPlugin.isPatternPhraseStepMuted (1, 0, 0));
+        CHECK (testPlugin.getPatternPhraseStepProbability (1, 0, 0) == 25);
+        CHECK (testPlugin.getPatternPhraseStepCycle (1, 0, 0) == 4);
+        CHECK (testPlugin.getPatternPhraseStepCycleOffset (1, 0, 0) == 2);
+
+        CHECK (testPlugin.getPatternPhraseNote (1, 1, 1) == 72);
+        CHECK (testPlugin.getPatternPhraseStepVelocity (1, 1, 1) == 96);
+        CHECK (testPlugin.isPatternPhraseStepSkipped (1, 1, 1));
+        CHECK (testPlugin.isPatternLoopBraceEnabled (1));
+        CHECK (testPlugin.getPatternLoopBraceStartQuarters (1) == Catch::Approx (1.0));
+        CHECK (testPlugin.getPatternLoopBraceEndQuarters (1) == Catch::Approx (5.0));
+
+        testPlugin.copyPatternSlot (1, 1);
+        CHECK (testPlugin.getPatternPhraseNote (1, 0, 0) == 48);
+        CHECK (testPlugin.getPatternLoopBraceEndQuarters (1) == Catch::Approx (5.0));
+    }
+
     SECTION ("row timing offset")
     {
         CHECK (testPlugin.getPhraseRowTimingOffset (0) == PluginProcessor::defaultRowTimingOffsetIndex);
