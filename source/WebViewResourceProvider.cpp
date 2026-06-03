@@ -122,6 +122,90 @@ juce::String mimeTypeForPath (const juce::String& path)
     return "application/octet-stream";
 }
 
+juce::var createPatternStateVar (PluginProcessor& processor, const int patternSlot)
+{
+    auto object = std::make_unique<juce::DynamicObject>();
+    object->setProperty ("patternSlot", patternSlot);
+
+    juce::Array<juce::var> phraseRows;
+    juce::Array<juce::var> phraseRowMuted;
+    juce::Array<juce::var> phraseRowTimingOffset;
+    juce::Array<juce::var> phraseRowMidiChannel;
+    juce::Array<juce::var> phraseStepDurationFraction;
+    juce::Array<juce::var> phraseStepTimingMultiplier;
+    juce::Array<juce::var> phraseStepVelocity;
+    juce::Array<juce::var> phraseStepMuted;
+    juce::Array<juce::var> phraseStepSkipped;
+    juce::Array<juce::var> phraseStepProbability;
+    juce::Array<juce::var> phraseStepCycle;
+    juce::Array<juce::var> phraseStepCycleOffset;
+    for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
+    {
+        juce::Array<juce::var> steps;
+        juce::Array<juce::var> stepDurations;
+        juce::Array<juce::var> stepTimingMultipliers;
+        juce::Array<juce::var> stepVelocities;
+        juce::Array<juce::var> stepMutedFlags;
+        juce::Array<juce::var> stepSkippedFlags;
+        juce::Array<juce::var> stepProbabilityValues;
+        juce::Array<juce::var> stepCycleValues;
+        juce::Array<juce::var> stepCycleOffsetValues;
+
+        for (int step = 0; step < processor.getPatternPhraseRowStepCount (patternSlot, row); ++step)
+        {
+            steps.add (processor.getPatternPhraseNote (patternSlot, row, step));
+            stepTimingMultipliers.add (
+                processor.getPatternPhraseStepTimingMultiplier (patternSlot, row, step));
+            stepDurations.add (
+                processor.getPatternPhraseStepDurationFraction (patternSlot, row, step));
+            stepVelocities.add (processor.getPatternPhraseStepVelocity (patternSlot, row, step));
+            stepMutedFlags.add (
+                processor.isPatternPhraseStepMuted (patternSlot, row, step));
+            stepSkippedFlags.add (
+                processor.isPatternPhraseStepSkipped (patternSlot, row, step));
+            stepProbabilityValues.add (
+                processor.getPatternPhraseStepProbability (patternSlot, row, step));
+            stepCycleValues.add (processor.getPatternPhraseStepCycle (patternSlot, row, step));
+            stepCycleOffsetValues.add (
+                processor.getPatternPhraseStepCycleOffset (patternSlot, row, step));
+        }
+
+        phraseRows.add (steps);
+        phraseRowMuted.add (processor.isPatternPhraseRowMuted (patternSlot, row));
+        phraseRowTimingOffset.add (processor.getPatternPhraseRowTimingOffset (patternSlot, row));
+        phraseRowMidiChannel.add (processor.getPatternPhraseRowMidiChannel (patternSlot, row));
+        phraseStepTimingMultiplier.add (stepTimingMultipliers);
+        phraseStepDurationFraction.add (stepDurations);
+        phraseStepVelocity.add (stepVelocities);
+        phraseStepMuted.add (stepMutedFlags);
+        phraseStepSkipped.add (stepSkippedFlags);
+        phraseStepProbability.add (stepProbabilityValues);
+        phraseStepCycle.add (stepCycleValues);
+        phraseStepCycleOffset.add (stepCycleOffsetValues);
+    }
+
+    object->setProperty ("phraseNotes", phraseRows);
+    object->setProperty ("phraseRowMuted", phraseRowMuted);
+    object->setProperty ("phraseRowTimingOffset", phraseRowTimingOffset);
+    object->setProperty ("phraseRowMidiChannel", phraseRowMidiChannel);
+    object->setProperty ("phraseStepDurationFraction", phraseStepDurationFraction);
+    object->setProperty ("phraseStepTimingMultiplier", phraseStepTimingMultiplier);
+    object->setProperty ("phraseStepVelocity", phraseStepVelocity);
+    object->setProperty ("phraseStepMuted", phraseStepMuted);
+    object->setProperty ("phraseStepSkipped", phraseStepSkipped);
+    object->setProperty ("phraseStepProbability", phraseStepProbability);
+    object->setProperty ("phraseStepCycle", phraseStepCycle);
+    object->setProperty ("phraseStepCycleOffset", phraseStepCycleOffset);
+    object->setProperty ("loopBraceEnabled",
+                         processor.isPatternLoopBraceEnabled (patternSlot) ? 1 : 0);
+    object->setProperty ("loopBraceStart",
+                         processor.getPatternLoopBraceStartQuarters (patternSlot));
+    object->setProperty ("loopBraceEnd",
+                         processor.getPatternLoopBraceEndQuarters (patternSlot));
+
+    return juce::var (object.release());
+}
+
 } // namespace
 
 std::optional<juce::WebBrowserComponent::Resource> WebViewResources::getResource (const juce::String& url)
@@ -169,6 +253,8 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
     juce::Array<juce::var> phraseStepProbability;
     juce::Array<juce::var> phraseStepCycle;
     juce::Array<juce::var> phraseStepCycleOffset;
+    juce::Array<juce::var> loopSlotAssigned;
+    juce::Array<juce::var> loopSlotPattern;
 
     for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
     {
@@ -209,10 +295,20 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
         phraseStepCycleOffset.add (stepCycleOffsetValues);
     }
 
+    for (int loopSlot = 0; loopSlot < PluginProcessor::loopSlotCount; ++loopSlot)
+    {
+        loopSlotAssigned.add (processor.isLoopSlotAssigned (loopSlot) ? 1 : 0);
+        loopSlotPattern.add (processor.getLoopSlotPatternSlot (loopSlot));
+    }
+
     auto options = Options{}
                        .withNativeIntegrationEnabled()
                        .withInitialisationData ("pluginName", juce::var { PRODUCT_NAME_WITHOUT_VERSION })
                        .withInitialisationData ("version", juce::var { VERSION })
+                       .withInitialisationData ("currentPatternSlot", processor.getCurrentPatternSlot())
+                       .withInitialisationData ("currentLoopSlot", processor.getCurrentLoopSlot())
+                       .withInitialisationData ("loopSlotAssigned", loopSlotAssigned)
+                       .withInitialisationData ("loopSlotPattern", loopSlotPattern)
                        .withInitialisationData ("phraseNotes", phraseRows)
                        .withInitialisationData ("phraseRowMuted", phraseRowMuted)
                        .withInitialisationData ("phraseRowTimingOffset", phraseRowTimingOffset)
@@ -245,6 +341,56 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                                 processor.isStandaloneTransportPlaying() ? 1 : 0)
                        .withInitialisationData ("standaloneTempoBpm",
                                                 processor.getStandaloneTempoBpm())
+                       .withNativeFunction (
+                           "getPatternSlotState",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               complete (createPatternStateVar (
+                                   processor,
+                                   args.size() >= 1 ? varToInt (args[0])
+                                                    : processor.getCurrentPatternSlot()));
+                           })
+                       .withNativeFunction (
+                           "setCurrentPatternSlot",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setCurrentPatternSlot (varToInt (args[0]));
+
+                               complete (createPatternStateVar (processor,
+                                                                processor.getCurrentPatternSlot()));
+                           })
+                       .withNativeFunction (
+                           "clearPatternSlot",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.clearPatternSlot (varToInt (args[0]));
+
+                               complete (createPatternStateVar (
+                                   processor,
+                                   args.size() >= 1 ? varToInt (args[0])
+                                                    : processor.getCurrentPatternSlot()));
+                           })
+                       .withNativeFunction (
+                           "saveCurrentBraceToLoopSlot",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.saveCurrentBraceToLoopSlot (varToInt (args[0]));
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "selectLoopSlot",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.selectLoopSlot (varToInt (args[0]));
+
+                               complete (createPatternStateVar (processor,
+                                                                processor.getCurrentPatternSlot()));
+                           })
                        .withNativeFunction (
                            "setPhraseNote",
                            [&processor] (const juce::Array<juce::var>& args,

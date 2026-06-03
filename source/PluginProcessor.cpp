@@ -10,7 +10,7 @@ constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5,
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 10;
+constexpr int phraseStateVersion = 12;
 
 int clampStepProbability (const int probability)
 {
@@ -209,22 +209,24 @@ PluginProcessor::BusesProperties PluginProcessor::createBusesProperties()
 PluginProcessor::PluginProcessor()
      : AudioProcessor (createBusesProperties())
 {
+    patternSlotParameter =
+        new juce::AudioParameterInt (juce::ParameterID { "patternSlot", 1 },
+                                     "Pattern",
+                                     1,
+                                     patternSlotCount,
+                                     1);
+    addParameter (patternSlotParameter);
+
     sequencerCommandQueue =
         std::make_unique<std::array<SequencerCommand, sequencerCommandQueueCapacity>>();
 
-    for (int row = 0; row < phraseRowCount; ++row)
-    {
-        initialiseRowDefaults (modelState.rows[static_cast<size_t> (row)], row, defaultPhraseStepsPerRow);
-        initialiseRowDefaults (audioState.rows[static_cast<size_t> (row)], row, defaultPhraseStepsPerRow);
-        const auto rowMuted = row == 0 ? 0 : 1;
-        modelState.muted[static_cast<size_t> (row)] = rowMuted;
-        modelState.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
-        modelState.midiChannel[static_cast<size_t> (row)] = defaultPhraseRowMidiChannel;
-        audioState.muted[static_cast<size_t> (row)] = rowMuted;
-        audioState.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
-        audioState.midiChannel[static_cast<size_t> (row)] = defaultPhraseRowMidiChannel;
-        phraseRowFlushNoteOff[static_cast<size_t> (row)].store (0);
-    }
+    for (auto& pattern : modelPatterns)
+        initialisePatternDefaults (pattern);
+
+    audioPatterns = modelPatterns;
+
+    for (auto& flush : phraseRowFlushNoteOff)
+        flush.store (0);
 
     resetLastEmittedTriggers();
 }
@@ -255,14 +257,64 @@ bool PluginProcessor::isValidAudioStep (const SequencerState& state, const int r
     return step < state.rows[static_cast<size_t> (row)].stepCount;
 }
 
+int PluginProcessor::clampPatternSlot (const int patternSlot) const
+{
+    return juce::jlimit (0, patternSlotCount - 1, patternSlot);
+}
+
+int PluginProcessor::clampLoopSlot (const int loopSlot) const
+{
+    return juce::jlimit (0, loopSlotCount - 1, loopSlot);
+}
+
+PluginProcessor::PatternState& PluginProcessor::modelPattern (const int patternSlot)
+{
+    return modelPatterns[static_cast<size_t> (clampPatternSlot (patternSlot))];
+}
+
+const PluginProcessor::PatternState& PluginProcessor::modelPattern (const int patternSlot) const
+{
+    return modelPatterns[static_cast<size_t> (clampPatternSlot (patternSlot))];
+}
+
+PluginProcessor::SequencerState& PluginProcessor::modelSequencer()
+{
+    return modelPattern (getCurrentPatternSlot()).sequencer;
+}
+
+const PluginProcessor::SequencerState& PluginProcessor::modelSequencer() const
+{
+    return modelPattern (getCurrentPatternSlot()).sequencer;
+}
+
+const PluginProcessor::SequencerState& PluginProcessor::audioSequencer() const
+{
+    return audioPatterns[static_cast<size_t> (clampPatternSlot (audioActivePatternSlot))].sequencer;
+}
+
+PluginProcessor::LoopBraceState& PluginProcessor::modelLoopBrace()
+{
+    return modelPattern (getCurrentPatternSlot()).loopBrace;
+}
+
+const PluginProcessor::LoopBraceState& PluginProcessor::modelLoopBrace() const
+{
+    return modelPattern (getCurrentPatternSlot()).loopBrace;
+}
+
+const PluginProcessor::LoopBraceState& PluginProcessor::audioLoopBrace() const
+{
+    return audioPatterns[static_cast<size_t> (clampPatternSlot (audioActivePatternSlot))].loopBrace;
+}
+
 PluginProcessor::PhraseRowSteps& PluginProcessor::modelRow (const int row)
 {
-    return modelState.rows[static_cast<size_t> (row)];
+    return modelSequencer().rows[static_cast<size_t> (row)];
 }
 
 const PluginProcessor::PhraseRowSteps& PluginProcessor::modelRow (const int row) const
 {
-    return modelState.rows[static_cast<size_t> (row)];
+    return modelSequencer().rows[static_cast<size_t> (row)];
 }
 
 void PluginProcessor::initialiseRowDefaults (PhraseRowSteps& steps, const int row, const int stepCount)
@@ -283,6 +335,24 @@ void PluginProcessor::initialiseRowDefaults (PhraseRowSteps& steps, const int ro
     }
 
     rebuildRowTimingLayout (steps);
+}
+
+void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
+{
+    for (int row = 0; row < phraseRowCount; ++row)
+    {
+        initialiseRowDefaults (pattern.sequencer.rows[static_cast<size_t> (row)],
+                               row,
+                               defaultPhraseStepsPerRow);
+
+        pattern.sequencer.muted[static_cast<size_t> (row)] = row == 0 ? 0 : 1;
+        pattern.sequencer.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
+        pattern.sequencer.midiChannel[static_cast<size_t> (row)] = defaultPhraseRowMidiChannel;
+    }
+
+    pattern.loopBrace.enabled = 0;
+    pattern.loopBrace.startQuarters = defaultLoopBraceStartQuarters;
+    pattern.loopBrace.endQuarters = defaultLoopBraceEndQuarters;
 }
 
 void PluginProcessor::rebuildRowTimingLayout (PhraseRowSteps& steps)
@@ -309,6 +379,11 @@ void PluginProcessor::rebuildRowTimingLayout (PhraseRowSteps& steps)
 
 void PluginProcessor::publishCommandToAudio (const SequencerCommand& command)
 {
+    auto queuedCommand = command;
+
+    if (queuedCommand.patternSlot < 0)
+        queuedCommand.patternSlot = getCurrentPatternSlot();
+
     const auto write = sequencerCommandWriteIndex.load (std::memory_order_relaxed);
     const auto nextWrite = (write + 1) % sequencerCommandQueueCapacity;
 
@@ -318,7 +393,7 @@ void PluginProcessor::publishCommandToAudio (const SequencerCommand& command)
         return;
     }
 
-    (*sequencerCommandQueue)[write] = command;
+    (*sequencerCommandQueue)[write] = queuedCommand;
     sequencerCommandWriteIndex.store (nextWrite, std::memory_order_release);
 }
 
@@ -329,43 +404,80 @@ void PluginProcessor::publishRowToAudio (const int row)
 
     SequencerCommand command;
     command.type = SequencerCommand::Type::ReplaceRow;
+    command.patternSlot = getCurrentPatternSlot();
     command.row = row;
     command.rowState = modelRow (row);
     publishCommandToAudio (command);
 }
 
+void PluginProcessor::publishPatternToAudio (const int patternSlot)
+{
+    const auto slot = clampPatternSlot (patternSlot);
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::ReplacePattern;
+    command.patternSlot = slot;
+    command.patternState = modelPattern (slot);
+    publishCommandToAudio (command);
+}
+
+void PluginProcessor::publishLoopBraceCommandToAudio (const SequencerCommand::Type type,
+                                                      const int patternSlot)
+{
+    const auto slot = clampPatternSlot (patternSlot);
+
+    SequencerCommand command;
+    command.type = type;
+    command.patternSlot = slot;
+    command.intValue = modelPattern (slot).loopBrace.enabled;
+    command.doubleValue = type == SequencerCommand::Type::SetLoopBraceStart
+                              ? modelPattern (slot).loopBrace.startQuarters
+                              : modelPattern (slot).loopBrace.endQuarters;
+    publishCommandToAudio (command);
+}
+
 void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
 {
-    if (command.row < 0 || command.row >= phraseRowCount)
-        return;
+    const auto patternSlot = clampPatternSlot (command.patternSlot);
+    auto& pattern = audioPatterns[static_cast<size_t> (patternSlot)];
+    auto& state = pattern.sequencer;
 
-    auto& row = audioState.rows[static_cast<size_t> (command.row)];
+    if (command.row < 0 || command.row >= phraseRowCount)
+    {
+        if (command.type != SequencerCommand::Type::ReplacePattern
+            && command.type != SequencerCommand::Type::SetLoopBraceEnabled
+            && command.type != SequencerCommand::Type::SetLoopBraceStart
+            && command.type != SequencerCommand::Type::SetLoopBraceEnd)
+            return;
+    }
+
+    auto& row = state.rows[static_cast<size_t> (juce::jlimit (0, phraseRowCount - 1, command.row))];
     const auto step = command.step;
     const auto index = static_cast<size_t> (juce::jlimit (0, maxPhraseStepsPerRow - 1, step));
 
     switch (command.type)
     {
         case SequencerCommand::Type::SetNote:
-            if (isValidAudioStep (audioState, command.row, step))
+            if (isValidAudioStep (state, command.row, step))
                 row.notes[index] = command.intValue;
             break;
 
         case SequencerCommand::Type::SetRowMuted:
-            audioState.muted[static_cast<size_t> (command.row)] = command.intValue != 0 ? 1 : 0;
+            state.muted[static_cast<size_t> (command.row)] = command.intValue != 0 ? 1 : 0;
             break;
 
         case SequencerCommand::Type::SetRowTimingOffset:
-            audioState.timingOffset[static_cast<size_t> (command.row)] =
+            state.timingOffset[static_cast<size_t> (command.row)] =
                 juce::jlimit (0, rowTimingOffsetCount - 1, command.intValue);
             break;
 
         case SequencerCommand::Type::SetRowMidiChannel:
-            audioState.midiChannel[static_cast<size_t> (command.row)] =
+            state.midiChannel[static_cast<size_t> (command.row)] =
                 juce::jlimit (minPhraseRowMidiChannel, maxPhraseRowMidiChannel, command.intValue);
             break;
 
         case SequencerCommand::Type::SetStepTimingMultiplier:
-            if (isValidAudioStep (audioState, command.row, step))
+            if (isValidAudioStep (state, command.row, step))
             {
                 row.timingMultiplier[index] =
                     juce::jlimit (0, stepTimingMultiplierCount - 1, command.intValue);
@@ -374,17 +486,17 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             break;
 
         case SequencerCommand::Type::SetStepDurationFraction:
-            if (isValidAudioStep (audioState, command.row, step))
+            if (isValidAudioStep (state, command.row, step))
                 row.durationFraction[index] = clampStepDurationFraction (command.doubleValue);
             break;
 
         case SequencerCommand::Type::SetStepVelocity:
-            if (isValidAudioStep (audioState, command.row, step))
+            if (isValidAudioStep (state, command.row, step))
                 row.velocity[index] = juce::jlimit (0, 127, command.intValue);
             break;
 
         case SequencerCommand::Type::SetStepMuted:
-            if (isValidAudioStep (audioState, command.row, step))
+            if (isValidAudioStep (state, command.row, step))
             {
                 row.stepMuted[index] = command.intValue != 0 ? 1 : 0;
 
@@ -394,7 +506,7 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             break;
 
         case SequencerCommand::Type::SetStepSkipped:
-            if (isValidAudioStep (audioState, command.row, step))
+            if (isValidAudioStep (state, command.row, step))
             {
                 if (command.intValue != 0)
                     row.stepMuted[index] = 0;
@@ -405,12 +517,12 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             break;
 
         case SequencerCommand::Type::SetStepProbability:
-            if (isValidAudioStep (audioState, command.row, step))
+            if (isValidAudioStep (state, command.row, step))
                 row.probability[index] = command.intValue;
             break;
 
         case SequencerCommand::Type::SetStepCycle:
-            if (isValidAudioStep (audioState, command.row, step))
+            if (isValidAudioStep (state, command.row, step))
             {
                 row.cycle[index] = command.intValue;
                 row.cycleOffset[index] =
@@ -419,13 +531,13 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             break;
 
         case SequencerCommand::Type::SetStepCycleOffset:
-            if (isValidAudioStep (audioState, command.row, step))
+            if (isValidAudioStep (state, command.row, step))
                 row.cycleOffset[index] =
                     clampStepCycleOffset (command.intValue, row.cycle[index]);
             break;
 
         case SequencerCommand::Type::RemoveStep:
-            if (isValidAudioStep (audioState, command.row, step))
+            if (isValidAudioStep (state, command.row, step))
             {
                 for (int i = step; i < row.stepCount - 1; ++i)
                 {
@@ -517,8 +629,8 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             break;
 
         case SequencerCommand::Type::MoveStep:
-            if (isValidAudioStep (audioState, command.row, command.step)
-                && isValidAudioStep (audioState, command.row, command.toStep)
+            if (isValidAudioStep (state, command.row, command.step)
+                && isValidAudioStep (state, command.row, command.toStep)
                 && command.step != command.toStep)
             {
                 const auto note = row.notes[static_cast<size_t> (command.step)];
@@ -587,6 +699,37 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             rebuildRowTimingLayout (row);
             resetStepCycleCountersForRow (command.row);
             break;
+
+        case SequencerCommand::Type::SetLoopBraceEnabled:
+            pattern.loopBrace.enabled = command.intValue != 0 ? 1 : 0;
+            break;
+
+        case SequencerCommand::Type::SetLoopBraceStart:
+            pattern.loopBrace.startQuarters =
+                clampLoopBraceStart (command.doubleValue, pattern.loopBrace.endQuarters);
+            break;
+
+        case SequencerCommand::Type::SetLoopBraceEnd:
+            pattern.loopBrace.endQuarters =
+                clampLoopBraceEnd (command.doubleValue, pattern.loopBrace.startQuarters);
+            break;
+
+        case SequencerCommand::Type::ReplacePattern:
+            pattern = command.patternState;
+            for (auto& patternRow : pattern.sequencer.rows)
+                rebuildRowTimingLayout (patternRow);
+            resetStepCycleCounters();
+            break;
+    }
+
+    if (patternSlot == audioActivePatternSlot
+        && (command.type == SequencerCommand::Type::ReplacePattern
+            || command.type == SequencerCommand::Type::ReplaceRow
+            || command.type == SequencerCommand::Type::SetRowMuted
+            || command.type == SequencerCommand::Type::SetRowMidiChannel))
+    {
+        for (auto& flush : phraseRowFlushNoteOff)
+            flush.store (1);
     }
 }
 
@@ -650,10 +793,13 @@ void PluginProcessor::setPulseIndex (const int pulseIndexIn)
 {
     pulseIndex.store (juce::jlimit (0, pulseCount - 1, pulseIndexIn), std::memory_order_relaxed);
 
-    for (int row = 0; row < phraseRowCount; ++row)
+    for (int pattern = 0; pattern < patternSlotCount; ++pattern)
     {
-        rebuildRowTimingLayout (modelRow (row));
-        publishRowToAudio (row);
+        for (int row = 0; row < phraseRowCount; ++row)
+            rebuildRowTimingLayout (
+                modelPatterns[static_cast<size_t> (pattern)].sequencer.rows[static_cast<size_t> (row)]);
+
+        publishPatternToAudio (pattern);
     }
 }
 
@@ -806,7 +952,7 @@ void PluginProcessor::setPhraseRowMuted (int row, bool muted)
     if (row < 0 || row >= phraseRowCount)
         return;
 
-    modelState.muted[static_cast<size_t> (row)] = muted ? 1 : 0;
+    modelSequencer().muted[static_cast<size_t> (row)] = muted ? 1 : 0;
 
     if (muted)
         phraseRowFlushNoteOff[static_cast<size_t> (row)].store (1);
@@ -823,7 +969,7 @@ bool PluginProcessor::isPhraseRowMuted (int row) const
     if (row < 0 || row >= phraseRowCount)
         return false;
 
-    return modelState.muted[static_cast<size_t> (row)] != 0;
+    return modelSequencer().muted[static_cast<size_t> (row)] != 0;
 }
 
 void PluginProcessor::reverseRowSteps (PhraseRowSteps& steps)
@@ -928,7 +1074,7 @@ void PluginProcessor::setPhraseRowTimingOffset (const int row, const int offsetI
         return;
 
     const auto value = juce::jlimit (0, rowTimingOffsetCount - 1, offsetIndex);
-    modelState.timingOffset[static_cast<size_t> (row)] = value;
+    modelSequencer().timingOffset[static_cast<size_t> (row)] = value;
 
     SequencerCommand command;
     command.type = SequencerCommand::Type::SetRowTimingOffset;
@@ -942,7 +1088,7 @@ int PluginProcessor::getPhraseRowTimingOffset (const int row) const
     if (row < 0 || row >= phraseRowCount)
         return defaultRowTimingOffsetIndex;
 
-    return modelState.timingOffset[static_cast<size_t> (row)];
+    return modelSequencer().timingOffset[static_cast<size_t> (row)];
 }
 
 void PluginProcessor::setPhraseRowMidiChannel (const int row, const int channel)
@@ -952,7 +1098,7 @@ void PluginProcessor::setPhraseRowMidiChannel (const int row, const int channel)
 
     const auto value =
         juce::jlimit (minPhraseRowMidiChannel, maxPhraseRowMidiChannel, channel);
-    modelState.midiChannel[static_cast<size_t> (row)] = value;
+    modelSequencer().midiChannel[static_cast<size_t> (row)] = value;
     phraseRowFlushNoteOff[static_cast<size_t> (row)].store (1);
 
     SequencerCommand command;
@@ -967,7 +1113,7 @@ int PluginProcessor::getPhraseRowMidiChannel (const int row) const
     if (row < 0 || row >= phraseRowCount)
         return defaultPhraseRowMidiChannel;
 
-    return modelState.midiChannel[static_cast<size_t> (row)];
+    return modelSequencer().midiChannel[static_cast<size_t> (row)];
 }
 
 void PluginProcessor::setPhraseStepTimingMultiplier (const int row,
@@ -1490,14 +1636,14 @@ double PluginProcessor::playbackBeatForUi() const
     if (currentPpq < 0.0)
         return -1.0;
 
-    if (loopBraceEnabled.load (std::memory_order_relaxed) != 0)
+    const auto& loop = modelLoopBrace();
+
+    if (loop.enabled != 0)
     {
-        const auto loopStart = loopBraceStartQuarters.load (std::memory_order_relaxed);
-        const auto loopEnd = loopBraceEndQuarters.load (std::memory_order_relaxed);
-        const auto loopLength = loopEnd - loopStart;
+        const auto loopLength = loop.endQuarters - loop.startQuarters;
 
         if (loopLength > 0.0)
-            return loopStart + positiveMod (currentPpq - loopStart, loopLength);
+            return loop.startQuarters + positiveMod (currentPpq - loop.startQuarters, loopLength);
     }
 
     return currentPpq;
@@ -1505,34 +1651,347 @@ double PluginProcessor::playbackBeatForUi() const
 
 void PluginProcessor::setLoopBraceEnabled (const bool enabled)
 {
-    loopBraceEnabled.store (enabled ? 1 : 0);
+    modelLoopBrace().enabled = enabled ? 1 : 0;
+    publishLoopBraceCommandToAudio (SequencerCommand::Type::SetLoopBraceEnabled,
+                                    getCurrentPatternSlot());
 }
 
 bool PluginProcessor::isLoopBraceEnabled() const
 {
-    return loopBraceEnabled.load() != 0;
+    return modelLoopBrace().enabled != 0;
 }
 
 void PluginProcessor::setLoopBraceStartQuarters (const double startQuarters)
 {
-    const auto end = loopBraceEndQuarters.load();
-    loopBraceStartQuarters.store (clampLoopBraceStart (startQuarters, end));
+    auto& loop = modelLoopBrace();
+    loop.startQuarters = clampLoopBraceStart (startQuarters, loop.endQuarters);
+    publishLoopBraceCommandToAudio (SequencerCommand::Type::SetLoopBraceStart,
+                                    getCurrentPatternSlot());
 }
 
 double PluginProcessor::getLoopBraceStartQuarters() const
 {
-    return loopBraceStartQuarters.load();
+    return modelLoopBrace().startQuarters;
 }
 
 void PluginProcessor::setLoopBraceEndQuarters (const double endQuarters)
 {
-    const auto start = loopBraceStartQuarters.load();
-    loopBraceEndQuarters.store (clampLoopBraceEnd (endQuarters, start));
+    auto& loop = modelLoopBrace();
+    loop.endQuarters = clampLoopBraceEnd (endQuarters, loop.startQuarters);
+    publishLoopBraceCommandToAudio (SequencerCommand::Type::SetLoopBraceEnd,
+                                    getCurrentPatternSlot());
 }
 
 double PluginProcessor::getLoopBraceEndQuarters() const
 {
-    return loopBraceEndQuarters.load();
+    return modelLoopBrace().endQuarters;
+}
+
+void PluginProcessor::requestAudioPatternSlot (const int patternSlot)
+{
+    pendingAudioPatternSlot.store (clampPatternSlot (patternSlot), std::memory_order_release);
+}
+
+void PluginProcessor::applyAudioPatternSlot (const int patternSlot)
+{
+    const auto slot = clampPatternSlot (patternSlot);
+
+    if (audioActivePatternSlot == slot)
+    {
+        pendingAudioPatternSlot.store (-1, std::memory_order_release);
+        return;
+    }
+
+    audioActivePatternSlot = slot;
+    pendingAudioPatternSlot.store (-1, std::memory_order_release);
+    currentLoopSlot.store (-1, std::memory_order_release);
+    resetLastEmittedTriggers();
+    resetPendingNoteOffs();
+    resetPendingNoteOns();
+    resetStepCycleCounters();
+
+    for (auto& flush : phraseRowFlushNoteOff)
+        flush.store (1);
+}
+
+void PluginProcessor::setCurrentPatternSlot (const int patternSlot)
+{
+    const auto slot = clampPatternSlot (patternSlot);
+    currentModelPatternSlot.store (slot, std::memory_order_release);
+    currentLoopSlot.store (-1, std::memory_order_release);
+    requestAudioPatternSlot (slot);
+
+    if (patternSlotParameter != nullptr && patternSlotParameter->get() != slot + 1)
+        patternSlotParameter->setValueNotifyingHost (patternSlotParameter->convertTo0to1 (slot + 1));
+
+    lastObservedParameterPatternSlot = slot;
+}
+
+int PluginProcessor::getCurrentPatternSlot() const
+{
+    return clampPatternSlot (currentModelPatternSlot.load (std::memory_order_acquire));
+}
+
+int PluginProcessor::getAudioPatternSlot() const
+{
+    return clampPatternSlot (audioActivePatternSlot);
+}
+
+void PluginProcessor::clearPatternSlot (const int patternSlot)
+{
+    const auto slot = clampPatternSlot (patternSlot);
+    initialisePatternDefaults (modelPatterns[static_cast<size_t> (slot)]);
+    publishPatternToAudio (slot);
+
+    if (slot == getCurrentPatternSlot())
+        currentLoopSlot.store (-1, std::memory_order_release);
+}
+
+int PluginProcessor::getPatternPhraseRowStepCount (const int patternSlot, const int row) const
+{
+    if (row < 0 || row >= phraseRowCount)
+        return 0;
+
+    return modelPattern (patternSlot).sequencer.rows[static_cast<size_t> (row)].stepCount;
+}
+
+int PluginProcessor::getPatternPhraseNote (const int patternSlot, const int row, const int step) const
+{
+    if (row < 0 || row >= phraseRowCount || step < 0
+        || step >= getPatternPhraseRowStepCount (patternSlot, row))
+        return defaultStepNote;
+
+    return modelPattern (patternSlot).sequencer.rows[static_cast<size_t> (row)]
+        .notes[static_cast<size_t> (step)];
+}
+
+bool PluginProcessor::isPatternPhraseRowMuted (const int patternSlot, const int row) const
+{
+    if (row < 0 || row >= phraseRowCount)
+        return false;
+
+    return modelPattern (patternSlot).sequencer.muted[static_cast<size_t> (row)] != 0;
+}
+
+int PluginProcessor::getPatternPhraseRowTimingOffset (const int patternSlot, const int row) const
+{
+    if (row < 0 || row >= phraseRowCount)
+        return defaultRowTimingOffsetIndex;
+
+    return modelPattern (patternSlot).sequencer.timingOffset[static_cast<size_t> (row)];
+}
+
+int PluginProcessor::getPatternPhraseRowMidiChannel (const int patternSlot, const int row) const
+{
+    if (row < 0 || row >= phraseRowCount)
+        return defaultPhraseRowMidiChannel;
+
+    return modelPattern (patternSlot).sequencer.midiChannel[static_cast<size_t> (row)];
+}
+
+const PluginProcessor::PhraseRowSteps* PluginProcessor::patternRowForStep (const int patternSlot,
+                                                                           const int row,
+                                                                           const int step) const
+{
+    if (row < 0 || row >= phraseRowCount || step < 0)
+        return nullptr;
+
+    const auto& steps = modelPattern (patternSlot).sequencer.rows[static_cast<size_t> (row)];
+
+    return step < steps.stepCount ? &steps : nullptr;
+}
+
+int PluginProcessor::getPatternPhraseStepTimingMultiplier (const int patternSlot,
+                                                           const int row,
+                                                           const int step) const
+{
+    if (const auto* steps = patternRowForStep (patternSlot, row, step))
+        return steps->timingMultiplier[static_cast<size_t> (step)];
+
+    return defaultStepTimingMultiplierIndex;
+}
+
+double PluginProcessor::getPatternPhraseStepDurationFraction (const int patternSlot,
+                                                              const int row,
+                                                              const int step) const
+{
+    if (const auto* steps = patternRowForStep (patternSlot, row, step))
+        return steps->durationFraction[static_cast<size_t> (step)];
+
+    return defaultStepDurationFraction;
+}
+
+int PluginProcessor::getPatternPhraseStepVelocity (const int patternSlot,
+                                                   const int row,
+                                                   const int step) const
+{
+    if (const auto* steps = patternRowForStep (patternSlot, row, step))
+        return steps->velocity[static_cast<size_t> (step)];
+
+    return defaultStepVelocity;
+}
+
+bool PluginProcessor::isPatternPhraseStepMuted (const int patternSlot,
+                                                const int row,
+                                                const int step) const
+{
+    if (const auto* steps = patternRowForStep (patternSlot, row, step))
+        return steps->stepMuted[static_cast<size_t> (step)] != 0;
+
+    return false;
+}
+
+bool PluginProcessor::isPatternPhraseStepSkipped (const int patternSlot,
+                                                  const int row,
+                                                  const int step) const
+{
+    if (const auto* steps = patternRowForStep (patternSlot, row, step))
+        return steps->stepSkipped[static_cast<size_t> (step)] != 0;
+
+    return false;
+}
+
+int PluginProcessor::getPatternPhraseStepProbability (const int patternSlot,
+                                                      const int row,
+                                                      const int step) const
+{
+    if (const auto* steps = patternRowForStep (patternSlot, row, step))
+        return steps->probability[static_cast<size_t> (step)];
+
+    return defaultStepProbability;
+}
+
+int PluginProcessor::getPatternPhraseStepCycle (const int patternSlot,
+                                                const int row,
+                                                const int step) const
+{
+    if (const auto* steps = patternRowForStep (patternSlot, row, step))
+        return steps->cycle[static_cast<size_t> (step)];
+
+    return defaultStepCycle;
+}
+
+int PluginProcessor::getPatternPhraseStepCycleOffset (const int patternSlot,
+                                                      const int row,
+                                                      const int step) const
+{
+    if (const auto* steps = patternRowForStep (patternSlot, row, step))
+        return steps->cycleOffset[static_cast<size_t> (step)];
+
+    return defaultStepCycleOffset;
+}
+
+bool PluginProcessor::isPatternLoopBraceEnabled (const int patternSlot) const
+{
+    return modelPattern (patternSlot).loopBrace.enabled != 0;
+}
+
+double PluginProcessor::getPatternLoopBraceStartQuarters (const int patternSlot) const
+{
+    return modelPattern (patternSlot).loopBrace.startQuarters;
+}
+
+double PluginProcessor::getPatternLoopBraceEndQuarters (const int patternSlot) const
+{
+    return modelPattern (patternSlot).loopBrace.endQuarters;
+}
+
+void PluginProcessor::saveCurrentBraceToLoopSlot (const int loopSlot)
+{
+    const auto slot = clampLoopSlot (loopSlot);
+    const auto patternSlot = getCurrentPatternSlot();
+    const auto& loopBrace = modelPattern (patternSlot).loopBrace;
+    auto& loopSlotState = loopSlots[static_cast<size_t> (slot)];
+
+    loopSlotState.assigned = 1;
+    loopSlotState.patternSlot = patternSlot;
+    loopSlotState.startQuarters = loopBrace.startQuarters;
+    loopSlotState.endQuarters = loopBrace.endQuarters;
+}
+
+void PluginProcessor::requestAudioLoopSlot (const int loopSlot)
+{
+    const auto slot = clampLoopSlot (loopSlot);
+
+    if (loopSlots[static_cast<size_t> (slot)].assigned == 0)
+        return;
+
+    pendingAudioLoopSlot.store (slot, std::memory_order_release);
+}
+
+void PluginProcessor::applyAudioLoopSlot (const int loopSlot)
+{
+    const auto slot = clampLoopSlot (loopSlot);
+    const auto& loopSlotState = loopSlots[static_cast<size_t> (slot)];
+
+    if (loopSlotState.assigned == 0)
+        return;
+
+    audioActivePatternSlot = clampPatternSlot (loopSlotState.patternSlot);
+
+    auto& loopBrace = audioPatterns[static_cast<size_t> (audioActivePatternSlot)].loopBrace;
+    loopBrace.enabled = 1;
+    loopBrace.startQuarters = clampLoopBraceStart (loopSlotState.startQuarters,
+                                                   loopSlotState.endQuarters);
+    loopBrace.endQuarters = clampLoopBraceEnd (loopSlotState.endQuarters,
+                                               loopBrace.startQuarters);
+
+    pendingAudioLoopSlot.store (-1, std::memory_order_release);
+    currentLoopSlot.store (slot, std::memory_order_release);
+    resetLastEmittedTriggers();
+    resetPendingNoteOffs();
+    resetPendingNoteOns();
+    resetStepCycleCounters();
+
+    for (auto& flush : phraseRowFlushNoteOff)
+        flush.store (1);
+}
+
+void PluginProcessor::selectLoopSlot (const int loopSlot)
+{
+    const auto slot = clampLoopSlot (loopSlot);
+    const auto& loopSlotState = loopSlots[static_cast<size_t> (slot)];
+
+    if (loopSlotState.assigned == 0)
+        return;
+
+    const auto patternSlot = clampPatternSlot (loopSlotState.patternSlot);
+    const auto loopStart = clampLoopBraceStart (loopSlotState.startQuarters,
+                                                loopSlotState.endQuarters);
+    const auto loopEnd = clampLoopBraceEnd (loopSlotState.endQuarters, loopStart);
+
+    currentModelPatternSlot.store (patternSlot, std::memory_order_release);
+
+    auto& loopBrace = modelPatterns[static_cast<size_t> (patternSlot)].loopBrace;
+    loopBrace.enabled = 1;
+    loopBrace.startQuarters = loopStart;
+    loopBrace.endQuarters = loopEnd;
+
+    currentLoopSlot.store (slot, std::memory_order_release);
+    publishPatternToAudio (patternSlot);
+
+    if (patternSlotParameter != nullptr && patternSlotParameter->get() != patternSlot + 1)
+        patternSlotParameter->setValueNotifyingHost (
+            patternSlotParameter->convertTo0to1 (patternSlot + 1));
+
+    lastObservedParameterPatternSlot = patternSlot;
+
+    requestAudioLoopSlot (slot);
+}
+
+int PluginProcessor::getCurrentLoopSlot() const
+{
+    return currentLoopSlot.load (std::memory_order_acquire);
+}
+
+bool PluginProcessor::isLoopSlotAssigned (const int loopSlot) const
+{
+    return loopSlots[static_cast<size_t> (clampLoopSlot (loopSlot))].assigned != 0;
+}
+
+int PluginProcessor::getLoopSlotPatternSlot (const int loopSlot) const
+{
+    return loopSlots[static_cast<size_t> (clampLoopSlot (loopSlot))].patternSlot;
 }
 
 double PluginProcessor::getPlaybackBeat() const
@@ -1666,6 +2125,134 @@ double PluginProcessor::getStandaloneTempoBpm() const
     return standaloneTempoBpm.load (std::memory_order_relaxed);
 }
 
+void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages)
+{
+    juce::MidiBuffer filtered;
+
+    for (const auto metadata : midiMessages)
+    {
+        const auto message = metadata.getMessage();
+
+        if (message.isNoteOn())
+        {
+            const auto note = message.getNoteNumber();
+
+            if (note >= 0 && note < patternSlotCount)
+            {
+                requestAudioPatternSlot (note);
+                continue;
+            }
+
+            if (note >= patternSlotCount && note < patternSlotCount + loopSlotCount)
+            {
+                requestAudioLoopSlot (note - patternSlotCount);
+                continue;
+            }
+        }
+
+        filtered.addEvent (message, metadata.samplePosition);
+    }
+
+    midiMessages.swapWith (filtered);
+}
+
+bool PluginProcessor::shouldApplyPendingPatternSwitch (const double ppqStart,
+                                                       const double ppqEnd) const
+{
+    if (pendingAudioPatternSlot.load (std::memory_order_acquire) < 0)
+        return false;
+
+    const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
+
+    if (pulse <= 0.0)
+        return true;
+
+    constexpr auto epsilon = 1.0e-9;
+    const auto nextPulse = (std::floor ((ppqStart + epsilon) / pulse) + 1.0) * pulse;
+
+    return nextPulse <= ppqEnd + epsilon;
+}
+
+void PluginProcessor::processTransportPlaybackRange (const double transportPpqStart,
+                                                     const double transportPpqEnd,
+                                                     const double bufferTransportStartPpq,
+                                                     const int bufferSamples,
+                                                     const double ppqPerSample,
+                                                     juce::MidiBuffer& midiMessages,
+                                                     const bool resetRowTriggersAtSegmentStart)
+{
+    const auto& loop = audioLoopBrace();
+    const auto loopEnabled = loop.enabled != 0;
+    const auto loopStart = loop.startQuarters;
+    const auto loopEnd = loop.endQuarters;
+    const auto loopLength = loopEnd - loopStart;
+
+    if (loopEnabled && loopLength > 0.0)
+    {
+        constexpr auto epsilon = 1.0e-9;
+        auto transportCursor = transportPpqStart;
+        auto isFirstSegment = true;
+
+        while (transportCursor < transportPpqEnd - epsilon)
+        {
+            const auto mappedStart = loopStart + positiveMod (transportCursor - loopStart, loopLength);
+            const auto remainingInLoop = loopEnd - mappedStart;
+            const auto segmentTransportEnd =
+                juce::jmin (transportPpqEnd, transportCursor + remainingInLoop);
+            const auto mappedEnd = mappedStart + (segmentTransportEnd - transportCursor);
+            const auto wrappedToLoopStart = mappedStart <= loopStart + epsilon
+                                            && transportCursor > transportPpqStart + epsilon;
+
+            if (wrappedToLoopStart)
+            {
+                const auto pendingLoop = pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel);
+
+                if (pendingLoop >= 0)
+                {
+                    applyAudioLoopSlot (pendingLoop);
+                    processTransportPlaybackRange (transportCursor,
+                                                   transportPpqEnd,
+                                                   bufferTransportStartPpq,
+                                                   bufferSamples,
+                                                   ppqPerSample,
+                                                   midiMessages,
+                                                   true);
+                    return;
+                }
+            }
+
+            processScheduledRange (mappedStart,
+                                   mappedEnd,
+                                   transportCursor,
+                                   bufferTransportStartPpq,
+                                   bufferSamples,
+                                   ppqPerSample,
+                                   midiMessages,
+                                   resetRowTriggersAtSegmentStart
+                                       || (wrappedToLoopStart && ! isFirstSegment));
+
+            transportCursor = segmentTransportEnd;
+            isFirstSegment = false;
+        }
+    }
+    else
+    {
+        const auto pendingLoop = pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel);
+
+        if (pendingLoop >= 0)
+            applyAudioLoopSlot (pendingLoop);
+
+        processScheduledRange (transportPpqStart,
+                               transportPpqEnd,
+                               transportPpqStart,
+                               bufferTransportStartPpq,
+                               bufferSamples,
+                               ppqPerSample,
+                               midiMessages,
+                               resetRowTriggersAtSegmentStart);
+    }
+}
+
 void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                              const double schedulePpqEnd,
                                              const double segmentTransportStartPpq,
@@ -1704,24 +2291,26 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
     for (int row = 0; row < phraseRowCount; ++row)
     {
-        if (audioState.muted[static_cast<size_t> (row)] != 0)
+        const auto& state = audioSequencer();
+
+        if (state.muted[static_cast<size_t> (row)] != 0)
             continue;
 
-        const auto midiChannel = audioState.midiChannel[static_cast<size_t> (row)];
+        const auto midiChannel = state.midiChannel[static_cast<size_t> (row)];
         const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
         const auto swing = swingPercent.load (std::memory_order_relaxed);
         const auto velocityHumanize = velocityHumanizePercent.load (std::memory_order_relaxed);
         const auto timingHumanize = timingHumanizePercent.load (std::memory_order_relaxed);
         const auto swingSubdivision = swingSubdivisionIndex.load (std::memory_order_relaxed);
-        const auto offset = rowTimingOffsetForIndex (audioState.timingOffset[static_cast<size_t> (row)])
+        const auto offset = rowTimingOffsetForIndex (state.timingOffset[static_cast<size_t> (row)])
                             * pulse;
 
-        const auto stepCount = audioState.rows[static_cast<size_t> (row)].stepCount;
+        const auto stepCount = state.rows[static_cast<size_t> (row)].stepCount;
 
         if (stepCount <= 0)
             continue;
 
-        const auto& rowSteps = audioState.rows[static_cast<size_t> (row)];
+        const auto& rowSteps = state.rows[static_cast<size_t> (row)];
         auto& scratch = processScratch[static_cast<size_t> (row)];
 
         const auto cycleLengthQuarters = rowSteps.cycleLengthQuarters;
@@ -1934,6 +2523,21 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
    #endif
 
     drainSequencerCommands();
+    handleIncomingControlNotes (midiMessages);
+
+    if (patternSlotParameter != nullptr)
+    {
+        const auto parameterPatternSlot =
+            clampPatternSlot (static_cast<int> (patternSlotParameter->get()) - 1);
+
+        if (parameterPatternSlot != lastObservedParameterPatternSlot)
+        {
+            lastObservedParameterPatternSlot = parameterPatternSlot;
+            currentModelPatternSlot.store (parameterPatternSlot, std::memory_order_release);
+            currentLoopSlot.store (-1, std::memory_order_release);
+            requestAudioPatternSlot (parameterPatternSlot);
+        }
+    }
 
     const auto stopPlayback = [&] {
         if (wasPlaying)
@@ -2050,49 +2654,51 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     if (hasStandaloneTransport())
         standaloneTransportPpqPosition.store (ppqEnd, std::memory_order_relaxed);
 
-    const auto loopEnabled = loopBraceEnabled.load (std::memory_order_relaxed) != 0;
-    const auto loopStart = loopBraceStartQuarters.load (std::memory_order_relaxed);
-    const auto loopEnd = loopBraceEndQuarters.load (std::memory_order_relaxed);
-    const auto loopLength = loopEnd - loopStart;
+    constexpr auto epsilon = 1.0e-9;
+    auto transportCursor = ppqStart;
+    auto resetAtSegmentStart = false;
 
-    if (loopEnabled && loopLength > 0.0)
+    while (transportCursor < ppqEnd - epsilon)
     {
-        constexpr auto epsilon = 1.0e-9;
-        auto transportCursor = ppqStart;
-        auto isFirstSegment = true;
+        auto segmentEnd = ppqEnd;
+        const auto pendingPattern = pendingAudioPatternSlot.load (std::memory_order_acquire);
 
-        while (transportCursor < ppqEnd - epsilon)
+        if (pendingPattern >= 0)
         {
-            const auto mappedStart = loopStart + positiveMod (transportCursor - loopStart, loopLength);
-            const auto remainingInLoop = loopEnd - mappedStart;
-            const auto segmentTransportEnd = juce::jmin (ppqEnd, transportCursor + remainingInLoop);
-            const auto mappedEnd = mappedStart + (segmentTransportEnd - transportCursor);
-            const auto wrappedToLoopStart = mappedStart <= loopStart + epsilon
-                                            && transportCursor > ppqStart + epsilon;
+            const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
+            const auto switchPpq = pulse > 0.0
+                                       ? (std::floor ((transportCursor + epsilon) / pulse) + 1.0) * pulse
+                                       : transportCursor;
 
-            processScheduledRange (mappedStart,
-                                   mappedEnd,
-                                   transportCursor,
-                                   ppqStart,
-                                   bufferSamples,
-                                   ppqPerSample,
-                                   midiMessages,
-                                   wrappedToLoopStart && ! isFirstSegment);
+            if (switchPpq <= transportCursor + epsilon)
+            {
+                applyAudioPatternSlot (pendingPattern);
+                resetAtSegmentStart = true;
+                continue;
+            }
 
-            transportCursor = segmentTransportEnd;
-            isFirstSegment = false;
+            if (switchPpq < ppqEnd - epsilon)
+                segmentEnd = switchPpq;
         }
-    }
-    else
-    {
-        processScheduledRange (ppqStart,
-                               ppqEnd,
-                               ppqStart,
-                               ppqStart,
-                               bufferSamples,
-                               ppqPerSample,
-                               midiMessages,
-                               false);
+
+        processTransportPlaybackRange (transportCursor,
+                                       segmentEnd,
+                                       ppqStart,
+                                       bufferSamples,
+                                       ppqPerSample,
+                                       midiMessages,
+                                       resetAtSegmentStart);
+
+        if (segmentEnd >= ppqEnd - epsilon)
+            break;
+
+        const auto nextPattern = pendingAudioPatternSlot.exchange (-1, std::memory_order_acq_rel);
+
+        if (nextPattern >= 0)
+            applyAudioPatternSlot (nextPattern);
+
+        transportCursor = segmentEnd;
+        resetAtSegmentStart = true;
     }
 }
 
@@ -2110,51 +2716,94 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::ValueTree state ("MidiPhrases");
     state.setProperty ("version", phraseStateVersion, nullptr);
-
-    for (int row = 0; row < phraseRowCount; ++row)
-    {
-        juce::ValueTree rowTree ("Row");
-        rowTree.setProperty ("index", row, nullptr);
-
-        const auto stepCount = getPhraseRowStepCount (row);
-        rowTree.setProperty ("stepCount", stepCount, nullptr);
-
-        for (int step = 0; step < stepCount; ++step)
-        {
-            const auto propName = "step" + juce::String (step);
-            const auto durationPropName = "duration" + juce::String (step);
-            const auto velocityPropName = "velocity" + juce::String (step);
-            const auto stepMutedPropName = "stepMuted" + juce::String (step);
-            const auto stepSkippedPropName = "stepSkipped" + juce::String (step);
-            const auto probabilityPropName = "probability" + juce::String (step);
-            const auto cyclePropName = "cycle" + juce::String (step);
-            const auto cycleOffsetPropName = "cycleOffset" + juce::String (step);
-            const auto timingMultiplierPropName = "timingMultiplier" + juce::String (step);
-            rowTree.setProperty (propName, getPhraseNote (row, step), nullptr);
-            rowTree.setProperty (timingMultiplierPropName, getPhraseStepTimingMultiplier (row, step), nullptr);
-            rowTree.setProperty (durationPropName, getPhraseStepDurationFraction (row, step), nullptr);
-            rowTree.setProperty (velocityPropName, getPhraseStepVelocity (row, step), nullptr);
-            rowTree.setProperty (stepMutedPropName, isPhraseStepMuted (row, step), nullptr);
-            rowTree.setProperty (stepSkippedPropName, isPhraseStepSkipped (row, step), nullptr);
-            rowTree.setProperty (probabilityPropName, getPhraseStepProbability (row, step), nullptr);
-            rowTree.setProperty (cyclePropName, getPhraseStepCycle (row, step), nullptr);
-            rowTree.setProperty (cycleOffsetPropName, getPhraseStepCycleOffset (row, step), nullptr);
-        }
-
-        rowTree.setProperty ("muted", isPhraseRowMuted (row), nullptr);
-        rowTree.setProperty ("timingOffset", getPhraseRowTimingOffset (row), nullptr);
-        rowTree.setProperty ("midiChannel", getPhraseRowMidiChannel (row), nullptr);
-        state.appendChild (rowTree, nullptr);
-    }
-
+    state.setProperty ("currentPatternSlot", getCurrentPatternSlot(), nullptr);
+    state.setProperty ("currentLoopSlot", getCurrentLoopSlot(), nullptr);
     state.setProperty ("pulseIndex", getPulseIndex(), nullptr);
     state.setProperty ("swingPercent", getSwingPercent(), nullptr);
     state.setProperty ("velocityHumanizePercent", getVelocityHumanizePercent(), nullptr);
     state.setProperty ("timingHumanizePercent", getTimingHumanizePercent(), nullptr);
     state.setProperty ("swingSubdivisionIndex", getSwingSubdivisionIndex(), nullptr);
-    state.setProperty ("loopBraceEnabled", isLoopBraceEnabled(), nullptr);
-    state.setProperty ("loopBraceStart", getLoopBraceStartQuarters(), nullptr);
-    state.setProperty ("loopBraceEnd", getLoopBraceEndQuarters(), nullptr);
+
+    for (int patternSlot = 0; patternSlot < patternSlotCount; ++patternSlot)
+    {
+        juce::ValueTree patternTree ("Pattern");
+        patternTree.setProperty ("index", patternSlot, nullptr);
+        patternTree.setProperty ("loopBraceEnabled", isPatternLoopBraceEnabled (patternSlot), nullptr);
+        patternTree.setProperty ("loopBraceStart", getPatternLoopBraceStartQuarters (patternSlot), nullptr);
+        patternTree.setProperty ("loopBraceEnd", getPatternLoopBraceEndQuarters (patternSlot), nullptr);
+
+        for (int row = 0; row < phraseRowCount; ++row)
+        {
+            juce::ValueTree rowTree ("Row");
+            rowTree.setProperty ("index", row, nullptr);
+
+            const auto stepCount = getPatternPhraseRowStepCount (patternSlot, row);
+            rowTree.setProperty ("stepCount", stepCount, nullptr);
+
+            for (int step = 0; step < stepCount; ++step)
+            {
+                const auto propName = "step" + juce::String (step);
+                const auto durationPropName = "duration" + juce::String (step);
+                const auto velocityPropName = "velocity" + juce::String (step);
+                const auto stepMutedPropName = "stepMuted" + juce::String (step);
+                const auto stepSkippedPropName = "stepSkipped" + juce::String (step);
+                const auto probabilityPropName = "probability" + juce::String (step);
+                const auto cyclePropName = "cycle" + juce::String (step);
+                const auto cycleOffsetPropName = "cycleOffset" + juce::String (step);
+                const auto timingMultiplierPropName = "timingMultiplier" + juce::String (step);
+                rowTree.setProperty (propName,
+                                     getPatternPhraseNote (patternSlot, row, step),
+                                     nullptr);
+                rowTree.setProperty (timingMultiplierPropName,
+                                     getPatternPhraseStepTimingMultiplier (patternSlot, row, step),
+                                     nullptr);
+                rowTree.setProperty (durationPropName,
+                                     getPatternPhraseStepDurationFraction (patternSlot, row, step),
+                                     nullptr);
+                rowTree.setProperty (velocityPropName,
+                                     getPatternPhraseStepVelocity (patternSlot, row, step),
+                                     nullptr);
+                rowTree.setProperty (stepMutedPropName,
+                                     isPatternPhraseStepMuted (patternSlot, row, step),
+                                     nullptr);
+                rowTree.setProperty (stepSkippedPropName,
+                                     isPatternPhraseStepSkipped (patternSlot, row, step),
+                                     nullptr);
+                rowTree.setProperty (probabilityPropName,
+                                     getPatternPhraseStepProbability (patternSlot, row, step),
+                                     nullptr);
+                rowTree.setProperty (cyclePropName,
+                                     getPatternPhraseStepCycle (patternSlot, row, step),
+                                     nullptr);
+                rowTree.setProperty (cycleOffsetPropName,
+                                     getPatternPhraseStepCycleOffset (patternSlot, row, step),
+                                     nullptr);
+            }
+
+            rowTree.setProperty ("muted", isPatternPhraseRowMuted (patternSlot, row), nullptr);
+            rowTree.setProperty ("timingOffset",
+                                 getPatternPhraseRowTimingOffset (patternSlot, row),
+                                 nullptr);
+            rowTree.setProperty ("midiChannel",
+                                 getPatternPhraseRowMidiChannel (patternSlot, row),
+                                 nullptr);
+            patternTree.appendChild (rowTree, nullptr);
+        }
+
+        state.appendChild (patternTree, nullptr);
+    }
+
+    for (int loopSlot = 0; loopSlot < loopSlotCount; ++loopSlot)
+    {
+        juce::ValueTree loopTree ("LoopSlot");
+        loopTree.setProperty ("index", loopSlot, nullptr);
+        const auto& loopSlotState = loopSlots[static_cast<size_t> (loopSlot)];
+        loopTree.setProperty ("assigned", loopSlotState.assigned != 0, nullptr);
+        loopTree.setProperty ("patternSlot", clampPatternSlot (loopSlotState.patternSlot), nullptr);
+        loopTree.setProperty ("start", loopSlotState.startQuarters, nullptr);
+        loopTree.setProperty ("end", loopSlotState.endQuarters, nullptr);
+        state.appendChild (loopTree, nullptr);
+    }
 
     if (auto xml = state.createXml())
     {
@@ -2180,6 +2829,133 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         return;
 
     const auto stateVersion = static_cast<int> (state.getProperty ("version", 1));
+
+    for (auto& pattern : modelPatterns)
+        initialisePatternDefaults (pattern);
+
+    for (auto& loopSlot : loopSlots)
+        loopSlot = {};
+
+    for (int i = 0; i < state.getNumChildren(); ++i)
+    {
+        const auto patternTree = state.getChild (i);
+
+        if (! patternTree.hasType ("Pattern"))
+            continue;
+
+        const auto patternSlot = clampPatternSlot (
+            static_cast<int> (patternTree.getProperty ("index", i)));
+        auto& pattern = modelPattern (patternSlot);
+
+        for (int rowIndex = 0; rowIndex < patternTree.getNumChildren(); ++rowIndex)
+        {
+            const auto rowTree = patternTree.getChild (rowIndex);
+
+            if (! rowTree.hasType ("Row"))
+                continue;
+
+            const auto row = static_cast<int> (rowTree.getProperty ("index", rowIndex));
+
+            if (row < 0 || row >= phraseRowCount)
+                continue;
+
+            const auto stepCount = juce::jlimit (
+                0,
+                maxPhraseStepsPerRow,
+                static_cast<int> (rowTree.getProperty ("stepCount", defaultPhraseStepsPerRow)));
+
+            auto& steps = pattern.sequencer.rows[static_cast<size_t> (row)];
+            initialiseRowDefaults (steps, row, stepCount);
+
+            for (int step = 0; step < stepCount; ++step)
+            {
+                const auto propName = "step" + juce::String (step);
+                const auto durationPropName = "duration" + juce::String (step);
+                const auto velocityPropName = "velocity" + juce::String (step);
+                const auto stepMutedPropName = "stepMuted" + juce::String (step);
+                const auto stepSkippedPropName = "stepSkipped" + juce::String (step);
+                const auto probabilityPropName = "probability" + juce::String (step);
+                const auto cyclePropName = "cycle" + juce::String (step);
+                const auto cycleOffsetPropName = "cycleOffset" + juce::String (step);
+                const auto timingMultiplierPropName = "timingMultiplier" + juce::String (step);
+                const auto index = static_cast<size_t> (step);
+                steps.notes[index] = juce::jlimit (
+                    0,
+                    127,
+                    static_cast<int> (rowTree.getProperty (propName, defaultNoteForRow (row))));
+                steps.timingMultiplier[index] = stepTimingMultiplierIndexFromState (
+                    static_cast<int> (rowTree.getProperty (timingMultiplierPropName,
+                                                           defaultStepTimingMultiplierIndex)),
+                    stateVersion);
+                steps.durationFraction[index] = durationFractionFromStateProperty (
+                    rowTree.getProperty (durationPropName, defaultStepDurationFraction),
+                    stateVersion);
+                steps.velocity[index] = juce::jlimit (
+                    0,
+                    127,
+                    static_cast<int> (rowTree.getProperty (velocityPropName, defaultStepVelocity)));
+                steps.stepMuted[index] =
+                    static_cast<bool> (rowTree.getProperty (stepMutedPropName, false)) ? 1 : 0;
+                steps.stepSkipped[index] =
+                    static_cast<bool> (rowTree.getProperty (stepSkippedPropName, false)) ? 1 : 0;
+
+                if (steps.stepMuted[index] != 0 && steps.stepSkipped[index] != 0)
+                    steps.stepMuted[index] = 0;
+
+                steps.probability[index] = clampStepProbability (static_cast<int> (
+                    rowTree.getProperty (probabilityPropName, defaultStepProbability)));
+                const auto cycle = clampStepCycle (
+                    static_cast<int> (rowTree.getProperty (cyclePropName, defaultStepCycle)));
+                steps.cycle[index] = cycle;
+                steps.cycleOffset[index] = clampStepCycleOffset (
+                    static_cast<int> (rowTree.getProperty (cycleOffsetPropName, defaultStepCycleOffset)),
+                    cycle);
+            }
+
+            pattern.sequencer.muted[static_cast<size_t> (row)] =
+                static_cast<bool> (rowTree.getProperty ("muted", row != 0)) ? 1 : 0;
+            pattern.sequencer.timingOffset[static_cast<size_t> (row)] = juce::jlimit (
+                0,
+                rowTimingOffsetCount - 1,
+                static_cast<int> (rowTree.getProperty ("timingOffset", defaultRowTimingOffsetIndex)));
+            pattern.sequencer.midiChannel[static_cast<size_t> (row)] = juce::jlimit (
+                minPhraseRowMidiChannel,
+                maxPhraseRowMidiChannel,
+                static_cast<int> (rowTree.getProperty ("midiChannel", defaultPhraseRowMidiChannel)));
+            rebuildRowTimingLayout (steps);
+        }
+
+        pattern.loopBrace.enabled =
+            static_cast<bool> (patternTree.getProperty ("loopBraceEnabled", false)) ? 1 : 0;
+        const auto storedLoopStart = static_cast<double> (
+            patternTree.getProperty ("loopBraceStart", defaultLoopBraceStartQuarters));
+        const auto storedLoopEnd = static_cast<double> (
+            patternTree.getProperty ("loopBraceEnd", defaultLoopBraceEndQuarters));
+        pattern.loopBrace.startQuarters = clampLoopBraceStart (storedLoopStart, storedLoopEnd);
+        pattern.loopBrace.endQuarters = clampLoopBraceEnd (storedLoopEnd, pattern.loopBrace.startQuarters);
+    }
+
+    for (int i = 0; i < state.getNumChildren(); ++i)
+    {
+        const auto loopTree = state.getChild (i);
+
+        if (! loopTree.hasType ("LoopSlot"))
+            continue;
+
+        const auto loopSlot = clampLoopSlot (static_cast<int> (loopTree.getProperty ("index", i)));
+        auto& loopSlotState = loopSlots[static_cast<size_t> (loopSlot)];
+        loopSlotState.assigned =
+            static_cast<bool> (loopTree.getProperty ("assigned", false)) ? 1 : 0;
+        loopSlotState.patternSlot = clampPatternSlot (
+            static_cast<int> (loopTree.getProperty ("patternSlot", 0)));
+
+        const auto storedLoopStart =
+            static_cast<double> (loopTree.getProperty ("start", defaultLoopBraceStartQuarters));
+        const auto storedLoopEnd =
+            static_cast<double> (loopTree.getProperty ("end", defaultLoopBraceEndQuarters));
+        loopSlotState.startQuarters = clampLoopBraceStart (storedLoopStart, storedLoopEnd);
+        loopSlotState.endQuarters = clampLoopBraceEnd (storedLoopEnd, loopSlotState.startQuarters);
+    }
 
     for (int i = 0; i < state.getNumChildren(); ++i)
     {
@@ -2247,13 +3023,13 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             }
         }
 
-        modelState.muted[static_cast<size_t> (row)] =
+        modelSequencer().muted[static_cast<size_t> (row)] =
             static_cast<bool> (rowTree.getProperty ("muted", false)) ? 1 : 0;
-        modelState.timingOffset[static_cast<size_t> (row)] = juce::jlimit (
+        modelSequencer().timingOffset[static_cast<size_t> (row)] = juce::jlimit (
             0,
             rowTimingOffsetCount - 1,
             static_cast<int> (rowTree.getProperty ("timingOffset", defaultRowTimingOffsetIndex)));
-        modelState.midiChannel[static_cast<size_t> (row)] = juce::jlimit (
+        modelSequencer().midiChannel[static_cast<size_t> (row)] = juce::jlimit (
             minPhraseRowMidiChannel,
             maxPhraseRowMidiChannel,
             static_cast<int> (rowTree.getProperty ("midiChannel", defaultPhraseRowMidiChannel)));
@@ -2263,19 +3039,19 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         SequencerCommand mutedCommand;
         mutedCommand.type = SequencerCommand::Type::SetRowMuted;
         mutedCommand.row = row;
-        mutedCommand.intValue = modelState.muted[static_cast<size_t> (row)];
+        mutedCommand.intValue = modelSequencer().muted[static_cast<size_t> (row)];
         publishCommandToAudio (mutedCommand);
 
         SequencerCommand timingCommand;
         timingCommand.type = SequencerCommand::Type::SetRowTimingOffset;
         timingCommand.row = row;
-        timingCommand.intValue = modelState.timingOffset[static_cast<size_t> (row)];
+        timingCommand.intValue = modelSequencer().timingOffset[static_cast<size_t> (row)];
         publishCommandToAudio (timingCommand);
 
         SequencerCommand channelCommand;
         channelCommand.type = SequencerCommand::Type::SetRowMidiChannel;
         channelCommand.row = row;
-        channelCommand.intValue = modelState.midiChannel[static_cast<size_t> (row)];
+        channelCommand.intValue = modelSequencer().midiChannel[static_cast<size_t> (row)];
         publishCommandToAudio (channelCommand);
     }
 
@@ -2288,23 +3064,61 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     setSwingSubdivisionIndex (
         static_cast<int> (state.getProperty ("swingSubdivisionIndex", defaultSwingSubdivisionIndex)));
 
-    const auto storedLoopStart = static_cast<double> (state.getProperty ("loopBraceStart",
-                                                                         defaultLoopBraceStartQuarters));
-    const auto storedLoopEnd = static_cast<double> (state.getProperty ("loopBraceEnd",
-                                                                       defaultLoopBraceEndQuarters));
+    auto activePatternSlot = clampPatternSlot (
+        static_cast<int> (state.getProperty ("currentPatternSlot", 0)));
+    currentModelPatternSlot.store (activePatternSlot, std::memory_order_release);
+    lastObservedParameterPatternSlot = activePatternSlot;
 
-    if (storedLoopStart > getLoopBraceStartQuarters())
+    if (state.hasProperty ("loopBraceStart") || state.hasProperty ("loopBraceEnd")
+        || state.hasProperty ("loopBraceEnabled"))
     {
-        setLoopBraceEndQuarters (storedLoopEnd);
-        setLoopBraceStartQuarters (storedLoopStart);
-    }
-    else
-    {
-        setLoopBraceStartQuarters (storedLoopStart);
-        setLoopBraceEndQuarters (storedLoopEnd);
+        const auto storedLoopStart = static_cast<double> (state.getProperty (
+            "loopBraceStart",
+            defaultLoopBraceStartQuarters));
+        const auto storedLoopEnd = static_cast<double> (state.getProperty (
+            "loopBraceEnd",
+            defaultLoopBraceEndQuarters));
+        auto& loop = modelLoopBrace();
+        loop.startQuarters = clampLoopBraceStart (storedLoopStart, storedLoopEnd);
+        loop.endQuarters = clampLoopBraceEnd (storedLoopEnd, loop.startQuarters);
+        loop.enabled = static_cast<bool> (state.getProperty ("loopBraceEnabled", false)) ? 1 : 0;
     }
 
-    setLoopBraceEnabled (static_cast<bool> (state.getProperty ("loopBraceEnabled", false)));
+    for (int pattern = 0; pattern < patternSlotCount; ++pattern)
+        publishPatternToAudio (pattern);
+
+    const auto storedLoopSlot = static_cast<int> (state.getProperty ("currentLoopSlot", -1));
+    auto restoredLoopSlot = false;
+
+    if (storedLoopSlot >= 0 && storedLoopSlot < loopSlotCount
+        && loopSlots[static_cast<size_t> (storedLoopSlot)].assigned != 0)
+    {
+        const auto& loopSlotState = loopSlots[static_cast<size_t> (storedLoopSlot)];
+        activePatternSlot = clampPatternSlot (loopSlotState.patternSlot);
+
+        const auto loopStart = clampLoopBraceStart (loopSlotState.startQuarters,
+                                                    loopSlotState.endQuarters);
+        const auto loopEnd = clampLoopBraceEnd (loopSlotState.endQuarters, loopStart);
+        auto& loopBrace = modelPatterns[static_cast<size_t> (activePatternSlot)].loopBrace;
+        loopBrace.enabled = 1;
+        loopBrace.startQuarters = loopStart;
+        loopBrace.endQuarters = loopEnd;
+
+        currentModelPatternSlot.store (activePatternSlot, std::memory_order_release);
+        currentLoopSlot.store (storedLoopSlot, std::memory_order_release);
+        publishPatternToAudio (activePatternSlot);
+        requestAudioLoopSlot (storedLoopSlot);
+        restoredLoopSlot = true;
+    }
+
+    if (! restoredLoopSlot)
+        requestAudioPatternSlot (activePatternSlot);
+
+    lastObservedParameterPatternSlot = activePatternSlot;
+
+    if (patternSlotParameter != nullptr && patternSlotParameter->get() != activePatternSlot + 1)
+        patternSlotParameter->setValueNotifyingHost (
+            patternSlotParameter->convertTo0to1 (activePatternSlot + 1));
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

@@ -228,6 +228,38 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getLoopBraceEndQuarters() == Catch::Approx (28.5));
     }
 
+    SECTION ("loop slots recall their own saved brace ranges")
+    {
+        testPlugin.setLoopBraceStartQuarters (0.5);
+        testPlugin.setLoopBraceEndQuarters (2.0);
+        testPlugin.saveCurrentBraceToLoopSlot (0);
+
+        testPlugin.setCurrentPatternSlot (1);
+        testPlugin.setLoopBraceEndQuarters (6.0);
+        testPlugin.setLoopBraceStartQuarters (4.0);
+        testPlugin.saveCurrentBraceToLoopSlot (1);
+
+        juce::MemoryBlock state;
+        testPlugin.getStateInformation (state);
+
+        PluginProcessor reloaded;
+        reloaded.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+
+        reloaded.selectLoopSlot (0);
+        CHECK (reloaded.getCurrentPatternSlot() == 0);
+        CHECK (reloaded.getCurrentLoopSlot() == 0);
+        CHECK (reloaded.isLoopBraceEnabled());
+        CHECK (reloaded.getLoopBraceStartQuarters() == Catch::Approx (0.5));
+        CHECK (reloaded.getLoopBraceEndQuarters() == Catch::Approx (2.0));
+
+        reloaded.selectLoopSlot (1);
+        CHECK (reloaded.getCurrentPatternSlot() == 1);
+        CHECK (reloaded.getCurrentLoopSlot() == 1);
+        CHECK (reloaded.isLoopBraceEnabled());
+        CHECK (reloaded.getLoopBraceStartQuarters() == Catch::Approx (4.0));
+        CHECK (reloaded.getLoopBraceEndQuarters() == Catch::Approx (6.0));
+    }
+
     SECTION ("row timing offset")
     {
         CHECK (testPlugin.getPhraseRowTimingOffset (0) == PluginProcessor::defaultRowTimingOffsetIndex);

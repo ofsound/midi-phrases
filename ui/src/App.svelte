@@ -115,6 +115,10 @@
   let standaloneTransportAvailable = false;
   let standalonePlaying = false;
   let standaloneTempoBpm = 120;
+  let activePatternSlot = 0;
+  let activeLoopSlot = -1;
+  let loopSlotAssigned = Array.from({ length: 8 }, () => false);
+  let loopSlotPattern = Array.from({ length: 8 }, () => 0);
   let pulseIndex = defaultPulseIndex;
   let swingPercent = 0;
   let velocityHumanizePercent = 0;
@@ -133,6 +137,24 @@
       enabled
         ? "border-zinc-700 text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
         : "border-zinc-800 text-zinc-700"
+    }`;
+  }
+
+  function slotButtonClasses(active, assigned = true) {
+    return `flex h-7 w-7 items-center justify-center rounded-sm border text-xs font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+      active
+        ? "border-emerald-400 bg-emerald-400 text-zinc-950"
+        : assigned
+          ? "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
+          : "border-zinc-800 bg-zinc-950 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400"
+    }`;
+  }
+
+  function clearPatternButtonClasses(enabled) {
+    return `flex h-7 w-7 items-center justify-center rounded-sm border text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+      enabled
+        ? "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-red-500 hover:text-red-300"
+        : "border-zinc-800 bg-zinc-950 text-zinc-700"
     }`;
   }
 
@@ -232,6 +254,33 @@
     loopBraceEnabled = next.loopBraceEnabled;
     loopBraceStart = next.loopBraceStart;
     loopBraceEnd = next.loopBraceEnd;
+  }
+
+  function assignPatternState(state) {
+    if (!state || typeof state !== "object") return;
+
+    grid = cloneMatrix(state.phraseNotes ?? grid);
+    rowMuted = [...(state.phraseRowMuted ?? rowMuted)].map(Boolean);
+    soloRow = -1;
+    rowSoloRestoreMuted = null;
+    rowTimingOffset = [...(state.phraseRowTimingOffset ?? rowTimingOffset)];
+    rowMidiChannel = [...(state.phraseRowMidiChannel ?? rowMidiChannel)];
+    stepDurationFraction = cloneMatrix(state.phraseStepDurationFraction ?? stepDurationFraction);
+    stepTimingMultiplier = cloneMatrix(state.phraseStepTimingMultiplier ?? stepTimingMultiplier);
+    stepVelocity = cloneMatrix(state.phraseStepVelocity ?? stepVelocity);
+    stepMuted = cloneMatrix(state.phraseStepMuted ?? stepMuted).map((row) => row.map(Boolean));
+    stepSkipped = cloneMatrix(state.phraseStepSkipped ?? stepSkipped).map((row) => row.map(Boolean));
+    stepProbability = cloneMatrix(state.phraseStepProbability ?? stepProbability);
+    stepCycle = cloneMatrix(state.phraseStepCycle ?? stepCycle);
+    stepCycleOffset = cloneMatrix(state.phraseStepCycleOffset ?? stepCycleOffset);
+    loopBraceEnabled = Boolean(Number.parseInt(String(state.loopBraceEnabled ?? 0), 10));
+    loopBraceStart = Number.parseFloat(String(state.loopBraceStart ?? 0));
+    loopBraceEnd = Number.parseFloat(String(state.loopBraceEnd ?? 8));
+    activeGates = grid.map((row) => row.map(() => false));
+    stepIds = grid.map((row, rowIndex) => row.map((_, step) => `step-${activePatternSlot}-${rowIndex}-${step}`));
+    nextStepId = grid.reduce((count, row) => count + row.length, 0);
+    undoStack = [];
+    redoStack = [];
   }
 
   function pushHistoryEntry(label, before, after) {
@@ -1415,6 +1464,38 @@
     if (!Number.isNaN(parsedTempo)) standaloneTempoBpm = Math.min(300, Math.max(20, parsedTempo));
   }
 
+  function loadSlotStateFromInitialisation() {
+    const patternInit = unwrapJuceInit("currentPatternSlot");
+    const loopInit = unwrapJuceInit("currentLoopSlot");
+    const assignedInit = unwrapJuceInit("loopSlotAssigned");
+    const patternRefInit = unwrapJuceInit("loopSlotPattern");
+
+    if (patternInit !== null) {
+      const raw = Array.isArray(patternInit) ? patternInit[0] : patternInit;
+      const value = Number.parseInt(String(raw), 10);
+      if (!Number.isNaN(value)) activePatternSlot = Math.min(7, Math.max(0, value));
+    }
+
+    if (loopInit !== null) {
+      const raw = Array.isArray(loopInit) ? loopInit[0] : loopInit;
+      const value = Number.parseInt(String(raw), 10);
+      if (!Number.isNaN(value)) activeLoopSlot = value >= 0 && value < 8 ? value : -1;
+    }
+
+    if (Array.isArray(assignedInit)) {
+      loopSlotAssigned = Array.from({ length: 8 }, (_, index) =>
+        Boolean(Number.parseInt(String(assignedInit[index] ?? 0), 10)),
+      );
+    }
+
+    if (Array.isArray(patternRefInit)) {
+      loopSlotPattern = Array.from({ length: 8 }, (_, index) => {
+        const value = Number.parseInt(String(patternRefInit[index] ?? 0), 10);
+        return Number.isNaN(value) ? 0 : Math.min(7, Math.max(0, value));
+      });
+    }
+  }
+
   async function toggleStandaloneTransport() {
     if (!nativeFunctionAvailable("setStandaloneTransportPlaying")) return;
 
@@ -1437,6 +1518,46 @@
     if (!Number.isNaN(confirmedTempo)) standaloneTempoBpm = confirmedTempo;
   }
 
+  async function selectPatternSlot(slot) {
+    const nextSlot = Math.min(7, Math.max(0, slot));
+    activePatternSlot = nextSlot;
+    activeLoopSlot = -1;
+
+    if (!nativeFunctionAvailable("setCurrentPatternSlot")) return;
+
+    const state = await getNativeFunction("setCurrentPatternSlot")(nextSlot);
+    assignPatternState(state);
+  }
+
+  async function clearSelectedPatternSlot() {
+    if (!nativeFunctionAvailable("clearPatternSlot")) return;
+
+    const state = await getNativeFunction("clearPatternSlot")(activePatternSlot);
+    assignPatternState(state);
+  }
+
+  async function handleLoopSlotClick(event, slot) {
+    const nextSlot = Math.min(7, Math.max(0, slot));
+
+    if (event.shiftKey) {
+      if (!nativeFunctionAvailable("saveCurrentBraceToLoopSlot")) return;
+
+      await getNativeFunction("saveCurrentBraceToLoopSlot")(nextSlot);
+      loopSlotAssigned[nextSlot] = true;
+      loopSlotPattern[nextSlot] = activePatternSlot;
+      loopSlotAssigned = loopSlotAssigned;
+      loopSlotPattern = loopSlotPattern;
+      return;
+    }
+
+    if (!loopSlotAssigned[nextSlot] || !nativeFunctionAvailable("selectLoopSlot")) return;
+
+    activeLoopSlot = nextSlot;
+    activePatternSlot = loopSlotPattern[nextSlot] ?? activePatternSlot;
+    const state = await getNativeFunction("selectLoopSlot")(nextSlot);
+    assignPatternState(state);
+  }
+
   function loadInitialStateFromJuce() {
     loadGridFromInitialisation();
     loadRowMutedFromInitialisation();
@@ -1454,6 +1575,7 @@
     loadHumanizeControlsFromInitialisation();
     loadLoopBraceFromInitialisation();
     loadStandaloneTransportFromInitialisation();
+    loadSlotStateFromInitialisation();
   }
 
   loadInitialStateFromJuce();
@@ -1489,7 +1611,7 @@
       <div class="flex w-10 shrink-0 flex-col items-start self-start">
         <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
         <h1 class="whitespace-nowrap text-xl font-semibold tracking-tight text-zinc-100">
-          {pluginName}
+          {pluginName} <span class="text-sm font-medium text-zinc-500">v{version}</span>
         </h1>
       </div>
 
@@ -1633,7 +1755,54 @@
       </div>
     </div>
 
-    <div class="flex shrink-0 items-center gap-3">
+    <div class="flex shrink-0 items-end gap-3">
+      <div class="flex flex-col items-end gap-1.5">
+        <div class="flex items-center gap-2">
+          <span class="w-16 text-right text-xs font-semibold leading-none text-zinc-500">Patterns</span>
+          <div class="flex items-center gap-1">
+            {#each Array.from({ length: 8 }, (_, index) => index) as slot}
+              <button
+                type="button"
+                aria-label="Select pattern {slot + 1}"
+                aria-pressed={activePatternSlot === slot}
+                class={slotButtonClasses(activePatternSlot === slot)}
+                onclick={() => selectPatternSlot(slot)}
+              >
+                {slot + 1}
+              </button>
+            {/each}
+            <button
+              type="button"
+              aria-label="Clear selected pattern"
+              title="Clear selected pattern"
+              class={clearPatternButtonClasses(true)}
+              onclick={clearSelectedPatternSlot}
+            >
+              x
+            </button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-16 text-right text-xs font-semibold leading-none text-zinc-500">Loops</span>
+          <div class="flex items-center gap-1">
+            {#each Array.from({ length: 8 }, (_, index) => index) as slot}
+              <button
+                type="button"
+                aria-label={loopSlotAssigned[slot]
+                  ? `Select loop ${slot + 1}`
+                  : `Save current brace to loop ${slot + 1}`}
+                aria-pressed={activeLoopSlot === slot}
+                title="Click to select, Shift-click to save current brace"
+                class={slotButtonClasses(activeLoopSlot === slot, loopSlotAssigned[slot])}
+                onclick={(event) => handleLoopSlotClick(event, slot)}
+              >
+                {slot + 1}
+              </button>
+            {/each}
+            <div class="h-7 w-7" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
       {#if standaloneTransportAvailable}
         <div class="flex items-center gap-2">
           <button
@@ -1661,7 +1830,6 @@
           </label>
         </div>
       {/if}
-      <p class="pt-0.5 text-sm text-zinc-500">v{version}</p>
     </div>
   </header>
   <div class="h-0.5 w-full bg-zinc-500/40" role="separator" aria-hidden="true"></div>

@@ -225,7 +225,7 @@ export function buildPhraseSchedule({
         return;
       }
 
-      const clippedEnd = Math.min(endTime, ppqEnd);
+      const clippedEnd = Math.min(activeNote.end, endTime, ppqEnd);
 
       if (clippedEnd > activeNote.start + EPSILON) {
         scheduled.push({

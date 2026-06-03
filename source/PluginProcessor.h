@@ -46,6 +46,8 @@ public:
     static constexpr int phraseRowCount = 4;
     static constexpr int defaultPhraseStepsPerRow = 1;
     static constexpr int maxPhraseStepsPerRow = 64;
+    static constexpr int patternSlotCount = 8;
+    static constexpr int loopSlotCount = 8;
 
     void setPhraseNote (int row, int step, int noteNumber);
     int getPhraseNote (int row, int step) const;
@@ -144,6 +146,34 @@ public:
     void setLoopBraceEndQuarters (double endQuarters);
     double getLoopBraceEndQuarters() const;
 
+    void setCurrentPatternSlot (int patternSlot);
+    int getCurrentPatternSlot() const;
+    int getAudioPatternSlot() const;
+    void clearPatternSlot (int patternSlot);
+
+    int getPatternPhraseRowStepCount (int patternSlot, int row) const;
+    int getPatternPhraseNote (int patternSlot, int row, int step) const;
+    bool isPatternPhraseRowMuted (int patternSlot, int row) const;
+    int getPatternPhraseRowTimingOffset (int patternSlot, int row) const;
+    int getPatternPhraseRowMidiChannel (int patternSlot, int row) const;
+    int getPatternPhraseStepTimingMultiplier (int patternSlot, int row, int step) const;
+    double getPatternPhraseStepDurationFraction (int patternSlot, int row, int step) const;
+    int getPatternPhraseStepVelocity (int patternSlot, int row, int step) const;
+    bool isPatternPhraseStepMuted (int patternSlot, int row, int step) const;
+    bool isPatternPhraseStepSkipped (int patternSlot, int row, int step) const;
+    int getPatternPhraseStepProbability (int patternSlot, int row, int step) const;
+    int getPatternPhraseStepCycle (int patternSlot, int row, int step) const;
+    int getPatternPhraseStepCycleOffset (int patternSlot, int row, int step) const;
+    bool isPatternLoopBraceEnabled (int patternSlot) const;
+    double getPatternLoopBraceStartQuarters (int patternSlot) const;
+    double getPatternLoopBraceEndQuarters (int patternSlot) const;
+
+    void saveCurrentBraceToLoopSlot (int loopSlot);
+    void selectLoopSlot (int loopSlot);
+    int getCurrentLoopSlot() const;
+    bool isLoopSlotAssigned (int loopSlot) const;
+    int getLoopSlotPatternSlot (int loopSlot) const;
+
     double getLoopPlaybackBeat() const;
 
     /** Beat used for UI playhead and step highlighting; -1 when not playing. */
@@ -216,6 +246,27 @@ private:
         std::array<int, phraseRowCount> midiChannel {};
     };
 
+    struct LoopBraceState
+    {
+        int enabled = 0;
+        double startQuarters = defaultLoopBraceStartQuarters;
+        double endQuarters = defaultLoopBraceEndQuarters;
+    };
+
+    struct PatternState
+    {
+        SequencerState sequencer {};
+        LoopBraceState loopBrace {};
+    };
+
+    struct LoopSlotState
+    {
+        int assigned = 0;
+        int patternSlot = 0;
+        double startQuarters = defaultLoopBraceStartQuarters;
+        double endQuarters = defaultLoopBraceEndQuarters;
+    };
+
     struct SequencerCommand
     {
         enum class Type
@@ -236,16 +287,22 @@ private:
             InsertStep,
             DuplicateStep,
             MoveStep,
-            ReplaceRow
+            ReplaceRow,
+            SetLoopBraceEnabled,
+            SetLoopBraceStart,
+            SetLoopBraceEnd,
+            ReplacePattern
         };
 
         Type type = Type::SetNote;
+        int patternSlot = -1;
         int row = 0;
         int step = 0;
         int toStep = 0;
         int intValue = 0;
         double doubleValue = 0.0;
         PhraseRowSteps rowState {};
+        PatternState patternState {};
     };
 
     struct PendingNoteOn;
@@ -283,6 +340,33 @@ private:
     void applySequencerCommand (const SequencerCommand& command);
     PhraseRowSteps& modelRow (int row);
     const PhraseRowSteps& modelRow (int row) const;
+    PatternState& modelPattern (int patternSlot);
+    const PatternState& modelPattern (int patternSlot) const;
+    SequencerState& modelSequencer();
+    const SequencerState& modelSequencer() const;
+    const SequencerState& audioSequencer() const;
+    LoopBraceState& modelLoopBrace();
+    const LoopBraceState& modelLoopBrace() const;
+    const LoopBraceState& audioLoopBrace() const;
+    const PhraseRowSteps* patternRowForStep (int patternSlot, int row, int step) const;
+    int clampPatternSlot (int patternSlot) const;
+    int clampLoopSlot (int loopSlot) const;
+    void initialisePatternDefaults (PatternState& pattern);
+    void publishPatternToAudio (int patternSlot);
+    void publishLoopBraceCommandToAudio (SequencerCommand::Type type, int patternSlot);
+    void requestAudioPatternSlot (int patternSlot);
+    void applyAudioPatternSlot (int patternSlot);
+    void requestAudioLoopSlot (int loopSlot);
+    void applyAudioLoopSlot (int loopSlot);
+    void handleIncomingControlNotes (juce::MidiBuffer& midiMessages);
+    bool shouldApplyPendingPatternSwitch (double ppqStart, double ppqEnd) const;
+    void processTransportPlaybackRange (double transportPpqStart,
+                                        double transportPpqEnd,
+                                        double bufferTransportStartPpq,
+                                        int bufferSamples,
+                                        double ppqPerSample,
+                                        juce::MidiBuffer& midiMessages,
+                                        bool resetRowTriggersAtSegmentStart);
 
     double playbackBeatForUi() const;
 
@@ -315,8 +399,9 @@ private:
     static constexpr size_t sequencerCommandQueueCapacity = 1024;
     static constexpr size_t pendingNoteOnCapacity = static_cast<size_t> (phraseRowCount) * 16;
 
-    SequencerState modelState {};
-    SequencerState audioState {};
+    std::array<PatternState, patternSlotCount> modelPatterns {};
+    std::array<PatternState, patternSlotCount> audioPatterns {};
+    std::array<LoopSlotState, loopSlotCount> loopSlots {};
     std::unique_ptr<std::array<SequencerCommand, sequencerCommandQueueCapacity>> sequencerCommandQueue {};
     std::atomic<size_t> sequencerCommandWriteIndex { 0 };
     std::atomic<size_t> sequencerCommandReadIndex { 0 };
@@ -329,14 +414,18 @@ private:
     std::array<std::array<std::uint32_t, maxPhraseStepsPerRow>, phraseRowCount> stepCycleCounters {};
     std::uint32_t playbackRandomState = 0xA5C3F17Du;
     std::atomic<double> currentPlaybackPpq { -1.0 };
+    juce::AudioParameterInt* patternSlotParameter = nullptr;
+    std::atomic<int> currentModelPatternSlot { 0 };
+    int audioActivePatternSlot = 0;
+    int lastObservedParameterPatternSlot = 0;
+    std::atomic<int> pendingAudioPatternSlot { -1 };
+    std::atomic<int> currentLoopSlot { -1 };
+    std::atomic<int> pendingAudioLoopSlot { -1 };
     std::atomic<int> pulseIndex { defaultPulseIndex };
     std::atomic<int> swingPercent { defaultSwingPercent };
     std::atomic<int> velocityHumanizePercent { defaultVelocityHumanizePercent };
     std::atomic<int> timingHumanizePercent { defaultTimingHumanizePercent };
     std::atomic<int> swingSubdivisionIndex { defaultSwingSubdivisionIndex };
-    std::atomic<int> loopBraceEnabled { 0 };
-    std::atomic<double> loopBraceStartQuarters { defaultLoopBraceStartQuarters };
-    std::atomic<double> loopBraceEndQuarters { defaultLoopBraceEndQuarters };
     std::atomic<int> standaloneTransportPlaying { 0 };
     std::atomic<int> standaloneTransportResetRequested { 0 };
     std::atomic<double> standaloneTempoBpm { 120.0 };
