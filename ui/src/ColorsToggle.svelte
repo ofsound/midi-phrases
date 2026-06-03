@@ -13,12 +13,8 @@
     onChange = () => {},
   } = $props();
 
-  /** Local state paints before the heavy phrase-grid re-render in App. */
-  let visualOn = $state(false);
-
-  $effect(() => {
-    visualOn = enabled;
-  });
+  /** Overridden optimistically so the toggle paints before App's grid re-render. */
+  let visualOn = $derived(enabled);
 
   async function handleClick() {
     const next = !visualOn;
