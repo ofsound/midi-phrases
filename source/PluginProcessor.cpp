@@ -1792,9 +1792,6 @@ void PluginProcessor::applyAudioPatternSlot (const int patternSlot)
     resetPendingNoteOffs();
     resetPendingNoteOns();
     resetStepCycleCounters();
-
-    for (auto& flush : phraseRowFlushNoteOff)
-        flush.store (1);
 }
 
 void PluginProcessor::setCurrentPatternSlot (const int patternSlot)
@@ -2039,9 +2036,6 @@ void PluginProcessor::applyAudioLoopSlot (const int loopSlot)
     resetPendingNoteOffs();
     resetPendingNoteOns();
     resetStepCycleCounters();
-
-    for (auto& flush : phraseRowFlushNoteOff)
-        flush.store (1);
 }
 
 void PluginProcessor::selectLoopSlot (const int loopSlot)
@@ -2383,10 +2377,16 @@ void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages
             }
         }
 
-        if (message.isNoteOn())
+        if (message.isNoteOnOrOff())
         {
             if (armedRow >= 0)
             {
+                if (! message.isNoteOn())
+                {
+                    filtered.addEvent (message, metadata.samplePosition);
+                    continue;
+                }
+
                 const auto countAtSample =
                     noteOnCountBySample[metadata.samplePosition];
 
@@ -2401,15 +2401,19 @@ void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages
 
             if (note >= 0 && note < patternSlotCount)
             {
-                currentModelPatternSlot.store (note, std::memory_order_release);
-                currentLoopSlot.store (-1, std::memory_order_release);
-                requestAudioPatternSlot (note);
+                if (message.isNoteOn())
+                {
+                    currentModelPatternSlot.store (note, std::memory_order_release);
+                    currentLoopSlot.store (-1, std::memory_order_release);
+                    requestAudioPatternSlot (note);
+                }
                 continue;
             }
 
             if (note >= patternSlotCount && note < patternSlotCount + loopSlotCount)
             {
-                requestAudioLoopSlot (note - patternSlotCount);
+                if (message.isNoteOn())
+                    requestAudioLoopSlot (note - patternSlotCount);
                 continue;
             }
         }
@@ -2612,7 +2616,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                 const auto triggerPpq = static_cast<double> (cycle) * cycleLengthQuarters
                                         + stepStartInCycle + offset;
 
-                if (triggerPpq < schedulePpqStart - epsilon || triggerPpq >= schedulePpqEnd + epsilon)
+                if (triggerPpq < schedulePpqStart - epsilon || triggerPpq >= schedulePpqEnd - epsilon)
                     continue;
 
                 if (triggerCount >= static_cast<int> (scratch.triggers.size()))
@@ -2710,15 +2714,18 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                 segmentTransportStartPpq + (triggerPpq + delayQuarters - schedulePpqStart);
             const auto sampleOffset = static_cast<int> (std::lround (
                 (transportPpqAtNoteOn - bufferTransportStartPpq) / ppqPerSample));
-            const auto scheduleSpanQuarters = schedulePpqEnd - schedulePpqStart;
-            const auto bufferSpanQuarters = static_cast<double> (bufferSamples) * ppqPerSample;
+            const auto segmentTransportEndPpq =
+                segmentTransportStartPpq + (schedulePpqEnd - schedulePpqStart);
+            const auto bufferTransportEndPpq =
+                bufferTransportStartPpq + static_cast<double> (bufferSamples) * ppqPerSample;
             const auto scheduleEndsBeforeBuffer =
-                scheduleSpanQuarters < bufferSpanQuarters - epsilon;
+                segmentTransportEndPpq < bufferTransportEndPpq - epsilon;
 
-            const auto gateEndPpq = scheduleEndsBeforeBuffer
-                                        ? juce::jmin (triggerPpq + gateQuarters, schedulePpqEnd)
-                                        : triggerPpq + gateQuarters;
-            const auto effectiveGateQuarters = gateEndPpq - triggerPpq;
+            const auto gateEndTransportPpq = scheduleEndsBeforeBuffer
+                                                 ? juce::jmin (transportPpqAtNoteOn + gateQuarters,
+                                                               segmentTransportEndPpq)
+                                                 : transportPpqAtNoteOn + gateQuarters;
+            const auto effectiveGateQuarters = gateEndTransportPpq - transportPpqAtNoteOn;
 
             if (effectiveGateQuarters <= epsilon)
                 continue;

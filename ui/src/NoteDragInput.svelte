@@ -64,7 +64,8 @@
 </script>
 
 <div
-  class="inline-flex cursor-ns-resize touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {muted
+  data-cursor="ns-resize"
+  class="inline-flex touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {muted
     ? 'text-zinc-500'
     : dragging
       ? accent.textAccentLight

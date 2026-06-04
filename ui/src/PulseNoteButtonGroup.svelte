@@ -21,7 +21,8 @@
       aria-checked={selected}
       aria-label={option.label}
       title={option.label}
-      class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border bg-gradient-to-b outline-none transition-[border-color,box-shadow,color,background-color] duration-75 {accent.ringFocusWithWidth} {selected
+      data-cursor="pointer"
+      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-gradient-to-b outline-none transition-[border-color,box-shadow,color,background-color] duration-75 {accent.ringFocusWithWidth} {selected
         ? `${accent.dragBorder} ${accent.dragShadow} from-zinc-600/70 to-zinc-900 text-zinc-100`
         : 'border-zinc-700/90 from-zinc-800/40 to-zinc-950 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}"
       onclick={() => {

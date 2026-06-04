@@ -82,11 +82,12 @@
 </script>
 
 <div
+  data-cursor={disabled ? "default" : "ns-resize"}
   class="touch-none select-none outline-none {boxed
     ? boxedControlClasses
     : 'inline-flex items-center rounded-sm'} {disabled
-    ? 'cursor-default opacity-50'
-    : 'cursor-ns-resize'} {accent.ringFocusWithWidth} {boxed
+    ? 'opacity-50'
+    : ''} {accent.ringFocusWithWidth} {boxed
     ? dragging && !muted
       ? `${accent.dragBorder} ${accent.dragShadow}`
       : muted

@@ -9,10 +9,51 @@
   }
 }
 
-/* JUCE WebView often ignores Tailwind cursor utilities on <button>; use attribute + !important. */
+/* JUCE WebView often ignores Tailwind cursor utilities on interactive controls. */
 @layer components {
-  [data-step-pointer] {
+  [data-cursor="default"] {
+    cursor: default !important;
+  }
+
+  [data-cursor="pointer"] {
     cursor: pointer !important;
+  }
+
+  [data-cursor="ew-resize"] {
+    cursor: ew-resize !important;
+  }
+
+  [data-cursor="ns-resize"] {
+    cursor: ns-resize !important;
+  }
+
+  [data-cursor="grab"] {
+    cursor: grab !important;
+  }
+
+  [data-cursor="grab"]:active,
+  [data-cursor="grabbing"] {
+    cursor: grabbing !important;
+  }
+
+  [data-cursor]:disabled,
+  [data-cursor][aria-disabled="true"] {
+    cursor: default !important;
+  }
+
+  body[data-cursor="ew-resize"],
+  body[data-cursor="ew-resize"] * {
+    cursor: ew-resize !important;
+  }
+
+  body[data-cursor="ns-resize"],
+  body[data-cursor="ns-resize"] * {
+    cursor: ns-resize !important;
+  }
+
+  body[data-cursor="grabbing"],
+  body[data-cursor="grabbing"] * {
+    cursor: grabbing !important;
   }
 }
 

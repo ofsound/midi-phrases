@@ -35,10 +35,10 @@
 
 <button
   type="button"
-  data-step-pointer
+  data-cursor="pointer"
   aria-label={ariaLabel}
   aria-pressed={value}
-  style={style ? `cursor: pointer; ${style}` : "cursor: pointer"}
+  style={style}
   class="{resolvedButtonClass} {iconClasses}"
   onpointerdown={(event) => event.stopPropagation()}
   onclick={toggle}

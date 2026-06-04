@@ -78,6 +78,7 @@
     <div class="flex items-center gap-2">
       <button
         type="button"
+        data-cursor="pointer"
         class="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-700 bg-zinc-900 text-lg font-semibold text-zinc-200 transition-colors hover:border-zinc-500 hover:bg-zinc-800 outline-none focus-visible:ring-1 {accent.ringFocus}"
         aria-label="Shift keyboard down one octave"
         title="Octave down"
@@ -90,6 +91,7 @@
       </span>
       <button
         type="button"
+        data-cursor="pointer"
         class="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-700 bg-zinc-900 text-lg font-semibold text-zinc-200 transition-colors hover:border-zinc-500 hover:bg-zinc-800 outline-none focus-visible:ring-1 {accent.ringFocus}"
         aria-label="Shift keyboard up one octave"
         title="Octave up"
@@ -108,6 +110,7 @@
         {#each layout.whites as { midi } (midi)}
           <button
             type="button"
+            data-cursor="pointer"
             class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end border-r border-b border-zinc-700/80 transition-[filter,background-color] duration-75 last:border-r-0 hover:brightness-105 active:brightness-95 {isKeyHeld(
               midi,
             )
@@ -133,6 +136,7 @@
         {#each layout.blacks as { midi, centerPercent, widthPercent } (midi)}
           <button
             type="button"
+            data-cursor="pointer"
             class="pointer-events-auto absolute top-0 z-10 h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 rounded-b-md border border-zinc-900/80 shadow-md transition-[filter,background-color] duration-75 active:brightness-110 {isKeyHeld(
               midi,
             )

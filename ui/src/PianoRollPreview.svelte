@@ -1,5 +1,7 @@
 <script>
+  import { onDestroy } from "svelte";
   import { midiToNoteName } from "./midiNoteNames.js";
+  import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { beatFromClientX, clampLoopBrace, loopBraceSnapQuarters } from "./loopBraceLayout.js";
   import { defaultPulseIndex } from "./pulseLayout.js";
   import { rowAccentFor } from "./rowAccentTheme.js";
@@ -131,6 +133,7 @@
     dragAnchorStart = displayStart;
     dragAnchorEnd = displayEnd;
 
+    setActiveCursor(mode === "move" ? "grabbing" : "ew-resize");
     event.currentTarget?.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   }
@@ -182,6 +185,7 @@
     const mode = dragMode;
     dragMode = null;
     dragPointerId = -1;
+    clearActiveCursor(mode === "move" ? "grabbing" : "ew-resize");
 
     await commitLoopBrace({ start: displayStart, end: displayEnd });
 
@@ -227,6 +231,10 @@
   $: pitchRows = Array.from({ length: pitchSpan }, (_, index) => pitchRange.maxMidi - index);
   $: quarterLines = Array.from({ length: lengthQuarters + 1 }, (_, quarter) => quarter);
   $: barLines = Array.from({ length: Math.floor(lengthQuarters / 4) + 1 }, (_, bar) => bar * 4);
+
+  onDestroy(() => {
+    clearActiveCursor();
+  });
 </script>
 
 <section class="mt-6 flex min-h-0 w-full flex-1 flex-col">
@@ -235,6 +243,7 @@
       <p class="text-xs font-medium uppercase tracking-widest text-zinc-500">Output preview</p>
       <button
         type="button"
+        data-cursor="pointer"
         class="rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors outline-none focus-visible:ring-1 focus-visible:ring-emerald-400 {loopEnabled
           ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
           : 'border-zinc-700 bg-zinc-900 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}"
@@ -313,14 +322,16 @@
                 <button
                   type="button"
                   aria-label="Loop start"
-                  class="absolute top-1/2 left-0 z-30 h-4 w-2.5 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-sm border border-zinc-900/40 bg-zinc-200 shadow-sm"
+                  data-cursor="ew-resize"
+                  class="absolute top-1/2 left-0 z-30 h-4 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-zinc-900/40 bg-zinc-200 shadow-sm"
                   onpointerdown={(event) => beginLoopDrag(event, "start")}
                 ></button>
 
                 <button
                   type="button"
                   aria-label="Move loop brace"
-                  class="absolute inset-x-2 inset-y-0 cursor-grab active:cursor-grabbing"
+                  data-cursor="grab"
+                  class="absolute inset-x-2 inset-y-0"
                   onpointerdown={(event) => beginLoopDrag(event, "move")}
                   ondblclick={toggleLoopEnabled}
                 ></button>
@@ -328,7 +339,8 @@
                 <button
                   type="button"
                   aria-label="Loop end"
-                  class="absolute top-1/2 right-0 z-30 h-4 w-2.5 translate-x-1/2 -translate-y-1/2 cursor-ew-resize rounded-sm border border-zinc-900/40 bg-zinc-200 shadow-sm"
+                  data-cursor="ew-resize"
+                  class="absolute top-1/2 right-0 z-30 h-4 w-2.5 translate-x-1/2 -translate-y-1/2 rounded-sm border border-zinc-900/40 bg-zinc-200 shadow-sm"
                   onpointerdown={(event) => beginLoopDrag(event, "end")}
                 ></button>
               </div>

@@ -108,7 +108,8 @@
 <div class="flex min-w-0 w-full flex-col">
   <div
     bind:this={trackEl}
-    class="relative h-4 cursor-pointer touch-none select-none outline-none {accent.ringFocusWithWidth} {muted
+    data-cursor="pointer"
+    class="relative h-4 touch-none select-none outline-none {accent.ringFocusWithWidth} {muted
       ? 'bg-zinc-800'
       : 'bg-zinc-600'}"
     role="slider"

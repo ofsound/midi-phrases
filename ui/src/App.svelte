@@ -150,7 +150,7 @@
 
   const historyLimit = 100;
   const historyButtonBaseClasses =
-    "flex h-8 w-8 items-center justify-center rounded-md border bg-zinc-900 transition-colors outline-none focus:ring-1 focus:ring-emerald-400 disabled:cursor-default disabled:border-zinc-800 disabled:text-zinc-700";
+    "flex h-8 w-8 items-center justify-center rounded-md border bg-zinc-900 transition-colors outline-none focus:ring-1 focus:ring-emerald-400 disabled:border-zinc-800 disabled:text-zinc-700";
 
   function historyButtonClasses(enabled) {
     return `${historyButtonBaseClasses} ${
@@ -2020,6 +2020,7 @@
             aria-label="Undo"
             title="Undo"
             disabled={undoStack.length === 0}
+            data-cursor="pointer"
             class={historyButtonClasses(undoStack.length > 0)}
             onclick={undo}
           >
@@ -2042,6 +2043,7 @@
             aria-label="Redo"
             title="Redo"
             disabled={redoStack.length === 0}
+            data-cursor="pointer"
             class={historyButtonClasses(redoStack.length > 0)}
             onclick={redo}
           >
@@ -2077,6 +2079,7 @@
                 title={patternCopySource === slot
                   ? "Copy source selected"
                   : "Shift-click to copy from this pattern"}
+                data-cursor="pointer"
                 class={slotButtonClasses(activePatternSlot === slot, true, patternCopySource === slot)}
                 onclick={(event) => handlePatternSlotClick(event, slot)}
               >
@@ -2087,6 +2090,7 @@
               type="button"
               aria-label="Clear selected pattern"
               title="Clear selected pattern"
+              data-cursor="pointer"
               class={clearPatternButtonClasses(true)}
               onclick={clearSelectedPatternSlot}
             >
@@ -2105,6 +2109,7 @@
                   : `Save current brace to loop ${slot + 1}`}
                 aria-pressed={activeLoopSlot === slot}
                 title="Click to select, Shift-click to save current brace"
+                data-cursor="pointer"
                 class={slotButtonClasses(activeLoopSlot === slot, loopSlotAssigned[slot])}
                 onclick={(event) => handleLoopSlotClick(event, slot)}
               >
@@ -2121,6 +2126,7 @@
             type="button"
             aria-label={standalonePlaying ? "Stop standalone transport" : "Start standalone transport"}
             aria-pressed={standalonePlaying}
+            data-cursor="pointer"
             class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 {standalonePlaying
               ? 'border-emerald-500 bg-emerald-500 text-zinc-950'
               : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-600'}"
@@ -2167,6 +2173,7 @@
                 type="button"
                 aria-label={rowMuted[row] ? "Turn row on" : "Turn row off"}
                 aria-pressed={!rowMuted[row]}
+                data-cursor="pointer"
                 class="{rowMuteControlClasses} {rowMuted[row]
                   ? rowPowerToggleOffClasses
                   : rowAccent.textAccent}"
@@ -2198,6 +2205,7 @@
                 type="button"
                 aria-label={recordingRow === row ? "Stop row recording" : "Record row from MIDI"}
                 aria-pressed={recordingRow === row}
+                data-cursor="pointer"
                 class="{rowActionIconControlClasses} {rowMuted[row]
                   ? 'text-zinc-600'
                   : recordingRow === row
@@ -2216,6 +2224,7 @@
               <button
                 type="button"
                 aria-label="Reverse row step order"
+                data-cursor="pointer"
                 class="{rowActionIconControlClasses} {rowMuted[row]
                   ? 'text-zinc-600'
                   : `${toggleIconRestClasses} hover:text-zinc-300`}"
@@ -2227,6 +2236,7 @@
               <button
                 type="button"
                 aria-label="Randomize row step order"
+                data-cursor="pointer"
                 class="{rowActionIconControlClasses} {rowMuted[row]
                   ? 'text-zinc-600'
                   : `${toggleIconRestClasses} hover:text-zinc-300`}"
@@ -2238,6 +2248,7 @@
               <button
                 type="button"
                 aria-label="Randomize row octaves"
+                data-cursor="pointer"
                 class="{rowActionIconControlClasses} {rowMuted[row]
                   ? 'text-zinc-600'
                   : `${toggleIconRestClasses} hover:text-zinc-300`}"

@@ -68,7 +68,8 @@
 
   <div
     bind:this={trackEl}
-    class="relative h-5 cursor-pointer touch-none select-none"
+    data-cursor="pointer"
+    class="relative h-5 touch-none select-none"
     role="slider"
     aria-label={ariaLabel}
     aria-valuemin={options[0]?.index}

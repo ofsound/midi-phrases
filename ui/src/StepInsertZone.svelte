@@ -29,7 +29,8 @@
     <button
       type="button"
       aria-label="Insert step"
-      class="shrink-0 cursor-pointer border-0 bg-transparent p-0 px-0.5 text-lg leading-none font-bold opacity-0 outline-none transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 {muted
+      data-cursor="pointer"
+      class="shrink-0 border-0 bg-transparent p-0 px-0.5 text-lg leading-none font-bold opacity-0 outline-none transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 {muted
         ? 'text-zinc-500'
         : accent.textAccent} {accent.insertZoneFocus}"
       onclick={onInsert}
@@ -41,7 +42,8 @@
       <button
         type="button"
         aria-label="Duplicate step to the left"
-        class="flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 opacity-0 outline-none transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 {muted
+        data-cursor="pointer"
+        class="flex h-3.5 w-3.5 shrink-0 items-center justify-center border-0 bg-transparent p-0 opacity-0 outline-none transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 {muted
           ? 'text-zinc-500'
           : accent.textAccent} {accent.insertZoneFocus}"
         onclick={onDuplicate}

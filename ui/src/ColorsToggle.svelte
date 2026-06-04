@@ -28,6 +28,7 @@
   type="button"
   aria-label={visualOn ? "Disable row colors" : "Enable row colors"}
   aria-pressed={visualOn}
+  data-cursor="pointer"
   class="shrink-0 {rowReverseControlClasses} !transition-none {accent.controlFocus} {visualOn
     ? `border-zinc-600 ${toggleIconActiveClasses}`
     : `border-zinc-700 ${toggleIconRestClasses}`}"

@@ -205,6 +205,80 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getLoopBraceEndQuarters() == Catch::Approx (3.5));
     }
 
+    SECTION ("loop wrap keeps full gate on repeated passes")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setLoopBraceStartQuarters (0.0);
+        testPlugin.setLoopBraceEndQuarters (1.0);
+        testPlugin.setLoopBraceEnabled (true);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+
+        for (int row = 1; row < PluginProcessor::phraseRowCount; ++row)
+            testPlugin.setPhraseRowMuted (row, true);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.95);
+        testPlugin.processBlock (buffer, midi);
+
+        auto wrappedNoteOnSample = -1;
+        auto shortGateNoteOffSample = -1;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 60)
+                wrappedNoteOnSample = metadata.samplePosition;
+
+            if (message.isNoteOff() && message.getNoteNumber() == 60
+                && wrappedNoteOnSample >= 0
+                && metadata.samplePosition > wrappedNoteOnSample + 1)
+                shortGateNoteOffSample = metadata.samplePosition;
+        }
+
+        CHECK (wrappedNoteOnSample >= 0);
+        CHECK (shortGateNoteOffSample < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (1.05);
+        testPlugin.processBlock (buffer, midi);
+
+        auto earlyNoteOffSample = -1;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOff() && message.getNoteNumber() == 60)
+                earlyNoteOffSample = metadata.samplePosition;
+        }
+
+        CHECK (earlyNoteOffSample < 0);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("loop brace state loads fractional ranges beyond defaults")
     {
         juce::ValueTree state ("MidiPhrases");
@@ -717,6 +791,45 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPlayHead (nullptr);
     }
 
+    SECTION ("MIDI pattern trigger note-offs are consumed")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.25);
+        testPlugin.setPlayHead (&playHead);
+
+        midi.addEvent (juce::MidiMessage::noteOn (1, 2, static_cast<juce::uint8> (100)), 0);
+        midi.addEvent (juce::MidiMessage::noteOff (1, 2), 10);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getCurrentPatternSlot() == 2);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+            const auto isLeakedTriggerNote =
+                message.isNoteOnOrOff() && message.getNoteNumber() == 2;
+            CHECK_FALSE (isLeakedTriggerNote);
+        }
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("pending pattern switch applies when plugin block starts on pulse")
     {
         testPlugin.prepareToPlay (1000.0, 100);
@@ -764,6 +877,77 @@ TEST_CASE ("Plugin instance", "[instance]")
 
         CHECK (emittedSwitchedPatternNote);
         CHECK_FALSE (emittedOriginalPatternNote);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("MIDI pattern trigger first beat keeps full gate after pulse switch")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setCurrentPatternSlot (2);
+        testPlugin.setPhraseNote (0, 0, 72);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setCurrentPatternSlot (0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.25);
+        testPlugin.setPlayHead (&playHead);
+
+        midi.addEvent (juce::MidiMessage::noteOn (1, 2, static_cast<juce::uint8> (100)), 0);
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.95);
+        testPlugin.processBlock (buffer, midi);
+
+        auto switchedNoteOnSample = -1;
+        auto switchedNoteOffSample = -1;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 72)
+                switchedNoteOnSample = metadata.samplePosition;
+
+            if (message.isNoteOff() && message.getNoteNumber() == 72)
+                switchedNoteOffSample = metadata.samplePosition;
+        }
+
+        CHECK (switchedNoteOnSample >= 0);
+        CHECK (switchedNoteOffSample < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (1.05);
+        testPlugin.processBlock (buffer, midi);
+
+        auto earlyNoteOffSample = -1;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOff() && message.getNoteNumber() == 72)
+                earlyNoteOffSample = metadata.samplePosition;
+        }
+
+        CHECK (earlyNoteOffSample < 0);
 
         testPlugin.setPlayHead (nullptr);
     }

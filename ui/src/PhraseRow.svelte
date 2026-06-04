@@ -12,6 +12,7 @@
   import StepSkipToggle from "./StepSkipToggle.svelte";
   import ProbabilityDragInput from "./ProbabilityDragInput.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
+  import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
   import {
     defaultStepNote,
@@ -592,7 +593,7 @@
   function teardownActiveResize() {
     stopResizeFrameLoop();
     clearResizeListeners();
-    document.body.style.removeProperty("cursor");
+    clearActiveCursor("ew-resize");
 
     if (resizeHandleElement && resizePointerId >= 0) {
       try {
@@ -642,7 +643,7 @@
     resizeEndHandled = false;
 
     syncActiveResizeVisuals();
-    document.body.style.cursor = "ew-resize";
+    setActiveCursor("ew-resize");
 
     addResizeListener("pointermove", trackResizeMove, resizePassiveCapture);
     addResizeListener("mousemove", trackResizeMove, resizePassiveCapture);
@@ -675,7 +676,7 @@
     resizingStep = -1;
     stopResizeFrameLoop();
     clearResizeListeners();
-    document.body.style.removeProperty("cursor");
+    clearActiveCursor("ew-resize");
 
     if (resizeHandleElement && resizePointerId >= 0) {
       try {
@@ -771,10 +772,9 @@
   <button
     type="button"
     data-remove-button
-    data-step-pointer
+    data-cursor="pointer"
     aria-label="Remove step"
     disabled={removeBlocked}
-    style="cursor: pointer"
     class="relative z-30 flex h-5 w-5 shrink-0 items-center justify-center p-0 transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 {dimmed
       ? 'text-zinc-600 hover:text-zinc-500'
       : `text-zinc-400 hover:text-zinc-200 ${accent.textAccentFocus}`}"
@@ -799,9 +799,10 @@
     type="button"
     data-multiplier-resize
     data-no-long-press
+    data-cursor="ew-resize"
     aria-label="Resize step timing multiplier"
     disabled={isDragging || removeBlocked}
-    class="absolute top-0 right-0 bottom-5 z-[60] w-4 cursor-ew-resize touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+    class="absolute top-0 right-0 bottom-5 z-[60] w-4 touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
     onpointerdown={(event) => beginMultiplierResize(event, step)}
     onmousedown={(event) => beginMultiplierResize(event, step)}
   ></button>
@@ -845,11 +846,10 @@
       />
       <button
         type="button"
-        data-step-pointer
+        data-cursor="pointer"
         aria-label={isFlipped ? "Close step settings" : "Open step settings"}
         aria-pressed={isFlipped}
         disabled={stepFlipInteractionDisabled}
-        style="cursor: pointer"
         class="{footerButtonClass} min-w-0 flex-1 basis-0 disabled:pointer-events-none disabled:opacity-50 {isFlipped
           ? toggleIconActiveClasses
           : toggleIconRestClasses}"
@@ -884,11 +884,11 @@
       </div>
       <button
         type="button"
-        data-step-pointer
+        data-cursor="pointer"
         aria-label={isFlipped ? "Close step settings" : "Open step settings"}
         aria-pressed={isFlipped}
         disabled={stepFlipInteractionDisabled}
-        style="cursor: pointer; {footerSlotStyle};"
+        style={footerSlotStyle}
         class="{footerButtonClass} disabled:pointer-events-none disabled:opacity-50 {isFlipped
           ? toggleIconActiveClasses
           : toggleIconRestClasses}"
@@ -947,7 +947,8 @@
               <div
                 use:dragHandle
                 aria-label="Drag to reorder step. Double-click header to open step settings."
-                class="flex min-h-5 min-w-0 flex-1 cursor-grab items-center justify-end active:cursor-grabbing"
+                data-cursor="grab"
+                class="flex min-h-5 min-w-0 flex-1 items-center justify-end"
                 ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
                 title="Double-click to open step settings"
               >
@@ -975,7 +976,8 @@
               <div
                 role="presentation"
                 aria-label="Double-click header to open step settings."
-                class="flex min-h-5 min-w-0 flex-1 cursor-default items-center justify-end {stepDimmed
+                data-cursor="default"
+                class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
                   ? 'opacity-80'
                   : 'opacity-60'}"
                 onpointerdown={stopPointerPropagation}
@@ -1052,7 +1054,8 @@
           {@render stepHeaderRemoveButton(step, stepDimmed)}
         {/if}
         <div
-          class="flex min-h-5 min-w-0 flex-1 cursor-default items-center justify-end"
+          data-cursor="default"
+          class="flex min-h-5 min-w-0 flex-1 items-center justify-end"
           role="presentation"
           aria-hidden="true"
         >
@@ -1092,7 +1095,7 @@
               onValueChange={(value) => onStepCycleChange(row, step, value)}
             />
             <span
-              class="pointer-events-none cursor-default font-sans text-xs leading-none font-bold text-zinc-400 select-none"
+              class="pointer-events-none font-sans text-xs leading-none font-bold text-zinc-400 select-none"
               aria-hidden="true">/</span
             >
             <StepNumberDragInput
