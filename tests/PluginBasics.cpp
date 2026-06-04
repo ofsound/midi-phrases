@@ -222,6 +222,35 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK_FALSE (testPlugin.isPatternLoopBraceEnabled (2));
     }
 
+    SECTION ("selecting pattern that owns active loop keeps loop slot selected")
+    {
+        testPlugin.setLoopBraceEnabled (true);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.saveCurrentBraceToLoopSlot (0);
+        testPlugin.selectLoopSlot (0);
+
+        testPlugin.setCurrentPatternSlot (0);
+
+        CHECK (testPlugin.getCurrentLoopSlot() == 0);
+        CHECK (testPlugin.isLoopBraceEnabled());
+    }
+
+    SECTION ("selecting pattern outside active loop owner switches audio immediately")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.saveCurrentBraceToLoopSlot (0);
+        testPlugin.selectLoopSlot (0);
+        testPlugin.setPhraseNote (0, 0, 72);
+        testPlugin.setCurrentPatternSlot (1);
+
+        CHECK (testPlugin.getCurrentLoopSlot() < 0);
+        CHECK (testPlugin.getCurrentPatternSlot() == 1);
+        CHECK (testPlugin.getAudioPatternSlot() == 1);
+        CHECK_FALSE (testPlugin.isPatternLoopBraceEnabled (1));
+    }
+
     SECTION ("loop wrap keeps full gate on repeated passes")
     {
         testPlugin.prepareToPlay (1000.0, 100);

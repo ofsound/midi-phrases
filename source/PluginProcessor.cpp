@@ -1773,16 +1773,28 @@ double PluginProcessor::getLoopBraceEndQuarters() const
 void PluginProcessor::deactivateLoopBraceForPatternSelection (const int patternSlot)
 {
     const auto slot = clampPatternSlot (patternSlot);
+    const auto audioSlot = clampPatternSlot (audioActivePatternSlot);
 
     currentLoopSlot.store (-1, std::memory_order_release);
+    pendingAudioLoopSlot.store (-1, std::memory_order_release);
     modelPattern (slot).loopBrace.enabled = 0;
     audioPatterns[static_cast<size_t> (slot)].loopBrace.enabled = 0;
+    audioPatterns[static_cast<size_t> (audioSlot)].loopBrace.enabled = 0;
 
     SequencerCommand command;
     command.type = SequencerCommand::Type::SetLoopBraceEnabled;
     command.patternSlot = slot;
     command.intValue = 0;
     publishCommandToAudio (command);
+
+    if (audioSlot != slot)
+    {
+        SequencerCommand audioCommand;
+        audioCommand.type = SequencerCommand::Type::SetLoopBraceEnabled;
+        audioCommand.patternSlot = audioSlot;
+        audioCommand.intValue = 0;
+        publishCommandToAudio (audioCommand);
+    }
 }
 
 void PluginProcessor::requestAudioPatternSlot (const int patternSlot)
@@ -1813,9 +1825,26 @@ void PluginProcessor::applyAudioPatternSlot (const int patternSlot)
 void PluginProcessor::setCurrentPatternSlot (const int patternSlot)
 {
     const auto slot = clampPatternSlot (patternSlot);
+    const auto activeLoop = getCurrentLoopSlot();
+    const auto breakingLoopSelection =
+        activeLoop >= 0
+        && isLoopSlotAssigned (activeLoop)
+        && clampPatternSlot (getLoopSlotPatternSlot (activeLoop)) != slot;
+
     currentModelPatternSlot.store (slot, std::memory_order_release);
-    deactivateLoopBraceForPatternSelection (slot);
-    requestAudioPatternSlot (slot);
+
+    if (breakingLoopSelection)
+    {
+        deactivateLoopBraceForPatternSelection (slot);
+        applyAudioPatternSlot (slot);
+    }
+    else if (activeLoop < 0)
+    {
+        deactivateLoopBraceForPatternSelection (slot);
+        requestAudioPatternSlot (slot);
+    }
+    else
+        requestAudioPatternSlot (slot);
 
     if (patternSlotParameter != nullptr && patternSlotParameter->get() != slot + 1)
         patternSlotParameter->setValueNotifyingHost (patternSlotParameter->convertTo0to1 (slot + 1));

@@ -1787,9 +1787,17 @@
 
   async function selectPatternSlot(slot) {
     const nextSlot = Math.min(7, Math.max(0, slot));
+    const keepActiveLoop =
+      activeLoopSlot >= 0 &&
+      loopSlotAssigned[activeLoopSlot] &&
+      loopSlotPattern[activeLoopSlot] === nextSlot;
+
     activePatternSlot = nextSlot;
-    activeLoopSlot = -1;
-    loopBraceEnabled = false;
+
+    if (!keepActiveLoop) {
+      activeLoopSlot = -1;
+      loopBraceEnabled = false;
+    }
 
     if (!nativeFunctionAvailable("setCurrentPatternSlot")) return;
 
