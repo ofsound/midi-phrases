@@ -1836,7 +1836,13 @@ void PluginProcessor::setCurrentPatternSlot (const int patternSlot)
     if (breakingLoopSelection)
     {
         deactivateLoopBraceForPatternSelection (slot);
-        applyAudioPatternSlot (slot);
+
+        // Defer the audio switch while playing so note-offs flush on the audio
+        // thread at the next pulse boundary (same as pattern/pattern switches).
+        if (wasPlaying)
+            requestAudioPatternSlot (slot);
+        else
+            applyAudioPatternSlot (slot);
     }
     else if (activeLoop < 0)
     {
