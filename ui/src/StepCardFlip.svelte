@@ -90,7 +90,7 @@
   >
     <div
       class="flip-face flip-front relative min-h-0 min-w-0 {frontHidden
-        ? 'pointer-events-none hidden'
+        ? 'pointer-events-none invisible'
         : flipped
           ? 'pointer-events-none'
           : 'pointer-events-auto'}"
