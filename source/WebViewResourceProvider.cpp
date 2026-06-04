@@ -206,6 +206,14 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
     return juce::var (object.release());
 }
 
+juce::var createCurrentSlotStateVar (PluginProcessor& processor)
+{
+    auto object = std::make_unique<juce::DynamicObject>();
+    object->setProperty ("currentPatternSlot", processor.getCurrentPatternSlot());
+    object->setProperty ("currentLoopSlot", processor.getCurrentLoopSlot());
+    return juce::var (object.release());
+}
+
 } // namespace
 
 std::optional<juce::WebBrowserComponent::Resource> WebViewResources::getResource (const juce::String& url)
@@ -348,7 +356,13 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                complete (createPatternStateVar (
                                    processor,
                                    args.size() >= 1 ? varToInt (args[0])
-                                                    : processor.getCurrentPatternSlot()));
+                                                   : processor.getCurrentPatternSlot()));
+                           })
+                       .withNativeFunction (
+                           "getCurrentSlotState",
+                           [&processor] (const juce::Array<juce::var>&,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               complete (createCurrentSlotStateVar (processor));
                            })
                        .withNativeFunction (
                            "setCurrentPatternSlot",

@@ -658,6 +658,292 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPlayHead (nullptr);
     }
 
+    SECTION ("MIDI pattern trigger updates UI slot immediately and audio slot on pulse")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setCurrentPatternSlot (2);
+        testPlugin.setPhraseNote (0, 0, 72);
+        testPlugin.setCurrentPatternSlot (0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.25);
+        testPlugin.setPlayHead (&playHead);
+
+        midi.addEvent (juce::MidiMessage::noteOn (1, 2, static_cast<juce::uint8> (100)), 0);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getCurrentPatternSlot() == 2);
+        CHECK (testPlugin.getAudioPatternSlot() == 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.95);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getCurrentPatternSlot() == 2);
+        CHECK (testPlugin.getAudioPatternSlot() == 2);
+
+        auto emittedSwitchedPatternNote = false;
+        auto emittedOriginalPatternNote = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 72)
+                emittedSwitchedPatternNote = true;
+
+            if (message.isNoteOn() && message.getNoteNumber() == 60)
+                emittedOriginalPatternNote = true;
+        }
+
+        CHECK (emittedSwitchedPatternNote);
+        CHECK_FALSE (emittedOriginalPatternNote);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("pending pattern switch applies when plugin block starts on pulse")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setCurrentPatternSlot (2);
+        testPlugin.setPhraseNote (0, 0, 72);
+        testPlugin.setCurrentPatternSlot (0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (1.0);
+        testPlugin.setPlayHead (&playHead);
+
+        testPlugin.setCurrentPatternSlot (2);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getAudioPatternSlot() == 2);
+
+        auto emittedSwitchedPatternNote = false;
+        auto emittedOriginalPatternNote = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 72)
+                emittedSwitchedPatternNote = true;
+
+            if (message.isNoteOn() && message.getNoteNumber() == 60)
+                emittedOriginalPatternNote = true;
+        }
+
+        CHECK (emittedSwitchedPatternNote);
+        CHECK_FALSE (emittedOriginalPatternNote);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("pattern switch emits note-off for active long notes")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 4.0);
+        testPlugin.setCurrentPatternSlot (2);
+        testPlugin.setPhraseNote (0, 0, 72);
+        testPlugin.setCurrentPatternSlot (0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+
+        testPlugin.processBlock (buffer, midi);
+
+        auto emittedInitialNote = false;
+        auto emittedInitialNoteOff = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 60)
+                emittedInitialNote = true;
+
+            if (message.isNoteOff() && message.getNoteNumber() == 60)
+                emittedInitialNoteOff = true;
+        }
+
+        CHECK (emittedInitialNote);
+        CHECK_FALSE (emittedInitialNoteOff);
+
+        testPlugin.setCurrentPatternSlot (2);
+        midi.clear();
+        playHead.info.setPpqPosition (0.95);
+        testPlugin.processBlock (buffer, midi);
+
+        auto emittedSwitchNoteOff = false;
+        auto emittedSwitchedPatternNote = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOff() && message.getNoteNumber() == 60)
+                emittedSwitchNoteOff = true;
+
+            if (message.isNoteOn() && message.getNoteNumber() == 72)
+                emittedSwitchedPatternNote = true;
+        }
+
+        CHECK (emittedSwitchNoteOff);
+        CHECK (emittedSwitchedPatternNote);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("pattern switch at normal quarter boundary does not add duplicate note-offs")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setCurrentPatternSlot (2);
+        testPlugin.setPhraseNote (0, 0, 72);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setCurrentPatternSlot (0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+
+        testPlugin.processBlock (buffer, midi);
+
+        testPlugin.setCurrentPatternSlot (2);
+        midi.clear();
+        playHead.info.setPpqPosition (0.95);
+        testPlugin.processBlock (buffer, midi);
+
+        auto noteOffCount = 0;
+        auto emittedSwitchedPatternNote = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOff() && message.getNoteNumber() == 60)
+                ++noteOffCount;
+
+            if (message.isNoteOn() && message.getNoteNumber() == 72)
+                emittedSwitchedPatternNote = true;
+        }
+
+        CHECK (noteOffCount == 1);
+        CHECK (emittedSwitchedPatternNote);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("transport stop emits explicit note-off for active long notes")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 4.0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setIsPlaying (false);
+        testPlugin.processBlock (buffer, midi);
+
+        auto emittedExplicitNoteOff = false;
+        auto emittedAllNotesOff = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOff() && message.getNoteNumber() == 60)
+                emittedExplicitNoteOff = true;
+
+            if (message.isAllNotesOff())
+                emittedAllNotesOff = true;
+        }
+
+        CHECK (emittedExplicitNoteOff);
+        CHECK (emittedAllNotesOff);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("swing delays selected pulse subdivisions")
     {
         testPlugin.prepareToPlay (1000.0, 100);

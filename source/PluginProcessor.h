@@ -327,11 +327,23 @@ private:
     void resetPhraseStepToDefaults (int row, int step);
     void resetPendingNoteOffs();
     void resetPendingNoteOns();
+    void resetActiveGeneratedNotes();
     void resetLastEmittedTriggers();
     void resetStepCycleCounters();
     void resetStepCycleCountersForRow (int row);
     bool isValidStep (int row, int step) const;
     bool isValidAudioStep (const SequencerState& state, int row, int step) const;
+    void emitGeneratedNoteOn (int midiChannel,
+                              int note,
+                              int velocity,
+                              int sampleOffset,
+                              juce::MidiBuffer& midiMessages);
+    void emitGeneratedNoteOff (int midiChannel,
+                               int note,
+                               int sampleOffset,
+                               juce::MidiBuffer& midiMessages);
+    void flushPendingGeneratedNoteOffs (int sampleOffset, juce::MidiBuffer& midiMessages);
+    void flushActiveGeneratedNotes (int sampleOffset, juce::MidiBuffer& midiMessages);
     void addPendingNoteOn (const PendingNoteOn& note);
     void emitScheduledNoteOn (int row,
                               int midiChannel,
@@ -426,6 +438,7 @@ private:
     std::array<PendingNoteOff, phraseRowCount> pendingNoteOffs {};
     std::array<PendingNoteOn, pendingNoteOnCapacity> pendingNoteOns {};
     size_t pendingNoteOnCount = 0;
+    std::array<std::array<int, 128>, 16> activeGeneratedNoteCounts {};
     std::array<double, phraseRowCount> lastEmittedTriggerPpq {};
     std::array<ProcessScratch, phraseRowCount> processScratch {};
     std::array<std::array<std::uint32_t, maxPhraseStepsPerRow>, phraseRowCount> stepCycleCounters {};

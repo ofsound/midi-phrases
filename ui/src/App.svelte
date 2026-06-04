@@ -101,6 +101,7 @@
   );
 
   let playbackPollFrameId = 0;
+  let slotSelectionInFlight = 0;
 
   /** Row index armed for MIDI capture, or null. */
   let recordingRow = null;
@@ -280,6 +281,11 @@
 
   function assignPatternState(state) {
     if (!state || typeof state !== "object") return;
+
+    const statePatternSlot = Number.parseInt(String(state.patternSlot ?? activePatternSlot), 10);
+    if (!Number.isNaN(statePatternSlot)) {
+      activePatternSlot = Math.min(7, Math.max(0, statePatternSlot));
+    }
 
     grid = cloneMatrix(state.phraseNotes ?? grid);
     rowMuted = [...(state.phraseRowMuted ?? rowMuted)].map(Boolean);
@@ -1508,9 +1514,44 @@
       playbackBeat = -1;
     }
 
+    await pollCurrentSlotState();
     await pollRowRecordingNotes();
 
     playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
+  }
+
+  async function pollCurrentSlotState() {
+    if (!nativeFunctionAvailable("getCurrentSlotState")) return;
+    if (slotSelectionInFlight > 0) return;
+
+    try {
+      const state = await getNativeFunction("getCurrentSlotState")();
+
+      if (!state || typeof state !== "object") return;
+
+      const nextPatternSlot = Number.parseInt(String(state.currentPatternSlot ?? activePatternSlot), 10);
+      const nextLoopSlot = Number.parseInt(String(state.currentLoopSlot ?? -1), 10);
+      const clampedPatternSlot = Number.isNaN(nextPatternSlot)
+        ? activePatternSlot
+        : Math.min(7, Math.max(0, nextPatternSlot));
+      const clampedLoopSlot = Number.isNaN(nextLoopSlot) || nextLoopSlot < 0 || nextLoopSlot >= 8 ? -1 : nextLoopSlot;
+
+      if (clampedPatternSlot !== activePatternSlot) {
+        activePatternSlot = clampedPatternSlot;
+        activeLoopSlot = clampedLoopSlot;
+
+        if (nativeFunctionAvailable("getPatternSlotState")) {
+          const patternState = await getNativeFunction("getPatternSlotState")(clampedPatternSlot);
+          assignPatternState(patternState);
+        }
+
+        return;
+      }
+
+      activeLoopSlot = clampedLoopSlot;
+    } catch {
+      // Native bridge unavailable during teardown.
+    }
   }
 
   function loadPulseFromInitialisation() {
@@ -1749,8 +1790,14 @@
 
     if (!nativeFunctionAvailable("setCurrentPatternSlot")) return;
 
-    const state = await getNativeFunction("setCurrentPatternSlot")(nextSlot);
-    assignPatternState(state);
+    slotSelectionInFlight += 1;
+
+    try {
+      const state = await getNativeFunction("setCurrentPatternSlot")(nextSlot);
+      assignPatternState(state);
+    } finally {
+      slotSelectionInFlight = Math.max(0, slotSelectionInFlight - 1);
+    }
   }
 
   function beginPatternCopy(slot) {
@@ -1819,8 +1866,14 @@
 
     activeLoopSlot = nextSlot;
     activePatternSlot = loopSlotPattern[nextSlot] ?? activePatternSlot;
-    const state = await getNativeFunction("selectLoopSlot")(nextSlot);
-    assignPatternState(state);
+    slotSelectionInFlight += 1;
+
+    try {
+      const state = await getNativeFunction("selectLoopSlot")(nextSlot);
+      assignPatternState(state);
+    } finally {
+      slotSelectionInFlight = Math.max(0, slotSelectionInFlight - 1);
+    }
   }
 
   function loadInitialStateFromJuce() {

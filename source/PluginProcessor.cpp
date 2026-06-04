@@ -175,6 +175,12 @@ void PluginProcessor::resetPendingNoteOns()
     pendingNoteOnCount = 0;
 }
 
+void PluginProcessor::resetActiveGeneratedNotes()
+{
+    for (auto& channelNotes : activeGeneratedNoteCounts)
+        channelNotes.fill (0);
+}
+
 void PluginProcessor::resetLastEmittedTriggers()
 {
     for (auto& lastTrigger : lastEmittedTriggerPpq)
@@ -187,6 +193,81 @@ void PluginProcessor::resetStepCycleCounters()
 {
     for (auto& rowCounters : stepCycleCounters)
         rowCounters.fill (0);
+}
+
+void PluginProcessor::emitGeneratedNoteOn (const int midiChannel,
+                                           const int note,
+                                           const int velocity,
+                                           const int sampleOffset,
+                                           juce::MidiBuffer& midiMessages)
+{
+    if (midiChannel < minPhraseRowMidiChannel || midiChannel > maxPhraseRowMidiChannel
+        || note < 0 || note >= 128 || velocity <= 0)
+        return;
+
+    ++activeGeneratedNoteCounts[static_cast<size_t> (midiChannel - 1)][static_cast<size_t> (note)];
+    midiMessages.addEvent (
+        juce::MidiMessage::noteOn (midiChannel,
+                                   note,
+                                   static_cast<juce::uint8> (juce::jlimit (1, 127, velocity))),
+        juce::jmax (0, sampleOffset));
+}
+
+void PluginProcessor::emitGeneratedNoteOff (const int midiChannel,
+                                            const int note,
+                                            const int sampleOffset,
+                                            juce::MidiBuffer& midiMessages)
+{
+    if (midiChannel < minPhraseRowMidiChannel || midiChannel > maxPhraseRowMidiChannel
+        || note < 0 || note >= 128)
+        return;
+
+    auto& activeCount =
+        activeGeneratedNoteCounts[static_cast<size_t> (midiChannel - 1)][static_cast<size_t> (note)];
+
+    if (activeCount > 0)
+        --activeCount;
+
+    midiMessages.addEvent (juce::MidiMessage::noteOff (midiChannel, note),
+                           juce::jmax (0, sampleOffset));
+}
+
+void PluginProcessor::flushPendingGeneratedNoteOffs (const int sampleOffset,
+                                                     juce::MidiBuffer& midiMessages)
+{
+    const auto offset = juce::jmax (0, sampleOffset);
+
+    for (auto& pending : pendingNoteOffs)
+    {
+        if (pending.note < 0)
+            continue;
+
+        emitGeneratedNoteOff (pending.channel, pending.note, offset, midiMessages);
+        pending.note = -1;
+        pending.samplesRemaining = 0;
+    }
+}
+
+void PluginProcessor::flushActiveGeneratedNotes (const int sampleOffset,
+                                                 juce::MidiBuffer& midiMessages)
+{
+    const auto offset = juce::jmax (0, sampleOffset);
+
+    for (int channel = minPhraseRowMidiChannel; channel <= maxPhraseRowMidiChannel; ++channel)
+    {
+        auto& channelNotes = activeGeneratedNoteCounts[static_cast<size_t> (channel - 1)];
+
+        for (int note = 0; note < 128; ++note)
+        {
+            auto& activeCount = channelNotes[static_cast<size_t> (note)];
+
+            while (activeCount > 0)
+            {
+                midiMessages.addEvent (juce::MidiMessage::noteOff (channel, note), offset);
+                --activeCount;
+            }
+        }
+    }
 }
 
 void PluginProcessor::resetStepCycleCountersForRow (const int row)
@@ -922,6 +1003,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     wasPlaying = false;
     resetPendingNoteOffs();
     resetPendingNoteOns();
+    resetActiveGeneratedNotes();
 }
 
 void PluginProcessor::setPhraseNote (int row, int step, int noteNumber)
@@ -2043,22 +2125,22 @@ void PluginProcessor::emitScheduledNoteOn (const int row,
 
     if (pending.note >= 0)
     {
-        midiMessages.addEvent (
-            juce::MidiMessage::noteOff (pending.channel, pending.note),
-            juce::jlimit (0, bufferSamples - 1, juce::jmin (pending.samplesRemaining, sampleOffset)));
+        emitGeneratedNoteOff (
+            pending.channel,
+            pending.note,
+            juce::jlimit (0, bufferSamples - 1, juce::jmin (pending.samplesRemaining, sampleOffset)),
+            midiMessages);
         pending.note = -1;
         pending.samplesRemaining = 0;
     }
 
-    midiMessages.addEvent (
-        juce::MidiMessage::noteOn (midiChannel, note, static_cast<juce::uint8> (velocity)),
-        sampleOffset);
+    emitGeneratedNoteOn (midiChannel, note, velocity, sampleOffset, midiMessages);
 
     const auto samplesUntilOff = sampleOffset + gateSamples;
 
     if (samplesUntilOff < bufferSamples)
     {
-        midiMessages.addEvent (juce::MidiMessage::noteOff (midiChannel, note), samplesUntilOff);
+        emitGeneratedNoteOff (midiChannel, note, samplesUntilOff, midiMessages);
     }
     else
     {
@@ -2319,6 +2401,8 @@ void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages
 
             if (note >= 0 && note < patternSlotCount)
             {
+                currentModelPatternSlot.store (note, std::memory_order_release);
+                currentLoopSlot.store (-1, std::memory_order_release);
                 requestAudioPatternSlot (note);
                 continue;
             }
@@ -2389,6 +2473,12 @@ void PluginProcessor::processTransportPlaybackRange (const double transportPpqSt
 
                 if (pendingLoop >= 0)
                 {
+                    const auto loopSwitchSampleOffset = juce::jlimit (
+                        0,
+                        bufferSamples - 1,
+                        static_cast<int> (std::lround (
+                            (transportCursor - bufferTransportStartPpq) / ppqPerSample)));
+                    flushPendingGeneratedNoteOffs (loopSwitchSampleOffset, midiMessages);
                     applyAudioLoopSlot (pendingLoop);
                     processTransportPlaybackRange (transportCursor,
                                                    transportPpqEnd,
@@ -2420,7 +2510,15 @@ void PluginProcessor::processTransportPlaybackRange (const double transportPpqSt
         const auto pendingLoop = pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel);
 
         if (pendingLoop >= 0)
+        {
+            const auto loopSwitchSampleOffset = juce::jlimit (
+                0,
+                bufferSamples - 1,
+                static_cast<int> (std::lround (
+                    (transportPpqStart - bufferTransportStartPpq) / ppqPerSample)));
+            flushPendingGeneratedNoteOffs (loopSwitchSampleOffset, midiMessages);
             applyAudioLoopSlot (pendingLoop);
+        }
 
         processScheduledRange (transportPpqStart,
                                transportPpqEnd,
@@ -2461,9 +2559,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             if (pending.note < 0)
                 continue;
 
-            midiMessages.addEvent (
-                juce::MidiMessage::noteOff (pending.channel, pending.note),
-                segmentSampleOffset);
+            emitGeneratedNoteOff (pending.channel, pending.note, segmentSampleOffset, midiMessages);
             pending.note = -1;
             pending.samplesRemaining = 0;
         }
@@ -2663,6 +2759,9 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
 void PluginProcessor::releaseResources()
 {
+    resetPendingNoteOffs();
+    resetPendingNoteOns();
+    resetActiveGeneratedNotes();
 }
 
 bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -2703,7 +2802,6 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
    #endif
 
     drainSequencerCommands();
-    handleIncomingControlNotes (midiMessages);
 
     if (patternSlotParameter != nullptr)
     {
@@ -2719,9 +2817,13 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         }
     }
 
+    handleIncomingControlNotes (midiMessages);
+
     const auto stopPlayback = [&] {
         if (wasPlaying)
         {
+            flushActiveGeneratedNotes (0, midiMessages);
+
             for (int ch = 1; ch <= 16; ++ch)
                 midiMessages.addEvent (juce::MidiMessage::allNotesOff (ch), 0);
         }
@@ -2740,6 +2842,9 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     {
         if (standaloneTransportResetRequested.exchange (0, std::memory_order_relaxed) != 0)
         {
+            if (wasPlaying)
+                flushActiveGeneratedNotes (0, midiMessages);
+
             wasPlaying = false;
             resetLastEmittedTriggers();
             resetPendingNoteOffs();
@@ -2791,7 +2896,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
         if (pending.note >= 0)
         {
-            midiMessages.addEvent (juce::MidiMessage::noteOff (pending.channel, pending.note), 0);
+            emitGeneratedNoteOff (pending.channel, pending.note, 0, midiMessages);
             pending.note = -1;
             pending.samplesRemaining = 0;
         }
@@ -2816,8 +2921,10 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
         if (pending.samplesRemaining < bufferSamples)
         {
-            midiMessages.addEvent (juce::MidiMessage::noteOff (pending.channel, pending.note),
-                                   pending.samplesRemaining);
+            emitGeneratedNoteOff (pending.channel,
+                                  pending.note,
+                                  pending.samplesRemaining,
+                                  midiMessages);
             pending.note = -1;
             pending.samplesRemaining = 0;
         }
@@ -2838,27 +2945,40 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     auto transportCursor = ppqStart;
     auto resetAtSegmentStart = false;
 
+    const auto sampleOffsetForTransportPpq = [&] (const double transportPpq) {
+        return juce::jlimit (
+            0,
+            bufferSamples - 1,
+            static_cast<int> (std::lround ((transportPpq - ppqStart) / ppqPerSample)));
+    };
+
     while (transportCursor < ppqEnd - epsilon)
     {
         auto segmentEnd = ppqEnd;
+        auto segmentEndsAtPatternSwitch = false;
         const auto pendingPattern = pendingAudioPatternSlot.load (std::memory_order_acquire);
 
         if (pendingPattern >= 0)
         {
             const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
             const auto switchPpq = pulse > 0.0
-                                       ? (std::floor ((transportCursor + epsilon) / pulse) + 1.0) * pulse
+                                       ? std::ceil ((transportCursor - epsilon) / pulse) * pulse
                                        : transportCursor;
 
             if (switchPpq <= transportCursor + epsilon)
             {
+                flushPendingGeneratedNoteOffs (sampleOffsetForTransportPpq (transportCursor),
+                                               midiMessages);
                 applyAudioPatternSlot (pendingPattern);
                 resetAtSegmentStart = true;
                 continue;
             }
 
-            if (switchPpq < ppqEnd - epsilon)
+            if (switchPpq <= ppqEnd + epsilon)
+            {
                 segmentEnd = switchPpq;
+                segmentEndsAtPatternSwitch = true;
+            }
         }
 
         processTransportPlaybackRange (transportCursor,
@@ -2869,13 +2989,36 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                                        midiMessages,
                                        resetAtSegmentStart);
 
+        if (segmentEndsAtPatternSwitch)
+        {
+            const auto nextPattern = pendingAudioPatternSlot.exchange (-1, std::memory_order_acq_rel);
+
+            if (nextPattern >= 0)
+            {
+                flushPendingGeneratedNoteOffs (sampleOffsetForTransportPpq (segmentEnd),
+                                               midiMessages);
+                applyAudioPatternSlot (nextPattern);
+            }
+
+            if (segmentEnd >= ppqEnd - epsilon)
+                break;
+
+            transportCursor = segmentEnd;
+            resetAtSegmentStart = true;
+            continue;
+        }
+
         if (segmentEnd >= ppqEnd - epsilon)
             break;
 
         const auto nextPattern = pendingAudioPatternSlot.exchange (-1, std::memory_order_acq_rel);
 
         if (nextPattern >= 0)
+        {
+            flushPendingGeneratedNoteOffs (sampleOffsetForTransportPpq (segmentEnd),
+                                           midiMessages);
             applyAudioPatternSlot (nextPattern);
+        }
 
         transportCursor = segmentEnd;
         resetAtSegmentStart = true;
