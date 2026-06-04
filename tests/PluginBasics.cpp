@@ -296,6 +296,58 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPlayHead (nullptr);
     }
 
+    SECTION ("short loop re-triggers after wrap when buffer starts on loop boundary")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        ensurePhraseRowStepCount (testPlugin, 0, 4);
+        testPlugin.setLoopBraceStartQuarters (0.0);
+        testPlugin.setLoopBraceEndQuarters (1.0);
+        testPlugin.setLoopBraceEnabled (true);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+
+        for (int row = 1; row < PluginProcessor::phraseRowCount; ++row)
+            testPlugin.setPhraseRowMuted (row, true);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setPpqPosition (1.0);
+        testPlugin.processBlock (buffer, midi);
+
+        auto wrappedNoteOnCount = 0;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 60)
+                ++wrappedNoteOnCount;
+        }
+
+        CHECK (wrappedNoteOnCount >= 1);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("loop brace state loads fractional ranges beyond defaults")
     {
         juce::ValueTree state ("MidiPhrases");

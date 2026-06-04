@@ -2511,6 +2511,10 @@ void PluginProcessor::processTransportPlaybackRange (const double transportPpqSt
                 }
             }
 
+            const auto resetForLoopBoundaryAtRangeStart =
+                isFirstSegment && transportPpqStart > epsilon
+                && mappedStart <= loopStart + epsilon;
+
             processScheduledRange (mappedStart,
                                    mappedEnd,
                                    transportCursor,
@@ -2518,7 +2522,7 @@ void PluginProcessor::processTransportPlaybackRange (const double transportPpqSt
                                    bufferSamples,
                                    ppqPerSample,
                                    midiMessages,
-                                   resetRowTriggersAtSegmentStart
+                                   resetRowTriggersAtSegmentStart || resetForLoopBoundaryAtRangeStart
                                        || (wrappedToLoopStart && ! isFirstSegment));
 
             transportCursor = segmentTransportEnd;
@@ -2658,8 +2662,10 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
         {
             lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
         }
-        else if (schedulePpqStart < lastTrigger - cycleLengthQuarters - epsilon)
+        else if (schedulePpqStart + epsilon < lastTrigger)
         {
+            // Loop wrap (or transport seek) moved schedule time backward; allow
+            // triggers at the new range start even when cycle length >= loop length.
             lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
         }
 
