@@ -17,8 +17,11 @@ export const timingMultiplierValues = Array.from(
 /** Default index for 1× step length. */
 export const defaultStepTimingMultiplierIndex = timingMultiplierValues.indexOf(1);
 
-/** Minimum shell width for the smallest (0.25×) step cell — fits G3 + 127 aligned with bar/header. */
-export const stepCellMinWidthPx = 64;
+/** Matches PluginProcessor::maxPhraseStepsPerRow. */
+export const maxPhraseStepsPerRow = 64;
+
+/** Minimum shell width for the smallest (0.25×) step cell — fits D#4 + 127 aligned with bar/header. */
+export const stepCellMinWidthPx = 73;
 
 /** Width of one skip / mute / gear slot in the 0.25× step footer (three equal columns). */
 export const stepFooterActionSlotWidthPx = stepCellMinWidthPx / 3;
@@ -71,6 +74,109 @@ export function stepCellWidthPx(multiplierIndex) {
  */
 export function rowCanonicalWidthPx(totalDuration) {
   return Math.round(stepCellBaseWidthPx * totalDuration);
+}
+
+/**
+ * @typedef {{
+ *   totalDuration: number,
+ *   stepCount: number,
+ *   multiplierIndices: number[],
+ * }} PhraseReferenceRow
+ */
+
+/** @param {number[]} multiplierIndices */
+export function rowTotalDurationFromMultiplierIndices(multiplierIndices) {
+  return multiplierIndices.reduce(
+    (sum, index) => sum + timingMultiplierAtIndex(index),
+    0,
+  );
+}
+
+/**
+ * Virtual fullest row when every phrase row has a single step (blank/default pattern).
+ * Matches gap-carved 1× width once any row grows past one step.
+ */
+export const defaultSoloLayoutReferenceStepCount = 4;
+
+/** @returns {PhraseReferenceRow} */
+export function defaultPhraseLayoutReferenceRow() {
+  const multiplierIndices = Array.from(
+    { length: defaultSoloLayoutReferenceStepCount },
+    () => defaultStepTimingMultiplierIndex,
+  );
+
+  return {
+    totalDuration: rowTotalDurationFromMultiplierIndices(multiplierIndices),
+    stepCount: multiplierIndices.length,
+    multiplierIndices,
+  };
+}
+
+/**
+ * Fullest row in the phrase: max total step duration; ties break toward more steps (more gaps).
+ * When every row has only one step, uses {@link defaultPhraseLayoutReferenceRow}.
+ *
+ * @param {number[][]} allRowMultipliers
+ * @returns {PhraseReferenceRow | null}
+ */
+export function phraseFullestRowReference(allRowMultipliers) {
+  /** @type {PhraseReferenceRow | null} */
+  let fullest = null;
+  let maxStepCount = 0;
+
+  for (const row of allRowMultipliers) {
+    if (!row?.length) {
+      continue;
+    }
+
+    maxStepCount = Math.max(maxStepCount, row.length);
+
+    const totalDuration = rowTotalDurationFromMultiplierIndices(row);
+    const stepCount = row.length;
+
+    if (totalDuration <= 0) {
+      continue;
+    }
+
+    if (
+      !fullest ||
+      totalDuration > fullest.totalDuration ||
+      (totalDuration === fullest.totalDuration && stepCount > fullest.stepCount)
+    ) {
+      fullest = {
+        totalDuration,
+        stepCount,
+        multiplierIndices: row.slice(),
+      };
+    }
+  }
+
+  if (maxStepCount <= 1) {
+    return defaultPhraseLayoutReferenceRow();
+  }
+
+  return fullest;
+}
+
+/**
+ * Solo cell width using the same gap-carving layout as the phrase's fullest row
+ * (simulates that row with this cell in slot 0 — matches adding a sibling on the sparse row).
+ *
+ * @param {number} multiplierIndex
+ * @param {PhraseReferenceRow} reference
+ * @param {number} gapPx
+ */
+export function soloCellDisplayWidthPx(multiplierIndex, reference, gapPx = stepInsertZoneWidthPx) {
+  const { stepCount, multiplierIndices } = reference;
+
+  if (stepCount <= 1) {
+    return stepCellWidthPx(multiplierIndex);
+  }
+
+  const synthetic = multiplierIndices.slice();
+  synthetic[0] = multiplierIndex;
+
+  return rowCellDisplayWidthsPx(synthetic, { gapPx })[0];
 }
 
 /**
@@ -133,12 +239,13 @@ function rowCellWidthsFromBoundariesPx(boundaries, gapPx) {
  * During resize, pass resizeStep + resizeDisplayWidth (compensated px) so siblings re-compensate live.
  *
  * @param {number[]} multiplierIndices
- * @param {{ gapPx?: number, resizeStep?: number, resizeDisplayWidth?: number }} [options]
+ * @param {{ gapPx?: number, resizeStep?: number, resizeDisplayWidth?: number, phraseReferenceRow?: PhraseReferenceRow | null }} [options]
  */
 export function rowCellDisplayWidthsPx(multiplierIndices, options = {}) {
   const gapPx = options.gapPx ?? stepInsertZoneWidthPx;
   const resizeStep = options.resizeStep ?? -1;
   const resizeDisplayWidth = options.resizeDisplayWidth ?? 0;
+  const phraseReferenceRow = options.phraseReferenceRow ?? null;
   const n = multiplierIndices.length;
 
   if (n === 0) {
@@ -146,8 +253,12 @@ export function rowCellDisplayWidthsPx(multiplierIndices, options = {}) {
   }
 
   if (n === 1) {
+    if (phraseReferenceRow) {
+      return [soloCellDisplayWidthPx(multiplierIndices[0], phraseReferenceRow, gapPx)];
+    }
+
     if (resizeStep === 0) {
-      return [Math.round(resizeDisplayWidth)];
+      return [stepCellWidthPx(multiplierIndexFromWidth(resizeDisplayWidth))];
     }
 
     return [stepCellWidthPx(multiplierIndices[0])];
@@ -156,7 +267,12 @@ export function rowCellDisplayWidthsPx(multiplierIndices, options = {}) {
   const durations = multiplierIndices.map((index, step) => {
     if (step === resizeStep) {
       return timingMultiplierAtIndex(
-        multiplierIndexFromCompensatedWidth(multiplierIndices, resizeStep, resizeDisplayWidth),
+        multiplierIndexFromCompensatedWidth(
+          multiplierIndices,
+          resizeStep,
+          resizeDisplayWidth,
+          options,
+        ),
       );
     }
 
@@ -264,22 +380,29 @@ export function multiplierIndexFromWidth(widthPx) {
  * @param {number[]} multiplierIndices
  * @param {number} step
  * @param {number} multiplierIndex
+ * @param {{ gapPx?: number, phraseReferenceRow?: PhraseReferenceRow | null }} [layoutOptions]
  */
-export function compensatedCellWidthPx(multiplierIndices, step, multiplierIndex) {
+export function compensatedCellWidthPx(
+  multiplierIndices,
+  step,
+  multiplierIndex,
+  layoutOptions = {},
+) {
   const preview = multiplierIndices.slice();
   preview[step] = multiplierIndex;
 
-  return rowCellDisplayWidthsPx(preview)[step];
+  return rowCellDisplayWidthsPx(preview, layoutOptions)[step];
 }
 
 /**
  * Compensated min/max for resize drag so pointer-down does not jump to naive width.
  * @param {number[]} multiplierIndices
  * @param {number} step
+ * @param {{ gapPx?: number, phraseReferenceRow?: PhraseReferenceRow | null }} [layoutOptions]
  */
-export function compensatedResizeBoundsPx(multiplierIndices, step) {
+export function compensatedResizeBoundsPx(multiplierIndices, step, layoutOptions = {}) {
   const snapWidths = timingMultiplierValues.map((_, index) =>
-    compensatedCellWidthPx(multiplierIndices, step, index),
+    compensatedCellWidthPx(multiplierIndices, step, index, layoutOptions),
   );
 
   return {
@@ -293,10 +416,16 @@ export function compensatedResizeBoundsPx(multiplierIndices, step) {
  * @param {number[]} multiplierIndices
  * @param {number} step
  * @param {number} widthPx
+ * @param {{ gapPx?: number, phraseReferenceRow?: PhraseReferenceRow | null }} [layoutOptions]
  */
-export function multiplierIndexFromCompensatedWidth(multiplierIndices, step, widthPx) {
+export function multiplierIndexFromCompensatedWidth(
+  multiplierIndices,
+  step,
+  widthPx,
+  layoutOptions = {},
+) {
   const snapWidths = timingMultiplierValues.map((_, index) =>
-    compensatedCellWidthPx(multiplierIndices, step, index),
+    compensatedCellWidthPx(multiplierIndices, step, index, layoutOptions),
   );
 
   return multiplierIndexFromSnapWidths(snapWidths, widthPx);

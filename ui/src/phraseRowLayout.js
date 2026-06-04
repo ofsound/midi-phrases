@@ -45,6 +45,8 @@ export const phraseRowLeadingControlsWidthPx =
   phraseRowActionIconControlWidthPx +
   phraseRowHeaderGapPx +
   phraseRowActionIconControlWidthPx +
+  phraseRowHeaderGapPx +
+  phraseRowActionIconControlWidthPx +
   phraseRowHeaderGapPx;
 
 /** Row leading controls after the mute button (MIDI, knob, order actions + gaps). */

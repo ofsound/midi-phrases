@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <unordered_map>
 
 namespace
 {
@@ -2139,16 +2140,181 @@ double PluginProcessor::getStandaloneTempoBpm() const
     return standaloneTempoBpm.load (std::memory_order_relaxed);
 }
 
+void PluginProcessor::setPhraseRowRecording (const int row)
+{
+    for (auto& keyHeld : recordingKeysHeld)
+        keyHeld.store (0, std::memory_order_release);
+
+    if (row >= 0 && row < phraseRowCount)
+    {
+        recordingRow.store (row, std::memory_order_release);
+        recordingAwaitingFirstNote.store (1, std::memory_order_release);
+    }
+    else
+    {
+        recordingRow.store (-1, std::memory_order_release);
+        recordingAwaitingFirstNote.store (0, std::memory_order_release);
+    }
+
+    recordQueueWrite.store (0, std::memory_order_release);
+    recordQueueRead.store (0, std::memory_order_release);
+}
+
+int PluginProcessor::getPhraseRowRecording() const
+{
+    return recordingRow.load (std::memory_order_acquire);
+}
+
+void PluginProcessor::enqueueRecordedNote (const int midiNote)
+{
+    const auto write = recordQueueWrite.load (std::memory_order_relaxed);
+    const auto read = recordQueueRead.load (std::memory_order_acquire);
+
+    if (write - read >= recordQueueCapacity)
+        return;
+
+    recordQueueNotes[static_cast<size_t> (write % recordQueueCapacity)] =
+        juce::jlimit (0, 127, midiNote);
+    recordQueueWrite.store (write + 1, std::memory_order_release);
+}
+
+bool PluginProcessor::tryDequeueRecordedNote (int& midiNoteOut)
+{
+    const auto read = recordQueueRead.load (std::memory_order_relaxed);
+    const auto write = recordQueueWrite.load (std::memory_order_acquire);
+
+    if (read >= write)
+        return false;
+
+    midiNoteOut = recordQueueNotes[static_cast<size_t> (read % recordQueueCapacity)];
+    recordQueueRead.store (read + 1, std::memory_order_release);
+    return true;
+}
+
+void PluginProcessor::appendRecordedNoteToModelRow (const int row, const int midiNote)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return;
+
+    auto& steps = modelRow (row);
+
+    if (recordingAwaitingFirstNote.exchange (0) != 0)
+    {
+        initialiseRowDefaults (steps, row, 1);
+        steps.notes[0] = juce::jlimit (0, 127, midiNote);
+    }
+    else if (steps.stepCount < maxPhraseStepsPerRow)
+    {
+        const auto index = static_cast<size_t> (steps.stepCount);
+        steps.notes[index] = juce::jlimit (0, 127, midiNote);
+        steps.timingMultiplier[index] = defaultStepTimingMultiplierIndex;
+        steps.durationFraction[index] = defaultStepDurationFraction;
+        steps.velocity[index] = defaultStepVelocity;
+        steps.stepMuted[index] = 0;
+        steps.stepSkipped[index] = 0;
+        steps.probability[index] = defaultStepProbability;
+        steps.cycle[index] = defaultStepCycle;
+        steps.cycleOffset[index] = defaultStepCycleOffset;
+        ++steps.stepCount;
+    }
+    else
+    {
+        return;
+    }
+
+    rebuildRowTimingLayout (steps);
+    resetStepCycleCountersForRow (row);
+    publishRowToAudio (row);
+}
+
+juce::Array<int> PluginProcessor::drainPhraseRowRecordedNotes()
+{
+    juce::Array<int> drained;
+
+    const auto row = recordingRow.load (std::memory_order_acquire);
+
+    if (row < 0)
+        return drained;
+
+    int midiNote = 0;
+
+    while (tryDequeueRecordedNote (midiNote))
+    {
+        drained.add (midiNote);
+        appendRecordedNoteToModelRow (row, midiNote);
+    }
+
+    return drained;
+}
+
+juce::Array<int> PluginProcessor::getPhraseRowRecordingKeysHeld() const
+{
+    juce::Array<int> held;
+
+    for (int note = 0; note < 128; ++note)
+    {
+        if (recordingKeysHeld[static_cast<size_t> (note)].load (std::memory_order_acquire) != 0)
+            held.add (note);
+    }
+
+    return held;
+}
+
+void PluginProcessor::injectPhraseRowRecordedNote (const int midiNote)
+{
+    const auto row = recordingRow.load (std::memory_order_acquire);
+
+    if (row < 0)
+        return;
+
+    appendRecordedNoteToModelRow (row, midiNote);
+}
+
 void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages)
 {
-    juce::MidiBuffer filtered;
+    const auto armedRow = recordingRow.load (std::memory_order_acquire);
+
+    std::unordered_map<int, int> noteOnCountBySample;
 
     for (const auto metadata : midiMessages)
     {
         const auto message = metadata.getMessage();
 
         if (message.isNoteOn())
+            ++noteOnCountBySample[metadata.samplePosition];
+    }
+
+    juce::MidiBuffer filtered;
+
+    for (const auto metadata : midiMessages)
+    {
+        const auto message = metadata.getMessage();
+
+        if (armedRow >= 0 && message.isNoteOnOrOff())
         {
+            const auto heldNote = message.getNoteNumber();
+
+            if (heldNote >= 0 && heldNote < 128)
+            {
+                recordingKeysHeld[static_cast<size_t> (heldNote)].store (message.isNoteOn() ? 1 : 0,
+                                                                          std::memory_order_release);
+            }
+        }
+
+        if (message.isNoteOn())
+        {
+            if (armedRow >= 0)
+            {
+                const auto countAtSample =
+                    noteOnCountBySample[metadata.samplePosition];
+
+                if (countAtSample == 1)
+                    enqueueRecordedNote (message.getNoteNumber());
+
+                filtered.addEvent (message, metadata.samplePosition);
+                continue;
+            }
+
             const auto note = message.getNoteNumber();
 
             if (note >= 0 && note < patternSlotCount)

@@ -13,19 +13,25 @@
     defaultStepCycleOffsetGrid,
     defaultStepVelocityGrid,
     defaultStepNote,
+    defaultStepDurationFraction,
+    defaultStepVelocity,
   } from "./midiNoteNames.js";
   import RowDisableIcon from "./RowDisableIcon.svelte";
   import RowRandomizeOctaveIcon from "./RowRandomizeOctaveIcon.svelte";
   import RowRandomizeOrderIcon from "./RowRandomizeOrderIcon.svelte";
+  import RowRecordIcon from "./RowRecordIcon.svelte";
   import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
   import MidiChannelStepper from "./MidiChannelStepper.svelte";
   import PhraseRow from "./PhraseRow.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
   import PianoRollPreview from "./PianoRollPreview.svelte";
+  import RecordPianoKeyboard from "./RecordPianoKeyboard.svelte";
   import {
     defaultStepTimingMultiplierIndex,
+    maxPhraseStepsPerRow,
     findSingleMove,
+    phraseFullestRowReference,
     stepTimingMultiplierCount,
     timingMultiplierOptions,
   } from "./stepCellLayout.js";
@@ -51,6 +57,7 @@
     rowMuteControlClasses,
     rowPowerToggleOffClasses,
     rowActionIconControlClasses,
+    toggleIconActiveClasses,
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
 
@@ -95,6 +102,18 @@
   );
 
   let playbackPollFrameId = 0;
+
+  /** Row index armed for MIDI capture, or null. */
+  let recordingRow = null;
+  /** Snapshot taken when recording was armed (for undo / cancel). */
+  /** @type {ReturnType<typeof createHistorySnapshot> | null} */
+  let recordingHistoryBefore = null;
+  /** Whether any note was captured in the current recording session. */
+  let recordingCapturedNotes = false;
+  /** Clears the row on the next captured note. */
+  let recordingAwaitingFirstNote = false;
+  /** @type {Set<number>} */
+  let recordingKeysHeld = new Set();
 
   const timingOffsetOptions = [
     { index: 0, label: "-.75" },
@@ -164,6 +183,9 @@
     rowTimingOffset,
     pulseIndex,
   );
+
+  /** Fullest row for solo-step width (gap-compensated to match dense rows). */
+  $: phraseReferenceRow = phraseFullestRowReference(stepTimingMultiplier);
 
   function createStepId() {
     const id = `step-${nextStepId}`;
@@ -1057,8 +1079,9 @@
 
   async function selectStepTimingMultiplier(row, step, multiplierIndex) {
     await commitHistory("Change step timing", async () => {
-      stepTimingMultiplier[row][step] = multiplierIndex;
-      stepTimingMultiplier = stepTimingMultiplier;
+      const next = cloneMatrix(stepTimingMultiplier);
+      next[row][step] = multiplierIndex;
+      stepTimingMultiplier = next;
       await pushStepTimingMultiplier(row, step);
     });
   }
@@ -1266,6 +1289,205 @@
     });
   }
 
+  function buildDefaultRecordedStep() {
+    return {
+      duration: defaultStepDurationFraction,
+      multiplier: defaultStepTimingMultiplierIndex,
+      velocity: defaultStepVelocity,
+      muted: false,
+      skipped: false,
+      probability: 100,
+      cycle: 1,
+      cycleOffset: 0,
+    };
+  }
+
+  async function commitRecordedNote(midi) {
+    if (recordingRow === null) return;
+
+    const note = Math.min(127, Math.max(0, Math.round(midi)));
+
+    if (
+      !recordingAwaitingFirstNote &&
+      grid[recordingRow].length >= maxPhraseStepsPerRow
+    ) {
+      return;
+    }
+
+    applyRecordedNoteToUiRow(recordingRow, note);
+    recordingCapturedNotes = true;
+
+    if (nativeFunctionAvailable("injectPhraseRowRecordedNote")) {
+      await getNativeFunction("injectPhraseRowRecordedNote")(note);
+    }
+  }
+
+  function applyRecordedNoteToUiRow(row, midi) {
+    const defs = buildDefaultRecordedStep();
+    const note = Math.min(127, Math.max(0, Math.round(midi)));
+
+    if (recordingAwaitingFirstNote) {
+      recordingAwaitingFirstNote = false;
+      grid[row] = [note];
+      stepDurationFraction[row] = [defs.duration];
+      stepTimingMultiplier[row] = [defs.multiplier];
+      stepVelocity[row] = [defs.velocity];
+      stepMuted[row] = [defs.muted];
+      stepSkipped[row] = [defs.skipped];
+      stepProbability[row] = [defs.probability];
+      stepCycle[row] = [defs.cycle];
+      stepCycleOffset[row] = [defs.cycleOffset];
+      stepIds[row] = [createStepId()];
+      activeGates[row] = [false];
+    } else if (grid[row].length < maxPhraseStepsPerRow) {
+      grid[row] = [...grid[row], note];
+      stepDurationFraction[row] = [...stepDurationFraction[row], defs.duration];
+      stepTimingMultiplier[row] = [...stepTimingMultiplier[row], defs.multiplier];
+      stepVelocity[row] = [...stepVelocity[row], defs.velocity];
+      stepMuted[row] = [...stepMuted[row], defs.muted];
+      stepSkipped[row] = [...stepSkipped[row], defs.skipped];
+      stepProbability[row] = [...stepProbability[row], defs.probability];
+      stepCycle[row] = [...stepCycle[row], defs.cycle];
+      stepCycleOffset[row] = [...stepCycleOffset[row], defs.cycleOffset];
+      stepIds[row] = [...stepIds[row], createStepId()];
+      activeGates[row] = [...activeGates[row], false];
+    }
+
+    grid = grid;
+    stepDurationFraction = stepDurationFraction;
+    stepTimingMultiplier = stepTimingMultiplier;
+    stepVelocity = stepVelocity;
+    stepMuted = stepMuted;
+    stepSkipped = stepSkipped;
+    stepProbability = stepProbability;
+    stepCycle = stepCycle;
+    stepCycleOffset = stepCycleOffset;
+    stepIds = stepIds;
+    activeGates = activeGates;
+  }
+
+  async function disarmRowRecordingNative() {
+    if (nativeFunctionAvailable("setPhraseRowRecording")) {
+      await getNativeFunction("setPhraseRowRecording")(-1);
+    }
+  }
+
+  async function cancelRowRecording() {
+    if (recordingRow === null) return;
+
+    recordingRow = null;
+    recordingAwaitingFirstNote = false;
+    recordingCapturedNotes = false;
+    recordingKeysHeld = new Set();
+
+    await disarmRowRecordingNative();
+
+    if (recordingHistoryBefore !== null) {
+      const restore = recordingHistoryBefore;
+      recordingHistoryBefore = null;
+      assignSnapshot(restore);
+      const previousSnapshot = createHistorySnapshot();
+      await syncSnapshotToNative(restore, previousSnapshot);
+    } else {
+      recordingHistoryBefore = null;
+    }
+
+    return row;
+  }
+
+  async function startRowRecording(row) {
+    if (recordingRow !== null && recordingRow !== row) {
+      await cancelRowRecording();
+    }
+
+    recordingRow = row;
+    recordingHistoryBefore = createHistorySnapshot();
+    recordingCapturedNotes = false;
+    recordingAwaitingFirstNote = true;
+
+    if (nativeFunctionAvailable("setPhraseRowRecording")) {
+      await getNativeFunction("setPhraseRowRecording")(row);
+    }
+  }
+
+  async function finishRowRecording() {
+    if (recordingRow === null) return;
+
+    const row = recordingRow;
+    const before = recordingHistoryBefore;
+    const hadNotes = recordingCapturedNotes;
+
+    recordingRow = null;
+    recordingAwaitingFirstNote = false;
+    recordingCapturedNotes = false;
+    recordingHistoryBefore = null;
+    recordingKeysHeld = new Set();
+
+    await disarmRowRecordingNative();
+
+    if (hadNotes && before !== null) {
+      const after = createHistorySnapshot();
+      pushHistoryEntry("Record row", before, after);
+    } else if (before !== null) {
+      assignSnapshot(before);
+      const previousSnapshot = createHistorySnapshot();
+      await syncSnapshotToNative(before, previousSnapshot);
+    }
+  }
+
+  async function toggleRowRecording(row) {
+    if (recordingRow === row) {
+      await finishRowRecording();
+    } else {
+      await startRowRecording(row);
+    }
+  }
+
+  async function pollRowRecordingNotes() {
+    if (recordingRow === null) {
+      return;
+    }
+
+    if (nativeFunctionAvailable("getPhraseRowRecordingKeysHeld")) {
+      try {
+        const held = await getNativeFunction("getPhraseRowRecordingKeysHeld")();
+        const keys = Array.isArray(held) ? held : [];
+        recordingKeysHeld = new Set(
+          keys
+            .map((value) => Number.parseInt(String(value), 10))
+            .filter((midi) => !Number.isNaN(midi)),
+        );
+      } catch {
+        // Native bridge unavailable during teardown.
+      }
+    }
+
+    if (!nativeFunctionAvailable("drainPhraseRowRecordedNotes")) {
+      return;
+    }
+
+    try {
+      const drained = await getNativeFunction("drainPhraseRowRecordedNotes")();
+      const notes = Array.isArray(drained) ? drained : [];
+
+      for (const raw of notes) {
+        const midi = Number.parseInt(String(raw), 10);
+
+        if (Number.isNaN(midi)) continue;
+
+        applyRecordedNoteToUiRow(recordingRow, midi);
+        recordingCapturedNotes = true;
+      }
+    } catch {
+      // Native bridge unavailable during teardown.
+    }
+  }
+
+  /** @param {number} midi */
+  function onRecordPianoNotePress(midi) {
+    void commitRecordedNote(midi);
+  }
+
   async function pollPlaybackActivity() {
     const beatNativeName = nativeFunctionAvailable("getPlaybackBeat")
       ? "getPlaybackBeat"
@@ -1286,6 +1508,8 @@
     } else {
       playbackBeat = -1;
     }
+
+    await pollRowRecordingNotes();
 
     playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
   }
@@ -1931,6 +2155,25 @@
               />
               <button
                 type="button"
+                aria-label={recordingRow === row ? "Stop row recording" : "Record row from MIDI"}
+                aria-pressed={recordingRow === row}
+                class="{rowActionIconControlClasses} {rowMuted[row]
+                  ? 'text-zinc-600'
+                  : recordingRow === row
+                    ? `${rowAccent.textAccent} ${toggleIconActiveClasses}`
+                    : `${toggleIconRestClasses} hover:text-zinc-300`}"
+                onclick={() => toggleRowRecording(row)}
+                title={recordingRow === row
+                  ? "Stop recording (notes fill this row as 1× steps)"
+                  : "Record row from MIDI keyboard (first note replaces row)"}
+              >
+                <RowRecordIcon
+                  class="pointer-events-none h-6 w-6"
+                  recording={recordingRow === row}
+                />
+              </button>
+              <button
+                type="button"
                 aria-label="Reverse row step order"
                 class="{rowActionIconControlClasses} {rowMuted[row]
                   ? 'text-zinc-600'
@@ -1969,6 +2212,7 @@
               accent={rowAccent}
               timingOffsetIndex={rowTimingOffset[row]}
               timingOffsetVisualCompensationPx={phraseVisualOffsetCompensationPx}
+              {phraseReferenceRow}
               {pulseIndex}
               stepIds={stepIds[row]}
               notes={grid[row]}
@@ -2002,27 +2246,36 @@
       </div>
     </div>
 
-    <PianoRollPreview
-      notes={grid}
-      {rowColorsEnabled}
-      {rowMuted}
-      {rowTimingOffset}
-      {stepDurationFraction}
-      {stepTimingMultiplier}
-      {stepVelocity}
-      {stepMuted}
-      {stepSkipped}
-      stepProbability={stepProbability}
-      stepCycle={stepCycle}
-      stepCycleOffset={stepCycleOffset}
-      {pulseIndex}
-      {swingPercent}
-      {swingSubdivisionIndex}
-      loopEnabled={loopBraceEnabled}
-      loopStart={loopBraceStart}
-      loopEnd={loopBraceEnd}
-      {playbackBeat}
-      onLoopBraceChange={updateLoopBrace}
-    />
+    {#if recordingRow !== null}
+      <RecordPianoKeyboard
+        row={recordingRow}
+        accent={rowAccentFor(recordingRow, rowColorsEnabled)}
+        heldKeys={recordingKeysHeld}
+        onNotePress={onRecordPianoNotePress}
+      />
+    {:else}
+      <PianoRollPreview
+        notes={grid}
+        {rowColorsEnabled}
+        {rowMuted}
+        {rowTimingOffset}
+        {stepDurationFraction}
+        {stepTimingMultiplier}
+        {stepVelocity}
+        {stepMuted}
+        {stepSkipped}
+        stepProbability={stepProbability}
+        stepCycle={stepCycle}
+        stepCycleOffset={stepCycleOffset}
+        {pulseIndex}
+        {swingPercent}
+        {swingSubdivisionIndex}
+        loopEnabled={loopBraceEnabled}
+        loopStart={loopBraceStart}
+        loopEnd={loopBraceEnd}
+        {playbackBeat}
+        onLoopBraceChange={updateLoopBrace}
+      />
+    {/if}
   </section>
 </main>

@@ -527,6 +527,46 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                complete (juce::var {});
                            })
                        .withNativeFunction (
+                           "setPhraseRowRecording",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPhraseRowRecording (varToInt (args[0]));
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "drainPhraseRowRecordedNotes",
+                           [&processor] (const juce::Array<juce::var>&,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               juce::Array<juce::var> notes;
+
+                               for (const auto note : processor.drainPhraseRowRecordedNotes())
+                                   notes.add (note);
+
+                               complete (notes);
+                           })
+                       .withNativeFunction (
+                           "getPhraseRowRecordingKeysHeld",
+                           [&processor] (const juce::Array<juce::var>&,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               juce::Array<juce::var> keys;
+
+                               for (const auto note : processor.getPhraseRowRecordingKeysHeld())
+                                   keys.add (note);
+
+                               complete (keys);
+                           })
+                       .withNativeFunction (
+                           "injectPhraseRowRecordedNote",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.injectPhraseRowRecordedNote (varToInt (args[0]));
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
                            "setPhraseStepTimingMultiplier",
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {

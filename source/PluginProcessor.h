@@ -133,6 +133,19 @@ public:
                                  const std::array<int, maxPhraseStepsPerRow>& cycle,
                                  const std::array<int, maxPhraseStepsPerRow>& cycleOffset);
 
+    /** Arm row for MIDI capture ({@code row} -1 disarms). Only one row at a time. */
+    void setPhraseRowRecording (int row);
+    int getPhraseRowRecording() const;
+
+    /** Drains captured notes since the last call and applies them to the armed row. */
+    juce::Array<int> drainPhraseRowRecordedNotes();
+
+    /** MIDI note numbers currently held on a controller while recording (for keyboard UI). */
+    juce::Array<int> getPhraseRowRecordingKeysHeld() const;
+
+    /** Appends one captured step from the on-screen keyboard (message thread). */
+    void injectPhraseRowRecordedNote (int midiNote);
+
     static constexpr int defaultLoopBraceStartQuarters = 0;
     static constexpr int defaultLoopBraceEndQuarters = 8;
     static constexpr double loopBraceSnapQuarters = 0.5;
@@ -337,6 +350,9 @@ private:
                             int orderSize);
     void publishCommandToAudio (const SequencerCommand& command);
     void publishRowToAudio (int row);
+    void enqueueRecordedNote (int midiNote);
+    bool tryDequeueRecordedNote (int& midiNoteOut);
+    void appendRecordedNoteToModelRow (int row, int midiNote);
     void drainSequencerCommands();
     void applySequencerCommand (const SequencerCommand& command);
     PhraseRowSteps& modelRow (int row);
@@ -433,6 +449,14 @@ private:
     std::atomic<double> standaloneTransportPpqPosition { 0.0 };
     double sampleRateHz = 44100.0;
     bool wasPlaying = false;
+
+    static constexpr int recordQueueCapacity = maxPhraseStepsPerRow;
+    std::array<int, recordQueueCapacity> recordQueueNotes {};
+    std::atomic<int> recordQueueWrite { 0 };
+    std::atomic<int> recordQueueRead { 0 };
+    std::atomic<int> recordingRow { -1 };
+    std::atomic<int> recordingAwaitingFirstNote { 0 };
+    std::array<std::atomic<int>, 128> recordingKeysHeld {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };

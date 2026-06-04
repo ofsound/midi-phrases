@@ -974,6 +974,63 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseStepCycleOffset (0, 1) == PluginProcessor::maxStepCycle - 1);
     }
 
+    SECTION ("phrase row MIDI recording")
+    {
+        testPlugin.prepareToPlay (44100.0, 512);
+
+        ensurePhraseRowStepCount (testPlugin, 0, 4);
+        testPlugin.setPhraseNote (0, 0, 48);
+        testPlugin.setPhraseNote (0, 1, 50);
+        testPlugin.setPhraseStepVelocity (0, 0, 42);
+
+        testPlugin.setPhraseRowRecording (0);
+        CHECK (testPlugin.getPhraseRowRecording() == 0);
+
+        const auto processNoteOns = [&] (const std::initializer_list<int> notes) {
+            juce::MidiBuffer midi;
+            int sample = 0;
+
+            for (const auto note : notes)
+            {
+                midi.addEvent (juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (100)), sample);
+                ++sample;
+            }
+
+            juce::AudioBuffer<float> buffer (2, 512);
+            buffer.clear();
+            testPlugin.processBlock (buffer, midi);
+        };
+
+        processNoteOns ({ 60, 64, 67 });
+        auto drained = testPlugin.drainPhraseRowRecordedNotes();
+        REQUIRE (drained.size() == 3);
+        CHECK (drained[0] == 60);
+        CHECK (drained[1] == 64);
+        CHECK (drained[2] == 67);
+
+        CHECK (testPlugin.getPhraseRowStepCount (0) == 3);
+        CHECK (testPlugin.getPhraseNote (0, 0) == 60);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 0) == PluginProcessor::defaultStepVelocity);
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 2)
+               == PluginProcessor::defaultStepTimingMultiplierIndex);
+
+        {
+            juce::MidiBuffer chordMidi;
+            chordMidi.addEvent (juce::MidiMessage::noteOn (1, 72, static_cast<juce::uint8> (100)), 0);
+            chordMidi.addEvent (juce::MidiMessage::noteOn (1, 74, static_cast<juce::uint8> (100)), 0);
+            juce::AudioBuffer<float> buffer (2, 512);
+            buffer.clear();
+            testPlugin.processBlock (buffer, chordMidi);
+        }
+
+        drained = testPlugin.drainPhraseRowRecordedNotes();
+        CHECK (drained.isEmpty());
+        CHECK (testPlugin.getPhraseRowStepCount (0) == 3);
+
+        testPlugin.setPhraseRowRecording (1);
+        CHECK (testPlugin.getPhraseRowRecording() == 1);
+    }
+
     SECTION ("insert phrase step beyond default row length")
     {
         for (int i = 0; i < 3; ++i)
