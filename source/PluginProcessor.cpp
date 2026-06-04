@@ -2017,6 +2017,8 @@ void PluginProcessor::saveCurrentBraceToLoopSlot (const int loopSlot)
     loopSlotState.patternSlot = patternSlot;
     loopSlotState.startQuarters = loopBrace.startQuarters;
     loopSlotState.endQuarters = loopBrace.endQuarters;
+
+    selectLoopSlot (slot);
 }
 
 void PluginProcessor::requestAudioLoopSlot (const int loopSlot)

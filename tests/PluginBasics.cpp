@@ -371,6 +371,22 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getLoopBraceEndQuarters() == Catch::Approx (28.5));
     }
 
+    SECTION ("saving current brace to loop slot selects that loop")
+    {
+        testPlugin.setCurrentPatternSlot (1);
+        testPlugin.setLoopBraceStartQuarters (2.0);
+        testPlugin.setLoopBraceEndQuarters (4.0);
+        testPlugin.saveCurrentBraceToLoopSlot (3);
+
+        CHECK (testPlugin.getCurrentLoopSlot() == 3);
+        CHECK (testPlugin.isLoopSlotAssigned (3));
+        CHECK (testPlugin.getLoopSlotPatternSlot (3) == 1);
+        CHECK (testPlugin.getCurrentPatternSlot() == 1);
+        CHECK (testPlugin.isLoopBraceEnabled());
+        CHECK (testPlugin.getLoopBraceStartQuarters() == Catch::Approx (2.0));
+        CHECK (testPlugin.getLoopBraceEndQuarters() == Catch::Approx (4.0));
+    }
+
     SECTION ("loop slots recall their own saved brace ranges")
     {
         testPlugin.setLoopBraceStartQuarters (0.5);

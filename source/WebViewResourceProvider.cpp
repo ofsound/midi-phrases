@@ -406,7 +406,8 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                if (args.size() >= 1)
                                    processor.saveCurrentBraceToLoopSlot (varToInt (args[0]));
 
-                               complete (juce::var {});
+                               complete (createPatternStateVar (processor,
+                                                                processor.getCurrentPatternSlot()));
                            })
                        .withNativeFunction (
                            "selectLoopSlot",

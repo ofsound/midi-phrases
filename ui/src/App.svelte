@@ -1850,6 +1850,22 @@
     assignPatternState(state);
   }
 
+  /** @param {number} slot */
+  async function activateLoopSlot(slot) {
+    if (!loopSlotAssigned[slot] || !nativeFunctionAvailable("selectLoopSlot")) return;
+
+    activeLoopSlot = slot;
+    activePatternSlot = loopSlotPattern[slot] ?? activePatternSlot;
+    slotSelectionInFlight += 1;
+
+    try {
+      const state = await getNativeFunction("selectLoopSlot")(slot);
+      assignPatternState(state);
+    } finally {
+      slotSelectionInFlight = Math.max(0, slotSelectionInFlight - 1);
+    }
+  }
+
   async function handleLoopSlotClick(event, slot) {
     const nextSlot = Math.min(7, Math.max(0, slot));
     cancelPatternCopy();
@@ -1857,26 +1873,24 @@
     if (event.shiftKey) {
       if (!nativeFunctionAvailable("saveCurrentBraceToLoopSlot")) return;
 
-      await getNativeFunction("saveCurrentBraceToLoopSlot")(nextSlot);
-      loopSlotAssigned[nextSlot] = true;
-      loopSlotPattern[nextSlot] = activePatternSlot;
-      loopSlotAssigned = loopSlotAssigned;
-      loopSlotPattern = loopSlotPattern;
+      activeLoopSlot = nextSlot;
+      slotSelectionInFlight += 1;
+
+      try {
+        const state = await getNativeFunction("saveCurrentBraceToLoopSlot")(nextSlot);
+        loopSlotAssigned[nextSlot] = true;
+        assignPatternState(state);
+        loopSlotPattern[nextSlot] = activePatternSlot;
+        loopSlotAssigned = loopSlotAssigned;
+        loopSlotPattern = loopSlotPattern;
+      } finally {
+        slotSelectionInFlight = Math.max(0, slotSelectionInFlight - 1);
+      }
+
       return;
     }
 
-    if (!loopSlotAssigned[nextSlot] || !nativeFunctionAvailable("selectLoopSlot")) return;
-
-    activeLoopSlot = nextSlot;
-    activePatternSlot = loopSlotPattern[nextSlot] ?? activePatternSlot;
-    slotSelectionInFlight += 1;
-
-    try {
-      const state = await getNativeFunction("selectLoopSlot")(nextSlot);
-      assignPatternState(state);
-    } finally {
-      slotSelectionInFlight = Math.max(0, slotSelectionInFlight - 1);
-    }
+    await activateLoopSlot(nextSlot);
   }
 
   function loadInitialStateFromJuce() {
