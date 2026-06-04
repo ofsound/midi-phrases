@@ -393,6 +393,8 @@ private:
     void applyAudioPatternSlot (int patternSlot);
     void requestAudioLoopSlot (int loopSlot);
     void applyAudioLoopSlot (int loopSlot);
+    bool isAudioLoopSlotApplied (int loopSlot) const;
+    double loopDownbeatTransportForSlot (int loopSlot, double transportPpq) const;
     void applyMuteOutputSilence (juce::MidiBuffer& midiMessages);
     void handleIncomingControlNotes (juce::MidiBuffer& midiMessages);
     bool shouldApplyPendingPatternSwitch (double ppqStart, double ppqEnd) const;

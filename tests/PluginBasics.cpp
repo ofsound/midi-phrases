@@ -1367,6 +1367,129 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPlayHead (nullptr);
     }
 
+    SECTION ("MIDI switch to new loop on downbeat plays loop start note")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setLoopBraceEnabled (true);
+        testPlugin.setLoopBraceStartQuarters (0.0);
+        testPlugin.setLoopBraceEndQuarters (4.0);
+        testPlugin.saveCurrentBraceToLoopSlot (0);
+        testPlugin.selectLoopSlot (0);
+
+        testPlugin.setPhraseNote (0, 0, 72);
+        testPlugin.saveCurrentBraceToLoopSlot (1);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.25);
+        midi.addEvent (juce::MidiMessage::noteOn (1,
+                                                  PluginProcessor::patternSlotCount + 1,
+                                                  static_cast<juce::uint8> (100)),
+                       0);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getCurrentLoopSlot() == 1);
+        CHECK (testPlugin.getAudioPatternSlot() == 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.95);
+        testPlugin.processBlock (buffer, midi);
+
+        auto emittedLoopStartNote = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 72)
+                emittedLoopStartNote = true;
+        }
+
+        CHECK (emittedLoopStartNote);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("MIDI retrigger of active loop on downbeat keeps full gate")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setLoopBraceEnabled (true);
+        testPlugin.setLoopBraceStartQuarters (0.0);
+        testPlugin.setLoopBraceEndQuarters (1.0);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+
+        for (int row = 1; row < PluginProcessor::phraseRowCount; ++row)
+            testPlugin.setPhraseRowMuted (row, true);
+
+        testPlugin.saveCurrentBraceToLoopSlot (0);
+        testPlugin.selectLoopSlot (0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.95);
+        midi.addEvent (juce::MidiMessage::noteOn (1,
+                                                  PluginProcessor::patternSlotCount,
+                                                  static_cast<juce::uint8> (100)),
+                       0);
+        testPlugin.processBlock (buffer, midi);
+
+        auto chokedNoteOffAtPulseSample = -1;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOff() && message.getNoteNumber() == 60)
+                chokedNoteOffAtPulseSample = metadata.samplePosition;
+        }
+
+        CHECK (chokedNoteOffAtPulseSample < 0);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("MIDI loop trigger matches selectLoopSlot and enables loop brace")
     {
         testPlugin.setCurrentPatternSlot (0);

@@ -2258,6 +2258,61 @@ void PluginProcessor::extendScheduledRowGate (const int row,
     }
 }
 
+double PluginProcessor::loopDownbeatTransportForSlot (const int loopSlot,
+                                                    const double transportPpq) const
+{
+    const auto slot = clampLoopSlot (loopSlot);
+    const auto& loopSlotState = loopSlots[static_cast<size_t> (slot)];
+
+    if (loopSlotState.assigned == 0)
+        return transportPpq;
+
+    const auto loopStart = clampLoopBraceStart (loopSlotState.startQuarters,
+                                                loopSlotState.endQuarters);
+    const auto loopEnd = clampLoopBraceEnd (loopSlotState.endQuarters, loopStart);
+    const auto loopLength = loopEnd - loopStart;
+
+    if (loopLength <= 0.0)
+        return transportPpq;
+
+    constexpr auto epsilon = 1.0e-9;
+
+    if (transportPpq + epsilon < loopStart)
+        return loopStart;
+
+    const auto cycles =
+        std::floor ((transportPpq - loopStart + epsilon) / loopLength);
+    return loopStart + cycles * loopLength;
+}
+
+bool PluginProcessor::isAudioLoopSlotApplied (const int loopSlot) const
+{
+    if (getCurrentLoopSlot() != loopSlot)
+        return false;
+
+    const auto slot = clampLoopSlot (loopSlot);
+    const auto& loopSlotState = loopSlots[static_cast<size_t> (slot)];
+
+    if (loopSlotState.assigned == 0)
+        return false;
+
+    const auto patternSlot = clampPatternSlot (loopSlotState.patternSlot);
+
+    if (clampPatternSlot (audioActivePatternSlot) != patternSlot)
+        return false;
+
+    const auto loopStart = clampLoopBraceStart (loopSlotState.startQuarters,
+                                                loopSlotState.endQuarters);
+    const auto loopEnd = clampLoopBraceEnd (loopSlotState.endQuarters, loopStart);
+    const auto& loopBrace = audioPatterns[static_cast<size_t> (patternSlot)].loopBrace;
+
+    constexpr auto epsilon = 1.0e-9;
+
+    return loopBrace.enabled != 0
+           && std::abs (loopBrace.startQuarters - loopStart) <= epsilon
+           && std::abs (loopBrace.endQuarters - loopEnd) <= epsilon;
+}
+
 void PluginProcessor::requestAudioLoopSlot (const int loopSlot)
 {
     const auto slot = clampLoopSlot (loopSlot);
@@ -2316,16 +2371,23 @@ void PluginProcessor::selectLoopSlot (const int loopSlot)
     loopBrace.startQuarters = loopStart;
     loopBrace.endQuarters = loopEnd;
 
+    const auto audioAlreadyApplied = isAudioLoopSlotApplied (slot);
+
     currentLoopSlot.store (slot, std::memory_order_release);
-    publishPatternToAudio (patternSlot);
+
+    if (! audioAlreadyApplied)
+    {
+        publishPatternToAudio (patternSlot);
+        requestAudioLoopSlot (slot);
+    }
+    else
+        pendingAudioLoopSlot.store (-1, std::memory_order_release);
 
     if (patternSlotParameter != nullptr && patternSlotParameter->get() != patternSlot + 1)
         patternSlotParameter->setValueNotifyingHost (
             patternSlotParameter->convertTo0to1 (patternSlot + 1));
 
     lastObservedParameterPatternSlot = patternSlot;
-
-    requestAudioLoopSlot (slot);
 }
 
 int PluginProcessor::getCurrentLoopSlot() const
@@ -3097,6 +3159,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     }
 
     handleIncomingControlNotes (midiMessages);
+    drainSequencerCommands();
     applyMuteOutputSilence (midiMessages);
 
     const auto stopPlayback = [&] {
@@ -3228,6 +3291,28 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     auto transportCursor = ppqStart;
     auto resetAtSegmentStart = false;
 
+    const auto pendingLoopAtBufferStart =
+        pendingAudioLoopSlot.load (std::memory_order_acquire);
+
+    if (pendingLoopAtBufferStart >= 0)
+    {
+        const auto loopDownbeat =
+            loopDownbeatTransportForSlot (pendingLoopAtBufferStart, ppqStart);
+
+        if (loopDownbeat >= ppqStart - epsilon && loopDownbeat <= ppqEnd + epsilon)
+        {
+            flushPendingGeneratedNoteOffs (juce::jlimit (
+                                               0,
+                                               bufferSamples - 1,
+                                               static_cast<int> (std::lround (
+                                                   (loopDownbeat - ppqStart) / ppqPerSample))),
+                                           midiMessages);
+            applyAudioLoopSlot (pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel));
+            transportCursor = loopDownbeat;
+            resetAtSegmentStart = true;
+        }
+    }
+
     const auto sampleOffsetForTransportPpq = [&] (const double transportPpq) {
         return juce::jlimit (
             0,
@@ -3245,9 +3330,17 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         if (pendingPattern >= 0 || pendingLoop >= 0)
         {
             const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
-            const auto switchPpq = pulse > 0.0
-                                       ? std::ceil ((transportCursor - epsilon) / pulse) * pulse
-                                       : transportCursor;
+            auto switchPpq = pulse > 0.0
+                                 ? std::ceil ((transportCursor - epsilon) / pulse) * pulse
+                                 : transportCursor;
+
+            if (pendingLoop >= 0)
+            {
+                const auto loopDownbeat = loopDownbeatTransportForSlot (pendingLoop, transportCursor);
+
+                if (loopDownbeat >= transportCursor - epsilon && loopDownbeat <= switchPpq + epsilon)
+                    switchPpq = loopDownbeat;
+            }
 
             if (switchPpq <= transportCursor + epsilon)
             {
@@ -3292,12 +3385,22 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             const auto nextLoop = pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel);
 
             if (nextLoop >= 0)
+            {
                 applyAudioLoopSlot (nextLoop);
+
+                const auto loopDownbeat = loopDownbeatTransportForSlot (nextLoop, segmentEnd);
+
+                if (loopDownbeat + epsilon < segmentEnd && loopDownbeat >= ppqStart - epsilon)
+                    transportCursor = loopDownbeat;
+                else
+                    transportCursor = segmentEnd;
+            }
+            else
+                transportCursor = segmentEnd;
 
             if (segmentEnd >= ppqEnd - epsilon)
                 break;
 
-            transportCursor = segmentEnd;
             resetAtSegmentStart = true;
             continue;
         }
