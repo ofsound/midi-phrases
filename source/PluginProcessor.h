@@ -406,6 +406,34 @@ private:
 
     double playbackBeatForUi() const;
 
+    struct RowTriggerHit
+    {
+        double ppq = 0.0;
+        int step = -1;
+        int midiNote = -1;
+        bool valid = false;
+    };
+
+    RowTriggerHit findEarliestRowTriggerInMappedRange (int row,
+                                                       double schedulePpqStart,
+                                                       double schedulePpqEnd) const;
+    bool rowHasConflictingPitchBeforeMappedPpq (int row,
+                                                int midiNote,
+                                                double mappedPpqExclusiveEnd) const;
+    bool shouldSustainGateAcrossLoopWrap (int row,
+                                          int midiNote,
+                                          double mappedTriggerPpq,
+                                          double gateQuarters,
+                                          double mappedScheduleEnd) const;
+    bool shouldPreservePendingNoteAcrossLoopWrap (int row, int midiNote) const;
+    void extendScheduledRowGate (int row,
+                                 int midiChannel,
+                                 int note,
+                                 int sampleOffset,
+                                 int gateSamples,
+                                 int bufferSamples,
+                                 juce::MidiBuffer& midiMessages);
+
     void processScheduledRange (double schedulePpqStart,
                                 double schedulePpqEnd,
                                 double segmentTransportStartPpq,

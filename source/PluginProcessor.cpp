@@ -2105,6 +2105,159 @@ void PluginProcessor::saveCurrentBraceToLoopSlot (const int loopSlot)
     selectLoopSlot (slot);
 }
 
+PluginProcessor::RowTriggerHit PluginProcessor::findEarliestRowTriggerInMappedRange (
+    const int row,
+    const double schedulePpqStart,
+    const double schedulePpqEnd) const
+{
+    RowTriggerHit hit;
+
+    if (row < 0 || row >= phraseRowCount)
+        return hit;
+
+    constexpr auto epsilon = 1.0e-9;
+    const auto& state = audioSequencer();
+
+    if (state.muted[static_cast<size_t> (row)] != 0)
+        return hit;
+
+    const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
+    const auto offset = rowTimingOffsetForIndex (state.timingOffset[static_cast<size_t> (row)]) * pulse;
+    const auto& rowSteps = state.rows[static_cast<size_t> (row)];
+    const auto stepCount = rowSteps.stepCount;
+
+    if (stepCount <= 0)
+        return hit;
+
+    const auto cycleLengthQuarters = rowSteps.cycleLengthQuarters;
+
+    if (cycleLengthQuarters <= 0.0)
+        return hit;
+
+    for (int step = 0; step < stepCount; ++step)
+    {
+        if (rowSteps.stepSkipped[static_cast<size_t> (step)] != 0)
+            continue;
+
+        const auto stepStartInCycle = rowSteps.stepStartQuarters[static_cast<size_t> (step)];
+        const auto nMin = static_cast<int> (std::ceil (
+            (schedulePpqStart - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+        const auto nMax = static_cast<int> (std::floor (
+            (schedulePpqEnd - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+
+        for (int cycle = nMin; cycle <= nMax; ++cycle)
+        {
+            const auto triggerPpq = static_cast<double> (cycle) * cycleLengthQuarters
+                                    + stepStartInCycle + offset;
+
+            if (triggerPpq < schedulePpqStart - epsilon || triggerPpq >= schedulePpqEnd - epsilon)
+                continue;
+
+            const auto velocity = rowSteps.velocity[static_cast<size_t> (step)];
+
+            if (velocity <= 0 || rowSteps.stepMuted[static_cast<size_t> (step)] != 0)
+                continue;
+
+            const auto note = rowSteps.notes[static_cast<size_t> (step)];
+
+            if (! hit.valid || triggerPpq < hit.ppq - epsilon)
+            {
+                hit.valid = true;
+                hit.ppq = triggerPpq;
+                hit.step = step;
+                hit.midiNote = note;
+            }
+        }
+    }
+
+    return hit;
+}
+
+bool PluginProcessor::rowHasConflictingPitchBeforeMappedPpq (const int row,
+                                                             const int midiNote,
+                                                             const double mappedPpqExclusiveEnd) const
+{
+    const auto& loop = audioLoopBrace();
+
+    if (loop.enabled == 0)
+        return false;
+
+    const auto hit =
+        findEarliestRowTriggerInMappedRange (row, loop.startQuarters, mappedPpqExclusiveEnd);
+
+    return hit.valid && hit.midiNote != midiNote;
+}
+
+bool PluginProcessor::shouldSustainGateAcrossLoopWrap (const int row,
+                                                       const int midiNote,
+                                                       const double mappedTriggerPpq,
+                                                       const double gateQuarters,
+                                                       const double mappedScheduleEnd) const
+{
+    constexpr auto epsilon = 1.0e-9;
+    const auto& loop = audioLoopBrace();
+
+    if (loop.enabled == 0)
+        return false;
+
+    if (mappedScheduleEnd < loop.endQuarters - epsilon)
+        return false;
+
+    const auto mappedGateEnd = mappedTriggerPpq + gateQuarters;
+
+    if (mappedGateEnd <= loop.endQuarters + epsilon)
+        return false;
+
+    return ! rowHasConflictingPitchBeforeMappedPpq (row, midiNote, mappedGateEnd);
+}
+
+bool PluginProcessor::shouldPreservePendingNoteAcrossLoopWrap (const int row,
+                                                               const int midiNote) const
+{
+    const auto& loop = audioLoopBrace();
+
+    if (loop.enabled == 0)
+        return false;
+
+    const auto hit =
+        findEarliestRowTriggerInMappedRange (row, loop.startQuarters, loop.endQuarters);
+
+    if (! hit.valid)
+        return true;
+
+    return hit.midiNote == midiNote;
+}
+
+void PluginProcessor::extendScheduledRowGate (const int row,
+                                              const int midiChannel,
+                                              const int note,
+                                              const int sampleOffset,
+                                              const int gateSamples,
+                                              const int bufferSamples,
+                                              juce::MidiBuffer& midiMessages)
+{
+    if (row < 0 || row >= phraseRowCount || sampleOffset < 0 || sampleOffset >= bufferSamples)
+        return;
+
+    auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
+
+    if (pending.note < 0 || pending.note != note || pending.channel != midiChannel)
+        return;
+
+    const auto samplesUntilOff = sampleOffset + gateSamples;
+
+    if (samplesUntilOff < bufferSamples)
+    {
+        emitGeneratedNoteOff (midiChannel, note, samplesUntilOff, midiMessages);
+        pending.note = -1;
+        pending.samplesRemaining = 0;
+    }
+    else
+    {
+        pending.samplesRemaining = samplesUntilOff - bufferSamples;
+    }
+}
+
 void PluginProcessor::requestAudioLoopSlot (const int loopSlot)
 {
     const auto slot = clampLoopSlot (loopSlot);
@@ -2599,30 +2752,6 @@ void PluginProcessor::processTransportPlaybackRange (const double transportPpqSt
             const auto wrappedToLoopStart = mappedStart <= loopStart + epsilon
                                             && transportCursor > transportPpqStart + epsilon;
 
-            if (wrappedToLoopStart)
-            {
-                const auto pendingLoop = pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel);
-
-                if (pendingLoop >= 0)
-                {
-                    const auto loopSwitchSampleOffset = juce::jlimit (
-                        0,
-                        bufferSamples - 1,
-                        static_cast<int> (std::lround (
-                            (transportCursor - bufferTransportStartPpq) / ppqPerSample)));
-                    flushPendingGeneratedNoteOffs (loopSwitchSampleOffset, midiMessages);
-                    applyAudioLoopSlot (pendingLoop);
-                    processTransportPlaybackRange (transportCursor,
-                                                   transportPpqEnd,
-                                                   bufferTransportStartPpq,
-                                                   bufferSamples,
-                                                   ppqPerSample,
-                                                   midiMessages,
-                                                   true);
-                    return;
-                }
-            }
-
             const auto resetForLoopBoundaryAtRangeStart =
                 isFirstSegment && transportPpqStart > epsilon
                 && mappedStart <= loopStart + epsilon;
@@ -2643,19 +2772,6 @@ void PluginProcessor::processTransportPlaybackRange (const double transportPpqSt
     }
     else
     {
-        const auto pendingLoop = pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel);
-
-        if (pendingLoop >= 0)
-        {
-            const auto loopSwitchSampleOffset = juce::jlimit (
-                0,
-                bufferSamples - 1,
-                static_cast<int> (std::lround (
-                    (transportPpqStart - bufferTransportStartPpq) / ppqPerSample)));
-            flushPendingGeneratedNoteOffs (loopSwitchSampleOffset, midiMessages);
-            applyAudioLoopSlot (pendingLoop);
-        }
-
         processScheduledRange (transportPpqStart,
                                transportPpqEnd,
                                transportPpqStart,
@@ -2693,6 +2809,9 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
 
             if (pending.note < 0)
+                continue;
+
+            if (shouldPreservePendingNoteAcrossLoopWrap (row, pending.note))
                 continue;
 
             emitGeneratedNoteOff (pending.channel, pending.note, segmentSampleOffset, midiMessages);
@@ -2854,17 +2973,23 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                 bufferTransportStartPpq + static_cast<double> (bufferSamples) * ppqPerSample;
             const auto scheduleEndsBeforeBuffer =
                 segmentTransportEndPpq < bufferTransportEndPpq - epsilon;
+            const auto sustainAcrossLoop =
+                shouldSustainGateAcrossLoopWrap (row,
+                                                 note,
+                                                 triggerPpq,
+                                                 gateQuarters,
+                                                 schedulePpqEnd);
 
-            const auto gateEndTransportPpq = scheduleEndsBeforeBuffer
-                                                 ? juce::jmin (transportPpqAtNoteOn + gateQuarters,
-                                                               segmentTransportEndPpq)
-                                                 : transportPpqAtNoteOn + gateQuarters;
+            const auto gateEndTransportPpq =
+                scheduleEndsBeforeBuffer && ! sustainAcrossLoop
+                    ? juce::jmin (transportPpqAtNoteOn + gateQuarters, segmentTransportEndPpq)
+                    : transportPpqAtNoteOn + gateQuarters;
             const auto effectiveGateQuarters = gateEndTransportPpq - transportPpqAtNoteOn;
 
             if (effectiveGateQuarters <= epsilon)
                 continue;
 
-            const auto noteGateSamples = scheduleEndsBeforeBuffer
+            const auto noteGateSamples = scheduleEndsBeforeBuffer && ! sustainAcrossLoop
                                              ? juce::jmax (
                                                    1,
                                                    static_cast<int> (std::lround (
@@ -2876,14 +3001,33 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
             if (sampleOffset < bufferSamples)
             {
-                emitScheduledNoteOn (row,
-                                     midiChannel,
-                                     note,
-                                     velocity,
-                                     juce::jmax (0, sampleOffset),
-                                     noteGateSamples,
-                                     bufferSamples,
-                                     midiMessages);
+                const auto& loopBrace = audioLoopBrace();
+                const auto atLoopStart =
+                    loopBrace.enabled != 0
+                    && std::abs (triggerPpq - loopBrace.startQuarters) <= epsilon;
+                auto& rowPending = pendingNoteOffs[static_cast<size_t> (row)];
+
+                if (atLoopStart && rowPending.note == note && rowPending.channel == midiChannel)
+                {
+                    extendScheduledRowGate (row,
+                                            midiChannel,
+                                            note,
+                                            juce::jmax (0, sampleOffset),
+                                            noteGateSamples,
+                                            bufferSamples,
+                                            midiMessages);
+                }
+                else
+                {
+                    emitScheduledNoteOn (row,
+                                         midiChannel,
+                                         note,
+                                         velocity,
+                                         juce::jmax (0, sampleOffset),
+                                         noteGateSamples,
+                                         bufferSamples,
+                                         midiMessages);
+                }
             }
             else
             {
@@ -3102,10 +3246,11 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     while (transportCursor < ppqEnd - epsilon)
     {
         auto segmentEnd = ppqEnd;
-        auto segmentEndsAtPatternSwitch = false;
+        auto segmentEndsAtScheduledSwitch = false;
         const auto pendingPattern = pendingAudioPatternSlot.load (std::memory_order_acquire);
+        const auto pendingLoop = pendingAudioLoopSlot.load (std::memory_order_acquire);
 
-        if (pendingPattern >= 0)
+        if (pendingPattern >= 0 || pendingLoop >= 0)
         {
             const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
             const auto switchPpq = pulse > 0.0
@@ -3116,7 +3261,14 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             {
                 flushPendingGeneratedNoteOffs (sampleOffsetForTransportPpq (transportCursor),
                                                midiMessages);
-                applyAudioPatternSlot (pendingPattern);
+
+                if (pendingPattern >= 0)
+                    applyAudioPatternSlot (pendingAudioPatternSlot.exchange (-1,
+                                                                            std::memory_order_acq_rel));
+
+                if (pendingLoop >= 0)
+                    applyAudioLoopSlot (pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel));
+
                 resetAtSegmentStart = true;
                 continue;
             }
@@ -3124,7 +3276,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             if (switchPpq <= ppqEnd + epsilon)
             {
                 segmentEnd = switchPpq;
-                segmentEndsAtPatternSwitch = true;
+                segmentEndsAtScheduledSwitch = true;
             }
         }
 
@@ -3136,16 +3288,19 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                                        midiMessages,
                                        resetAtSegmentStart);
 
-        if (segmentEndsAtPatternSwitch)
+        if (segmentEndsAtScheduledSwitch)
         {
+            flushPendingGeneratedNoteOffs (sampleOffsetForTransportPpq (segmentEnd), midiMessages);
+
             const auto nextPattern = pendingAudioPatternSlot.exchange (-1, std::memory_order_acq_rel);
 
             if (nextPattern >= 0)
-            {
-                flushPendingGeneratedNoteOffs (sampleOffsetForTransportPpq (segmentEnd),
-                                               midiMessages);
                 applyAudioPatternSlot (nextPattern);
-            }
+
+            const auto nextLoop = pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel);
+
+            if (nextLoop >= 0)
+                applyAudioLoopSlot (nextLoop);
 
             if (segmentEnd >= ppqEnd - epsilon)
                 break;
@@ -3157,15 +3312,6 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
         if (segmentEnd >= ppqEnd - epsilon)
             break;
-
-        const auto nextPattern = pendingAudioPatternSlot.exchange (-1, std::memory_order_acq_rel);
-
-        if (nextPattern >= 0)
-        {
-            flushPendingGeneratedNoteOffs (sampleOffsetForTransportPpq (segmentEnd),
-                                           midiMessages);
-            applyAudioPatternSlot (nextPattern);
-        }
 
         transportCursor = segmentEnd;
         resetAtSegmentStart = true;

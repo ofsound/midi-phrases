@@ -287,24 +287,17 @@ TEST_CASE ("Plugin instance", "[instance]")
         playHead.info.setPpqPosition (0.95);
         testPlugin.processBlock (buffer, midi);
 
-        auto wrappedNoteOnSample = -1;
-        auto shortGateNoteOffSample = -1;
+        auto chokedNoteOffAtWrapSample = -1;
 
         for (const auto metadata : midi)
         {
             const auto message = metadata.getMessage();
 
-            if (message.isNoteOn() && message.getNoteNumber() == 60)
-                wrappedNoteOnSample = metadata.samplePosition;
-
-            if (message.isNoteOff() && message.getNoteNumber() == 60
-                && wrappedNoteOnSample >= 0
-                && metadata.samplePosition > wrappedNoteOnSample + 1)
-                shortGateNoteOffSample = metadata.samplePosition;
+            if (message.isNoteOff() && message.getNoteNumber() == 60)
+                chokedNoteOffAtWrapSample = metadata.samplePosition;
         }
 
-        CHECK (wrappedNoteOnSample >= 0);
-        CHECK (shortGateNoteOffSample < 0);
+        CHECK (chokedNoteOffAtWrapSample < 0);
 
         midi.clear();
         playHead.info.setPpqPosition (1.05);
@@ -362,17 +355,17 @@ TEST_CASE ("Plugin instance", "[instance]")
         playHead.info.setPpqPosition (1.0);
         testPlugin.processBlock (buffer, midi);
 
-        auto wrappedNoteOnCount = 0;
+        auto chokedNoteOffAtWrapSample = -1;
 
         for (const auto metadata : midi)
         {
             const auto message = metadata.getMessage();
 
-            if (message.isNoteOn() && message.getNoteNumber() == 60)
-                ++wrappedNoteOnCount;
+            if (message.isNoteOff() && message.getNoteNumber() == 60)
+                chokedNoteOffAtWrapSample = metadata.samplePosition;
         }
 
-        CHECK (wrappedNoteOnCount >= 1);
+        CHECK (chokedNoteOffAtWrapSample < 0);
 
         testPlugin.setPlayHead (nullptr);
     }
@@ -1285,6 +1278,91 @@ TEST_CASE ("Plugin instance", "[instance]")
 
         CHECK (emittedSwitchNoteOff);
         CHECK (emittedSwitchedPatternNote);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("loop slot switch applies on pulse boundary like pattern switch")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 4.0);
+        testPlugin.setLoopBraceEnabled (true);
+        testPlugin.setLoopBraceStartQuarters (0.0);
+        testPlugin.setLoopBraceEndQuarters (4.0);
+        testPlugin.saveCurrentBraceToLoopSlot (0);
+
+        testPlugin.setCurrentPatternSlot (1);
+        testPlugin.setPhraseNote (0, 0, 72);
+        testPlugin.setLoopBraceStartQuarters (0.0);
+        testPlugin.setLoopBraceEndQuarters (2.0);
+        testPlugin.saveCurrentBraceToLoopSlot (1);
+
+        testPlugin.selectLoopSlot (0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+
+        testPlugin.processBlock (buffer, midi);
+
+        auto emittedInitialNote = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 60)
+                emittedInitialNote = true;
+        }
+
+        CHECK (emittedInitialNote);
+        CHECK (testPlugin.getAudioPatternSlot() == 0);
+
+        testPlugin.selectLoopSlot (1);
+        midi.clear();
+        playHead.info.setPpqPosition (0.5);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getAudioPatternSlot() == 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.95);
+        testPlugin.processBlock (buffer, midi);
+
+        auto emittedSwitchNoteOff = false;
+        auto emittedSwitchedLoopNote = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOff() && message.getNoteNumber() == 60)
+                emittedSwitchNoteOff = true;
+
+            if (message.isNoteOn() && message.getNoteNumber() == 72)
+                emittedSwitchedLoopNote = true;
+        }
+
+        CHECK (emittedSwitchNoteOff);
+        CHECK (emittedSwitchedLoopNote);
+        CHECK (testPlugin.getAudioPatternSlot() == 1);
+        CHECK (testPlugin.getCurrentLoopSlot() == 1);
 
         testPlugin.setPlayHead (nullptr);
     }
