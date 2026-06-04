@@ -48,7 +48,6 @@
   import {
     phraseBeatGuideGlobalLeftPx,
     phraseGridVisualOffsetCompensationPx,
-    phraseRowLeadingControlsAfterMuteWidthPx,
   } from "./phraseRowLayout.js";
   import {
     emeraldRowAccent,
@@ -1872,24 +1871,15 @@
 
 <main class="flex h-full flex-col overflow-hidden p-6">
   <div class="shrink-0 -mx-6">
-  <header class="flex items-end justify-between gap-4 px-6 pb-6">
-    <div class="flex min-w-0 flex-1 items-end gap-1">
-      <div class="flex w-10 shrink-0 flex-col items-start self-start">
-        <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
-        <h1 class="whitespace-nowrap text-xl font-semibold tracking-tight text-zinc-100">
-          {pluginName} <span class="text-sm font-medium text-zinc-500">v{version}</span>
-        </h1>
-      </div>
+  <header class="flex items-end gap-6 px-6 pb-6">
+    <div class="shrink-0 self-start">
+      <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
+      <h1 class="whitespace-nowrap text-xl font-semibold tracking-tight text-zinc-100">
+        {pluginName} <span class="text-sm font-medium text-zinc-500">v{version}</span>
+      </h1>
+    </div>
 
-      <!-- Mute column + gap + rest of row leading controls | PhraseRow (pl-2 + insert + steps) -->
-      <div class="flex min-w-0 flex-1 items-end gap-1">
-        <div
-          class="shrink-0"
-          style:width="{phraseRowLeadingControlsAfterMuteWidthPx}px"
-          aria-hidden="true"
-        ></div>
-        <div class="flex min-w-0 items-end gap-6 pl-2">
-        <div class="w-4 shrink-0 self-stretch" aria-hidden="true"></div>
+    <div class="flex min-w-0 flex-1 flex-wrap items-end gap-x-6 gap-y-3">
         <div class="flex flex-col items-start gap-1">
           <span class="text-xs font-semibold leading-none text-zinc-500">Pulse</span>
           <PulseNoteButtonGroup
@@ -2017,8 +2007,6 @@
             </svg>
           </button>
         </div>
-        </div>
-      </div>
     </div>
 
     <div class="flex shrink-0 items-end gap-3">

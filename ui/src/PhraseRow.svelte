@@ -23,6 +23,7 @@
     toggleIconActiveClasses,
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
+  import { phraseRowMinHeightPx } from "./phraseRowLayout.js";
   import {
     compensatedResizeBoundsPx,
     defaultStepTimingMultiplierIndex,
@@ -1135,7 +1136,8 @@
 {/snippet}
 
 <div
-  class="flex min-w-0 flex-1 overflow-x-auto pt-2 pr-2 pb-2 pl-2"
+  class="flex min-w-0 flex-1 items-stretch overflow-x-auto pt-2 pr-2 pb-2 pl-2"
+  style:min-height="{phraseRowMinHeightPx}px"
   style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex, pulseIndex) +
     timingOffsetVisualCompensationPx}px"
 >

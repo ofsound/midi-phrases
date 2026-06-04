@@ -3,6 +3,19 @@ import { rowTimingOffsetShiftPx, stepInsertZoneWidthPx } from "./stepCellLayout.
 /** Matches PhraseRow scroll container `pl-2`. */
 export const phraseRowScrollPaddingLeftPx = 8;
 
+/** Matches PhraseRow scroll container `pt-2` + `pb-2` (16px root). */
+export const phraseRowScrollPaddingVerticalPx = 16;
+
+/**
+ * Minimum front-face step cell height (header h-5, body, footer h-5, border-2).
+ * Keeps zero-step rows the same band height as rows with steps.
+ */
+export const phraseStepCellMinHeightPx = 100;
+
+/** PhraseRow scroll container min-height including vertical padding. */
+export const phraseRowMinHeightPx =
+  phraseStepCellMinHeightPx + phraseRowScrollPaddingVerticalPx;
+
 /** Inset from PhraseRow left edge to the left edge of step 0 when row offset is 0. */
 export const phraseFirstStepLeftOffsetPx =
   phraseRowScrollPaddingLeftPx + stepInsertZoneWidthPx;
