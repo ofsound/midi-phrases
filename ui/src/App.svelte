@@ -149,6 +149,15 @@
   let rowColorsEnabled = false;
   let undoStack = [];
   let redoStack = [];
+  /** @type {Set<string>} */
+  let selectedStepKeys = new Set();
+  /** @type {string[][]} */
+  let selectedStepIdsByRow = stepIds.map(() => []);
+  let bulkDurationPercent = 100;
+  let bulkVelocityPercent = 100;
+  let bulkTransposeSemitones = 0;
+  /** @type {{ startX: number, startY: number, currentX: number, currentY: number, addToSelection: boolean, baseKeys: Set<string> } | null} */
+  let marqueeSelection = null;
 
   const historyLimit = 100;
   const historyButtonBaseClasses =
@@ -186,6 +195,16 @@
     }`;
   }
 
+  function bulkSelectButtonClasses(active, enabled = true) {
+    return `flex h-8 min-w-12 items-center justify-center rounded-md border px-3 text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+      !enabled
+        ? "border-zinc-800 bg-zinc-950 text-zinc-700"
+        : active
+          ? "border-emerald-400 bg-emerald-400 text-zinc-950"
+          : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
+    }`;
+  }
+
   /** UI-only; shifts phrase rows and beat-one guide when any row has a negative offset. */
   $: phraseVisualOffsetCompensationPx = phraseGridVisualOffsetCompensationPx(
     rowTimingOffset,
@@ -194,6 +213,24 @@
 
   /** Fullest row for solo-step width (gap-compensated to match dense rows). */
   $: phraseReferenceRow = phraseFullestRowReference(stepTimingMultiplier);
+  $: selectedStepCount = selectedStepKeys.size;
+  $: selectableStepCount = allSelectableStepKeys().length;
+  $: allStepsSelected = selectedStepCount === selectableStepCount && selectedStepCount > 0;
+  $: marqueeLeft = marqueeSelection
+    ? Math.min(marqueeSelection.startX, marqueeSelection.currentX)
+    : 0;
+  $: marqueeTop = marqueeSelection
+    ? Math.min(marqueeSelection.startY, marqueeSelection.currentY)
+    : 0;
+  $: marqueeWidth = marqueeSelection
+    ? Math.abs(marqueeSelection.currentX - marqueeSelection.startX)
+    : 0;
+  $: marqueeHeight = marqueeSelection
+    ? Math.abs(marqueeSelection.currentY - marqueeSelection.startY)
+    : 0;
+  $: marqueeRectStyle = marqueeSelection
+    ? `left: ${marqueeLeft}px; top: ${marqueeTop}px; width: ${marqueeWidth}px; height: ${marqueeHeight}px;`
+    : "";
 
   function createStepId() {
     const id = `step-${nextStepId}`;
@@ -203,6 +240,216 @@
 
   function cloneMatrix(matrix) {
     return matrix.map((row) => [...row]);
+  }
+
+  /** @param {number} row @param {string} stepId */
+  function stepSelectionKey(row, stepId) {
+    return `${row}:${stepId}`;
+  }
+
+  /** @param {string} key */
+  function rowFromStepSelectionKey(key) {
+    const row = Number.parseInt(key.split(":")[0] ?? "-1", 10);
+
+    return Number.isNaN(row) ? -1 : row;
+  }
+
+  function allSelectableStepKeys() {
+    const keys = [];
+
+    for (let row = 0; row < stepIds.length; row += 1) {
+      for (const stepId of stepIds[row]) {
+        keys.push(stepSelectionKey(row, stepId));
+      }
+    }
+
+    return keys;
+  }
+
+  /** @param {Set<string>} keys */
+  function selectedStepIdsByRowForKeys(keys) {
+    return stepIds.map((rowStepIds, row) =>
+      rowStepIds.filter((stepId) => keys.has(stepSelectionKey(row, stepId))),
+    );
+  }
+
+  /** @param {Set<string>} next */
+  function setSelectedStepKeys(next) {
+    selectedStepKeys = next;
+    selectedStepIdsByRow = selectedStepIdsByRowForKeys(next);
+  }
+
+  function selectedStepLocations() {
+    const locations = [];
+
+    for (const key of selectedStepKeys) {
+      const row = rowFromStepSelectionKey(key);
+      const stepId = key.substring(key.indexOf(":") + 1);
+      const step = stepIds[row]?.indexOf(stepId) ?? -1;
+
+      if (row >= 0 && step >= 0) {
+        locations.push({ row, step, key });
+      }
+    }
+
+    return locations;
+  }
+
+  function pruneInvalidStepSelection() {
+    const valid = new Set(allSelectableStepKeys());
+    const next = new Set([...selectedStepKeys].filter((key) => valid.has(key)));
+
+    if (next.size !== selectedStepKeys.size) {
+      setSelectedStepKeys(next);
+    }
+  }
+
+  $: {
+    stepIds;
+    pruneInvalidStepSelection();
+  }
+
+  function selectAllStepsForBulkEdit() {
+    setSelectedStepKeys(new Set(allSelectableStepKeys()));
+    syncBulkControlsFromSelection();
+  }
+
+  function clearStepSelection() {
+    setSelectedStepKeys(new Set());
+    bulkTransposeSemitones = 0;
+  }
+
+  function syncBulkControlsFromSelection() {
+    const [first] = selectedStepLocations();
+
+    bulkTransposeSemitones = 0;
+
+    if (!first) {
+      return;
+    }
+
+    bulkDurationPercent = Math.round(
+      Math.min(1, Math.max(0, stepDurationFraction[first.row][first.step] ?? 1)) * 100,
+    );
+    bulkVelocityPercent = Math.round(
+      (Math.min(127, Math.max(0, stepVelocity[first.row][first.step] ?? defaultStepVelocity)) / 127) * 100,
+    );
+  }
+
+  function marqueeRect() {
+    if (!marqueeSelection) {
+      return { left: 0, top: 0, right: 0, bottom: 0 };
+    }
+
+    const left = Math.min(marqueeSelection.startX, marqueeSelection.currentX);
+    const right = Math.max(marqueeSelection.startX, marqueeSelection.currentX);
+    const top = Math.min(marqueeSelection.startY, marqueeSelection.currentY);
+    const bottom = Math.max(marqueeSelection.startY, marqueeSelection.currentY);
+
+    return { left, top, right, bottom };
+  }
+
+  /** @param {DOMRect} left @param {{ left: number, top: number, right: number, bottom: number }} right */
+  function rectsIntersect(left, right) {
+    return left.left <= right.right &&
+      left.right >= right.left &&
+      left.top <= right.bottom &&
+      left.bottom >= right.top;
+  }
+
+  function updateMarqueeSelectionFromPointer() {
+    if (!marqueeSelection) return;
+
+    const selectionRect = marqueeRect();
+    const hitKeys = new Set();
+
+    for (const element of document.querySelectorAll("[data-bulk-step-cell]")) {
+      if (!(element instanceof HTMLElement)) continue;
+
+      const row = Number.parseInt(element.dataset.stepRow ?? "-1", 10);
+      const stepId = element.dataset.stepId;
+
+      if (Number.isNaN(row) || !stepId) continue;
+      if (!rectsIntersect(element.getBoundingClientRect(), selectionRect)) continue;
+
+      hitKeys.add(stepSelectionKey(row, stepId));
+    }
+
+    const next = marqueeSelection.addToSelection
+      ? new Set(marqueeSelection.baseKeys)
+      : new Set();
+
+    for (const key of hitKeys) {
+      next.add(key);
+    }
+
+    setSelectedStepKeys(next);
+  }
+
+  /** @param {PointerEvent} event */
+  function updateMarqueePointer(event) {
+    if (!marqueeSelection) return;
+
+    marqueeSelection = {
+      ...marqueeSelection,
+      currentX: event.clientX,
+      currentY: event.clientY,
+    };
+    updateMarqueeSelectionFromPointer();
+  }
+
+  function finishMarqueeSelection() {
+    if (!marqueeSelection) return;
+
+    marqueeSelection = null;
+    syncBulkControlsFromSelection();
+    document.removeEventListener("pointermove", updateMarqueePointer);
+    document.removeEventListener("pointerup", finishMarqueeSelection);
+    document.removeEventListener("pointercancel", cancelMarqueeSelection);
+  }
+
+  function cancelMarqueeSelection() {
+    if (!marqueeSelection) return;
+
+    setSelectedStepKeys(new Set(marqueeSelection.baseKeys));
+    marqueeSelection = null;
+    document.removeEventListener("pointermove", updateMarqueePointer);
+    document.removeEventListener("pointerup", finishMarqueeSelection);
+    document.removeEventListener("pointercancel", cancelMarqueeSelection);
+  }
+
+  /** @param {PointerEvent} event */
+  function beginStepMarqueeSelection(event) {
+    if (event.button !== 0 || marqueeSelection) return;
+
+    const target = event.target;
+
+    if (!(target instanceof Element)) return;
+
+    if (
+      target.closest(
+        "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-no-marquee], [data-no-long-press], [data-insert-slot], [data-remove-button], [data-multiplier-resize]",
+      )
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    marqueeSelection = {
+      startX: event.clientX,
+      startY: event.clientY,
+      currentX: event.clientX,
+      currentY: event.clientY,
+      addToSelection: event.shiftKey,
+      baseKeys: event.shiftKey ? new Set(selectedStepKeys) : new Set(),
+    };
+
+    updateMarqueeSelectionFromPointer();
+    document.addEventListener("pointermove", updateMarqueePointer);
+    document.addEventListener("pointerup", finishMarqueeSelection);
+    document.addEventListener("pointercancel", cancelMarqueeSelection);
   }
 
   function createHistorySnapshot() {
@@ -318,6 +565,8 @@
     const slotForIds = activePatternSlot >= 0 ? activePatternSlot : viewPatternSlot;
     stepIds = grid.map((row, rowIndex) => row.map((_, step) => `step-${slotForIds}-${rowIndex}-${step}`));
     nextStepId = grid.reduce((count, row) => count + row.length, 0);
+    setSelectedStepKeys(new Set());
+    bulkTransposeSemitones = 0;
     undoStack = [];
     redoStack = [];
   }
@@ -1115,6 +1364,99 @@
       stepVelocity[row][step] = Math.min(127, Math.max(0, value));
       stepVelocity = stepVelocity;
       await pushStepVelocity(row, step);
+    });
+  }
+
+  function clampBulkPercent(value) {
+    const parsed = Number.parseInt(String(value), 10);
+
+    return Number.isNaN(parsed) ? 0 : Math.min(100, Math.max(0, parsed));
+  }
+
+  function clampTransposeSemitones(value) {
+    const parsed = Number.parseInt(String(value), 10);
+
+    return Number.isNaN(parsed) ? 0 : Math.min(48, Math.max(-48, parsed));
+  }
+
+  function formatPercentValue(value) {
+    return `${Math.round(value)}%`;
+  }
+
+  function formatSemitoneValue(value) {
+    const rounded = Math.round(value);
+
+    return rounded > 0 ? `+${rounded}` : String(rounded);
+  }
+
+  async function pushRowsForSelectedLocations(locations) {
+    const rows = [...new Set(locations.map((location) => location.row))];
+
+    for (const row of rows) {
+      await pushCurrentPhraseRow(row);
+    }
+  }
+
+  async function applyBulkDurationPercent(value) {
+    const clamped = clampBulkPercent(value);
+    bulkDurationPercent = clamped;
+    const locations = selectedStepLocations();
+
+    if (locations.length === 0) return;
+
+    await commitHistory("Bulk duration", async () => {
+      const next = cloneMatrix(stepDurationFraction);
+      const fraction = clamped / 100;
+
+      for (const { row, step } of locations) {
+        next[row][step] = fraction;
+      }
+
+      stepDurationFraction = next;
+      await pushRowsForSelectedLocations(locations);
+    });
+  }
+
+  async function applyBulkVelocityPercent(value) {
+    const clamped = clampBulkPercent(value);
+    bulkVelocityPercent = clamped;
+    const locations = selectedStepLocations();
+
+    if (locations.length === 0) return;
+
+    await commitHistory("Bulk velocity", async () => {
+      const next = cloneMatrix(stepVelocity);
+      const velocity = Math.round((clamped / 100) * 127);
+
+      for (const { row, step } of locations) {
+        next[row][step] = velocity;
+      }
+
+      stepVelocity = next;
+      await pushRowsForSelectedLocations(locations);
+    });
+  }
+
+  async function applyBulkTransposeSemitones(value) {
+    const clamped = clampTransposeSemitones(value);
+    const delta = clamped - bulkTransposeSemitones;
+    bulkTransposeSemitones = clamped;
+
+    if (delta === 0) return;
+
+    const locations = selectedStepLocations();
+
+    if (locations.length === 0) return;
+
+    await commitHistory("Bulk transpose", async () => {
+      const next = cloneMatrix(grid);
+
+      for (const { row, step } of locations) {
+        next[row][step] = Math.min(127, Math.max(0, next[row][step] + delta));
+      }
+
+      grid = next;
+      await pushRowsForSelectedLocations(locations);
     });
   }
 
@@ -2011,6 +2353,9 @@
     return () => {
       window.removeEventListener("keydown", handleKeydown);
       cancelAnimationFrame(playbackPollFrameId);
+      document.removeEventListener("pointermove", updateMarqueePointer);
+      document.removeEventListener("pointerup", finishMarqueeSelection);
+      document.removeEventListener("pointercancel", cancelMarqueeSelection);
     };
   });
 </script>
@@ -2108,6 +2453,81 @@
             />
           </div>
           </div>
+        </div>
+        <div class="flex items-end gap-3 border-l border-zinc-800 pl-5">
+          <div class="flex flex-col items-start gap-1">
+            <span class="text-xs font-semibold leading-none text-zinc-500">Steps</span>
+            <button
+              type="button"
+              aria-label="Select all steps for bulk editing"
+              aria-pressed={allStepsSelected}
+              title="Select all steps"
+              data-cursor="pointer"
+              class={bulkSelectButtonClasses(
+                allStepsSelected,
+                selectableStepCount > 0,
+              )}
+              onclick={selectAllStepsForBulkEdit}
+            >
+              All
+            </button>
+          </div>
+          <div class="flex flex-col items-start gap-1">
+            <span class="text-xs font-semibold leading-none text-zinc-500">Dur %</span>
+            <StepNumberDragInput
+              boxed
+              accent={emeraldRowAccent}
+              value={bulkDurationPercent}
+              min={0}
+              max={100}
+              resetValue={100}
+              formatValue={formatPercentValue}
+              ariaLabel="Bulk step duration percent"
+              disabled={selectedStepCount === 0}
+              onValueChange={applyBulkDurationPercent}
+            />
+          </div>
+          <div class="flex flex-col items-start gap-1">
+            <span class="text-xs font-semibold leading-none text-zinc-500">Vel %</span>
+            <StepNumberDragInput
+              boxed
+              accent={emeraldRowAccent}
+              value={bulkVelocityPercent}
+              min={0}
+              max={100}
+              resetValue={100}
+              formatValue={formatPercentValue}
+              ariaLabel="Bulk step velocity percent"
+              disabled={selectedStepCount === 0}
+              onValueChange={applyBulkVelocityPercent}
+            />
+          </div>
+          <div class="flex flex-col items-start gap-1">
+            <span class="text-xs font-semibold leading-none text-zinc-500">Trans</span>
+            <StepNumberDragInput
+              boxed
+              accent={emeraldRowAccent}
+              value={bulkTransposeSemitones}
+              min={-48}
+              max={48}
+              resetValue={0}
+              formatValue={formatSemitoneValue}
+              ariaLabel="Bulk step transpose semitones"
+              disabled={selectedStepCount === 0}
+              onValueChange={applyBulkTransposeSemitones}
+            />
+          </div>
+          <button
+            type="button"
+            aria-label="Clear selected steps"
+            title="Clear step selection"
+            disabled={selectedStepCount === 0}
+            data-cursor="pointer"
+            class={clearPatternButtonClasses(selectedStepCount > 0)}
+            onclick={clearStepSelection}
+          >
+            <RemoveXIcon class="pointer-events-none h-3 w-3" />
+          </button>
         </div>
         <div class="flex items-center gap-1">
           <button
@@ -2382,6 +2802,7 @@
               stepCycle={stepCycle[row]}
               stepCycleOffset={stepCycleOffset[row]}
               activeGates={activeGates[row]}
+              selectedStepIds={selectedStepIdsByRow[row]}
               {timingMultiplierOptions}
               onReorder={reorderRowByIds}
               onMoveCommitted={commitRowMove}
@@ -2397,6 +2818,7 @@
               onStepProbabilityChange={setStepProbability}
               onStepCycleChange={setStepCycle}
               onStepCycleOffsetChange={setStepCycleOffset}
+              onBulkSelectPointerDown={beginStepMarqueeSelection}
             />
           </div>
         {/each}
@@ -2435,4 +2857,11 @@
       />
     {/if}
   </section>
+  {#if marqueeSelection}
+    <div
+      class="pointer-events-none fixed z-[9999] rounded-sm border border-emerald-300 bg-emerald-300/15 shadow-[0_0_0_1px_rgba(16,185,129,0.25)]"
+      style={marqueeRectStyle}
+      aria-hidden="true"
+    ></div>
+  {/if}
 </main>

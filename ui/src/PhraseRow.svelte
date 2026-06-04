@@ -75,6 +75,8 @@
   /** Fullest phrase row for solo-step gap compensation; from {@link phraseFullestRowReference}. */
   /** @type {import('./stepCellLayout.js').PhraseReferenceRow | null} */
   export let phraseReferenceRow = null;
+  /** @type {string[]} */
+  export let selectedStepIds = [];
 
   /** @type {(row: number, orderedIds: string[]) => void} */
   export let onReorder = () => {};
@@ -104,6 +106,8 @@
   export let onStepCycleChange = () => {};
   /** @type {(row: number, step: number, cycleOffset: number) => void | Promise<void>} */
   export let onStepCycleOffsetChange = () => {};
+  /** @type {(event: PointerEvent) => void} */
+  export let onBulkSelectPointerDown = () => {};
   const flipDurationMs = 200;
   const removeBlockMs = 500;
   const draggedElementId = "dnd-action-dragged-el";
@@ -141,6 +145,7 @@
   const resizePassiveCapture = { capture: true, passive: true };
 
   $: reorderDisabled = stepIds.length <= 1;
+  $: selectedStepIdSet = new Set(selectedStepIds);
 
   $: {
     const validFlippedSteps = new Set(
@@ -901,11 +906,12 @@
   {@const stepIsMuted = stepMuted[step]}
   {@const stepIsSkipped = stepSkipped[step]}
   {@const stepDimmed = muted || stepIsSkipped}
+  {@const isStepSelected = selectedStepIdSet.has(stepIds[step])}
   <div
     class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[box-shadow] duration-200 {stepCellPlaybackGlowClass(
       activeGates[step],
       stepDimmed,
-    )}"
+    )} {isStepSelected ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.28)]' : ''}"
   >
     <div class="relative z-0 h-full min-h-0 w-full min-w-0">
     <StepCardFlip
@@ -920,9 +926,11 @@
     >
       <div slot="front" class="h-full min-h-0 w-full min-w-0">
         <div
-          class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,opacity] duration-200 {stepCellSurfaceClass(
+          class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-200 {stepCellSurfaceClass(
             stepDimmed,
-          )} {stepCellPlaybackClass(activeGates[step], stepDimmed)} {stepDimmed
+          )} {isStepSelected
+            ? `${accent.borderActive} ring-2 ring-white/30`
+            : stepCellPlaybackClass(activeGates[step], stepDimmed)} {stepDimmed
             ? ''
             : accent.cellFocusWithinBorder}"
         >
@@ -941,6 +949,7 @@
                 use:dragHandle
                 aria-label="Drag to reorder step. Double-click header to open step settings."
                 data-cursor="grab"
+                data-no-marquee
                 class="flex min-h-5 min-w-0 flex-1 items-center justify-end"
                 ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
                 title="Double-click to open step settings"
@@ -1112,6 +1121,12 @@
     </StepCardFlip>
     </div>
 
+    {#if isStepSelected}
+      <div
+        class="pointer-events-none absolute inset-0 z-[70] rounded-lg border border-white/40 bg-white/8"
+        aria-hidden="true"
+      ></div>
+    {/if}
     {@render multiplierResizeHandle(step)}
   </div>
 {/snippet}
@@ -1133,9 +1148,11 @@
 
 <div
   class="flex min-w-0 flex-1 items-stretch overflow-x-auto pt-2 pr-2 pb-2 pl-2"
+  role="presentation"
   style:min-height="{phraseRowMinHeightPx}px"
   style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex, pulseIndex) +
     timingOffsetVisualCompensationPx}px"
+  onpointerdown={onBulkSelectPointerDown}
 >
   <div class="relative z-50 shrink-0 self-stretch">
     <StepInsertZone {accent} {muted} onInsert={() => onInsertStep(row, 0)} />
@@ -1147,6 +1164,11 @@
         {@const cellWidth = cellWidthForStep(step)}
         <div
           use:cellShellAction={step}
+          data-bulk-step-cell
+          data-step-row={row}
+          data-step-id={stepId}
+          data-step-index={step}
+          data-step-selected={selectedStepIdSet.has(stepId) ? true : undefined}
           class="relative shrink-0 overflow-visible {resizingStep >= 0
             ? 'step-cell-resize-tween'
             : ''}"
@@ -1173,6 +1195,11 @@
         {@const layout = layoutForItem(item, index)}
         <div
           use:cellShellAction={layout.step}
+          data-bulk-step-cell={layout.step >= 0 ? true : undefined}
+          data-step-row={layout.step >= 0 ? row : undefined}
+          data-step-id={layout.step >= 0 ? stepIds[layout.step] : undefined}
+          data-step-index={layout.step >= 0 ? layout.step : undefined}
+          data-step-selected={layout.step >= 0 && selectedStepIdSet.has(stepIds[layout.step]) ? true : undefined}
           animate:flip={resizingStep >= 0 ? undefined : { duration: flipDurationMs }}
           class="relative shrink-0 overflow-visible {resizingStep >= 0
             ? 'step-cell-resize-tween'
