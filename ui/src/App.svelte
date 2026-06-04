@@ -21,6 +21,7 @@
   import RowRandomizeOrderIcon from "./RowRandomizeOrderIcon.svelte";
   import RowRecordIcon from "./RowRecordIcon.svelte";
   import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
+  import StepGearIcon from "./StepGearIcon.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
   import MidiChannelStepper from "./MidiChannelStepper.svelte";
   import PhraseRow from "./PhraseRow.svelte";
@@ -153,6 +154,7 @@
   let selectedStepKeys = new Set();
   /** @type {string[][]} */
   let selectedStepIdsByRow = stepIds.map(() => []);
+  let globalStepBackView = false;
   let bulkDurationPercent = 100;
   let bulkVelocityPercent = 100;
   let bulkTransposeSemitones = 0;
@@ -205,6 +207,16 @@
     }`;
   }
 
+  function headerIconToggleButtonClasses(active, enabled = true) {
+    return `flex h-8 w-8 items-center justify-center rounded-md border transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+      !enabled
+        ? "border-zinc-800 bg-zinc-950 text-zinc-700"
+        : active
+          ? "border-emerald-400 bg-emerald-400 text-zinc-950"
+          : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
+    }`;
+  }
+
   /** UI-only; shifts phrase rows and beat-one guide when any row has a negative offset. */
   $: phraseVisualOffsetCompensationPx = phraseGridVisualOffsetCompensationPx(
     rowTimingOffset,
@@ -214,7 +226,7 @@
   /** Fullest row for solo-step width (gap-compensated to match dense rows). */
   $: phraseReferenceRow = phraseFullestRowReference(stepTimingMultiplier);
   $: selectedStepCount = selectedStepKeys.size;
-  $: selectableStepCount = allSelectableStepKeys().length;
+  $: selectableStepCount = stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0);
   $: allStepsSelected = selectedStepCount === selectableStepCount && selectedStepCount > 0;
   $: marqueeLeft = marqueeSelection
     ? Math.min(marqueeSelection.startX, marqueeSelection.currentX)
@@ -312,6 +324,12 @@
   function selectAllStepsForBulkEdit() {
     setSelectedStepKeys(new Set(allSelectableStepKeys()));
     syncBulkControlsFromSelection();
+  }
+
+  function toggleGlobalStepBackView() {
+    if (selectableStepCount === 0) return;
+
+    globalStepBackView = !globalStepBackView;
   }
 
   function clearStepSelection() {
@@ -2461,6 +2479,28 @@
             </button>
           </div>
           <div class="flex flex-col items-start gap-1">
+            <span class="text-xs font-semibold leading-none text-zinc-500">View</span>
+            <button
+              type="button"
+              aria-label={globalStepBackView
+                ? "Show front of all steps"
+                : "Show advanced settings for all steps"}
+              aria-pressed={globalStepBackView}
+              title={globalStepBackView
+                ? "Show front of all steps"
+                : "Show advanced settings for all steps"}
+              disabled={selectableStepCount === 0}
+              data-cursor="pointer"
+              class={headerIconToggleButtonClasses(
+                globalStepBackView,
+                selectableStepCount > 0,
+              )}
+              onclick={toggleGlobalStepBackView}
+            >
+              <StepGearIcon class="pointer-events-none h-4 w-4" />
+            </button>
+          </div>
+          <div class="flex flex-col items-start gap-1">
             <span class="text-xs font-semibold leading-none text-zinc-500">Dur %</span>
             <StepNumberDragInput
               boxed
@@ -2790,6 +2830,7 @@
               stepCycle={stepCycle[row]}
               stepCycleOffset={stepCycleOffset[row]}
               activeGates={activeGates[row]}
+              globalStepBackView={globalStepBackView}
               selectedStepIds={selectedStepIdsByRow[row]}
               {timingMultiplierOptions}
               onReorder={reorderRowByIds}

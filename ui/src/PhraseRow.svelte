@@ -75,6 +75,7 @@
   /** Fullest phrase row for solo-step gap compensation; from {@link phraseFullestRowReference}. */
   /** @type {import('./stepCellLayout.js').PhraseReferenceRow | null} */
   export let phraseReferenceRow = null;
+  export let globalStepBackView = false;
   /** @type {string[]} */
   export let selectedStepIds = [];
 
@@ -137,6 +138,9 @@
   let dragYLockFrameId = 0;
   /** @type {Set<number>} */
   let flippedSteps = new Set();
+  /** @type {boolean | null} */
+  let appliedGlobalStepBackView = null;
+  let appliedGlobalStepBackFingerprint = "";
   /** @type {Map<number, HTMLElement>} */
   const cellShellElements = new Map();
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
@@ -147,6 +151,7 @@
   $: isEmptyRow = stepIds.length === 0;
   $: reorderDisabled = stepIds.length <= 1;
   $: selectedStepIdSet = new Set(selectedStepIds);
+  $: globalStepBackFingerprint = stepIds.join("|");
 
   $: {
     const validFlippedSteps = new Set(
@@ -156,6 +161,17 @@
     if (validFlippedSteps.size !== flippedSteps.size) {
       flippedSteps = validFlippedSteps;
     }
+  }
+
+  $: if (
+    globalStepBackView !== appliedGlobalStepBackView ||
+    (globalStepBackView && globalStepBackFingerprint !== appliedGlobalStepBackFingerprint)
+  ) {
+    flippedSteps = globalStepBackView
+      ? new Set(stepIds.map((_, step) => step))
+      : new Set();
+    appliedGlobalStepBackView = globalStepBackView;
+    appliedGlobalStepBackFingerprint = globalStepBackFingerprint;
   }
 
   $: stepFlipInteractionDisabled =
