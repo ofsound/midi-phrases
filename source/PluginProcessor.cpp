@@ -361,12 +361,12 @@ const PluginProcessor::PatternState& PluginProcessor::modelPattern (const int pa
 
 PluginProcessor::SequencerState& PluginProcessor::modelSequencer()
 {
-    return modelPattern (getCurrentPatternSlot()).sequencer;
+    return modelPattern (getViewPatternSlot()).sequencer;
 }
 
 const PluginProcessor::SequencerState& PluginProcessor::modelSequencer() const
 {
-    return modelPattern (getCurrentPatternSlot()).sequencer;
+    return modelPattern (getViewPatternSlot()).sequencer;
 }
 
 const PluginProcessor::SequencerState& PluginProcessor::audioSequencer() const
@@ -376,12 +376,12 @@ const PluginProcessor::SequencerState& PluginProcessor::audioSequencer() const
 
 PluginProcessor::LoopBraceState& PluginProcessor::modelLoopBrace()
 {
-    return modelPattern (getCurrentPatternSlot()).loopBrace;
+    return modelPattern (getViewPatternSlot()).loopBrace;
 }
 
 const PluginProcessor::LoopBraceState& PluginProcessor::modelLoopBrace() const
 {
-    return modelPattern (getCurrentPatternSlot()).loopBrace;
+    return modelPattern (getViewPatternSlot()).loopBrace;
 }
 
 const PluginProcessor::LoopBraceState& PluginProcessor::audioLoopBrace() const
@@ -464,7 +464,7 @@ void PluginProcessor::publishCommandToAudio (const SequencerCommand& command)
     auto queuedCommand = command;
 
     if (queuedCommand.patternSlot < 0)
-        queuedCommand.patternSlot = getCurrentPatternSlot();
+        queuedCommand.patternSlot = getViewPatternSlot();
 
     const auto write = sequencerCommandWriteIndex.load (std::memory_order_relaxed);
     const auto nextWrite = (write + 1) % sequencerCommandQueueCapacity;
@@ -486,7 +486,7 @@ void PluginProcessor::publishRowToAudio (const int row)
 
     SequencerCommand command;
     command.type = SequencerCommand::Type::ReplaceRow;
-    command.patternSlot = getCurrentPatternSlot();
+    command.patternSlot = getViewPatternSlot();
     command.row = row;
     command.rowState = modelRow (row);
     publishCommandToAudio (command);
@@ -1736,7 +1736,7 @@ void PluginProcessor::setLoopBraceEnabled (const bool enabled)
 {
     modelLoopBrace().enabled = enabled ? 1 : 0;
     publishLoopBraceCommandToAudio (SequencerCommand::Type::SetLoopBraceEnabled,
-                                    getCurrentPatternSlot());
+                                    getViewPatternSlot());
 }
 
 bool PluginProcessor::isLoopBraceEnabled() const
@@ -1749,7 +1749,7 @@ void PluginProcessor::setLoopBraceStartQuarters (const double startQuarters)
     auto& loop = modelLoopBrace();
     loop.startQuarters = clampLoopBraceStart (startQuarters, loop.endQuarters);
     publishLoopBraceCommandToAudio (SequencerCommand::Type::SetLoopBraceStart,
-                                    getCurrentPatternSlot());
+                                    getViewPatternSlot());
 }
 
 double PluginProcessor::getLoopBraceStartQuarters() const
@@ -1762,7 +1762,7 @@ void PluginProcessor::setLoopBraceEndQuarters (const double endQuarters)
     auto& loop = modelLoopBrace();
     loop.endQuarters = clampLoopBraceEnd (endQuarters, loop.startQuarters);
     publishLoopBraceCommandToAudio (SequencerCommand::Type::SetLoopBraceEnd,
-                                    getCurrentPatternSlot());
+                                    getViewPatternSlot());
 }
 
 double PluginProcessor::getLoopBraceEndQuarters() const
@@ -1797,6 +1797,50 @@ void PluginProcessor::deactivateLoopBraceForPatternSelection (const int patternS
     }
 }
 
+bool PluginProcessor::isPatternOutputArmed() const
+{
+    return patternOutputArmed.load (std::memory_order_acquire) != 0;
+}
+
+int PluginProcessor::getViewPatternSlot() const
+{
+    const auto current = currentModelPatternSlot.load (std::memory_order_acquire);
+
+    if (current >= 0 && current < patternSlotCount)
+        return current;
+
+    return clampPatternSlot (lastViewPatternSlot);
+}
+
+void PluginProcessor::deactivatePatternOutput()
+{
+    const auto current = currentModelPatternSlot.load (std::memory_order_acquire);
+
+    if (current >= 0 && current < patternSlotCount)
+        lastViewPatternSlot = current;
+
+    patternOutputArmed.store (0, std::memory_order_release);
+    currentModelPatternSlot.store (-1, std::memory_order_release);
+    currentLoopSlot.store (-1, std::memory_order_release);
+    pendingAudioPatternSlot.store (-1, std::memory_order_release);
+    pendingAudioLoopSlot.store (-1, std::memory_order_release);
+
+    deactivateLoopBraceForPatternSelection (lastViewPatternSlot);
+    muteFlushRequested.store (1, std::memory_order_release);
+}
+
+void PluginProcessor::applyMuteOutputSilence (juce::MidiBuffer& midiMessages)
+{
+    if (muteFlushRequested.exchange (0, std::memory_order_acq_rel) == 0)
+        return;
+
+    flushActiveGeneratedNotes (0, midiMessages);
+    resetLastEmittedTriggers();
+    resetPendingNoteOffs();
+    resetPendingNoteOns();
+    resetStepCycleCounters();
+}
+
 void PluginProcessor::requestAudioPatternSlot (const int patternSlot)
 {
     pendingAudioPatternSlot.store (clampPatternSlot (patternSlot), std::memory_order_release);
@@ -1825,6 +1869,10 @@ void PluginProcessor::applyAudioPatternSlot (const int patternSlot)
 void PluginProcessor::setCurrentPatternSlot (const int patternSlot)
 {
     const auto slot = clampPatternSlot (patternSlot);
+
+    patternOutputArmed.store (1, std::memory_order_release);
+    lastViewPatternSlot = slot;
+
     const auto activeLoop = getCurrentLoopSlot();
     const auto breakingLoopSelection =
         activeLoop >= 0
@@ -1860,7 +1908,7 @@ void PluginProcessor::setCurrentPatternSlot (const int patternSlot)
 
 int PluginProcessor::getCurrentPatternSlot() const
 {
-    return clampPatternSlot (currentModelPatternSlot.load (std::memory_order_acquire));
+    return currentModelPatternSlot.load (std::memory_order_acquire);
 }
 
 int PluginProcessor::getAudioPatternSlot() const
@@ -1874,7 +1922,8 @@ void PluginProcessor::clearPatternSlot (const int patternSlot)
     initialisePatternDefaults (modelPatterns[static_cast<size_t> (slot)]);
     publishPatternToAudio (slot);
 
-    if (slot == getCurrentPatternSlot())
+    if (slot == getCurrentPatternSlot()
+        || (getCurrentPatternSlot() < 0 && slot == getViewPatternSlot()))
         currentLoopSlot.store (-1, std::memory_order_release);
 }
 
@@ -2044,7 +2093,7 @@ double PluginProcessor::getPatternLoopBraceEndQuarters (const int patternSlot) c
 void PluginProcessor::saveCurrentBraceToLoopSlot (const int loopSlot)
 {
     const auto slot = clampLoopSlot (loopSlot);
-    const auto patternSlot = getCurrentPatternSlot();
+    const auto patternSlot = getViewPatternSlot();
     const auto& loopBrace = modelPattern (patternSlot).loopBrace;
     auto& loopSlotState = loopSlots[static_cast<size_t> (slot)];
 
@@ -2099,7 +2148,10 @@ void PluginProcessor::selectLoopSlot (const int loopSlot)
     if (loopSlotState.assigned == 0)
         return;
 
+    patternOutputArmed.store (1, std::memory_order_release);
+
     const auto patternSlot = clampPatternSlot (loopSlotState.patternSlot);
+    lastViewPatternSlot = patternSlot;
     const auto loopStart = clampLoopBraceStart (loopSlotState.startQuarters,
                                                 loopSlotState.endQuarters);
     const auto loopEnd = clampLoopBraceEnd (loopSlotState.endQuarters, loopStart);
@@ -2456,6 +2508,8 @@ void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages
             {
                 if (message.isNoteOn())
                 {
+                    patternOutputArmed.store (1, std::memory_order_release);
+                    lastViewPatternSlot = note;
                     currentModelPatternSlot.store (note, std::memory_order_release);
                     deactivateLoopBraceForPatternSelection (note);
                     requestAudioPatternSlot (note);
@@ -2466,7 +2520,28 @@ void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages
             if (note >= patternSlotCount && note < patternSlotCount + loopSlotCount)
             {
                 if (message.isNoteOn())
-                    requestAudioLoopSlot (note - patternSlotCount);
+                {
+                    const auto loopSlot = note - patternSlotCount;
+
+                    if (isLoopSlotAssigned (loopSlot))
+                    {
+                        patternOutputArmed.store (1, std::memory_order_release);
+                        const auto patternSlot =
+                            clampPatternSlot (getLoopSlotPatternSlot (loopSlot));
+                        lastViewPatternSlot = patternSlot;
+                        currentModelPatternSlot.store (patternSlot, std::memory_order_release);
+                    }
+
+                    requestAudioLoopSlot (loopSlot);
+                }
+                continue;
+            }
+
+            if (note == midiMuteTriggerNote)
+            {
+                if (message.isNoteOn())
+                    deactivatePatternOutput();
+
                 continue;
             }
         }
@@ -2877,6 +2952,8 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         if (parameterPatternSlot != lastObservedParameterPatternSlot)
         {
             lastObservedParameterPatternSlot = parameterPatternSlot;
+            patternOutputArmed.store (1, std::memory_order_release);
+            lastViewPatternSlot = parameterPatternSlot;
             currentModelPatternSlot.store (parameterPatternSlot, std::memory_order_release);
             deactivateLoopBraceForPatternSelection (parameterPatternSlot);
             requestAudioPatternSlot (parameterPatternSlot);
@@ -2884,6 +2961,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     }
 
     handleIncomingControlNotes (midiMessages);
+    applyMuteOutputSilence (midiMessages);
 
     const auto stopPlayback = [&] {
         if (wasPlaying)
@@ -3007,6 +3085,9 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     if (hasStandaloneTransport())
         standaloneTransportPpqPosition.store (ppqEnd, std::memory_order_relaxed);
 
+    if (! isPatternOutputArmed())
+        return;
+
     constexpr auto epsilon = 1.0e-9;
     auto transportCursor = ppqStart;
     auto resetAtSegmentStart = false;
@@ -3106,6 +3187,8 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
     juce::ValueTree state ("MidiPhrases");
     state.setProperty ("version", phraseStateVersion, nullptr);
     state.setProperty ("currentPatternSlot", getCurrentPatternSlot(), nullptr);
+    state.setProperty ("lastViewPatternSlot", getViewPatternSlot(), nullptr);
+    state.setProperty ("patternOutputArmed", isPatternOutputArmed() ? 1 : 0, nullptr);
     state.setProperty ("currentLoopSlot", getCurrentLoopSlot(), nullptr);
     state.setProperty ("pulseIndex", getPulseIndex(), nullptr);
     state.setProperty ("swingPercent", getSwingPercent(), nullptr);
@@ -3453,10 +3536,31 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     setSwingSubdivisionIndex (
         static_cast<int> (state.getProperty ("swingSubdivisionIndex", defaultSwingSubdivisionIndex)));
 
-    auto activePatternSlot = clampPatternSlot (
-        static_cast<int> (state.getProperty ("currentPatternSlot", 0)));
-    currentModelPatternSlot.store (activePatternSlot, std::memory_order_release);
-    lastObservedParameterPatternSlot = activePatternSlot;
+    const auto storedPatternSlot = static_cast<int> (state.getProperty ("currentPatternSlot", 0));
+    lastViewPatternSlot = clampPatternSlot (
+        static_cast<int> (state.getProperty ("lastViewPatternSlot", storedPatternSlot >= 0
+                                                                  ? storedPatternSlot
+                                                                  : 0)));
+
+    const auto outputArmed = static_cast<int> (state.getProperty ("patternOutputArmed", 1)) != 0;
+
+    if (storedPatternSlot < 0)
+    {
+        patternOutputArmed.store (0, std::memory_order_release);
+        currentModelPatternSlot.store (-1, std::memory_order_release);
+        currentLoopSlot.store (-1, std::memory_order_release);
+        pendingAudioPatternSlot.store (-1, std::memory_order_release);
+        pendingAudioLoopSlot.store (-1, std::memory_order_release);
+        lastObservedParameterPatternSlot = lastViewPatternSlot;
+    }
+    else
+    {
+        const auto activePatternSlot = clampPatternSlot (storedPatternSlot);
+        patternOutputArmed.store (outputArmed ? 1 : 0, std::memory_order_release);
+        lastViewPatternSlot = activePatternSlot;
+        currentModelPatternSlot.store (activePatternSlot, std::memory_order_release);
+        lastObservedParameterPatternSlot = activePatternSlot;
+    }
 
     if (state.hasProperty ("loopBraceStart") || state.hasProperty ("loopBraceEnd")
         || state.hasProperty ("loopBraceEnabled"))
@@ -3479,11 +3583,12 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     const auto storedLoopSlot = static_cast<int> (state.getProperty ("currentLoopSlot", -1));
     auto restoredLoopSlot = false;
 
-    if (storedLoopSlot >= 0 && storedLoopSlot < loopSlotCount
+    if (storedPatternSlot >= 0
+        && storedLoopSlot >= 0 && storedLoopSlot < loopSlotCount
         && loopSlots[static_cast<size_t> (storedLoopSlot)].assigned != 0)
     {
         const auto& loopSlotState = loopSlots[static_cast<size_t> (storedLoopSlot)];
-        activePatternSlot = clampPatternSlot (loopSlotState.patternSlot);
+        const auto activePatternSlot = clampPatternSlot (loopSlotState.patternSlot);
 
         const auto loopStart = clampLoopBraceStart (loopSlotState.startQuarters,
                                                     loopSlotState.endQuarters);
@@ -3496,18 +3601,22 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         currentModelPatternSlot.store (activePatternSlot, std::memory_order_release);
         currentLoopSlot.store (storedLoopSlot, std::memory_order_release);
         publishPatternToAudio (activePatternSlot);
-        requestAudioLoopSlot (storedLoopSlot);
+
+        if (outputArmed)
+            requestAudioLoopSlot (storedLoopSlot);
+
         restoredLoopSlot = true;
     }
 
-    if (! restoredLoopSlot)
-        requestAudioPatternSlot (activePatternSlot);
+    if (storedPatternSlot >= 0 && ! restoredLoopSlot && outputArmed)
+        requestAudioPatternSlot (clampPatternSlot (storedPatternSlot));
 
-    lastObservedParameterPatternSlot = activePatternSlot;
-
-    if (patternSlotParameter != nullptr && patternSlotParameter->get() != activePatternSlot + 1)
+    if (storedPatternSlot >= 0 && patternSlotParameter != nullptr
+        && patternSlotParameter->get() != clampPatternSlot (storedPatternSlot) + 1)
+    {
         patternSlotParameter->setValueNotifyingHost (
-            patternSlotParameter->convertTo0to1 (activePatternSlot + 1));
+            patternSlotParameter->convertTo0to1 (clampPatternSlot (storedPatternSlot) + 1));
+    }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

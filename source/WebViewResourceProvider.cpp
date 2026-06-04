@@ -122,6 +122,16 @@ juce::String mimeTypeForPath (const juce::String& path)
     return "application/octet-stream";
 }
 
+int patternSlotForNativeDefault (const PluginProcessor& processor)
+{
+    const auto current = processor.getCurrentPatternSlot();
+
+    if (current >= 0)
+        return current;
+
+    return processor.getViewPatternSlot();
+}
+
 juce::var createPatternStateVar (PluginProcessor& processor, const int patternSlot)
 {
     auto object = std::make_unique<juce::DynamicObject>();
@@ -210,6 +220,8 @@ juce::var createCurrentSlotStateVar (PluginProcessor& processor)
 {
     auto object = std::make_unique<juce::DynamicObject>();
     object->setProperty ("currentPatternSlot", processor.getCurrentPatternSlot());
+    object->setProperty ("viewPatternSlot", processor.getViewPatternSlot());
+    object->setProperty ("patternOutputArmed", processor.isPatternOutputArmed() ? 1 : 0);
     object->setProperty ("currentLoopSlot", processor.getCurrentLoopSlot());
     return juce::var (object.release());
 }
@@ -314,6 +326,9 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("pluginName", juce::var { PRODUCT_NAME_WITHOUT_VERSION })
                        .withInitialisationData ("version", juce::var { VERSION })
                        .withInitialisationData ("currentPatternSlot", processor.getCurrentPatternSlot())
+                       .withInitialisationData ("viewPatternSlot", processor.getViewPatternSlot())
+                       .withInitialisationData ("patternOutputArmed",
+                                                processor.isPatternOutputArmed() ? 1 : 0)
                        .withInitialisationData ("currentLoopSlot", processor.getCurrentLoopSlot())
                        .withInitialisationData ("loopSlotAssigned", loopSlotAssigned)
                        .withInitialisationData ("loopSlotPattern", loopSlotPattern)
@@ -356,7 +371,7 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                complete (createPatternStateVar (
                                    processor,
                                    args.size() >= 1 ? varToInt (args[0])
-                                                   : processor.getCurrentPatternSlot()));
+                                                   : patternSlotForNativeDefault (processor)));
                            })
                        .withNativeFunction (
                            "getCurrentSlotState",
@@ -372,7 +387,15 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.setCurrentPatternSlot (varToInt (args[0]));
 
                                complete (createPatternStateVar (processor,
-                                                                processor.getCurrentPatternSlot()));
+                                                                patternSlotForNativeDefault (
+                                                                    processor)));
+                           })
+                       .withNativeFunction (
+                           "deactivatePatternOutput",
+                           [&processor] (const juce::Array<juce::var>&,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               processor.deactivatePatternOutput();
+                               complete (createCurrentSlotStateVar (processor));
                            })
                        .withNativeFunction (
                            "clearPatternSlot",
@@ -384,7 +407,7 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                complete (createPatternStateVar (
                                    processor,
                                    args.size() >= 1 ? varToInt (args[0])
-                                                    : processor.getCurrentPatternSlot()));
+                                                    : patternSlotForNativeDefault (processor)));
                            })
                        .withNativeFunction (
                            "copyPatternSlot",
@@ -397,7 +420,7 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                complete (createPatternStateVar (
                                    processor,
                                    args.size() >= 2 ? varToInt (args[1])
-                                                    : processor.getCurrentPatternSlot()));
+                                                    : patternSlotForNativeDefault (processor)));
                            })
                        .withNativeFunction (
                            "saveCurrentBraceToLoopSlot",
@@ -407,7 +430,8 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.saveCurrentBraceToLoopSlot (varToInt (args[0]));
 
                                complete (createPatternStateVar (processor,
-                                                                processor.getCurrentPatternSlot()));
+                                                                patternSlotForNativeDefault (
+                                                                    processor)));
                            })
                        .withNativeFunction (
                            "selectLoopSlot",
@@ -417,7 +441,8 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.selectLoopSlot (varToInt (args[0]));
 
                                complete (createPatternStateVar (processor,
-                                                                processor.getCurrentPatternSlot()));
+                                                                patternSlotForNativeDefault (
+                                                                    processor)));
                            })
                        .withNativeFunction (
                            "setPhraseNote",

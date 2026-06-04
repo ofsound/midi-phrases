@@ -135,6 +135,7 @@
   let standalonePlaying = false;
   let standaloneTempoBpm = 120;
   let activePatternSlot = 0;
+  let viewPatternSlot = 0;
   let patternCopySource = -1;
   let activeLoopSlot = -1;
   let loopSlotAssigned = Array.from({ length: 8 }, () => false);
@@ -279,12 +280,14 @@
     loopBraceEnd = next.loopBraceEnd;
   }
 
-  function assignPatternState(state) {
+  function assignPatternState(state, updateSlotSelection = true) {
     if (!state || typeof state !== "object") return;
 
     const statePatternSlot = Number.parseInt(String(state.patternSlot ?? activePatternSlot), 10);
-    if (!Number.isNaN(statePatternSlot)) {
+    if (updateSlotSelection && !Number.isNaN(statePatternSlot)) {
       activePatternSlot = Math.min(7, Math.max(0, statePatternSlot));
+    } else if (!Number.isNaN(statePatternSlot)) {
+      viewPatternSlot = Math.min(7, Math.max(0, statePatternSlot));
     }
 
     grid = cloneMatrix(state.phraseNotes ?? grid);
@@ -305,7 +308,8 @@
     loopBraceStart = Number.parseFloat(String(state.loopBraceStart ?? 0));
     loopBraceEnd = Number.parseFloat(String(state.loopBraceEnd ?? 8));
     activeGates = grid.map((row) => row.map(() => false));
-    stepIds = grid.map((row, rowIndex) => row.map((_, step) => `step-${activePatternSlot}-${rowIndex}-${step}`));
+    const slotForIds = activePatternSlot >= 0 ? activePatternSlot : viewPatternSlot;
+    stepIds = grid.map((row, rowIndex) => row.map((_, step) => `step-${slotForIds}-${rowIndex}-${step}`));
     nextStepId = grid.reduce((count, row) => count + row.length, 0);
     undoStack = [];
     redoStack = [];
@@ -1530,20 +1534,32 @@
       if (!state || typeof state !== "object") return;
 
       const nextPatternSlot = Number.parseInt(String(state.currentPatternSlot ?? activePatternSlot), 10);
+      const nextViewPatternSlot = Number.parseInt(String(state.viewPatternSlot ?? viewPatternSlot), 10);
       const nextLoopSlot = Number.parseInt(String(state.currentLoopSlot ?? -1), 10);
       const clampedPatternSlot = Number.isNaN(nextPatternSlot)
         ? activePatternSlot
-        : Math.min(7, Math.max(0, nextPatternSlot));
+        : nextPatternSlot >= -1 && nextPatternSlot < 8
+          ? nextPatternSlot
+          : activePatternSlot;
+      const clampedViewPatternSlot = Number.isNaN(nextViewPatternSlot)
+        ? viewPatternSlot
+        : Math.min(7, Math.max(0, nextViewPatternSlot));
       const clampedLoopSlot = Number.isNaN(nextLoopSlot) || nextLoopSlot < 0 || nextLoopSlot >= 8 ? -1 : nextLoopSlot;
+
+      viewPatternSlot = clampedViewPatternSlot;
 
       if (clampedPatternSlot !== activePatternSlot) {
         activePatternSlot = clampedPatternSlot;
         activeLoopSlot = clampedLoopSlot;
 
         if (nativeFunctionAvailable("getPatternSlotState")) {
-          const patternState = await getNativeFunction("getPatternSlotState")(clampedPatternSlot);
-          assignPatternState(patternState);
+          const patternSlotForGrid =
+            clampedPatternSlot >= 0 ? clampedPatternSlot : clampedViewPatternSlot;
+          const patternState = await getNativeFunction("getPatternSlotState")(patternSlotForGrid);
+          assignPatternState(patternState, clampedPatternSlot >= 0);
         }
+
+        if (clampedPatternSlot < 0) loopBraceEnabled = false;
 
         return;
       }
@@ -1737,10 +1753,18 @@
     const assignedInit = unwrapJuceInit("loopSlotAssigned");
     const patternRefInit = unwrapJuceInit("loopSlotPattern");
 
+    const viewInit = unwrapJuceInit("viewPatternSlot");
+
+    if (viewInit !== null) {
+      const raw = Array.isArray(viewInit) ? viewInit[0] : viewInit;
+      const value = Number.parseInt(String(raw), 10);
+      if (!Number.isNaN(value)) viewPatternSlot = Math.min(7, Math.max(0, value));
+    }
+
     if (patternInit !== null) {
       const raw = Array.isArray(patternInit) ? patternInit[0] : patternInit;
       const value = Number.parseInt(String(raw), 10);
-      if (!Number.isNaN(value)) activePatternSlot = Math.min(7, Math.max(0, value));
+      if (!Number.isNaN(value) && value >= -1 && value < 8) activePatternSlot = value;
     }
 
     if (loopInit !== null) {
@@ -1850,12 +1874,38 @@
     await selectPatternSlot(nextSlot);
   }
 
+  async function deactivateOutput() {
+    if (!nativeFunctionAvailable("deactivatePatternOutput")) return;
+
+    cancelPatternCopy();
+    activePatternSlot = -1;
+    activeLoopSlot = -1;
+    loopBraceEnabled = false;
+
+    slotSelectionInFlight += 1;
+
+    try {
+      const slotState = await getNativeFunction("deactivatePatternOutput")();
+      const nextView = Number.parseInt(String(slotState?.viewPatternSlot ?? viewPatternSlot), 10);
+
+      if (!Number.isNaN(nextView)) viewPatternSlot = Math.min(7, Math.max(0, nextView));
+
+      if (nativeFunctionAvailable("getPatternSlotState")) {
+        const patternState = await getNativeFunction("getPatternSlotState")(viewPatternSlot);
+        assignPatternState(patternState, false);
+      }
+    } finally {
+      slotSelectionInFlight = Math.max(0, slotSelectionInFlight - 1);
+    }
+  }
+
   async function clearSelectedPatternSlot() {
     if (!nativeFunctionAvailable("clearPatternSlot")) return;
 
     cancelPatternCopy();
-    const state = await getNativeFunction("clearPatternSlot")(activePatternSlot);
-    assignPatternState(state);
+    const slot = activePatternSlot >= 0 ? activePatternSlot : viewPatternSlot;
+    const state = await getNativeFunction("clearPatternSlot")(slot);
+    assignPatternState(state, activePatternSlot >= 0);
   }
 
   /** @param {number} slot */
@@ -1888,7 +1938,7 @@
         const state = await getNativeFunction("saveCurrentBraceToLoopSlot")(nextSlot);
         loopSlotAssigned[nextSlot] = true;
         assignPatternState(state);
-        loopSlotPattern[nextSlot] = activePatternSlot;
+        loopSlotPattern[nextSlot] = activePatternSlot >= 0 ? activePatternSlot : viewPatternSlot;
         loopSlotAssigned = loopSlotAssigned;
         loopSlotPattern = loopSlotPattern;
       } finally {
@@ -2113,8 +2163,19 @@
             {/each}
             <button
               type="button"
+              aria-label="Mute output"
+              aria-pressed={activePatternSlot < 0}
+              title="Mute output until a pattern or loop is selected (MIDI note 16)"
+              data-cursor="pointer"
+              class={slotButtonClasses(activePatternSlot < 0, true)}
+              onclick={deactivateOutput}
+            >
+              M
+            </button>
+            <button
+              type="button"
               aria-label="Clear selected pattern"
-              title="Clear selected pattern"
+              title="Clear pattern shown in the grid"
               data-cursor="pointer"
               class={clearPatternButtonClasses(true)}
               onclick={clearSelectedPatternSlot}

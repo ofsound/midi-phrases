@@ -48,6 +48,7 @@ public:
     static constexpr int maxPhraseStepsPerRow = 64;
     static constexpr int patternSlotCount = 8;
     static constexpr int loopSlotCount = 8;
+    static constexpr int midiMuteTriggerNote = patternSlotCount + loopSlotCount;
 
     void setPhraseNote (int row, int step, int noteNumber);
     int getPhraseNote (int row, int step) const;
@@ -161,6 +162,10 @@ public:
 
     void setCurrentPatternSlot (int patternSlot);
     int getCurrentPatternSlot() const;
+    /** Pattern slot used for UI editing when output is disarmed (-1 selection). */
+    int getViewPatternSlot() const;
+    void deactivatePatternOutput();
+    bool isPatternOutputArmed() const;
     int getAudioPatternSlot() const;
     void clearPatternSlot (int patternSlot);
     void copyPatternSlot (int sourcePatternSlot, int destinationPatternSlot);
@@ -388,6 +393,7 @@ private:
     void applyAudioPatternSlot (int patternSlot);
     void requestAudioLoopSlot (int loopSlot);
     void applyAudioLoopSlot (int loopSlot);
+    void applyMuteOutputSilence (juce::MidiBuffer& midiMessages);
     void handleIncomingControlNotes (juce::MidiBuffer& midiMessages);
     bool shouldApplyPendingPatternSwitch (double ppqStart, double ppqEnd) const;
     void processTransportPlaybackRange (double transportPpqStart,
@@ -447,8 +453,11 @@ private:
     std::atomic<double> currentPlaybackPpq { -1.0 };
     juce::AudioParameterInt* patternSlotParameter = nullptr;
     std::atomic<int> currentModelPatternSlot { 0 };
+    int lastViewPatternSlot = 0;
     int audioActivePatternSlot = 0;
     int lastObservedParameterPatternSlot = 0;
+    std::atomic<int> patternOutputArmed { 1 };
+    std::atomic<int> muteFlushRequested { 0 };
     std::atomic<int> pendingAudioPatternSlot { -1 };
     std::atomic<int> currentLoopSlot { -1 };
     std::atomic<int> pendingAudioLoopSlot { -1 };

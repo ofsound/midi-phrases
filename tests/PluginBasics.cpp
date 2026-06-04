@@ -1783,6 +1783,211 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::maxPhraseStepsPerRow);
     }
 
+    SECTION ("MIDI mute trigger note 16 stops output immediately")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 4.0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+
+        testPlugin.processBlock (buffer, midi);
+
+        auto emittedInitialNote = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 60)
+                emittedInitialNote = true;
+        }
+
+        CHECK (emittedInitialNote);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.25);
+        midi.addEvent (juce::MidiMessage::noteOn (1,
+                                                  PluginProcessor::midiMuteTriggerNote,
+                                                  static_cast<juce::uint8> (100)),
+                       0);
+        testPlugin.processBlock (buffer, midi);
+
+        auto emittedMuteNoteOff = false;
+        auto emittedAfterMuteNoteOn = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOff() && message.getNoteNumber() == 60)
+                emittedMuteNoteOff = true;
+
+            if (message.isNoteOn() && message.getNoteNumber() == 60)
+                emittedAfterMuteNoteOn = true;
+        }
+
+        CHECK (emittedMuteNoteOff);
+        CHECK_FALSE (emittedAfterMuteNoteOn);
+        CHECK (testPlugin.getCurrentPatternSlot() == -1);
+        CHECK_FALSE (testPlugin.isPatternOutputArmed());
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.75);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOnOrOff())
+                CHECK_FALSE (message.getNoteNumber() == 60);
+        }
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("MIDI mute trigger note-offs are consumed")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.25);
+        testPlugin.setPlayHead (&playHead);
+
+        midi.addEvent (juce::MidiMessage::noteOn (1,
+                                                  PluginProcessor::midiMuteTriggerNote,
+                                                  static_cast<juce::uint8> (100)),
+                       0);
+        midi.addEvent (juce::MidiMessage::noteOff (1, PluginProcessor::midiMuteTriggerNote), 10);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getCurrentPatternSlot() == -1);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+            const auto isLeakedTriggerNote = message.isNoteOnOrOff()
+                                             && message.getNoteNumber()
+                                                    == PluginProcessor::midiMuteTriggerNote;
+            CHECK_FALSE (isLeakedTriggerNote);
+        }
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("MIDI mute trigger re-arms on pattern select")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setCurrentPatternSlot (2);
+        testPlugin.setPhraseNote (0, 0, 72);
+        testPlugin.setCurrentPatternSlot (0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.25);
+        testPlugin.setPlayHead (&playHead);
+
+        midi.addEvent (juce::MidiMessage::noteOn (1,
+                                                  PluginProcessor::midiMuteTriggerNote,
+                                                  static_cast<juce::uint8> (100)),
+                       0);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getCurrentPatternSlot() == -1);
+
+        midi.clear();
+        midi.addEvent (juce::MidiMessage::noteOn (1, 2, static_cast<juce::uint8> (100)), 0);
+        playHead.info.setPpqPosition (0.95);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getCurrentPatternSlot() == 2);
+        CHECK (testPlugin.isPatternOutputArmed());
+
+        auto emittedSwitchedPatternNote = false;
+        auto emittedOriginalPatternNote = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 72)
+                emittedSwitchedPatternNote = true;
+
+            if (message.isNoteOn() && message.getNoteNumber() == 60)
+                emittedOriginalPatternNote = true;
+        }
+
+        CHECK (emittedSwitchedPatternNote);
+        CHECK_FALSE (emittedOriginalPatternNote);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("muted state round-trips through plugin state")
+    {
+        testPlugin.setCurrentPatternSlot (2);
+        testPlugin.deactivatePatternOutput();
+
+        CHECK (testPlugin.getCurrentPatternSlot() == -1);
+        CHECK_FALSE (testPlugin.isPatternOutputArmed());
+        CHECK (testPlugin.getViewPatternSlot() == 2);
+
+        juce::MemoryBlock state;
+        testPlugin.getStateInformation (state);
+
+        PluginProcessor reloaded;
+        reloaded.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+
+        CHECK (reloaded.getCurrentPatternSlot() == -1);
+        CHECK_FALSE (reloaded.isPatternOutputArmed());
+        CHECK (reloaded.getViewPatternSlot() == 2);
+    }
+
     SECTION ("state load clamps phrase rows to fixed audio-thread capacity")
     {
         juce::ValueTree state ("MidiPhrases");
