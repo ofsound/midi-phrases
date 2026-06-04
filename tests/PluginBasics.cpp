@@ -205,6 +205,23 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getLoopBraceEndQuarters() == Catch::Approx (3.5));
     }
 
+    SECTION ("selecting a pattern clears loop slot and disables loop brace")
+    {
+        testPlugin.setLoopBraceEnabled (true);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.saveCurrentBraceToLoopSlot (0);
+        testPlugin.selectLoopSlot (0);
+
+        CHECK (testPlugin.getCurrentLoopSlot() == 0);
+        CHECK (testPlugin.isLoopBraceEnabled());
+
+        testPlugin.setCurrentPatternSlot (2);
+
+        CHECK (testPlugin.getCurrentLoopSlot() < 0);
+        CHECK_FALSE (testPlugin.isLoopBraceEnabled());
+        CHECK_FALSE (testPlugin.isPatternLoopBraceEnabled (2));
+    }
+
     SECTION ("loop wrap keeps full gate on repeated passes")
     {
         testPlugin.prepareToPlay (1000.0, 100);

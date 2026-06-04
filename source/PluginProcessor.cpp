@@ -1770,6 +1770,21 @@ double PluginProcessor::getLoopBraceEndQuarters() const
     return modelLoopBrace().endQuarters;
 }
 
+void PluginProcessor::deactivateLoopBraceForPatternSelection (const int patternSlot)
+{
+    const auto slot = clampPatternSlot (patternSlot);
+
+    currentLoopSlot.store (-1, std::memory_order_release);
+    modelPattern (slot).loopBrace.enabled = 0;
+    audioPatterns[static_cast<size_t> (slot)].loopBrace.enabled = 0;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetLoopBraceEnabled;
+    command.patternSlot = slot;
+    command.intValue = 0;
+    publishCommandToAudio (command);
+}
+
 void PluginProcessor::requestAudioPatternSlot (const int patternSlot)
 {
     pendingAudioPatternSlot.store (clampPatternSlot (patternSlot), std::memory_order_release);
@@ -1788,6 +1803,7 @@ void PluginProcessor::applyAudioPatternSlot (const int patternSlot)
     audioActivePatternSlot = slot;
     pendingAudioPatternSlot.store (-1, std::memory_order_release);
     currentLoopSlot.store (-1, std::memory_order_release);
+    audioPatterns[static_cast<size_t> (slot)].loopBrace.enabled = 0;
     resetLastEmittedTriggers();
     resetPendingNoteOffs();
     resetPendingNoteOns();
@@ -1798,7 +1814,7 @@ void PluginProcessor::setCurrentPatternSlot (const int patternSlot)
 {
     const auto slot = clampPatternSlot (patternSlot);
     currentModelPatternSlot.store (slot, std::memory_order_release);
-    currentLoopSlot.store (-1, std::memory_order_release);
+    deactivateLoopBraceForPatternSelection (slot);
     requestAudioPatternSlot (slot);
 
     if (patternSlotParameter != nullptr && patternSlotParameter->get() != slot + 1)
@@ -2404,7 +2420,7 @@ void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages
                 if (message.isNoteOn())
                 {
                     currentModelPatternSlot.store (note, std::memory_order_release);
-                    currentLoopSlot.store (-1, std::memory_order_release);
+                    deactivateLoopBraceForPatternSelection (note);
                     requestAudioPatternSlot (note);
                 }
                 continue;
@@ -2819,7 +2835,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         {
             lastObservedParameterPatternSlot = parameterPatternSlot;
             currentModelPatternSlot.store (parameterPatternSlot, std::memory_order_release);
-            currentLoopSlot.store (-1, std::memory_order_release);
+            deactivateLoopBraceForPatternSelection (parameterPatternSlot);
             requestAudioPatternSlot (parameterPatternSlot);
         }
     }

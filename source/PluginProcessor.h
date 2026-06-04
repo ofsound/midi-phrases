@@ -383,6 +383,7 @@ private:
     void initialisePatternDefaults (PatternState& pattern);
     void publishPatternToAudio (int patternSlot);
     void publishLoopBraceCommandToAudio (SequencerCommand::Type type, int patternSlot);
+    void deactivateLoopBraceForPatternSelection (int patternSlot);
     void requestAudioPatternSlot (int patternSlot);
     void applyAudioPatternSlot (int patternSlot);
     void requestAudioLoopSlot (int loopSlot);
