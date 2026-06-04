@@ -41,6 +41,16 @@
     cursor: default !important;
   }
 
+  body[data-cursor="default"],
+  body[data-cursor="default"] * {
+    cursor: default !important;
+  }
+
+  body[data-cursor="pointer"],
+  body[data-cursor="pointer"] * {
+    cursor: pointer !important;
+  }
+
   body[data-cursor="ew-resize"],
   body[data-cursor="ew-resize"] * {
     cursor: ew-resize !important;
@@ -49,6 +59,11 @@
   body[data-cursor="ns-resize"],
   body[data-cursor="ns-resize"] * {
     cursor: ns-resize !important;
+  }
+
+  body[data-cursor="grab"],
+  body[data-cursor="grab"] * {
+    cursor: grab !important;
   }
 
   body[data-cursor="grabbing"],
