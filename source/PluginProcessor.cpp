@@ -2677,15 +2677,7 @@ void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages
                     const auto loopSlot = note - patternSlotCount;
 
                     if (isLoopSlotAssigned (loopSlot))
-                    {
-                        patternOutputArmed.store (1, std::memory_order_release);
-                        const auto patternSlot =
-                            clampPatternSlot (getLoopSlotPatternSlot (loopSlot));
-                        lastViewPatternSlot = patternSlot;
-                        currentModelPatternSlot.store (patternSlot, std::memory_order_release);
-                    }
-
-                    requestAudioLoopSlot (loopSlot);
+                        selectLoopSlot (loopSlot);
                 }
                 continue;
             }

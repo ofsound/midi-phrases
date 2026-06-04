@@ -1564,9 +1564,20 @@
         return;
       }
 
+      const loopSlotChanged = clampedLoopSlot !== activeLoopSlot;
       activeLoopSlot = clampedLoopSlot;
 
-      if (clampedLoopSlot < 0) loopBraceEnabled = false;
+      if (clampedLoopSlot < 0) {
+        loopBraceEnabled = false;
+      } else if (
+        loopSlotChanged &&
+        nativeFunctionAvailable("getPatternSlotState")
+      ) {
+        const patternSlotForGrid =
+          activePatternSlot >= 0 ? activePatternSlot : clampedViewPatternSlot;
+        const patternState = await getNativeFunction("getPatternSlotState")(patternSlotForGrid);
+        assignPatternState(patternState, activePatternSlot >= 0);
+      }
     } catch {
       // Native bridge unavailable during teardown.
     }

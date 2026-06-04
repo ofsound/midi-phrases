@@ -1367,6 +1367,39 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPlayHead (nullptr);
     }
 
+    SECTION ("MIDI loop trigger matches selectLoopSlot and enables loop brace")
+    {
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setLoopBraceEnabled (true);
+        testPlugin.setLoopBraceStartQuarters (0.0);
+        testPlugin.setLoopBraceEndQuarters (4.0);
+        testPlugin.saveCurrentBraceToLoopSlot (0);
+
+        testPlugin.setCurrentPatternSlot (1);
+        testPlugin.setLoopBraceStartQuarters (0.0);
+        testPlugin.setLoopBraceEndQuarters (2.0);
+        testPlugin.saveCurrentBraceToLoopSlot (1);
+
+        testPlugin.selectLoopSlot (0);
+        CHECK (testPlugin.getCurrentLoopSlot() == 0);
+        CHECK (testPlugin.isPatternLoopBraceEnabled (0));
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::noteOn (1,
+                                                  PluginProcessor::patternSlotCount + 1,
+                                                  static_cast<juce::uint8> (100)),
+                       0);
+
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getCurrentLoopSlot() == 1);
+        CHECK (testPlugin.getCurrentPatternSlot() == 1);
+        CHECK (testPlugin.isLoopBraceEnabled());
+        CHECK (testPlugin.isPatternLoopBraceEnabled (1));
+        CHECK (testPlugin.getPatternLoopBraceEndQuarters (1) == Catch::Approx (2.0));
+    }
+
     SECTION ("pattern switch at normal quarter boundary does not add duplicate note-offs")
     {
         testPlugin.prepareToPlay (1000.0, 100);
