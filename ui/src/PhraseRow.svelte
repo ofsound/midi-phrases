@@ -8,6 +8,7 @@
   import StepInsertZone from "./StepInsertZone.svelte";
   import StepCardFlip from "./StepCardFlip.svelte";
   import StepGearIcon from "./StepGearIcon.svelte";
+  import RemoveXIcon from "./RemoveXIcon.svelte";
   import StepMuteToggle from "./StepMuteToggle.svelte";
   import StepSkipToggle from "./StepSkipToggle.svelte";
   import ProbabilityDragInput from "./ProbabilityDragInput.svelte";
@@ -782,15 +783,7 @@
     onmousedown={(event) => event.stopPropagation()}
     onclick={(event) => handleRemoveClick(event, step)}
   >
-    <svg viewBox="0 0 10 10" class="pointer-events-none h-2 w-2" aria-hidden="true">
-      <path
-        d="M2 2 L8 8 M8 2 L2 8"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.75"
-        stroke-linecap="round"
-      />
-    </svg>
+    <RemoveXIcon class="pointer-events-none h-2 w-2" />
   </button>
 {/snippet}
 

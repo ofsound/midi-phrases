@@ -138,7 +138,7 @@ export const rowPowerToggleOffClasses = "text-zinc-600";
 export const rowMuteControlClasses =
   "relative z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-zinc-500";
 
-/** Bordered control in the global header (e.g. Colors toggle). */
+/** Bordered control in the global header (e.g. row reverse). */
 export const rowReverseControlClasses =
   "relative z-20 flex h-9 min-w-[3.75rem] shrink-0 items-center justify-center rounded-lg border bg-zinc-900 px-2 transition-colors outline-none hover:border-zinc-600";
 

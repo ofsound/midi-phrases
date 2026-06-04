@@ -1,11 +1,7 @@
 <script>
   import { tick } from "svelte";
-  import {
-    emeraldRowAccent,
-    rowReverseControlClasses,
-    toggleIconActiveClasses,
-    toggleIconRestClasses,
-  } from "./rowAccentTheme.js";
+  import ColorsPaletteIcon from "./ColorsPaletteIcon.svelte";
+  import { emeraldRowAccent } from "./rowAccentTheme.js";
 
   let {
     enabled = false,
@@ -29,10 +25,10 @@
   aria-label={visualOn ? "Disable row colors" : "Enable row colors"}
   aria-pressed={visualOn}
   data-cursor="pointer"
-  class="shrink-0 {rowReverseControlClasses} !transition-none {accent.controlFocus} {visualOn
-    ? `border-zinc-600 ${toggleIconActiveClasses}`
-    : `border-zinc-700 ${toggleIconRestClasses}`}"
+  class="flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors {accent.controlFocus} {visualOn
+    ? 'text-white'
+    : 'text-zinc-500'}"
   onclick={handleClick}
 >
-  Colors
+  <ColorsPaletteIcon class="pointer-events-none h-4 w-4" />
 </button>

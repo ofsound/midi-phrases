@@ -44,6 +44,7 @@
   import DiscreteDragSelect from "./DiscreteDragSelect.svelte";
   import PulseNoteButtonGroup from "./PulseNoteButtonGroup.svelte";
   import ColorsToggle from "./ColorsToggle.svelte";
+  import RemoveXIcon from "./RemoveXIcon.svelte";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
     phraseBeatGuideGlobalLeftPx,
@@ -172,10 +173,16 @@
   }
 
   function clearPatternButtonClasses(enabled) {
-    return `flex h-7 w-7 items-center justify-center rounded-sm border text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
-      enabled
-        ? "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-red-500 hover:text-red-300"
-        : "border-zinc-800 bg-zinc-950 text-zinc-700"
+    return `flex h-7 w-7 items-center justify-center border-0 bg-transparent transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+      enabled ? "text-red-400 hover:text-red-300" : "text-zinc-700"
+    }`;
+  }
+
+  function outputMuteButtonClasses(active) {
+    return `row-span-2 flex h-[calc(1.75rem*1.33)] w-[calc(1.75rem*1.33)] items-center justify-center self-center rounded-sm border text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+      active
+        ? "border-emerald-400 bg-emerald-400 text-zinc-950"
+        : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
     }`;
   }
 
@@ -2012,7 +2019,16 @@
   <div class="shrink-0 -mx-6">
   <header class="flex items-end gap-6 px-6 pb-6">
     <div class="shrink-0 self-start">
-      <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
+      <div class="flex items-center gap-1.5">
+        <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
+        <ColorsToggle
+          accent={emeraldRowAccent}
+          enabled={rowColorsEnabled}
+          onChange={(next) => {
+            rowColorsEnabled = next;
+          }}
+        />
+      </div>
       <h1 class="whitespace-nowrap text-xl font-semibold tracking-tight text-zinc-100">
         {pluginName} <span class="text-sm font-medium text-zinc-500">v{version}</span>
       </h1>
@@ -2093,13 +2109,6 @@
           </div>
           </div>
         </div>
-        <ColorsToggle
-          accent={emeraldRowAccent}
-          enabled={rowColorsEnabled}
-          onChange={(next) => {
-            rowColorsEnabled = next;
-          }}
-        />
         <div class="flex items-center gap-1">
           <button
             type="button"
@@ -2151,71 +2160,70 @@
     </div>
 
     <div class="flex shrink-0 items-end gap-3">
-      <div class="flex flex-col items-end gap-1.5">
-        <div class="flex items-center gap-2">
-          <span class="w-16 text-right text-xs font-semibold leading-none text-zinc-500">Patterns</span>
-          <div class="flex items-center gap-1">
-            {#each Array.from({ length: 8 }, (_, index) => index) as slot}
-              <button
-                type="button"
-                aria-label={patternCopySource === slot
-                  ? `Pattern ${slot + 1} selected as copy source`
-                  : `Select pattern ${slot + 1}`}
-                aria-pressed={activePatternSlot === slot}
-                title={patternCopySource === slot
-                  ? "Copy source selected"
-                  : "Shift-click to copy from this pattern"}
-                data-cursor="pointer"
-                class={slotButtonClasses(activePatternSlot === slot, true, patternCopySource === slot)}
-                onclick={(event) => handlePatternSlotClick(event, slot)}
-              >
-                {slot + 1}
-              </button>
-            {/each}
+      <div
+        class="grid grid-cols-[4rem_auto_auto_auto] items-center gap-x-2 gap-y-1.5"
+      >
+        <span class="text-right text-xs font-semibold leading-none text-zinc-500">Patterns</span>
+        <div class="flex items-center gap-1">
+          {#each Array.from({ length: 8 }, (_, index) => index) as slot}
             <button
               type="button"
-              aria-label="Mute output"
-              aria-pressed={activePatternSlot < 0}
-              title="Mute output until a pattern or loop is selected (MIDI note 16)"
+              aria-label={patternCopySource === slot
+                ? `Pattern ${slot + 1} selected as copy source`
+                : `Select pattern ${slot + 1}`}
+              aria-pressed={activePatternSlot === slot}
+              title={patternCopySource === slot
+                ? "Copy source selected"
+                : "Shift-click to copy from this pattern"}
               data-cursor="pointer"
-              class={slotButtonClasses(activePatternSlot < 0, true)}
-              onclick={deactivateOutput}
+              class={slotButtonClasses(activePatternSlot === slot, true, patternCopySource === slot)}
+              onclick={(event) => handlePatternSlotClick(event, slot)}
             >
-              M
+              {slot + 1}
             </button>
+          {/each}
+        </div>
+        <button
+          type="button"
+          aria-label="Clear selected pattern"
+          title="Clear pattern shown in the grid"
+          data-cursor="pointer"
+          class={clearPatternButtonClasses(true)}
+          onclick={clearSelectedPatternSlot}
+        >
+          <RemoveXIcon class="pointer-events-none h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          aria-label="Mute output"
+          aria-pressed={activePatternSlot < 0}
+          title="Mute output until a pattern or loop is selected (MIDI note 16)"
+          data-cursor="pointer"
+          class={outputMuteButtonClasses(activePatternSlot < 0)}
+          onclick={deactivateOutput}
+        >
+          M
+        </button>
+
+        <span class="text-right text-xs font-semibold leading-none text-zinc-500">Loops</span>
+        <div class="flex items-center gap-1">
+          {#each Array.from({ length: 8 }, (_, index) => index) as slot}
             <button
               type="button"
-              aria-label="Clear selected pattern"
-              title="Clear pattern shown in the grid"
+              aria-label={loopSlotAssigned[slot]
+                ? `Select loop ${slot + 1}`
+                : `Save current brace to loop ${slot + 1}`}
+              aria-pressed={activeLoopSlot === slot}
+              title="Click to select, Shift-click to save current brace"
               data-cursor="pointer"
-              class={clearPatternButtonClasses(true)}
-              onclick={clearSelectedPatternSlot}
+              class={slotButtonClasses(activeLoopSlot === slot, loopSlotAssigned[slot])}
+              onclick={(event) => handleLoopSlotClick(event, slot)}
             >
-              x
+              {slot + 1}
             </button>
-          </div>
+          {/each}
         </div>
-        <div class="flex items-center gap-2">
-          <span class="w-16 text-right text-xs font-semibold leading-none text-zinc-500">Loops</span>
-          <div class="flex items-center gap-1">
-            {#each Array.from({ length: 8 }, (_, index) => index) as slot}
-              <button
-                type="button"
-                aria-label={loopSlotAssigned[slot]
-                  ? `Select loop ${slot + 1}`
-                  : `Save current brace to loop ${slot + 1}`}
-                aria-pressed={activeLoopSlot === slot}
-                title="Click to select, Shift-click to save current brace"
-                data-cursor="pointer"
-                class={slotButtonClasses(activeLoopSlot === slot, loopSlotAssigned[slot])}
-                onclick={(event) => handleLoopSlotClick(event, slot)}
-              >
-                {slot + 1}
-              </button>
-            {/each}
-            <div class="h-7 w-7" aria-hidden="true"></div>
-          </div>
-        </div>
+        <div aria-hidden="true"></div>
       </div>
       {#if standaloneTransportAvailable}
         <div class="flex items-center gap-2">
