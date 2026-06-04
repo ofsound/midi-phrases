@@ -36,20 +36,7 @@ TEST_CASE ("Plugin instance", "[instance]")
     {
         for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
         {
-            CHECK (testPlugin.getPhraseRowStepCount (row) == 1);
-            CHECK (testPlugin.getPhraseNote (row, 0) == PluginProcessor::defaultStepNote);
-            CHECK (testPlugin.getPhraseStepDurationFraction (row, 0)
-                   == Catch::Approx (PluginProcessor::defaultStepDurationFraction));
-            CHECK (testPlugin.getPhraseStepVelocity (row, 0) == PluginProcessor::defaultStepVelocity);
-            CHECK (testPlugin.getPhraseStepTimingMultiplier (row, 0)
-                   == PluginProcessor::defaultStepTimingMultiplierIndex);
-            CHECK (testPlugin.getPhraseStepProbability (row, 0)
-                   == PluginProcessor::defaultStepProbability);
-            CHECK (testPlugin.getPhraseStepCycle (row, 0) == PluginProcessor::defaultStepCycle);
-            CHECK (testPlugin.getPhraseStepCycleOffset (row, 0)
-                   == PluginProcessor::defaultStepCycleOffset);
-            CHECK_FALSE (testPlugin.isPhraseStepMuted (row, 0));
-            CHECK_FALSE (testPlugin.isPhraseStepSkipped (row, 0));
+            CHECK (testPlugin.getPhraseRowStepCount (row) == 0);
             CHECK (testPlugin.isPhraseRowMuted (row) == (row != 0));
         }
     }
@@ -238,10 +225,12 @@ TEST_CASE ("Plugin instance", "[instance]")
     SECTION ("selecting pattern outside active loop owner switches audio immediately")
     {
         testPlugin.prepareToPlay (1000.0, 100);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setCurrentPatternSlot (0);
         testPlugin.saveCurrentBraceToLoopSlot (0);
         testPlugin.selectLoopSlot (0);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 72);
         testPlugin.setCurrentPatternSlot (1);
 
@@ -257,6 +246,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setLoopBraceStartQuarters (0.0);
         testPlugin.setLoopBraceEndQuarters (1.0);
         testPlugin.setLoopBraceEnabled (true);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
 
@@ -325,6 +315,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setLoopBraceStartQuarters (0.0);
         testPlugin.setLoopBraceEndQuarters (1.0);
         testPlugin.setLoopBraceEnabled (true);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
 
@@ -633,6 +624,7 @@ TEST_CASE ("Plugin instance", "[instance]")
     SECTION ("note gate spans audio blocks")
     {
         testPlugin.prepareToPlay (44100.0, 512);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
 
         for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
         {
@@ -802,6 +794,8 @@ TEST_CASE ("Plugin instance", "[instance]")
                 testPlugin.setPhraseStepVelocity (row, step, 0);
         }
 
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+
         testPlugin.setPhraseNote (0, 0, 73);
         testPlugin.setPhraseStepVelocity (0, 0, 100);
 
@@ -842,8 +836,10 @@ TEST_CASE ("Plugin instance", "[instance]")
     SECTION ("MIDI pattern trigger updates UI slot immediately and audio slot on pulse")
     {
         testPlugin.prepareToPlay (1000.0, 100);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setCurrentPatternSlot (2);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 72);
         testPlugin.setCurrentPatternSlot (0);
 
@@ -940,8 +936,10 @@ TEST_CASE ("Plugin instance", "[instance]")
     SECTION ("pending pattern switch applies when plugin block starts on pulse")
     {
         testPlugin.prepareToPlay (1000.0, 100);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setCurrentPatternSlot (2);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 72);
         testPlugin.setCurrentPatternSlot (0);
 
@@ -991,9 +989,11 @@ TEST_CASE ("Plugin instance", "[instance]")
     SECTION ("MIDI pattern trigger first beat keeps full gate after pulse switch")
     {
         testPlugin.prepareToPlay (1000.0, 100);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
         testPlugin.setCurrentPatternSlot (2);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 72);
         testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
         testPlugin.setCurrentPatternSlot (0);
@@ -1062,9 +1062,11 @@ TEST_CASE ("Plugin instance", "[instance]")
     SECTION ("pattern switch emits note-off for active long notes")
     {
         testPlugin.prepareToPlay (1000.0, 100);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setPhraseStepDurationFraction (0, 0, 4.0);
         testPlugin.setCurrentPatternSlot (2);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 72);
         testPlugin.setCurrentPatternSlot (0);
 
@@ -1134,9 +1136,11 @@ TEST_CASE ("Plugin instance", "[instance]")
     {
         testPlugin.prepareToPlay (1000.0, 100);
         testPlugin.setCurrentPatternSlot (0);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setPhraseStepDurationFraction (0, 0, 4.0);
         testPlugin.setCurrentPatternSlot (1);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 72);
         testPlugin.setCurrentPatternSlot (0);
         testPlugin.setLoopBraceEnabled (true);
@@ -1209,9 +1213,11 @@ TEST_CASE ("Plugin instance", "[instance]")
     {
         testPlugin.prepareToPlay (1000.0, 100);
         testPlugin.setCurrentPatternSlot (0);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setPhraseStepDurationFraction (0, 0, 4.0);
         testPlugin.setCurrentPatternSlot (1);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 72);
         testPlugin.setCurrentPatternSlot (0);
         testPlugin.setLoopBraceEnabled (true);
@@ -1286,6 +1292,7 @@ TEST_CASE ("Plugin instance", "[instance]")
     {
         testPlugin.prepareToPlay (1000.0, 100);
         testPlugin.setCurrentPatternSlot (0);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setPhraseStepDurationFraction (0, 0, 4.0);
         testPlugin.setLoopBraceEnabled (true);
@@ -1294,6 +1301,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.saveCurrentBraceToLoopSlot (0);
 
         testPlugin.setCurrentPatternSlot (1);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 72);
         testPlugin.setLoopBraceStartQuarters (0.0);
         testPlugin.setLoopBraceEndQuarters (2.0);
@@ -1371,6 +1379,7 @@ TEST_CASE ("Plugin instance", "[instance]")
     {
         testPlugin.prepareToPlay (1000.0, 100);
         testPlugin.setCurrentPatternSlot (0);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
         testPlugin.setLoopBraceEnabled (true);
@@ -1378,6 +1387,8 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setLoopBraceEndQuarters (4.0);
         testPlugin.saveCurrentBraceToLoopSlot (0);
         testPlugin.selectLoopSlot (0);
+
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
 
         testPlugin.setPhraseNote (0, 0, 72);
         testPlugin.saveCurrentBraceToLoopSlot (1);
@@ -1438,6 +1449,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setLoopBraceEnabled (true);
         testPlugin.setLoopBraceStartQuarters (0.0);
         testPlugin.setLoopBraceEndQuarters (1.0);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
 
@@ -1526,9 +1538,11 @@ TEST_CASE ("Plugin instance", "[instance]")
     SECTION ("pattern switch at normal quarter boundary does not add duplicate note-offs")
     {
         testPlugin.prepareToPlay (1000.0, 100);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
         testPlugin.setCurrentPatternSlot (2);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 72);
         testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
         testPlugin.setCurrentPatternSlot (0);
@@ -1581,6 +1595,7 @@ TEST_CASE ("Plugin instance", "[instance]")
     SECTION ("transport stop emits explicit note-off for active long notes")
     {
         testPlugin.prepareToPlay (1000.0, 100);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setPhraseStepDurationFraction (0, 0, 4.0);
 
@@ -1978,10 +1993,15 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (drained[1] == 64);
         CHECK (drained[2] == 67);
 
-        CHECK (testPlugin.getPhraseRowStepCount (0) == 3);
-        CHECK (testPlugin.getPhraseNote (0, 0) == 60);
-        CHECK (testPlugin.getPhraseStepVelocity (0, 0) == PluginProcessor::defaultStepVelocity);
-        CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 2)
+        CHECK (testPlugin.getPhraseRowStepCount (0) == 7);
+        CHECK (testPlugin.getPhraseNote (0, 0) == 48);
+        CHECK (testPlugin.getPhraseNote (0, 1) == 50);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 0) == 42);
+        CHECK (testPlugin.getPhraseNote (0, 4) == 60);
+        CHECK (testPlugin.getPhraseNote (0, 5) == 64);
+        CHECK (testPlugin.getPhraseNote (0, 6) == 67);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 4) == PluginProcessor::defaultStepVelocity);
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 6)
                == PluginProcessor::defaultStepTimingMultiplierIndex);
 
         {
@@ -1995,7 +2015,7 @@ TEST_CASE ("Plugin instance", "[instance]")
 
         drained = testPlugin.drainPhraseRowRecordedNotes();
         CHECK (drained.isEmpty());
-        CHECK (testPlugin.getPhraseRowStepCount (0) == 3);
+        CHECK (testPlugin.getPhraseRowStepCount (0) == 7);
 
         testPlugin.setPhraseRowRecording (1);
         CHECK (testPlugin.getPhraseRowRecording() == 1);
@@ -2020,6 +2040,7 @@ TEST_CASE ("Plugin instance", "[instance]")
     SECTION ("MIDI mute trigger note 16 stops output immediately")
     {
         testPlugin.prepareToPlay (1000.0, 100);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setPhraseStepDurationFraction (0, 0, 4.0);
 
@@ -2143,8 +2164,10 @@ TEST_CASE ("Plugin instance", "[instance]")
     SECTION ("MIDI mute trigger re-arms on pattern select")
     {
         testPlugin.prepareToPlay (1000.0, 100);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 60);
         testPlugin.setCurrentPatternSlot (2);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
         testPlugin.setPhraseNote (0, 0, 72);
         testPlugin.setCurrentPatternSlot (0);
 

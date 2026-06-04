@@ -1665,10 +1665,7 @@
 
     const note = Math.min(127, Math.max(0, Math.round(midi)));
 
-    if (
-      !recordingAwaitingFirstNote &&
-      grid[recordingRow].length >= maxPhraseStepsPerRow
-    ) {
+    if (grid[recordingRow].length >= maxPhraseStepsPerRow) {
       return;
     }
 
@@ -1686,18 +1683,9 @@
 
     if (recordingAwaitingFirstNote) {
       recordingAwaitingFirstNote = false;
-      grid[row] = [note];
-      stepDurationFraction[row] = [defs.duration];
-      stepTimingMultiplier[row] = [defs.multiplier];
-      stepVelocity[row] = [defs.velocity];
-      stepMuted[row] = [defs.muted];
-      stepSkipped[row] = [defs.skipped];
-      stepProbability[row] = [defs.probability];
-      stepCycle[row] = [defs.cycle];
-      stepCycleOffset[row] = [defs.cycleOffset];
-      stepIds[row] = [createStepId()];
-      activeGates[row] = [false];
-    } else if (grid[row].length < maxPhraseStepsPerRow) {
+    }
+
+    if (grid[row].length < maxPhraseStepsPerRow) {
       grid[row] = [...grid[row], note];
       stepDurationFraction[row] = [...stepDurationFraction[row], defs.duration];
       stepTimingMultiplier[row] = [...stepTimingMultiplier[row], defs.multiplier];

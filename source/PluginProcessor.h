@@ -50,7 +50,7 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
     static constexpr int phraseRowCount = 4;
-    static constexpr int defaultPhraseStepsPerRow = 1;
+    static constexpr int defaultPhraseStepsPerRow = 0;
     static constexpr int maxPhraseStepsPerRow = 64;
     static constexpr int patternSlotCount = 8;
     static constexpr int loopSlotCount = 8;

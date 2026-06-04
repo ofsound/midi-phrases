@@ -2594,12 +2594,9 @@ void PluginProcessor::appendRecordedNoteToModelRow (const int row, const int mid
 
     auto& steps = modelRow (row);
 
-    if (recordingAwaitingFirstNote.exchange (0) != 0)
-    {
-        initialiseRowDefaults (steps, row, 1);
-        steps.notes[0] = juce::jlimit (0, 127, midiNote);
-    }
-    else if (steps.stepCount < maxPhraseStepsPerRow)
+    recordingAwaitingFirstNote.store (0, std::memory_order_release);
+
+    if (steps.stepCount < maxPhraseStepsPerRow)
     {
         const auto index = static_cast<size_t> (steps.stepCount);
         steps.notes[index] = juce::jlimit (0, 127, midiNote);

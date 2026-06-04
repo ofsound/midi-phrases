@@ -51,10 +51,10 @@ export const defaultStepNote = 60;
 export const defaultStepDurationFraction = 1;
 
 export const defaultPhraseGrid = () => [
-  [60, 60, 60, 60],
-  [60, 60, 60, 60],
-  [60, 60, 60, 60],
-  [60, 60, 60, 60],
+  [],
+  [],
+  [],
+  [],
 ];
 
 /** Default MIDI note for a phrase row (matches PluginProcessor::defaultNoteForRow). */
@@ -63,57 +63,57 @@ export function defaultNoteForRow(_row) {
 }
 
 export const defaultStepDurationGrid = () => [
-  [1, 1, 1, 1],
-  [1, 1, 1, 1],
-  [1, 1, 1, 1],
-  [1, 1, 1, 1],
+  [],
+  [],
+  [],
+  [],
 ];
 
 export const defaultStepTimingMultiplierGrid = () => [
-  [3, 3, 3, 3],
-  [3, 3, 3, 3],
-  [3, 3, 3, 3],
-  [3, 3, 3, 3],
+  [],
+  [],
+  [],
+  [],
 ];
 
 export const defaultStepVelocityGrid = () => [
-  [100, 100, 100, 100],
-  [100, 100, 100, 100],
-  [100, 100, 100, 100],
-  [100, 100, 100, 100],
+  [],
+  [],
+  [],
+  [],
 ];
 
 export const defaultStepMutedGrid = () => [
-  [false, false, false, false],
-  [false, false, false, false],
-  [false, false, false, false],
-  [false, false, false, false],
+  [],
+  [],
+  [],
+  [],
 ];
 
 export const defaultStepSkippedGrid = () => [
-  [false, false, false, false],
-  [false, false, false, false],
-  [false, false, false, false],
-  [false, false, false, false],
+  [],
+  [],
+  [],
+  [],
 ];
 
 export const defaultStepProbabilityGrid = () => [
-  [100, 100, 100, 100],
-  [100, 100, 100, 100],
-  [100, 100, 100, 100],
-  [100, 100, 100, 100],
+  [],
+  [],
+  [],
+  [],
 ];
 
 export const defaultStepCycleGrid = () => [
-  [1, 1, 1, 1],
-  [1, 1, 1, 1],
-  [1, 1, 1, 1],
-  [1, 1, 1, 1],
+  [],
+  [],
+  [],
+  [],
 ];
 
 export const defaultStepCycleOffsetGrid = () => [
-  [0, 0, 0, 0],
-  [0, 0, 0, 0],
-  [0, 0, 0, 0],
-  [0, 0, 0, 0],
+  [],
+  [],
+  [],
+  [],
 ];
