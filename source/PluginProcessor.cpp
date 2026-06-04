@@ -3423,6 +3423,19 @@ juce::AudioProcessorEditor* PluginProcessor::createEditor()
     return new PluginEditor (*this);
 }
 
+#if JUCE_WEB_BROWSER
+void PluginProcessor::setWebHostCursorHandler (std::function<void (const juce::String&)> handler)
+{
+    webHostCursorHandler = std::move (handler);
+}
+
+void PluginProcessor::notifyWebHostCursor (const juce::String& cursorName)
+{
+    if (webHostCursorHandler != nullptr)
+        webHostCursorHandler (cursorName);
+}
+#endif
+
 void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::ValueTree state ("MidiPhrases");

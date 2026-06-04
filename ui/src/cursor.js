@@ -1,10 +1,19 @@
+import { getNativeFunction } from "@juce/index.js";
+
 const dragCursorMap = {
   grab: "grabbing",
 };
 
-let installed = false;
-let hoverCursor = "";
 let activeCursor = "";
+let setHostCursorNative = null;
+let lastHoverChain = [];
+
+function hasNativeFunction(name) {
+  return (
+    window.__JUCE__?.initialisationData?.__juce__functions?.includes?.(name) ??
+    false
+  );
+}
 
 function isDisabledCursorElement(element) {
   return (
@@ -19,27 +28,91 @@ function cursorForElement(element) {
   return element.getAttribute("data-cursor") || "";
 }
 
-function syncCursorElement(element) {
-  if (!(element instanceof HTMLElement)) return;
-  if (!element.hasAttribute("data-cursor")) return;
+function cursorFromTarget(target) {
+  if (!(target instanceof Element)) return "default";
 
-  const cursor = cursorForElement(element);
-  if (element.style.cursor !== cursor) element.style.cursor = cursor;
+  const cursorElement = target.closest("[data-cursor], button, [role='button']");
+  if (!cursorElement) return "default";
+
+  return cursorForElement(cursorElement) || "pointer";
 }
 
-function syncCursorTree(root) {
+function clientCoordsFromHost(hostX, hostY, hostW, hostH) {
+  const root = document.documentElement;
+  const clientW = root.clientWidth;
+  const clientH = root.clientHeight;
+
+  if (hostW <= 0 || hostH <= 0 || clientW <= 0 || clientH <= 0) {
+    return { x: hostX, y: hostY };
+  }
+
+  return {
+    x: hostX * (clientW / hostW),
+    y: hostY * (clientH / hostH),
+  };
+}
+
+function cursorAtPoint(x, y) {
+  const element = document.elementFromPoint(x, y);
+  if (!(element instanceof Element)) return "";
+
+  const cursorElement = element.closest("[data-cursor], button, [role='button']");
+  if (!cursorElement) return "";
+
+  return cursorForElement(cursorElement) || "pointer";
+}
+
+/** WKWebView in JUCE often skips :hover until click; mirror hover for Tailwind. */
+function updateHoverChainAtPoint(x, y) {
+  const hit = document.elementFromPoint(x, y);
+  const nextChain = [];
+
+  for (let node = hit instanceof Element ? hit : null; node; node = node.parentElement) {
+    nextChain.push(node);
+  }
+
+  for (const prev of lastHoverChain) {
+    if (!nextChain.includes(prev)) prev.removeAttribute("data-mp-hover");
+  }
+
+  for (const next of nextChain) {
+    next.setAttribute("data-mp-hover", "");
+  }
+
+  lastHoverChain = nextChain;
+}
+
+/** JUCE WKWebView ignores CSS cursor on many controls; inline style is required. */
+export function syncInlineCursors(root = document.documentElement) {
   if (!(root instanceof Element)) return;
 
-  syncCursorElement(root);
+  const visit = (element) => {
+    if (!(element instanceof HTMLElement)) return;
 
-  for (const element of root.querySelectorAll("[data-cursor]")) {
-    syncCursorElement(element);
+    let cursor = "";
+
+    if (element.hasAttribute("data-cursor")) {
+      cursor = cursorForElement(element);
+    } else if (
+      element instanceof HTMLButtonElement
+      || element.getAttribute("role") === "button"
+    ) {
+      cursor = isDisabledCursorElement(element) ? "default" : "pointer";
+    }
+
+    if (cursor) element.style.cursor = cursor;
+  };
+
+  visit(root);
+
+  if (root instanceof HTMLElement || root instanceof Document) {
+    for (const element of root.querySelectorAll("[data-cursor], button, [role='button']")) {
+      visit(element);
+    }
   }
 }
 
-function applyCursor() {
-  const cursor = activeCursor || hoverCursor;
-
+function applyBodyCursor(cursor) {
   if (cursor) {
     document.body.dataset.cursor = cursor;
     document.body.style.cursor = cursor;
@@ -49,89 +122,120 @@ function applyCursor() {
   }
 }
 
-function cursorFromTarget(target) {
-  if (!(target instanceof Element)) return "";
-
-  const cursorElement = target.closest("[data-cursor]");
-  if (!cursorElement) return "";
-
-  return cursorForElement(cursorElement);
+function reportHostCursor(cursor) {
+  const name = cursor || "default";
+  applyBodyCursor(name === "default" ? "" : name);
+  setHostCursorNative?.(name);
 }
 
-function setHoverCursor(cursor) {
-  hoverCursor = cursor;
-  applyCursor();
+function syncHoverFromTarget(target) {
+  if (activeCursor) {
+    reportHostCursor(activeCursor);
+    return;
+  }
+
+  reportHostCursor(cursorFromTarget(target));
+}
+
+/** Polled from C++ every frame while the mouse is over the web view. */
+export function updateInteractionAtPoint(hostX, hostY, hostW, hostH) {
+  const { x, y } = clientCoordsFromHost(hostX, hostY, hostW, hostH);
+
+  updateHoverChainAtPoint(x, y);
+
+  if (activeCursor) {
+    reportHostCursor(activeCursor);
+    return activeCursor;
+  }
+
+  const cursor = cursorAtPoint(x, y);
+  reportHostCursor(cursor);
+  return cursor || "default";
+}
+
+export function clearInteractionHover() {
+  for (const node of lastHoverChain) node.removeAttribute("data-mp-hover");
+
+  lastHoverChain = [];
+
+  if (!activeCursor) reportHostCursor("default");
 }
 
 export function setActiveCursor(cursor) {
-  activeCursor = cursor;
-  applyCursor();
+  activeCursor = dragCursorMap[cursor] || cursor;
+  reportHostCursor(activeCursor);
 }
 
 export function clearActiveCursor(cursor) {
   if (cursor === undefined || activeCursor === cursor) {
     activeCursor = "";
-    applyCursor();
+    reportHostCursor("default");
   }
 }
 
-export function installCursorManager() {
+export function clearSyncedCursor() {
+  clearInteractionHover();
+}
+
+let installed = false;
+
+export function installCursorSync() {
   if (installed) return;
 
   installed = true;
+  syncInlineCursors();
 
-  const syncHoverCursor = (event) => {
-    setHoverCursor(cursorFromTarget(event.target));
-  };
-
-  const beginPointerCursor = (event) => {
-    const cursor = cursorFromTarget(event.target);
-    if (!cursor || cursor === "default") return;
-
-    setActiveCursor(dragCursorMap[cursor] || cursor);
-  };
-
-  const endPointerCursor = () => {
-    clearActiveCursor();
-  };
-
-  syncCursorTree(document.documentElement);
+  if (hasNativeFunction("setHostCursor")) {
+    setHostCursorNative = getNativeFunction("setHostCursor");
+  }
 
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       if (mutation.type === "childList") {
-        for (const node of mutation.addedNodes) {
-          syncCursorTree(node);
-        }
-
-        continue;
+        for (const node of mutation.addedNodes) syncInlineCursors(node);
+      } else {
+        syncInlineCursors(mutation.target);
       }
-
-      syncCursorTree(mutation.target);
     }
   });
 
   observer.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["aria-disabled", "data-cursor", "disabled", "style"],
+    attributeFilter: ["aria-disabled", "data-cursor", "disabled"],
     childList: true,
     subtree: true,
   });
 
-  document.addEventListener("pointerover", syncHoverCursor, true);
-  document.addEventListener("pointermove", syncHoverCursor, true);
-  document.addEventListener("pointerdown", beginPointerCursor, true);
-  document.addEventListener("pointerup", endPointerCursor, true);
-  document.addEventListener("pointercancel", endPointerCursor, true);
-  document.addEventListener("mousemove", syncHoverCursor, true);
+  const onPointerHover = (event) => {
+    syncHoverFromTarget(event.target);
+  };
+
+  const onPointerDown = (event) => {
+    const cursor = cursorFromTarget(event.target);
+    if (cursor === "default") return;
+
+    setActiveCursor(cursor);
+  };
+
+  const onPointerUp = () => {
+    clearActiveCursor();
+  };
+
+  document.addEventListener("pointerover", onPointerHover, true);
+  document.addEventListener("pointermove", onPointerHover, true);
+  document.addEventListener("pointerdown", onPointerDown, true);
+  document.addEventListener("pointerup", onPointerUp, true);
+  document.addEventListener("pointercancel", onPointerUp, true);
 
   window.addEventListener("blur", () => {
-    hoverCursor = "";
     activeCursor = "";
-    applyCursor();
+    clearSyncedCursor();
   });
 
   window.addEventListener("mouseout", (event) => {
-    if (event.relatedTarget === null) setHoverCursor("");
+    if (event.relatedTarget === null) clearSyncedCursor();
   });
+
+  window.__mpOnMouseAt = updateInteractionAtPoint;
+  window.__mpClearCursor = clearSyncedCursor;
 }

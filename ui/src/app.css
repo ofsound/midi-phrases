@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+/* Embedded WKWebView in JUCE does not apply :hover until after a click; mirror with data-mp-hover. */
+@variant hover {
+  &:hover,
+  &[data-mp-hover] {
+    @slot;
+  }
+}
+
+@variant group-hover {
+  :is(.group:hover, .group[data-mp-hover]) & {
+    @slot;
+  }
+}
+
 @layer base {
   html,
   body,
@@ -9,8 +23,13 @@
   }
 }
 
-/* JUCE WebView often ignores Tailwind cursor utilities on interactive controls. */
+/* WKWebView in JUCE often ignores cursor on controls unless forced. */
 @layer components {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer !important;
+  }
+
   [data-cursor="default"] {
     cursor: default !important;
   }

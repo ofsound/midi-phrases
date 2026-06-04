@@ -861,6 +861,15 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
 
                                complete (processor.getStandaloneTempoBpm());
                            })
+                       .withNativeFunction (
+                           "setHostCursor",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.notifyWebHostCursor (args[0].toString());
+
+                               complete (juce::var {});
+                           })
                        .withUserScript (juce::String { R"(
                            document.documentElement.classList.add('juce-ready');
                        )" });
