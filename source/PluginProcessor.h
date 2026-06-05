@@ -401,9 +401,12 @@ private:
     void requestAudioPatternSlot (int patternSlot);
     void applyAudioPatternSlot (int patternSlot);
     void requestAudioLoopSlot (int loopSlot);
-    void applyAudioLoopSlot (int loopSlot);
+    void applyAudioLoopSlot (int loopSlot, double reanchorTransportPpq);
     bool isAudioLoopSlotApplied (int loopSlot) const;
     double loopDownbeatTransportForSlot (int loopSlot, double transportPpq) const;
+    void reanchorLoopScheduleAt (double transportPpq);
+    void clearLoopScheduleAnchor();
+    double mapTransportToLoopSchedulePpq (double transportPpq) const;
     void applyMuteOutputSilence (juce::MidiBuffer& midiMessages);
     void handleIncomingControlNotes (juce::MidiBuffer& midiMessages);
     bool shouldApplyPendingPatternSwitch (double ppqStart, double ppqEnd) const;
@@ -499,6 +502,7 @@ private:
     std::atomic<int> muteFlushRequested { 0 };
     std::atomic<int> pendingAudioPatternSlot { -1 };
     std::atomic<int> currentLoopSlot { -1 };
+    std::atomic<int> audioActiveLoopSlot { -1 };
     std::atomic<int> pendingAudioLoopSlot { -1 };
     std::atomic<int> pulseIndex { defaultPulseIndex };
     std::atomic<int> swingPercent { defaultSwingPercent };
@@ -512,6 +516,8 @@ private:
     std::atomic<double> standaloneTransportPpqPosition { 0.0 };
     double sampleRateHz = 44100.0;
     bool wasPlaying = false;
+    double loopScheduleAnchorTransportPpq = -1.0;
+    bool loopScheduleReanchorRequested = false;
 
     static constexpr int recordQueueCapacity = maxPhraseStepsPerRow;
     std::array<int, recordQueueCapacity> recordQueueNotes {};

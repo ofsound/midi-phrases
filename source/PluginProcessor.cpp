@@ -784,6 +784,15 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
 
         case SequencerCommand::Type::SetLoopBraceEnabled:
             pattern.loopBrace.enabled = command.intValue != 0 ? 1 : 0;
+
+            if (patternSlot == audioActivePatternSlot)
+            {
+                if (command.intValue != 0)
+                    loopScheduleReanchorRequested = true;
+                else
+                    clearLoopScheduleAnchor();
+            }
+
             break;
 
         case SequencerCommand::Type::SetLoopBraceStart:
@@ -1011,6 +1020,9 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     sampleRateHz = sampleRate;
     resetLastEmittedTriggers();
     wasPlaying = false;
+    clearLoopScheduleAnchor();
+    loopScheduleReanchorRequested = false;
+    currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
     resetPendingNoteOffs();
     resetPendingNoteOns();
     resetActiveGeneratedNotes();
@@ -1736,10 +1748,42 @@ double PluginProcessor::playbackBeatForUi() const
         const auto loopLength = loop.endQuarters - loop.startQuarters;
 
         if (loopLength > 0.0)
-            return loop.startQuarters + positiveMod (currentPpq - loop.startQuarters, loopLength);
+            return mapTransportToLoopSchedulePpq (currentPpq);
     }
 
     return currentPpq;
+}
+
+void PluginProcessor::clearLoopScheduleAnchor()
+{
+    loopScheduleAnchorTransportPpq = -1.0;
+}
+
+void PluginProcessor::reanchorLoopScheduleAt (const double transportPpq)
+{
+    const auto& loop = audioLoopBrace();
+    const auto loopLength = loop.endQuarters - loop.startQuarters;
+
+    if (loop.enabled == 0 || loopLength <= 0.0)
+    {
+        clearLoopScheduleAnchor();
+        return;
+    }
+
+    loopScheduleAnchorTransportPpq = transportPpq;
+}
+
+double PluginProcessor::mapTransportToLoopSchedulePpq (const double transportPpq) const
+{
+    const auto& loop = audioLoopBrace();
+    const auto loopLength = loop.endQuarters - loop.startQuarters;
+    constexpr auto epsilon = 1.0e-9;
+
+    if (loop.enabled == 0 || loopLength <= epsilon || loopScheduleAnchorTransportPpq < -epsilon)
+        return transportPpq;
+
+    return loop.startQuarters
+           + positiveMod (transportPpq - loopScheduleAnchorTransportPpq, loopLength);
 }
 
 void PluginProcessor::setLoopBraceEnabled (const bool enabled)
@@ -1786,6 +1830,7 @@ void PluginProcessor::deactivateLoopBraceForPatternSelection (const int patternS
     const auto audioSlot = clampPatternSlot (audioActivePatternSlot);
 
     currentLoopSlot.store (-1, std::memory_order_release);
+    audioActiveLoopSlot.store (-1, std::memory_order_release);
     pendingAudioLoopSlot.store (-1, std::memory_order_release);
     modelPattern (slot).loopBrace.enabled = 0;
     audioPatterns[static_cast<size_t> (slot)].loopBrace.enabled = 0;
@@ -1832,6 +1877,7 @@ void PluginProcessor::deactivatePatternOutput()
     patternOutputArmed.store (0, std::memory_order_release);
     currentModelPatternSlot.store (-1, std::memory_order_release);
     currentLoopSlot.store (-1, std::memory_order_release);
+    audioActiveLoopSlot.store (-1, std::memory_order_release);
     pendingAudioPatternSlot.store (-1, std::memory_order_release);
     pendingAudioLoopSlot.store (-1, std::memory_order_release);
 
@@ -1869,7 +1915,9 @@ void PluginProcessor::applyAudioPatternSlot (const int patternSlot)
     audioActivePatternSlot = slot;
     pendingAudioPatternSlot.store (-1, std::memory_order_release);
     currentLoopSlot.store (-1, std::memory_order_release);
+    audioActiveLoopSlot.store (-1, std::memory_order_release);
     audioPatterns[static_cast<size_t> (slot)].loopBrace.enabled = 0;
+    clearLoopScheduleAnchor();
     resetLastEmittedTriggers();
     resetPendingNoteOffs();
     resetPendingNoteOns();
@@ -1934,7 +1982,10 @@ void PluginProcessor::clearPatternSlot (const int patternSlot)
 
     if (slot == getCurrentPatternSlot()
         || (getCurrentPatternSlot() < 0 && slot == getViewPatternSlot()))
+    {
         currentLoopSlot.store (-1, std::memory_order_release);
+        audioActiveLoopSlot.store (-1, std::memory_order_release);
+    }
 }
 
 void PluginProcessor::copyPatternSlot (const int sourcePatternSlot,
@@ -2297,7 +2348,7 @@ double PluginProcessor::loopDownbeatTransportForSlot (const int loopSlot,
 
 bool PluginProcessor::isAudioLoopSlotApplied (const int loopSlot) const
 {
-    if (getCurrentLoopSlot() != loopSlot)
+    if (audioActiveLoopSlot.load (std::memory_order_acquire) != loopSlot)
         return false;
 
     const auto slot = clampLoopSlot (loopSlot);
@@ -2333,7 +2384,7 @@ void PluginProcessor::requestAudioLoopSlot (const int loopSlot)
     pendingAudioLoopSlot.store (slot, std::memory_order_release);
 }
 
-void PluginProcessor::applyAudioLoopSlot (const int loopSlot)
+void PluginProcessor::applyAudioLoopSlot (const int loopSlot, const double reanchorTransportPpq)
 {
     const auto slot = clampLoopSlot (loopSlot);
     const auto& loopSlotState = loopSlots[static_cast<size_t> (slot)];
@@ -2352,6 +2403,8 @@ void PluginProcessor::applyAudioLoopSlot (const int loopSlot)
 
     pendingAudioLoopSlot.store (-1, std::memory_order_release);
     currentLoopSlot.store (slot, std::memory_order_release);
+    audioActiveLoopSlot.store (slot, std::memory_order_release);
+    reanchorLoopScheduleAt (reanchorTransportPpq);
     resetLastEmittedTriggers();
     resetPendingNoteOffs();
     resetPendingNoteOns();
@@ -2805,7 +2858,7 @@ void PluginProcessor::processTransportPlaybackRange (const double transportPpqSt
 
         while (transportCursor < transportPpqEnd - epsilon)
         {
-            const auto mappedStart = loopStart + positiveMod (transportCursor - loopStart, loopLength);
+            const auto mappedStart = mapTransportToLoopSchedulePpq (transportCursor);
             const auto remainingInLoop = loopEnd - mappedStart;
             const auto segmentTransportEnd =
                 juce::jmin (transportPpqEnd, transportCursor + remainingInLoop);
@@ -3182,9 +3235,12 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         resetLastEmittedTriggers();
         resetPendingNoteOffs();
         resetPendingNoteOns();
+        clearLoopScheduleAnchor();
+        loopScheduleReanchorRequested = false;
         currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
     };
 
+    const bool wasPlayingBefore = wasPlaying;
     double ppqStart = 0.0;
     double bpm = 120.0;
 
@@ -3199,6 +3255,8 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             resetLastEmittedTriggers();
             resetPendingNoteOffs();
             resetPendingNoteOns();
+            clearLoopScheduleAnchor();
+            loopScheduleReanchorRequested = false;
             currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
         }
 
@@ -3232,6 +3290,9 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     if (bpm <= 0.0)
         return;
+
+    const bool justStartedPlayback = ! wasPlayingBefore;
+    const auto previousPlaybackPpq = currentPlaybackPpq.load (std::memory_order_relaxed);
 
     wasPlaying = true;
 
@@ -3295,8 +3356,38 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         return;
 
     constexpr auto epsilon = 1.0e-9;
+
+    auto loopAnchorChanged = false;
+
+    if (audioLoopBrace().enabled != 0)
+    {
+        if (justStartedPlayback || loopScheduleReanchorRequested)
+        {
+            reanchorLoopScheduleAt (ppqStart);
+            loopScheduleReanchorRequested = false;
+            loopAnchorChanged = true;
+        }
+        else if (wasPlayingBefore && previousPlaybackPpq >= 0.0)
+        {
+            const auto expectedContinuousPpq =
+                previousPlaybackPpq + static_cast<double> (bufferSamples) * ppqPerSample;
+            const auto discontinuityThreshold =
+                juce::jmax (ppqPerSample * static_cast<double> (bufferSamples) * 2.0,
+                            0.25);
+
+            if (std::abs (ppqStart - expectedContinuousPpq) > discontinuityThreshold)
+            {
+                reanchorLoopScheduleAt (ppqStart);
+                loopAnchorChanged = true;
+            }
+        }
+    }
+    else
+        clearLoopScheduleAnchor();
+
     auto transportCursor = ppqStart;
-    auto resetAtSegmentStart = false;
+    auto resetAtSegmentStart =
+        audioLoopBrace().enabled != 0 && (justStartedPlayback || loopAnchorChanged);
 
     const auto pendingLoopAtBufferStart =
         pendingAudioLoopSlot.load (std::memory_order_acquire);
@@ -3314,7 +3405,8 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                                                static_cast<int> (std::lround (
                                                    (loopDownbeat - ppqStart) / ppqPerSample))),
                                            midiMessages);
-            applyAudioLoopSlot (pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel));
+            applyAudioLoopSlot (pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel),
+                                loopDownbeat);
             transportCursor = loopDownbeat;
             resetAtSegmentStart = true;
         }
@@ -3359,7 +3451,8 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                                                                             std::memory_order_acq_rel));
 
                 if (pendingLoop >= 0)
-                    applyAudioLoopSlot (pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel));
+                    applyAudioLoopSlot (pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel),
+                                        transportCursor);
 
                 resetAtSegmentStart = true;
                 continue;
@@ -3392,18 +3485,9 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             const auto nextLoop = pendingAudioLoopSlot.exchange (-1, std::memory_order_acq_rel);
 
             if (nextLoop >= 0)
-            {
-                applyAudioLoopSlot (nextLoop);
+                applyAudioLoopSlot (nextLoop, segmentEnd);
 
-                const auto loopDownbeat = loopDownbeatTransportForSlot (nextLoop, segmentEnd);
-
-                if (loopDownbeat + epsilon < segmentEnd && loopDownbeat >= ppqStart - epsilon)
-                    transportCursor = loopDownbeat;
-                else
-                    transportCursor = segmentEnd;
-            }
-            else
-                transportCursor = segmentEnd;
+            transportCursor = segmentEnd;
 
             if (segmentEnd >= ppqEnd - epsilon)
                 break;
@@ -3812,6 +3896,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         patternOutputArmed.store (0, std::memory_order_release);
         currentModelPatternSlot.store (-1, std::memory_order_release);
         currentLoopSlot.store (-1, std::memory_order_release);
+        audioActiveLoopSlot.store (-1, std::memory_order_release);
         pendingAudioPatternSlot.store (-1, std::memory_order_release);
         pendingAudioLoopSlot.store (-1, std::memory_order_release);
         lastObservedParameterPatternSlot = lastViewPatternSlot;
