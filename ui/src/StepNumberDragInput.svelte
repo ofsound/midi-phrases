@@ -1,42 +1,62 @@
 <script>
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
-  /** @type {import('./rowAccentTheme.js').RowAccent} */
-  export let accent = emeraldRowAccent;
-  export let muted = false;
-  export let value;
-  export let min = 0;
-  export let max = 127;
-  export let formatValue = undefined;
-  /** Added to the stored value for display and aria only (e.g. 1 for 1-based cycle offset). */
-  export let displayAdd = 0;
-  /** Value restored on double-click; omit to disable reset. */
-  export let resetValue = undefined;
-  export let ariaLabel = "Value";
-  export let disabled = false;
-  /** When true, use header control box styling (matches DiscreteDragSelect). */
-  export let boxed = false;
-  /** Tight boxed width for compact header controls with short values. */
-  export let compact = false;
-  /** @type {(value: number) => void | Promise<void>} */
-  export let onValueChange = () => {};
+  
+  
+  
+  
+  
+  
+  /**
+   * @typedef {Object} Props
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {boolean} [muted]
+   * @property {any} value
+   * @property {number} [min]
+   * @property {number} [max]
+   * @property {any} [formatValue]
+   * @property {number} [displayAdd] - Added to the stored value for display and aria only (e.g. 1 for 1-based cycle offset).
+   * @property {any} [resetValue] - Value restored on double-click; omit to disable reset.
+   * @property {string} [ariaLabel]
+   * @property {boolean} [disabled]
+   * @property {boolean} [boxed] - When true, use header control box styling (matches DiscreteDragSelect).
+   * @property {boolean} [compact] - Tight boxed width for compact header controls with short values.
+   * @property {(value: number) => void | Promise<void>} [onValueChange]
+   */
+
+  /** @type {Props} */
+  let {
+    accent = emeraldRowAccent,
+    muted = false,
+    value,
+    min = 0,
+    max = 127,
+    formatValue = undefined,
+    displayAdd = 0,
+    resetValue = undefined,
+    ariaLabel = "Value",
+    disabled = false,
+    boxed = false,
+    compact = false,
+    onValueChange = () => {}
+  } = $props();
 
   const boxedControlBaseClasses =
     "flex h-8 items-center justify-center rounded-md border bg-gradient-to-b from-zinc-700/50 to-zinc-950 px-2 text-sm font-semibold tabular-nums transition-[border-color,box-shadow] duration-75";
 
   const pixelsPerStep = 4;
 
-  let dragging = false;
+  let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
 
-  $: displayValue =
-    formatValue !== undefined
+  let displayValue =
+    $derived(formatValue !== undefined
       ? formatValue(value)
-      : String(Math.round(value + displayAdd));
-  $: ariaValueMin = min + displayAdd;
-  $: ariaValueMax = max + displayAdd;
-  $: ariaValueNow = value + displayAdd;
+      : String(Math.round(value + displayAdd)));
+  let ariaValueMin = $derived(min + displayAdd);
+  let ariaValueMax = $derived(max + displayAdd);
+  let ariaValueNow = $derived(value + displayAdd);
 
   function clampValue(next) {
     return Math.min(max, Math.max(min, Math.round(next)));

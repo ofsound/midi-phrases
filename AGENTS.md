@@ -4,11 +4,11 @@ This file provides guidance for AI coding agents working in this repository. See
 
 ## About This Project
 
-**MIDI Phrases** by **ofsound** — a MIDI effect (no audio DSP) that sequences and interleaves separate phrases into a composition. Built on the [Pamplejuce](https://github.com/sudara/pamplejuce) template with JUCE 8, CMake, C++23, Catch2 tests, and CLAP/AU/VST3/AUv3/Standalone formats.
-
-Plugin-specific logic lives in `source/`. CI is macOS-only for now; code signing is disabled until release.
+**MIDI Phrases** by **ofsound** — a MIDI effect (no audio DSP; dummy audio out bus for host compatibility) that sequences and interleaves separate phrases into a composition. Built on the [Pamplejuce](https://github.com/sudara/pamplejuce) template with JUCE 8, CMake, C++23, Catch2 tests, and Standalone / AU / VST3 / AUv3 / CLAP formats.
 
 **Hosts:** Logic — load the **AU** in the top **MIDI FX** slot (before the instrument). **Ableton** — use **VST3** only (Live does not expose AU MIDI-out). Live cannot place third-party plugins in the built-in MIDI-effects row; load **MIDI Phrases** in the **instrument** slot on one MIDI track, put your synth on a second track, and set **MIDI From** → first track → **MIDI Phrases** (Monitor **In**) — [Ableton guide](https://help.ableton.com/hc/en-us/articles/209070189-Accessing-the-MIDI-output-of-a-VST-plug-in).
+
+Plugin-specific logic lives in `source/`. The visible editor is almost entirely the **WebView UI** in `ui/` (Svelte 5). CI is macOS-only for now; code signing is disabled until release.
 
 ## Build Commands (VS Code / Cursor)
 
@@ -28,7 +28,7 @@ git submodule update --init --recursive
 # Configure (after CMakeLists.txt changes)
 cmake -B Builds -G Ninja -DCMAKE_BUILD_TYPE=Debug
 
-# Build
+# Build (all formats + embedded ui.zip when ui/ changed)
 cmake --build Builds
 
 # Run tests
@@ -47,13 +47,47 @@ On macOS for universal binary: add `-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"` to
 
 Built plugins are copied to `~/Library/Audio/Plug-Ins/` when `COPY_PLUGIN_AFTER_BUILD` is on (Debug builds too).
 
+## WebView UI (Svelte + Vite + Tailwind)
+
+The plugin editor is a JUCE 8 `WebBrowserComponent` ([overview](https://juce.com/blog/juce-8-feature-overview-webview-uis/)). Frontend lives in `ui/`.
+
+```bash
+cd ui && npm install
+./scripts/setup-git-hooks.sh   # once per clone: pre-commit svelte-check when ui/ staged
+
+cd ui && npm run dev           # hot reload — Debug loads http://localhost:5174
+cd ui && npm run check         # svelte-check (--fail-on-warnings)
+cd ui && npm run build         # vite build + assets/webview/ui.zip
+```
+
+- **Release / embedded UI:** `assets/webview/ui.zip` in BinaryData (not `ui/dist` directly).
+- **Debug hot reload:** requires `MIDI_PHRASES_UI_DEV_SERVER` and Vite on port **5174** (`ui/vite.config.js`).
+- **`cmake --build Builds`** runs `npm run build` in `ui/` when sources change, then embeds the zip in all binaries.
+
+JUCE JS helpers: `JUCE/modules/juce_gui_extra/native/javascript/` (Vite alias `@juce`).
+
+Melatonin Inspector is **not** used (native JUCE widget debugger; editor is WebView-only). The `melatonin_inspector` submodule may still exist in `.gitmodules` but is not linked in CMake.
+
+## Svelte 5 (`ui/`)
+
+All `.svelte` files use **runes mode** (Svelte 5). Cursor rule `.cursor/rules/svelte-ui.mdc` applies when editing `ui/**`.
+
+**Use:** `$props()`, `$state()`, `$derived` / `$derived.by`, `onclick` / `onpointerdown` (not `on:click`), `{#snippet}` / `{@render}`, callback props (`onValueChange`), `SvelteSet` / `SvelteMap` for in-place collection updates, keyed `{#each}` with stable ids.
+
+**Avoid:** Svelte 4 `export let`, `$:`, `<slot>`, `on:event`, `createEventDispatcher`, unnecessary `$effect`, stores for local component state.
+
+**Before finishing any `ui/` change:** run `cd ui && npm run check`, then `cmake --build Builds` (full formats). Do not leave UI work with failing check or stale embedded zip.
+
+**Scheduling:** `ui/src/phraseSchedule.js` powers the piano-roll preview; C++ owns audio timing. Do not change one without tests or explicit parity with the other.
+
 ## Agent workflow (rebuild every time)
 
 After any change to `ui/`, `source/`, `CMakeLists.txt`, or plugin-related CMake modules:
 
 1. Reconfigure only if CMake changed: `cmake -B Builds -G Ninja -DCMAKE_BUILD_TYPE=Debug`
-2. **Always** build all formats: `cmake --build Builds` (Standalone, AU, VST3, AUv3 — installs AU/VST3 to `~/Library/Audio/Plug-Ins/`). **Never** use only `MidiPhrases_Standalone`; DAW plugins will stay stale.
-3. Fix compile errors before finishing the task; do not leave rebuilds to the user unless their toolchain is missing (cmake/ninja/Xcode).
+2. If **`ui/`** changed: `cd ui && npm run check`
+3. **Always** build all formats: `cmake --build Builds` (Standalone, AU, VST3, AUv3, CLAP — installs AU/VST3 to `~/Library/Audio/Plug-Ins/`). **Never** use only `MidiPhrases_Standalone`; DAW plugins will stay stale.
+4. Fix compile/check warnings before finishing; do not leave rebuilds to the user unless the toolchain is missing.
 
 Run `./Builds/Tests` when test or processor behavior changes.
 
@@ -61,14 +95,17 @@ See `.cursor/rules/rebuild-after-changes.mdc` for WebView zip / DAW reload notes
 
 ## Project Structure
 
-- `source/` - Plugin source code (PluginProcessor, PluginEditor)
-- `tests/` - Catch2 test files
-- `benchmarks/` - Catch2 benchmark files
-- `cmake/` - CMake modules (Tests.cmake, Benchmarks.cmake, Assets.cmake, etc.)
-- `modules/` - Git submodules: clap-juce-extensions, melatonin_inspector
-- `JUCE/` - JUCE framework (git submodule)
-- `assets/` - Binary resources (auto-included via juce_add_binary_data)
-- `packaging/` - Installer resources and scripts
+- `source/` — PluginProcessor, PluginEditor, WebView bridge, scheduling
+- `ui/` — Svelte 5 / Vite / Tailwind WebView frontend (`src/*.svelte`, `phraseSchedule.js`, …)
+- `tests/` — Catch2 tests
+- `benchmarks/` — Catch2 benchmarks
+- `cmake/`, `cmake_project/` — CMake modules (`WebViewUI.cmake`, tests, assets)
+- `modules/` — `clap-juce-extensions` submodule
+- `JUCE/` — JUCE submodule
+- `assets/` — Binary resources (`assets/webview/ui.zip` built from `ui/`)
+- `.githooks/` — Git hooks (`pre-commit` → `npm run check` when `ui/` staged)
+- `scripts/` — `setup-git-hooks.sh`, etc.
+- `packaging/` — Installer resources
 
 ## Architecture
 
@@ -76,6 +113,7 @@ See `.cursor/rules/rebuild-after-changes.mdc` for WebView zip / DAW reload notes
 
 **CMake Modules**:
 - `PamplejuceVersion.cmake` - Reads VERSION file, optional auto-bump patch level
+- `WebViewUI.cmake` - `npm run build` → `assets/webview/ui.zip`
 - `Assets.cmake` - Auto-includes all files in assets/ as binary data
 - `Tests.cmake` - Configures Catch2 test target
 - `Benchmarks.cmake` - Configures Catch2 benchmark target
@@ -90,7 +128,7 @@ Edit `CMakeLists.txt` to customize:
 - `PRODUCT_NAME` - Display name in DAWs (can have spaces)
 - `COMPANY_NAME` - Used for bundle name
 - `BUNDLE_ID` - macOS bundle identifier
-- `FORMATS` - Plugin formats to build (Standalone AU VST3 AUv3)
+- `FORMATS` - Plugin formats to build (default: Standalone AU VST3 AUv3; CLAP via `clap_juce_extensions_plugin`)
 - `PLUGIN_MANUFACTURER_CODE` / `PLUGIN_CODE` - 4-character plugin IDs
 
 Version is read from the `VERSION` file in project root.
@@ -146,7 +184,6 @@ For anything in the audio thread / hot DSP path (e.g. `processBlock`):
 
 **JUCE Modules** live in `modules/` as git submodules. Add with `git submodule add`, then `add_subdirectory` and link to `SharedCode` in `CMakeLists.txt`. Some useful ones:
 
-- [melatonin_inspector](https://github.com/sudara/melatonin_inspector) — runtime component debugger (already included)
 - [melatonin_blur](https://github.com/sudara/melatonin_blur) — fast cross-platform blurs for C++ UI (shadows, glows, frosted glass)
 - [melatonin_perfetto](https://github.com/sudara/melatonin_perfetto) — performance tracing with Perfetto, great for profiling `processBlock` and paint calls
 - [gin](https://github.com/FigBug/gin) — large collection of utilities (DSP, UI components, LookAndFeel, etc.)
@@ -162,6 +199,9 @@ Some useful CPM libraries:
 - [nlohmann/json](https://github.com/nlohmann/json) — JSON parsing/serialization
 - [cameron314/readerwriterqueue](https://github.com/cameron314/readerwriterqueue) — lock-free single-producer/single-consumer queue, ideal for audio↔message thread communication
 
+**UI (`ui/`):** add npm packages in `ui/package.json`; run `npm install` in `ui/`. Prefer small, tree-shakeable deps. After dependency changes, `npm run check` and full `cmake --build Builds`.
+
 ## Code Style
 
-Uses `.clang-format` with Allman-style braces, 4-space indentation, no column limit.
+- **C++:** `.clang-format` with Allman-style braces, 4-space indentation, no column limit.
+- **Svelte/JS:** match existing `ui/src` patterns (runes, JSDoc props, Tailwind utility classes).

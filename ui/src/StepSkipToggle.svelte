@@ -6,31 +6,46 @@
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
 
-  /** @type {import('./rowAccentTheme.js').RowAccent} */
-  export let accent = emeraldRowAccent;
-  export let muted = false;
-  export let value = false;
-  export let ariaLabel = "Skip step in sequence";
-  export let buttonClass = "";
-  export let iconClass = "pointer-events-none h-3 w-3";
-  /** @type {string | undefined} */
-  export let style = undefined;
-  /** @type {(value: boolean) => void | Promise<void>} */
-  export let onValueChange = () => {};
+  
+  
+  
+  /**
+   * @typedef {Object} Props
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {boolean} [muted]
+   * @property {boolean} [value]
+   * @property {string} [ariaLabel]
+   * @property {string} [buttonClass]
+   * @property {string} [iconClass]
+   * @property {string | undefined} [style]
+   * @property {(value: boolean) => void | Promise<void>} [onValueChange]
+   */
+
+  /** @type {Props} */
+  let {
+    accent = emeraldRowAccent,
+    muted = false,
+    value = false,
+    ariaLabel = "Skip step in sequence",
+    buttonClass = "",
+    iconClass = "pointer-events-none h-3 w-3",
+    style = undefined,
+    onValueChange = () => {}
+  } = $props();
 
   function toggle() {
     onValueChange(!value);
   }
 
-  $: iconClasses = muted
+  let iconClasses = $derived(muted
     ? "text-zinc-600"
     : value
       ? toggleIconActiveClasses
-      : toggleIconRestClasses;
+      : toggleIconRestClasses);
 
-  $: resolvedButtonClass =
-    buttonClass ||
-    `flex h-6 w-6 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors ${accent.ringFocusWithWidth}`;
+  let resolvedButtonClass =
+    $derived(buttonClass ||
+    `flex h-6 w-6 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors ${accent.ringFocusWithWidth}`);
 </script>
 
 <button

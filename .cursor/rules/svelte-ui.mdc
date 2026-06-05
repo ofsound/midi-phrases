@@ -1,0 +1,40 @@
+---
+description: Svelte 5 runes conventions for the WebView UI
+globs: ui/**/*
+alwaysApply: false
+---
+
+# Svelte 5 UI (`ui/`)
+
+The plugin editor is Svelte **5 runes mode** (Vite + Tailwind). Match existing components in `ui/src/`.
+
+## Required patterns
+
+- **`$props()`** — destructured props with JSDoc `@typedef` (JavaScript project, not TypeScript).
+- **`$state()`** — local UI state (dragging, open panels).
+- **`$derived` / `$derived.by`** — anything computed from props or state. Do not use `$:`.
+- **Events** — `onclick`, `onpointerdown`, etc. Not `on:click`.
+- **Composition** — `{#snippet}` + `{@render}`; optional snippet props on children (see `StepCardFlip.svelte`). Callback props (`onValueChange`, `onFlipChange`), not `createEventDispatcher`.
+- **Collections** — `SvelteSet` / `SvelteMap` from `svelte/reactivity` when mutating in place (e.g. selection, flip overrides). Reassign `$state` only when replacing the whole collection.
+- **Lists** — keyed `{#each}` with stable ids (step IDs), not array indices.
+
+## Avoid (legacy Svelte 4)
+
+`export let`, `$:`, `<slot>` / `$$slots`, `on:event`, stores for local component state, `svelte:component` (use dynamic components), unnecessary `$effect`.
+
+Prefer event handlers or `$derived` over `$effect`. Use `$effect` only when integrating non-Svelte APIs with no cleaner option.
+
+## Before marking UI work done
+
+1. `cd ui && npm run check` — must pass (`--fail-on-warnings`).
+2. `cmake --build Builds` — embed fresh `assets/webview/ui.zip` in all plugin binaries (see `rebuild-after-changes.mdc`).
+
+Commits that stage `ui/` run `npm run check` via `.githooks/pre-commit` when hooks are enabled (`./scripts/setup-git-hooks.sh`).
+
+## Scheduling
+
+`phraseSchedule.js` drives the piano-roll preview; C++ owns audio scheduling. Do not change timing in one layer without tests or explicit parity with the other.
+
+## Bridge
+
+Native calls use `@juce` helpers. Keep per-frame native return values small (scalars); avoid large nested payloads on animation paths (see `CLAUDE.md` processor / WebView notes).

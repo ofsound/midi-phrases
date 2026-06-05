@@ -2,23 +2,36 @@
   import { midiToNoteName } from "./midiNoteNames.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
-  /** @type {import('./rowAccentTheme.js').RowAccent} */
-  export let accent = emeraldRowAccent;
-  export let muted = false;
-  export let value;
-  /** MIDI note to restore on double-click; omit to disable reset. */
-  export let resetValue = undefined;
-  export let ariaLabel = "Note";
-  /** @type {(value: number) => void | Promise<void>} */
-  export let onValueChange = () => {};
+  
+  
+  
+  /**
+   * @typedef {Object} Props
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {boolean} [muted]
+   * @property {any} value
+   * @property {any} [resetValue] - MIDI note to restore on double-click; omit to disable reset.
+   * @property {string} [ariaLabel]
+   * @property {(value: number) => void | Promise<void>} [onValueChange]
+   */
+
+  /** @type {Props} */
+  let {
+    accent = emeraldRowAccent,
+    muted = false,
+    value,
+    resetValue = undefined,
+    ariaLabel = "Note",
+    onValueChange = () => {}
+  } = $props();
 
   const pixelsPerStep = 10;
 
-  let dragging = false;
+  let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
 
-  $: displayName = midiToNoteName(value);
+  let displayName = $derived(midiToNoteName(value));
 
   function clampMidi(note) {
     return Math.min(127, Math.max(0, Math.round(note)));

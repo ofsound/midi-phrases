@@ -1,21 +1,45 @@
 <script>
-  /** @type {{ index: number, label: string }[]} */
-  export let options;
-  export let value;
-  export let label = "";
-  export let fullWidth = false;
-  export let ariaLabel = "Discrete slider";
-  /** @type {(index: number) => void | Promise<void>} */
-  export let onValueChange = () => {};
+  
+  
+  /**
+   * @typedef {Object} Props
+   * @property {{ index: number, label: string }[]} options
+   * @property {any} value
+   * @property {string} [label]
+   * @property {boolean} [fullWidth]
+   * @property {string} [ariaLabel]
+   * @property {(index: number) => void | Promise<void>} [onValueChange]
+   */
+
+  /** @type {Props} */
+  let {
+    options,
+    value,
+    label = "",
+    fullWidth = false,
+    ariaLabel = "Discrete slider",
+    onValueChange = () => {}
+  } = $props();
 
   /** @type {HTMLDivElement | null} */
-  let trackEl = null;
+  let trackEl = $state(null);
   let dragging = false;
 
-  $: maxIndex = Math.max(0, options.length - 1);
-  $: valuePosition = Math.max(0, options.findIndex((option) => option.index === value));
-  $: thumbPercent = maxIndex > 0 ? (valuePosition / maxIndex) * 100 : 0;
-  $: currentLabel = options.find((option) => option.index === value)?.label ?? "";
+  let maxIndex = $derived(Math.max(0, options.length - 1));
+  let valuePosition = $derived(Math.max(0, options.findIndex((option) => option.index === value)));
+  let thumbPercent = $derived(maxIndex > 0 ? (valuePosition / maxIndex) * 100 : 0);
+  let currentLabel = $derived(options.find((option) => option.index === value)?.label ?? "");
+
+  /** @param {HTMLDivElement} node */
+  function trackAttachment(node) {
+    trackEl = node;
+
+    return () => {
+      if (trackEl === node) {
+        trackEl = null;
+      }
+    };
+  }
 
   function indexFromClientX(clientX) {
     if (!trackEl) return value;
@@ -67,7 +91,7 @@
   </div>
 
   <div
-    bind:this={trackEl}
+    {@attach trackAttachment}
     data-cursor="pointer"
     class="relative h-5 touch-none select-none"
     role="slider"
@@ -106,7 +130,7 @@
   </div>
 
   <div class="relative h-3">
-    {#each options as option, optionIndex}
+    {#each options as option, optionIndex (option.index)}
       <span
         class="absolute -translate-x-1/2 font-mono text-[9px] leading-none {value === option.index
           ? 'text-emerald-300'

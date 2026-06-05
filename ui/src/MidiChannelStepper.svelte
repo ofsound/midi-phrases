@@ -1,25 +1,40 @@
 <script>
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
-  /** @type {import('./rowAccentTheme.js').RowAccent} */
-  export let accent = emeraldRowAccent;
-  export let value = 1;
-  export let min = 1;
-  export let max = 16;
-  export let muted = false;
-  /** Channel restored on double-click; omit to disable reset. */
-  export let resetValue = undefined;
-  export let ariaLabel = "MIDI channel";
-  /** @type {(channel: number) => void | Promise<void>} */
-  export let onValueChange = () => {};
+  
+  
+  
+  /**
+   * @typedef {Object} Props
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {number} [value]
+   * @property {number} [min]
+   * @property {number} [max]
+   * @property {boolean} [muted]
+   * @property {any} [resetValue] - Channel restored on double-click; omit to disable reset.
+   * @property {string} [ariaLabel]
+   * @property {(channel: number) => void | Promise<void>} [onValueChange]
+   */
+
+  /** @type {Props} */
+  let {
+    accent = emeraldRowAccent,
+    value = 1,
+    min = 1,
+    max = 16,
+    muted = false,
+    resetValue = undefined,
+    ariaLabel = "MIDI channel",
+    onValueChange = () => {}
+  } = $props();
 
   const pixelsPerStep = 10;
 
-  let dragging = false;
+  let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
 
-  $: displayValue = String(value);
+  let displayValue = $derived(String(value));
 
   function clampChannel(channel) {
     return Math.min(max, Math.max(min, Math.round(channel)));

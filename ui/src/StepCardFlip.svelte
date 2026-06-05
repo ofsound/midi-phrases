@@ -1,16 +1,38 @@
 <script>
   import { doubleClick } from "./doubleClickAction.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
-  /** @type {import('./rowAccentTheme.js').RowAccent} */
-  export let accent = emeraldRowAccent;
-  export let muted = false;
-  export let flipped = false;
-  export let disabled = false;
-  export let surfaceClass = "bg-zinc-900";
-  export let borderClass = "border-zinc-700";
-  export let headerClass = "border-b border-zinc-800 bg-zinc-800/60";
-  /** @type {(flipped: boolean) => void} */
-  export let onFlipChange = () => {};
+
+  /**
+   * @typedef {Object} Props
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {boolean} [muted]
+   * @property {boolean} [flipped]
+   * @property {boolean} [disabled]
+   * @property {string} [surfaceClass]
+   * @property {string} [borderClass]
+   * @property {string} [headerClass]
+   * @property {(flipped: boolean) => void} [onFlipChange]
+   * @property {import('svelte').Snippet} [front]
+   * @property {import('svelte').Snippet} [backHeader]
+   * @property {import('svelte').Snippet} [back]
+   * @property {import('svelte').Snippet} [backFooter]
+   */
+
+  /** @type {Props} */
+  let {
+    accent = emeraldRowAccent,
+    muted = false,
+    flipped = false,
+    disabled = false,
+    surfaceClass = "bg-zinc-900",
+    borderClass = "border-zinc-700",
+    headerClass = "border-b border-zinc-800 bg-zinc-800/60",
+    onFlipChange = () => {},
+    front,
+    backHeader,
+    back,
+    backFooter,
+  } = $props();
 
   function closeFlip() {
     if (flipped) {
@@ -52,32 +74,18 @@
     return shouldIgnoreBackDoubleClick(event);
   }
 
-  $: backBodyDoubleClickOptions = {
+  let backBodyDoubleClickOptions = $derived({
     disabled: disabled || !flipped,
     shouldIgnore: shouldIgnoreBackPointerDoubleClick,
     onDoubleClick: handleBackBodyDoubleClick,
-  };
+  });
 
-  /**
-   * Each face stays visible for its outgoing flip, then hides after transitionend
-   * so WebView does not flash blank or bleed the hidden face (display:none breaks 3D).
-   */
-  let frontHidden = false;
-  let backHidden = true;
-
-  $: if (flipped) {
-    backHidden = false;
-  } else {
-    frontHidden = false;
-  }
-
-  /** @param {TransitionEvent} event */
-  function handleFlipTransitionEnd(event) {
-    if (event.propertyName !== "transform") return;
-
-    frontHidden = flipped;
-    backHidden = !flipped;
-  }
+  let frontPointerClass = $derived(
+    flipped ? "pointer-events-none" : "pointer-events-auto",
+  );
+  let backPointerClass = $derived(
+    flipped ? "pointer-events-auto" : "pointer-events-none",
+  );
 </script>
 
 <div
@@ -86,27 +94,18 @@
 >
   <div
     class="flip-inner pointer-events-none relative h-full w-full min-w-0 {flipped ? 'is-flipped' : ''}"
-    ontransitionend={handleFlipTransitionEnd}
   >
     <div
-      class="flip-face flip-front relative min-h-0 min-w-0 {frontHidden
-        ? 'pointer-events-none invisible'
-        : flipped
-          ? 'pointer-events-none'
-          : 'pointer-events-auto'}"
+      class="flip-face flip-front relative min-h-0 min-w-0 {frontPointerClass}"
       aria-hidden={flipped}
     >
       <div class="relative h-full min-h-0 w-full min-w-0">
-        <slot name="front" />
+        {@render front?.()}
       </div>
     </div>
 
     <div
-      class="flip-face flip-back absolute inset-0 min-h-0 min-w-0 {backHidden
-        ? 'pointer-events-none hidden'
-        : flipped
-          ? 'pointer-events-auto'
-          : 'pointer-events-none'}"
+      class="flip-face flip-back absolute inset-0 min-h-0 min-w-0 {backPointerClass}"
       aria-hidden={!flipped}
     >
       <div
@@ -122,7 +121,7 @@
           title="Double-click to close step settings"
           aria-label="Step settings. Double-click to close."
         >
-          <slot name="back-header" />
+          {@render backHeader?.()}
         </div>
 
         <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -134,10 +133,10 @@
           ondblclick={handleBackBodyDoubleClick}
           title="Double-click empty area to close step settings"
         >
-          <slot name="back" />
+          {@render back?.()}
         </div>
 
-        <slot name="back-footer" />
+        {@render backFooter?.()}
       </div>
     </div>
   </div>

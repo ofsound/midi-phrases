@@ -2,30 +2,56 @@
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import StepMutedOverlay from "./StepMutedOverlay.svelte";
 
-  /** @type {import('./rowAccentTheme.js').RowAccent} */
-  export let accent = emeraldRowAccent;
-  /** Row off or step skipped — gray duration chrome, no hatch. */
-  export let muted = false;
-  /** Per-step mute — front only: empty duration bar + hatch on track background. */
-  export let stepMuted = false;
-  export let value = 1;
-  export let velocity = 127;
-  /** Duration fraction restored on double-click; omit to disable reset. */
-  export let resetValue = undefined;
-  export let ariaLabel = "Step duration";
-  /** @type {(value: number) => void | Promise<void>} */
-  export let onValueChange = () => {};
+  
+  
+  
+  
+  
+  /**
+   * @typedef {Object} Props
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {boolean} [muted] - Row off or step skipped — gray duration chrome, no hatch.
+   * @property {boolean} [stepMuted] - Per-step mute — front only: empty duration bar + hatch on track background.
+   * @property {number} [value]
+   * @property {number} [velocity]
+   * @property {any} [resetValue] - Duration fraction restored on double-click; omit to disable reset.
+   * @property {string} [ariaLabel]
+   * @property {(value: number) => void | Promise<void>} [onValueChange]
+   */
+
+  /** @type {Props} */
+  let {
+    accent = emeraldRowAccent,
+    muted = false,
+    stepMuted = false,
+    value = 1,
+    velocity = 127,
+    resetValue = undefined,
+    ariaLabel = "Step duration",
+    onValueChange = () => {}
+  } = $props();
 
   const snapValues = [0, 0.25, 0.5, 0.75, 1];
 
   /** @type {HTMLDivElement | null} */
-  let trackEl = null;
-  let dragging = false;
+  let trackEl = $state(null);
+  let dragging = $state(false);
 
-  $: fillPercent = Math.min(100, Math.max(0, value * 100));
-  $: fillOpacity = 0.2 + (Math.min(127, Math.max(0, velocity)) / 127) * 0.8;
-  $: showMutedHatch = stepMuted && !muted;
-  $: displayFillPercent = showMutedHatch ? 0 : fillPercent;
+  let fillPercent = $derived(Math.min(100, Math.max(0, value * 100)));
+  let fillOpacity = $derived(0.2 + (Math.min(127, Math.max(0, velocity)) / 127) * 0.8);
+  let showMutedHatch = $derived(stepMuted && !muted);
+  let displayFillPercent = $derived(showMutedHatch ? 0 : fillPercent);
+
+  /** @param {HTMLDivElement} node */
+  function trackAttachment(node) {
+    trackEl = node;
+
+    return () => {
+      if (trackEl === node) {
+        trackEl = null;
+      }
+    };
+  }
 
   function clampFraction(fraction) {
     return Math.min(1, Math.max(0, fraction));
@@ -107,7 +133,7 @@
 
 <div class="flex min-w-0 w-full flex-col">
   <div
-    bind:this={trackEl}
+    {@attach trackAttachment}
     data-cursor="pointer"
     class="relative h-4 touch-none select-none outline-none {accent.ringFocusWithWidth} {muted
       ? 'bg-zinc-800'

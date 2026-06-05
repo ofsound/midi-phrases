@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+
+if ! git diff --cached --name-only --diff-filter=ACMR | grep -q '^ui/'; then
+  exit 0
+fi
+
+if [[ ! -d "$root/ui/node_modules" ]]; then
+  echo "pre-commit: run 'npm install' in ui/ first" >&2
+  exit 1
+fi
+
+cd "$root/ui"
+npm run check

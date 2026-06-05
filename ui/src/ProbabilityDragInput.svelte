@@ -1,25 +1,40 @@
 <script>
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
-  /** @type {import('./rowAccentTheme.js').RowAccent} */
-  export let accent = emeraldRowAccent;
-  export let muted = false;
-  export let value;
-  export let min = 0;
-  export let max = 100;
-  /** Probability restored on double-click; omit to disable reset. */
-  export let resetValue = undefined;
-  export let ariaLabel = "Step probability";
-  /** @type {(value: number) => void | Promise<void>} */
-  export let onValueChange = () => {};
+  
+  
+  
+  /**
+   * @typedef {Object} Props
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {boolean} [muted]
+   * @property {any} value
+   * @property {number} [min]
+   * @property {number} [max]
+   * @property {any} [resetValue] - Probability restored on double-click; omit to disable reset.
+   * @property {string} [ariaLabel]
+   * @property {(value: number) => void | Promise<void>} [onValueChange]
+   */
+
+  /** @type {Props} */
+  let {
+    accent = emeraldRowAccent,
+    muted = false,
+    value,
+    min = 0,
+    max = 100,
+    resetValue = undefined,
+    ariaLabel = "Step probability",
+    onValueChange = () => {}
+  } = $props();
 
   const pixelsPerStep = 4;
 
-  let dragging = false;
+  let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
 
-  $: displayValue = `${Math.round(value)}%`;
+  let displayValue = $derived(`${Math.round(value)}%`);
 
   function clampProbability(probability) {
     return Math.min(max, Math.max(min, Math.round(probability)));

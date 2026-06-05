@@ -1,6 +1,12 @@
 <script>
-  /** When true, draws a diagonal hatch (e.g. over the duration track only). */
-  export let active = false;
+  
+  /**
+   * @typedef {Object} Props
+   * @property {boolean} [active] - When true, draws a diagonal hatch (e.g. over the duration track only).
+   */
+
+  /** @type {Props} */
+  let { active = false } = $props();
 </script>
 
 {#if active}

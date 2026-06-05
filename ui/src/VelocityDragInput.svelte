@@ -1,25 +1,40 @@
 <script>
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
-  /** @type {import('./rowAccentTheme.js').RowAccent} */
-  export let accent = emeraldRowAccent;
-  export let muted = false;
-  export let value;
-  export let min = 0;
-  export let max = 127;
-  /** Velocity restored on double-click; omit to disable reset. */
-  export let resetValue = undefined;
-  export let ariaLabel = "Velocity";
-  /** @type {(value: number) => void | Promise<void>} */
-  export let onValueChange = () => {};
+  
+  
+  
+  /**
+   * @typedef {Object} Props
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {boolean} [muted]
+   * @property {any} value
+   * @property {number} [min]
+   * @property {number} [max]
+   * @property {any} [resetValue] - Velocity restored on double-click; omit to disable reset.
+   * @property {string} [ariaLabel]
+   * @property {(value: number) => void | Promise<void>} [onValueChange]
+   */
+
+  /** @type {Props} */
+  let {
+    accent = emeraldRowAccent,
+    muted = false,
+    value,
+    min = 0,
+    max = 127,
+    resetValue = undefined,
+    ariaLabel = "Velocity",
+    onValueChange = () => {}
+  } = $props();
 
   const pixelsPerStep = 4;
 
-  let dragging = false;
+  let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
 
-  $: displayValue = String(Math.round(value));
+  let displayValue = $derived(String(Math.round(value)));
 
   function clampVelocity(velocity) {
     return Math.min(max, Math.max(min, Math.round(velocity)));

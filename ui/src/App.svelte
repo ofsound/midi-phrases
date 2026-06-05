@@ -1,5 +1,6 @@
 <script>
   import { onMount } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import { getNativeFunction } from "@juce/index.js";
   import {
     defaultPhraseGrid,
@@ -61,44 +62,44 @@
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
 
-  let pluginName = "MIDI Phrases";
-  let grid = defaultPhraseGrid();
+  let pluginName = $state("MIDI Phrases");
+  let grid = $state(defaultPhraseGrid());
   /** @type {boolean[]} */
-  let rowMuted = [false, false, false, false];
+  let rowMuted = $state([false, false, false, false]);
   let soloRow = -1;
   /** @type {boolean[] | null} */
   let rowSoloRestoreMuted = null;
   /** @type {number[]} */
-  let rowTimingOffset = [
+  let rowTimingOffset = $state([
     defaultRowTimingOffsetIndex,
     defaultRowTimingOffsetIndex,
     defaultRowTimingOffsetIndex,
     defaultRowTimingOffsetIndex,
-  ];
+  ]);
   /** @type {number[]} */
-  let rowMidiChannel = [1, 1, 1, 1];
+  let rowMidiChannel = $state([1, 1, 1, 1]);
   /** @type {number[][]} */
-  let stepDurationFraction = defaultStepDurationGrid();
+  let stepDurationFraction = $state(defaultStepDurationGrid());
   /** @type {number[][]} */
-  let stepTimingMultiplier = defaultStepTimingMultiplierGrid();
+  let stepTimingMultiplier = $state(defaultStepTimingMultiplierGrid());
   /** @type {number[][]} */
-  let stepVelocity = defaultStepVelocityGrid();
+  let stepVelocity = $state(defaultStepVelocityGrid());
   /** @type {boolean[][]} */
-  let stepMuted = defaultStepMutedGrid();
+  let stepMuted = $state(defaultStepMutedGrid());
   /** @type {boolean[][]} */
-  let stepSkipped = defaultStepSkippedGrid();
+  let stepSkipped = $state(defaultStepSkippedGrid());
   /** @type {number[][]} */
-  let stepProbability = defaultStepProbabilityGrid();
+  let stepProbability = $state(defaultStepProbabilityGrid());
   /** @type {number[][]} */
-  let stepCycle = defaultStepCycleGrid();
+  let stepCycle = $state(defaultStepCycleGrid());
   /** @type {number[][]} */
-  let stepCycleOffset = defaultStepCycleOffsetGrid();
+  let stepCycleOffset = $state(defaultStepCycleOffsetGrid());
   /** @type {boolean[][]} */
-  let activeGates = defaultPhraseGrid().map((row) => row.map(() => false));
+  let activeGates = $state(defaultPhraseGrid().map((row) => row.map(() => false)));
   /** @type {string[][]} */
-  let stepIds = defaultPhraseGrid().map((row, rowIndex) =>
+  let stepIds = $state(defaultPhraseGrid().map((row, rowIndex) =>
     row.map((_, step) => `step-${rowIndex}-${step}`),
-  );
+  ));
 
   let playbackPollFrameId = 0;
   let slotSelectionInFlight = 0;
@@ -106,7 +107,7 @@
   let activeGateHoldUntil = defaultPhraseGrid().map((row) => row.map(() => 0));
 
   /** Row index armed for MIDI capture, or null. */
-  let recordingRow = null;
+  let recordingRow = $state(null);
   /** Snapshot taken when recording was armed (for undo / cancel). */
   /** @type {ReturnType<typeof createHistorySnapshot> | null} */
   let recordingHistoryBefore = null;
@@ -115,7 +116,7 @@
   /** Clears the row on the next captured note. */
   let recordingAwaitingFirstNote = false;
   /** @type {Set<number>} */
-  let recordingKeysHeld = new Set();
+  let recordingKeysHeld = $state(new Set());
 
   const timingOffsetOptions = [
     { index: 0, label: "-.75" },
@@ -129,37 +130,40 @@
 
 
   let nextStepId = defaultPhraseGrid().reduce((count, row) => count + row.length, 0);
-  let loopBraceEnabled = false;
-  let loopBraceStart = 0;
-  let loopBraceEnd = 8;
-  let playbackBeat = -1;
-  let standaloneTransportAvailable = false;
-  let standalonePlaying = false;
-  let standaloneTempoBpm = 120;
-  let activePatternSlot = 0;
+  let loopBraceEnabled = $state(false);
+  let loopBraceStart = $state(0);
+  let loopBraceEnd = $state(8);
+  let playbackBeat = $state(-1);
+  let standaloneTransportAvailable = $state(false);
+  let standalonePlaying = $state(false);
+  let standaloneTempoBpm = $state(120);
+  let activePatternSlot = $state(0);
   let viewPatternSlot = 0;
-  let patternCopySource = -1;
-  let activeLoopSlot = -1;
-  let loopSlotAssigned = Array.from({ length: 8 }, () => false);
+  let patternCopySource = $state(-1);
+  let activeLoopSlot = $state(-1);
+  let loopSlotAssigned = $state(Array.from({ length: 8 }, () => false));
   let loopSlotPattern = Array.from({ length: 8 }, () => 0);
-  let pulseIndex = defaultPulseIndex;
-  let swingPercent = 0;
-  let velocityHumanizePercent = 0;
-  let timingHumanizePercent = 0;
-  let swingSubdivisionIndex = 1;
-  let rowColorsEnabled = false;
-  let undoStack = [];
-  let redoStack = [];
-  /** @type {Set<string>} */
-  let selectedStepKeys = new Set();
+  let pulseIndex = $state(defaultPulseIndex);
+  let swingPercent = $state(0);
+  let velocityHumanizePercent = $state(0);
+  let timingHumanizePercent = $state(0);
+  let swingSubdivisionIndex = $state(1);
+  let rowColorsEnabled = $state(false);
+  let undoStack = $state([]);
+  let redoStack = $state([]);
+  const selectedStepKeys = new SvelteSet();
   /** @type {string[][]} */
-  let selectedStepIdsByRow = stepIds.map(() => []);
-  let globalStepBackView = false;
-  let bulkDurationPercent = 100;
-  let bulkVelocityPercent = 100;
-  let bulkTransposeSemitones = 0;
+  let selectableStepKeySet = $derived(new Set(allSelectableStepKeys()));
+  let selectedStepKeysForGrid = $derived(
+    new Set([...selectedStepKeys].filter((key) => selectableStepKeySet.has(key))),
+  );
+  let selectedStepIdsByRow = $derived(selectedStepIdsByRowForKeys(selectedStepKeysForGrid));
+  let globalStepBackView = $state(false);
+  let bulkDurationPercent = $state(100);
+  let bulkVelocityPercent = $state(100);
+  let bulkTransposeSemitones = $state(0);
   /** @type {{ startX: number, startY: number, currentX: number, currentY: number, addToSelection: boolean, baseKeys: Set<string> } | null} */
-  let marqueeSelection = null;
+  let marqueeSelection = $state(null);
 
   const historyLimit = 100;
   const stepTriggerFlashMs = 110;
@@ -219,29 +223,29 @@
   }
 
   /** UI-only; shifts phrase rows and beat-one guide when any row has a negative offset. */
-  $: phraseVisualOffsetCompensationPx = phraseGridVisualOffsetCompensationPx(
+  let phraseVisualOffsetCompensationPx = $derived(phraseGridVisualOffsetCompensationPx(
     rowTimingOffset,
     pulseIndex,
-  );
+  ));
 
-  $: selectedStepCount = selectedStepKeys.size;
-  $: selectableStepCount = stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0);
-  $: allStepsSelected = selectedStepCount === selectableStepCount && selectedStepCount > 0;
-  $: marqueeLeft = marqueeSelection
+  let selectedStepCount = $derived(selectedStepKeysForGrid.size);
+  let selectableStepCount = $derived(stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0));
+  let allStepsSelected = $derived(selectedStepCount === selectableStepCount && selectedStepCount > 0);
+  let marqueeLeft = $derived(marqueeSelection
     ? Math.min(marqueeSelection.startX, marqueeSelection.currentX)
-    : 0;
-  $: marqueeTop = marqueeSelection
+    : 0);
+  let marqueeTop = $derived(marqueeSelection
     ? Math.min(marqueeSelection.startY, marqueeSelection.currentY)
-    : 0;
-  $: marqueeWidth = marqueeSelection
+    : 0);
+  let marqueeWidth = $derived(marqueeSelection
     ? Math.abs(marqueeSelection.currentX - marqueeSelection.startX)
-    : 0;
-  $: marqueeHeight = marqueeSelection
+    : 0);
+  let marqueeHeight = $derived(marqueeSelection
     ? Math.abs(marqueeSelection.currentY - marqueeSelection.startY)
-    : 0;
-  $: marqueeRectStyle = marqueeSelection
+    : 0);
+  let marqueeRectStyle = $derived(marqueeSelection
     ? `left: ${marqueeLeft}px; top: ${marqueeTop}px; width: ${marqueeWidth}px; height: ${marqueeHeight}px;`
-    : "";
+    : "");
 
   function createStepId() {
     const id = `step-${nextStepId}`;
@@ -286,14 +290,19 @@
 
   /** @param {Set<string>} next */
   function setSelectedStepKeys(next) {
-    selectedStepKeys = next;
-    selectedStepIdsByRow = selectedStepIdsByRowForKeys(next);
+    selectedStepKeys.clear();
+
+    for (const key of next) {
+      if (selectableStepKeySet.has(key)) {
+        selectedStepKeys.add(key);
+      }
+    }
   }
 
   function selectedStepLocations() {
     const locations = [];
 
-    for (const key of selectedStepKeys) {
+    for (const key of selectedStepKeysForGrid) {
       const row = rowFromStepSelectionKey(key);
       const stepId = key.substring(key.indexOf(":") + 1);
       const step = stepIds[row]?.indexOf(stepId) ?? -1;
@@ -304,20 +313,6 @@
     }
 
     return locations;
-  }
-
-  function pruneInvalidStepSelection() {
-    const valid = new Set(allSelectableStepKeys());
-    const next = new Set([...selectedStepKeys].filter((key) => valid.has(key)));
-
-    if (next.size !== selectedStepKeys.size) {
-      setSelectedStepKeys(next);
-    }
-  }
-
-  $: {
-    stepIds;
-    pruneInvalidStepSelection();
   }
 
   function selectAllStepsForBulkEdit() {
@@ -373,7 +368,7 @@
     if (!marqueeSelection) return;
 
     const selectionRect = marqueeRect();
-    const hitKeys = new Set();
+    const hitKeys = new SvelteSet();
 
     for (const element of document.querySelectorAll("[data-bulk-step-cell]")) {
       if (!(element instanceof HTMLElement)) continue;
@@ -388,8 +383,8 @@
     }
 
     const next = marqueeSelection.addToSelection
-      ? new Set(marqueeSelection.baseKeys)
-      : new Set();
+      ? new SvelteSet(marqueeSelection.baseKeys)
+      : new SvelteSet();
 
     for (const key of hitKeys) {
       next.add(key);
@@ -455,7 +450,7 @@
       currentX: event.clientX,
       currentY: event.clientY,
       addToSelection: event.shiftKey,
-      baseKeys: event.shiftKey ? new Set(selectedStepKeys) : new Set(),
+      baseKeys: event.shiftKey ? new Set(selectedStepKeysForGrid) : new Set(),
     };
 
     updateMarqueeSelectionFromPointer();
@@ -729,17 +724,6 @@
     activeGates[row] = reorder(activeGates[row]);
     stepIds[row] = validIds;
 
-    grid = grid;
-    stepDurationFraction = stepDurationFraction;
-    stepTimingMultiplier = stepTimingMultiplier;
-    stepVelocity = stepVelocity;
-    stepMuted = stepMuted;
-    stepSkipped = stepSkipped;
-    stepProbability = stepProbability;
-    stepCycle = stepCycle;
-    stepCycleOffset = stepCycleOffset;
-    activeGates = activeGates;
-    stepIds = stepIds;
   }
 
   /** JUCE wraps each withInitialisationData value as [payload]. */
@@ -1268,7 +1252,6 @@
   async function setPhraseNoteValue(row, step, midi) {
     await commitHistory("Change note", async () => {
       grid[row][step] = Math.min(127, Math.max(0, midi));
-      grid = grid;
       await pushNote(row, step);
     });
   }
@@ -1327,17 +1310,6 @@
     activeGates[row] = reorder(activeGates[row]);
     stepIds[row] = reorder(stepIds[row]);
 
-    grid = grid;
-    stepDurationFraction = stepDurationFraction;
-    stepTimingMultiplier = stepTimingMultiplier;
-    stepVelocity = stepVelocity;
-    stepMuted = stepMuted;
-    stepSkipped = stepSkipped;
-    stepProbability = stepProbability;
-    stepCycle = stepCycle;
-    stepCycleOffset = stepCycleOffset;
-    activeGates = activeGates;
-    stepIds = stepIds;
   }
 
   function randomStepOrder(stepCount) {
@@ -1374,7 +1346,6 @@
         const shift = Math.random() < 0.5 ? -12 : 12;
         return Math.min(127, Math.max(0, midi + shift));
       });
-      grid = grid;
       await pushCurrentPhraseRow(row);
     });
   }
@@ -1382,7 +1353,6 @@
   async function selectRowTimingOffset(row, offsetIndex) {
     await commitHistory("Change row timing", async () => {
       rowTimingOffset[row] = offsetIndex;
-      rowTimingOffset = rowTimingOffset;
       await pushRowTimingOffset(row);
     });
   }
@@ -1390,7 +1360,6 @@
   async function selectRowMidiChannel(row, channel) {
     await commitHistory("Change MIDI channel", async () => {
       rowMidiChannel[row] = Math.min(16, Math.max(1, channel));
-      rowMidiChannel = rowMidiChannel;
       await pushRowMidiChannel(row);
     });
   }
@@ -1407,7 +1376,6 @@
   async function selectStepDurationFraction(row, step, fraction) {
     await commitHistory("Change duration", async () => {
       stepDurationFraction[row][step] = Math.min(1, Math.max(0, fraction));
-      stepDurationFraction = stepDurationFraction;
       await pushStepDurationFraction(row, step);
     });
   }
@@ -1415,7 +1383,6 @@
   async function setStepVelocity(row, step, value) {
     await commitHistory("Change velocity", async () => {
       stepVelocity[row][step] = Math.min(127, Math.max(0, value));
-      stepVelocity = stepVelocity;
       await pushStepVelocity(row, step);
     });
   }
@@ -1517,10 +1484,8 @@
       if (muted && stepSkipped[row][step]) {
         stepSkipped[row][step] = false;
         clearedSkip = true;
-        stepSkipped = stepSkipped;
       }
 
-      stepMuted = stepMuted;
       await pushStepMuted(row, step);
 
       if (clearedSkip) {
@@ -1537,10 +1502,8 @@
       if (skipped && stepMuted[row][step]) {
         stepMuted[row][step] = false;
         clearedMute = true;
-        stepMuted = stepMuted;
       }
 
-      stepSkipped = stepSkipped;
       await pushStepSkipped(row, step);
 
       if (clearedMute) {
@@ -1552,7 +1515,6 @@
   async function setStepProbability(row, step, probability) {
     await commitHistory("Change probability", async () => {
       stepProbability[row][step] = Math.min(100, Math.max(0, probability));
-      stepProbability = stepProbability;
       await pushStepProbability(row, step);
     });
   }
@@ -1562,8 +1524,6 @@
       const nextCycle = Math.min(64, Math.max(1, cycle));
       stepCycle[row][step] = nextCycle;
       stepCycleOffset[row][step] = Math.min(stepCycleOffset[row][step], nextCycle - 1);
-      stepCycle = stepCycle;
-      stepCycleOffset = stepCycleOffset;
       await pushStepCycle(row, step);
       await pushStepCycleOffset(row, step);
     });
@@ -1573,7 +1533,6 @@
     await commitHistory("Change cycle offset", async () => {
       const maxOffset = Math.max(0, (stepCycle[row][step] ?? 1) - 1);
       stepCycleOffset[row][step] = Math.min(maxOffset, Math.max(0, cycleOffset));
-      stepCycleOffset = stepCycleOffset;
       await pushStepCycleOffset(row, step);
     });
   }
@@ -1594,17 +1553,6 @@
       activeGates[row].splice(step, 1);
       stepIds[row].splice(step, 1);
 
-      grid = grid;
-      stepDurationFraction = stepDurationFraction;
-      stepTimingMultiplier = stepTimingMultiplier;
-      stepVelocity = stepVelocity;
-      stepMuted = stepMuted;
-      stepSkipped = stepSkipped;
-      stepProbability = stepProbability;
-      stepCycle = stepCycle;
-      stepCycleOffset = stepCycleOffset;
-      activeGates = activeGates;
-      stepIds = stepIds;
 
       if (!nativeFunctionAvailable("removePhraseStep")) return;
 
@@ -1640,17 +1588,6 @@
       activeGates[row].splice(step, 0, false);
       stepIds[row].splice(step, 0, createStepId());
 
-      grid = grid;
-      stepDurationFraction = stepDurationFraction;
-      stepTimingMultiplier = stepTimingMultiplier;
-      stepVelocity = stepVelocity;
-      stepMuted = stepMuted;
-      stepSkipped = stepSkipped;
-      stepProbability = stepProbability;
-      stepCycle = stepCycle;
-      stepCycleOffset = stepCycleOffset;
-      activeGates = activeGates;
-      stepIds = stepIds;
 
       if (!nativeFunctionAvailable("insertPhraseStep")) return;
 
@@ -1677,17 +1614,6 @@
       activeGates[row].splice(step, 0, false);
       stepIds[row].splice(step, 0, createStepId());
 
-      grid = grid;
-      stepDurationFraction = stepDurationFraction;
-      stepTimingMultiplier = stepTimingMultiplier;
-      stepVelocity = stepVelocity;
-      stepMuted = stepMuted;
-      stepSkipped = stepSkipped;
-      stepProbability = stepProbability;
-      stepCycle = stepCycle;
-      stepCycleOffset = stepCycleOffset;
-      activeGates = activeGates;
-      stepIds = stepIds;
 
       if (!nativeFunctionAvailable("duplicatePhraseStep")) return;
 
@@ -1748,17 +1674,6 @@
       activeGates[row] = [...activeGates[row], false];
     }
 
-    grid = grid;
-    stepDurationFraction = stepDurationFraction;
-    stepTimingMultiplier = stepTimingMultiplier;
-    stepVelocity = stepVelocity;
-    stepMuted = stepMuted;
-    stepSkipped = stepSkipped;
-    stepProbability = stepProbability;
-    stepCycle = stepCycle;
-    stepCycleOffset = stepCycleOffset;
-    stepIds = stepIds;
-    activeGates = activeGates;
   }
 
   async function disarmRowRecordingNative() {
@@ -2344,8 +2259,6 @@
         loopSlotAssigned[nextSlot] = true;
         assignPatternState(state);
         loopSlotPattern[nextSlot] = activePatternSlot >= 0 ? activePatternSlot : viewPatternSlot;
-        loopSlotAssigned = loopSlotAssigned;
-        loopSlotPattern = loopSlotPattern;
       } finally {
         slotSelectionInFlight = Math.max(0, slotSelectionInFlight - 1);
       }
@@ -2645,7 +2558,7 @@
       >
         <span class="text-right text-xs font-semibold leading-none text-zinc-500">Patterns</span>
         <div class="flex items-center gap-1">
-          {#each Array.from({ length: 8 }, (_, index) => index) as slot}
+          {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
             <button
               type="button"
               aria-label={patternCopySource === slot
@@ -2687,7 +2600,7 @@
 
         <span class="text-right text-xs font-semibold leading-none text-zinc-500">Loops</span>
         <div class="flex items-center gap-1">
-          {#each Array.from({ length: 8 }, (_, index) => index) as slot}
+          {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
             <button
               type="button"
               aria-label={loopSlotAssigned[slot]
@@ -2747,7 +2660,7 @@
           aria-hidden="true"
           title="Beat one"
         ></div>
-        {#each grid as _row, row}
+        {#each grid as _row, row (row)}
           {@const rowAccent = rowAccentFor(row, rowColorsEnabled)}
           <div class="relative z-10 flex min-w-0 flex-1 items-center gap-1">
             <div class="relative flex shrink-0 items-center gap-1">

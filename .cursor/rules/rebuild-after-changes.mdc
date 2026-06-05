@@ -29,8 +29,11 @@ cmake --build Builds --target MidiPhrases_Standalone MidiPhrases_VST3 MidiPhrase
 
 Editors load the UI from **`assets/webview/ui.zip` embedded in BinaryData**, not from `ui/dist` directly.
 
-1. `npm run build` in `ui/` (or let CMake run it via `WebViewUIBuild`) updates the zip only.
-2. **Still run `cmake --build Builds`** so every binary embeds the new zip.
+Svelte 5 sources in `ui/` must pass **`cd ui && npm run check`** before you finish (also enforced on commit when `.githooks` is enabled). See `CLAUDE.md` / `.cursor/rules/svelte-ui.mdc` for runes conventions.
+
+1. `npm run check` in `ui/` when `.svelte` or UI logic changed.
+2. `npm run build` in `ui/` (or let CMake run it via `WebViewUIBuild`) updates the zip.
+3. **Still run `cmake --build Builds`** so every binary embeds the new zip.
 
 `npm run dev` alone does **not** update standalone or plugins unless the build defines `MIDI_PHRASES_UI_DEV_SERVER` and the dev server on port **5174** is running.
 

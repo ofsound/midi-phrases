@@ -13,28 +13,56 @@
     pitchRangeForSchedule,
   } from "./phraseSchedule.js";
 
-  export let notes = [];
-  export let rowMuted = [];
-  export let rowTimingOffset = [];
-  export let stepDurationFraction = [];
-  export let stepTimingMultiplier = [];
-  export let stepVelocity = [];
-  export let stepMuted = [];
-  export let stepSkipped = [];
-  export let stepProbability = [];
-  export let stepCycle = [];
-  export let stepCycleOffset = [];
-  export let pulseIndex = defaultPulseIndex;
-  export let swingPercent = 0;
-  export let swingSubdivisionIndex = 1;
-  export let rowColorsEnabled = false;
-  export let lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS;
-  export let loopEnabled = false;
-  export let loopStart = 0;
-  export let loopEnd = 8;
-  export let playbackBeat = -1;
-  /** @type {(next: { enabled?: boolean, start?: number, end?: number }) => void | Promise<void>} */
-  export let onLoopBraceChange = () => {};
+  
+  /**
+   * @typedef {Object} Props
+   * @property {any} [notes]
+   * @property {any} [rowMuted]
+   * @property {any} [rowTimingOffset]
+   * @property {any} [stepDurationFraction]
+   * @property {any} [stepTimingMultiplier]
+   * @property {any} [stepVelocity]
+   * @property {any} [stepMuted]
+   * @property {any} [stepSkipped]
+   * @property {any} [stepProbability]
+   * @property {any} [stepCycle]
+   * @property {any} [stepCycleOffset]
+   * @property {any} [pulseIndex]
+   * @property {number} [swingPercent]
+   * @property {number} [swingSubdivisionIndex]
+   * @property {boolean} [rowColorsEnabled]
+   * @property {any} [lengthQuarters]
+   * @property {boolean} [loopEnabled]
+   * @property {number} [loopStart]
+   * @property {number} [loopEnd]
+   * @property {any} [playbackBeat]
+   * @property {(next: { enabled?: boolean, start?: number, end?: number }) => void | Promise<void>} [onLoopBraceChange]
+   */
+
+  /** @type {Props} */
+  let {
+    notes = [],
+    rowMuted = [],
+    rowTimingOffset = [],
+    stepDurationFraction = [],
+    stepTimingMultiplier = [],
+    stepVelocity = [],
+    stepMuted = [],
+    stepSkipped = [],
+    stepProbability = [],
+    stepCycle = [],
+    stepCycleOffset = [],
+    pulseIndex = defaultPulseIndex,
+    swingPercent = 0,
+    swingSubdivisionIndex = 1,
+    rowColorsEnabled = false,
+    lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
+    loopEnabled = false,
+    loopStart = 0,
+    loopEnd = 8,
+    playbackBeat = -1,
+    onLoopBraceChange = () => {}
+  } = $props();
 
   const pxPerQuarter = 14;
   const rowHeightPx = 11;
@@ -43,22 +71,19 @@
   const handleWidthPx = 10;
 
   /** @type {HTMLElement | null} */
-  let scrollElement = null;
+  let scrollElement = $state(null);
   /** @type {"move" | "start" | "end" | null} */
-  let dragMode = null;
+  let dragMode = $state(null);
   let dragPointerId = -1;
   let dragStartBeat = 0;
   let dragAnchorStart = 0;
   let dragAnchorEnd = 0;
-  let displayStart = loopStart;
-  let displayEnd = loopEnd;
+  let dragDisplayStart = $state(0);
+  let dragDisplayEnd = $state(8);
+  let displayStart = $derived(dragMode === null ? loopStart : dragDisplayStart);
+  let displayEnd = $derived(dragMode === null ? loopEnd : dragDisplayEnd);
 
-  $: if (dragMode === null) {
-    displayStart = loopStart;
-    displayEnd = loopEnd;
-  }
-
-  $: scheduled = buildPhraseSchedule({
+  let scheduled = $derived(buildPhraseSchedule({
     notes,
     rowMuted,
     rowTimingOffset,
@@ -74,17 +99,28 @@
     swingPercent,
     swingSubdivisionIndex,
     lengthQuarters,
-  });
+  }));
 
-  $: pitchRange = pitchRangeForSchedule(scheduled);
-  $: pitchSpan = pitchRange.maxMidi - pitchRange.minMidi + 1;
-  $: rollWidthPx = lengthQuarters * pxPerQuarter;
-  $: rollHeightPx = pitchSpan * rowHeightPx;
-  $: loopSpan = Math.max(loopBraceSnapQuarters, displayEnd - displayStart);
-  $: loopLeftPx = displayStart * pxPerQuarter;
-  $: loopWidthPx = loopSpan * pxPerQuarter;
-  $: showPlaybackPlayhead = playbackBeat >= 0;
-  $: playbackPlayheadLeftPx = playbackBeat * pxPerQuarter;
+  let pitchRange = $derived(pitchRangeForSchedule(scheduled));
+  let pitchSpan = $derived(pitchRange.maxMidi - pitchRange.minMidi + 1);
+  let rollWidthPx = $derived(lengthQuarters * pxPerQuarter);
+  let rollHeightPx = $derived(pitchSpan * rowHeightPx);
+  let loopSpan = $derived(Math.max(loopBraceSnapQuarters, displayEnd - displayStart));
+  let loopLeftPx = $derived(displayStart * pxPerQuarter);
+  let loopWidthPx = $derived(loopSpan * pxPerQuarter);
+  let showPlaybackPlayhead = $derived(playbackBeat >= 0);
+  let playbackPlayheadLeftPx = $derived(playbackBeat * pxPerQuarter);
+
+  /** @param {HTMLElement} node */
+  function scrollElementAttachment(node) {
+    scrollElement = node;
+
+    return () => {
+      if (scrollElement === node) {
+        scrollElement = null;
+      }
+    };
+  }
 
   /** @param {number} midi */
   function pitchTopPx(midi) {
@@ -127,11 +163,13 @@
   function beginLoopDrag(event, mode) {
     if (!scrollElement) return;
 
+    dragDisplayStart = loopStart;
+    dragDisplayEnd = loopEnd;
     dragMode = mode;
     dragPointerId = event.pointerId;
     dragStartBeat = beatFromClientX(event.clientX, scrollElement, pxPerQuarter);
-    dragAnchorStart = displayStart;
-    dragAnchorEnd = displayEnd;
+    dragAnchorStart = loopStart;
+    dragAnchorEnd = loopEnd;
 
     setActiveCursor(mode === "move" ? "grabbing" : "ew-resize");
     event.currentTarget?.setPointerCapture?.(event.pointerId);
@@ -163,17 +201,17 @@
         nextStart = nextEnd - span;
       }
 
-      displayStart = nextStart;
-      displayEnd = nextEnd;
+      dragDisplayStart = nextStart;
+      dragDisplayEnd = nextEnd;
       return;
     }
 
     if (dragMode === "start") {
-      displayStart = Math.min(beat, displayEnd - loopBraceSnapQuarters);
+      dragDisplayStart = Math.min(beat, displayEnd - loopBraceSnapQuarters);
       return;
     }
 
-    displayEnd = Math.max(beat, displayStart + loopBraceSnapQuarters);
+    dragDisplayEnd = Math.max(beat, displayStart + loopBraceSnapQuarters);
   }
 
   /** @param {PointerEvent} event */
@@ -183,14 +221,16 @@
     event.currentTarget?.releasePointerCapture?.(event.pointerId);
 
     const mode = dragMode;
+    const nextStart = displayStart;
+    const nextEnd = displayEnd;
     dragMode = null;
     dragPointerId = -1;
     clearActiveCursor(mode === "move" ? "grabbing" : "ew-resize");
 
-    await commitLoopBrace({ start: displayStart, end: displayEnd });
+    await commitLoopBrace({ start: nextStart, end: nextEnd });
 
     if (mode === "move" && !loopEnabled) {
-      await commitLoopBrace({ enabled: true, start: displayStart, end: displayEnd });
+      await commitLoopBrace({ enabled: true, start: nextStart, end: nextEnd });
     }
   }
 
@@ -228,9 +268,9 @@
     await commitLoopBrace({ start: nextStart, end: nextEnd });
   }
 
-  $: pitchRows = Array.from({ length: pitchSpan }, (_, index) => pitchRange.maxMidi - index);
-  $: quarterLines = Array.from({ length: lengthQuarters + 1 }, (_, quarter) => quarter);
-  $: barLines = Array.from({ length: Math.floor(lengthQuarters / 4) + 1 }, (_, bar) => bar * 4);
+  let pitchRows = $derived(Array.from({ length: pitchSpan }, (_, index) => pitchRange.maxMidi - index));
+  let quarterLines = $derived(Array.from({ length: lengthQuarters + 1 }, (_, quarter) => quarter));
+  let barLines = $derived(Array.from({ length: Math.floor(lengthQuarters / 4) + 1 }, (_, bar) => bar * 4));
 
   onDestroy(() => {
     clearActiveCursor();
@@ -283,7 +323,7 @@
         </div>
 
         <div
-          bind:this={scrollElement}
+          {@attach scrollElementAttachment}
           class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
         >
         <div class="relative" style:width="{rollWidthPx}px">

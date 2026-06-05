@@ -1,5 +1,6 @@
 <script>
   import { onDestroy } from "svelte";
+  import { SvelteMap, SvelteSet } from "svelte/reactivity";
   import { flip } from "svelte/animate";
   import { dragHandle, dragHandleZone, TRIGGERS } from "svelte-dnd-action";
   import DurationBar from "./DurationBar.svelte";
@@ -40,93 +41,135 @@
     stepInsertZoneWidthPx,
   } from "./stepCellLayout.js";
 
-  export let row = 0;
-  export let muted = false;
-  /** @type {import('./rowAccentTheme.js').RowAccent} */
-  export let accent = emeraldRowAccent;
-  /** Index into timingOffsetValues (default 3 = 0 quarters). */
-  export let timingOffsetIndex = 3;
-  /** UI-only margin added when any row has a negative offset (see phraseRowLayout). */
-  export let timingOffsetVisualCompensationPx = 0;
-  export let pulseIndex = 1;
-  /** @type {string[]} */
-  export let stepIds = [];
-  /** @type {number[]} */
-  export let notes = [];
-  /** @type {number[]} */
-  export let stepDurationFraction = [];
-  /** @type {number[]} */
-  export let stepTimingMultiplier = [];
-  /** @type {number[]} */
-  export let stepVelocity = [];
-  /** @type {boolean[]} */
-  export let stepMuted = [];
-  /** @type {boolean[]} */
-  export let stepSkipped = [];
-  /** @type {number[]} */
-  export let stepProbability = [];
-  /** @type {number[]} */
-  export let stepCycle = [];
-  /** @type {number[]} */
-  export let stepCycleOffset = [];
-  /** @type {boolean[]} */
-  export let activeGates = [];
-  /** @type {{ index: number, label: string }[]} */
-  export let timingMultiplierOptions = [];
-  export let globalStepBackView = false;
-  /** @type {string[]} */
-  export let selectedStepIds = [];
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 
-  /** @type {(row: number, orderedIds: string[]) => void} */
-  export let onReorder = () => {};
-  /** @type {(row: number, beforeIds: string[], afterIds: string[]) => void | Promise<void>} */
-  export let onMoveCommitted = () => {};
-  /** @type {(row: number, step: number) => void | Promise<void>} */
-  export let onRemoveStep = () => {};
-  /** @type {(row: number, step: number) => void | Promise<void>} */
-  export let onInsertStep = () => {};
-  /** @type {(row: number, step: number) => void | Promise<void>} */
-  export let onDuplicateStep = () => {};
-  /** @type {(row: number, step: number, midi: number) => void | Promise<void>} */
-  export let onNoteChange = () => {};
-  /** @type {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} */
-  export let onMultiplierChange = () => {};
-  /** @type {(row: number, step: number, fraction: number) => void | Promise<void>} */
-  export let onDurationChange = () => {};
-  /** @type {(row: number, step: number, value: number) => void | Promise<void>} */
-  export let onVelocityChange = () => {};
-  /** @type {(row: number, step: number, muted: boolean) => void | Promise<void>} */
-  export let onStepMuteChange = () => {};
-  /** @type {(row: number, step: number, skipped: boolean) => void | Promise<void>} */
-  export let onStepSkipChange = () => {};
-  /** @type {(row: number, step: number, probability: number) => void | Promise<void>} */
-  export let onStepProbabilityChange = () => {};
-  /** @type {(row: number, step: number, cycle: number) => void | Promise<void>} */
-  export let onStepCycleChange = () => {};
-  /** @type {(row: number, step: number, cycleOffset: number) => void | Promise<void>} */
-  export let onStepCycleOffsetChange = () => {};
-  /** @type {(event: PointerEvent) => void} */
-  export let onBulkSelectPointerDown = () => {};
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  /**
+   * @typedef {Object} Props
+   * @property {number} [row]
+   * @property {boolean} [muted]
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {number} [timingOffsetIndex] - Index into timingOffsetValues (default 3 = 0 quarters).
+   * @property {number} [timingOffsetVisualCompensationPx] - UI-only margin added when any row has a negative offset (see phraseRowLayout).
+   * @property {number} [pulseIndex]
+   * @property {string[]} [stepIds]
+   * @property {number[]} [notes]
+   * @property {number[]} [stepDurationFraction]
+   * @property {number[]} [stepTimingMultiplier]
+   * @property {number[]} [stepVelocity]
+   * @property {boolean[]} [stepMuted]
+   * @property {boolean[]} [stepSkipped]
+   * @property {number[]} [stepProbability]
+   * @property {number[]} [stepCycle]
+   * @property {number[]} [stepCycleOffset]
+   * @property {boolean[]} [activeGates]
+   * @property {{ index: number, label: string }[]} [timingMultiplierOptions]
+   * @property {boolean} [globalStepBackView]
+   * @property {string[]} [selectedStepIds]
+   * @property {(row: number, orderedIds: string[]) => void} [onReorder]
+   * @property {(row: number, beforeIds: string[], afterIds: string[]) => void | Promise<void>} [onMoveCommitted]
+   * @property {(row: number, step: number) => void | Promise<void>} [onRemoveStep]
+   * @property {(row: number, step: number) => void | Promise<void>} [onInsertStep]
+   * @property {(row: number, step: number) => void | Promise<void>} [onDuplicateStep]
+   * @property {(row: number, step: number, midi: number) => void | Promise<void>} [onNoteChange]
+   * @property {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} [onMultiplierChange]
+   * @property {(row: number, step: number, fraction: number) => void | Promise<void>} [onDurationChange]
+   * @property {(row: number, step: number, value: number) => void | Promise<void>} [onVelocityChange]
+   * @property {(row: number, step: number, muted: boolean) => void | Promise<void>} [onStepMuteChange]
+   * @property {(row: number, step: number, skipped: boolean) => void | Promise<void>} [onStepSkipChange]
+   * @property {(row: number, step: number, probability: number) => void | Promise<void>} [onStepProbabilityChange]
+   * @property {(row: number, step: number, cycle: number) => void | Promise<void>} [onStepCycleChange]
+   * @property {(row: number, step: number, cycleOffset: number) => void | Promise<void>} [onStepCycleOffsetChange]
+   * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
+   */
+
+  /** @type {Props} */
+  let {
+    row = 0,
+    muted = false,
+    accent = emeraldRowAccent,
+    timingOffsetIndex = 3,
+    timingOffsetVisualCompensationPx = 0,
+    pulseIndex = 1,
+    stepIds = [],
+    notes = [],
+    stepDurationFraction = [],
+    stepTimingMultiplier = [],
+    stepVelocity = [],
+    stepMuted = [],
+    stepSkipped = [],
+    stepProbability = [],
+    stepCycle = [],
+    stepCycleOffset = [],
+    activeGates = [],
+    timingMultiplierOptions = [],
+    globalStepBackView = false,
+    selectedStepIds = [],
+    onReorder = () => {},
+    onMoveCommitted = () => {},
+    onRemoveStep = () => {},
+    onInsertStep = () => {},
+    onDuplicateStep = () => {},
+    onNoteChange = () => {},
+    onMultiplierChange = () => {},
+    onDurationChange = () => {},
+    onVelocityChange = () => {},
+    onStepMuteChange = () => {},
+    onStepSkipChange = () => {},
+    onStepProbabilityChange = () => {},
+    onStepCycleChange = () => {},
+    onStepCycleOffsetChange = () => {},
+    onBulkSelectPointerDown = () => {}
+  } = $props();
   const flipDurationMs = 200;
   const removeBlockMs = 500;
   const draggedElementId = "dnd-action-dragged-el";
 
   /** @type {{ id: string }[]} */
-  let dndItems = stepIds.map((id) => ({ id }));
-  let isDragging = false;
-  let removeBlocked = false;
+  let dndItems = $state([]);
+  let isDragging = $state(false);
+  let removeBlocked = $state(false);
   /** @type {ReturnType<typeof setTimeout> | null} */
   let removeBlockTimeout = null;
   /** @type {string[] | null} */
   let idsBeforeDrag = null;
   /** @type {string | null} */
-  let draggedStepId = null;
-  let resizingStep = -1;
+  let draggedStepId = $state(null);
+  let resizingStep = $state(-1);
   let resizeStartX = 0;
   let resizeStartWidth = 0;
   let resizeDisplayWidth = 0;
   /** @type {number[] | null} */
-  let resizePreviewMultipliers = null;
+  let resizePreviewMultipliers = $state(null);
   /** @type {HTMLElement | null} */
   let resizeHandleElement = null;
   let resizePointerId = -1;
@@ -134,46 +177,17 @@
   let resizeFrameId = 0;
   let resizeEndHandled = false;
   let dragYLockFrameId = 0;
-  /** @type {Set<number>} */
-  let flippedSteps = new Set();
-  /** @type {boolean | null} */
-  let appliedGlobalStepBackView = null;
-  let appliedGlobalStepBackFingerprint = "";
+  const flipOverrides = new SvelteSet();
   /** @type {Map<number, HTMLElement>} */
-  const cellShellElements = new Map();
+  const cellShellElements = new SvelteMap();
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
   let resizeListenerEntries = [];
   const resizeCapture = { capture: true };
   const resizePassiveCapture = { capture: true, passive: true };
 
-  $: isEmptyRow = stepIds.length === 0;
-  $: reorderDisabled = stepIds.length <= 1;
-  $: selectedStepIdSet = new Set(selectedStepIds);
-  $: globalStepBackFingerprint = stepIds.join("|");
 
-  $: {
-    const validFlippedSteps = new Set(
-      [...flippedSteps].filter((step) => step >= 0 && step < stepIds.length),
-    );
 
-    if (validFlippedSteps.size !== flippedSteps.size) {
-      flippedSteps = validFlippedSteps;
-    }
-  }
 
-  $: if (
-    globalStepBackView !== appliedGlobalStepBackView ||
-    (globalStepBackView && globalStepBackFingerprint !== appliedGlobalStepBackFingerprint)
-  ) {
-    flippedSteps = globalStepBackView
-      ? new Set(stepIds.map((_, step) => step))
-      : new Set();
-    appliedGlobalStepBackView = globalStepBackView;
-    appliedGlobalStepBackFingerprint = globalStepBackFingerprint;
-  }
-
-  $: stepFlipInteractionDisabled =
-    isDragging || removeBlocked || resizingStep >= 0;
 
   /** @param {MouseEvent} event */
   function shouldIgnoreFlipDoubleClick(event) {
@@ -200,15 +214,19 @@
   function setStepFlipped(step, flipped) {
     if (step < 0 || step >= stepIds.length) return;
 
-    const nextFlippedSteps = new Set(flippedSteps);
+    const key = flipOverrideKey(step);
 
-    if (flipped) {
-      nextFlippedSteps.add(step);
+    if (globalStepBackView) {
+      if (flipped) {
+        flipOverrides.delete(key);
+      } else {
+        flipOverrides.add(key);
+      }
+    } else if (flipped) {
+      flipOverrides.add(key);
     } else {
-      nextFlippedSteps.delete(step);
+      flipOverrides.delete(key);
     }
-
-    flippedSteps = nextFlippedSteps;
   }
 
   /** @param {number} step @param {boolean} flipped */
@@ -217,22 +235,15 @@
   }
 
   function closeAllStepFlips() {
-    if (flippedSteps.size === 0) {
-      return;
+    if (globalStepBackView) {
+      for (let step = 0; step < stepIds.length; step += 1) {
+        flipOverrides.add(flipOverrideKey(step));
+      }
+    } else {
+      flipOverrides.clear();
     }
-
-    flippedSteps = new Set();
   }
 
-  $: dndZoneOptions = {
-    items: dndItems,
-    flipDurationMs,
-    type: `phrase-row-${row}`,
-    dropFromOthersDisabled: true,
-    morphDisabled: true,
-    dropTargetStyle: { outline: "none" },
-    transformDraggedElement,
-  };
 
   function blockRemoveTemporarily() {
     removeBlocked = true;
@@ -297,9 +308,6 @@
     return stepIds.indexOf(stepId);
   }
 
-  $: rowDisplayWidths = rowCellDisplayWidthsPx(
-    resizePreviewMultipliers ?? stepTimingMultiplier,
-  );
 
   /** @param {number} step */
   function cellWidthForStep(step) {
@@ -327,37 +335,6 @@
   /** @param {number} insertStep */
   function gapInsertStyle() {
     return `left: -${stepInsertZoneWidthPx}px; width: ${stepInsertZoneWidthPx}px;`;
-  }
-
-  $: layoutFingerprint = `${stepCellQuarterGridWidthPx}:${stepIds.length}:${stepTimingMultiplier.join(",")}`;
-  let appliedLayoutFingerprint = "";
-
-  /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
-  $: rowCellLayouts = dndItems.map((item, index) => {
-    const step = isShadowItem(item) ? stepIndexFromId(draggedStepId) : stepIndexFromId(item.id);
-    const cellWidth =
-      step >= 0 ? rowDisplayWidths[step] : stepCellWidthPx(2);
-
-    return {
-      cellWidth,
-      step: isShadowItem(item) ? -1 : step,
-      gapBefore: index > 0,
-    };
-  });
-
-  // Sync when steps are inserted/removed, parent order reverts, or cell widths change.
-  $: if (!isDragging) {
-    const currentIds = withoutShadowItems(dndItems).map((item) => item.id);
-    const idsOutOfSync =
-      currentIds.length !== stepIds.length ||
-      currentIds.some((id, index) => id !== stepIds[index]);
-    const layoutOutOfSync = layoutFingerprint !== appliedLayoutFingerprint;
-
-    if (idsOutOfSync || layoutOutOfSync) {
-      dndItems = stepIds.map((id) => ({ id }));
-      appliedLayoutFingerprint = layoutFingerprint;
-      resyncAllCellShellWidths();
-    }
   }
 
   /** @param {CustomEvent} event */
@@ -432,16 +409,6 @@
     if (removeBlocked || isDragging || resizingStep >= 0 || step < 0 || step >= stepIds.length) return;
 
     onRemoveStep(row, step);
-  }
-
-  function resyncAllCellShellWidths() {
-    const widths = rowDisplayWidths;
-
-    cellShellElements.forEach((shell, step) => {
-      if (step < 0 || step >= widths.length) return;
-
-      applyCellShellWidthPx(shell, widths[step]);
-    });
   }
 
   /** @param {HTMLElement} shell @param {number} widthPx */
@@ -538,35 +505,20 @@
     resizeListenerEntries = [];
   }
 
-  /** @type {import('svelte/action').Action<HTMLElement, number>} */
-  function cellShellAction(node, step) {
-    if (step < 0) {
-      return {};
-    }
+  /**
+   * @param {number} step
+   * @returns {import('svelte/attachments').Attachment<HTMLElement> | undefined}
+   */
+  function cellShellAttachment(step) {
+    if (step < 0) return undefined;
 
-    cellShellElements.set(step, node);
-    resyncCellShellWidth(step);
+    return (node) => {
+      cellShellElements.set(step, node);
+      resyncCellShellWidth(step);
 
-    return {
-      update(nextStep) {
-        if (nextStep === step) return;
-
+      return () => {
         cellShellElements.delete(step);
-
-        if (nextStep < 0) {
-          step = nextStep;
-          return;
-        }
-
-        step = nextStep;
-        cellShellElements.set(step, node);
-        resyncCellShellWidth(step);
-      },
-      destroy() {
-        if (step >= 0) {
-          cellShellElements.delete(step);
-        }
-      },
+      };
     };
   }
 
@@ -767,6 +719,46 @@
 
   const stepHeaderLabelClass = (dimmed) =>
     dimmed ? "text-zinc-500" : "text-zinc-300";
+  let isEmptyRow = $derived(stepIds.length === 0);
+  let reorderDisabled = $derived(stepIds.length <= 1);
+  let selectedStepIdSet = $derived(new Set(selectedStepIds));
+  let globalStepBackFingerprint = $derived(stepIds.join("|"));
+  const flipOverrideKey = (step) =>
+    `${globalStepBackView ? "back" : "front"}:${globalStepBackFingerprint}:${step}`;
+  const isStepFlipped = (step) => {
+    const hasOverride = flipOverrides.has(flipOverrideKey(step));
+
+    return globalStepBackView ? !hasOverride : hasOverride;
+  };
+  let stepFlipInteractionDisabled =
+    $derived(isDragging || removeBlocked || resizingStep >= 0);
+  let layoutFingerprint = $derived(`${stepCellQuarterGridWidthPx}:${stepIds.length}:${stepTimingMultiplier.join(",")}`);
+  let orderedStepItems = $derived(stepIds.map((id) => ({ id })));
+  let renderedDndItems = $derived(isDragging ? dndItems : orderedStepItems);
+  let dndZoneOptions = $derived({
+    items: renderedDndItems,
+    flipDurationMs,
+    type: `phrase-row-${row}`,
+    dropFromOthersDisabled: true,
+    morphDisabled: true,
+    dropTargetStyle: { outline: "none" },
+    transformDraggedElement,
+  });
+  let rowDisplayWidths = $derived(rowCellDisplayWidthsPx(
+    resizePreviewMultipliers ?? stepTimingMultiplier,
+  ));
+  /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
+  let rowCellLayouts = $derived(renderedDndItems.map((item, index) => {
+    const step = isShadowItem(item) ? stepIndexFromId(draggedStepId) : stepIndexFromId(item.id);
+    const cellWidth =
+      step >= 0 ? rowDisplayWidths[step] : stepCellWidthPx(2);
+
+    return {
+      cellWidth,
+      step: isShadowItem(item) ? -1 : step,
+      gapBefore: index > 0,
+    };
+  }));
 </script>
 
 {#snippet stepHeaderRemoveButton(step, dimmed)}
@@ -897,7 +889,7 @@
 
 {#snippet stepCell(step, reorderEnabled)}
   {@const multiplierLabel = multiplierLabelForStep(step)}
-  {@const stepFlipped = flippedSteps.has(step)}
+  {@const stepFlipped = isStepFlipped(step)}
   {@const stepIsMuted = stepMuted[step]}
   {@const stepIsSkipped = stepSkipped[step]}
   {@const stepDimmed = muted || stepIsSkipped}
@@ -919,131 +911,133 @@
       headerClass={stepHeaderClass(stepDimmed)}
       onFlipChange={(flipped) => handleStepFlipChange(step, flipped)}
     >
-      <div slot="front" class="h-full min-h-0 w-full min-w-0">
-        <div
-          class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-75 {stepCellSurfaceClass(
-            stepDimmed,
-          )} {isStepSelected
-            ? `${accent.borderActive} ring-2 ring-white/30`
-            : stepCellPlaybackClass(activeGates[step], stepDimmed)} {stepDimmed
-            ? ''
-            : accent.cellFocusWithinBorder}"
-        >
-          {#if reorderEnabled}
-            <div
-              class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
-              data-no-long-press
-            >
-              {#if !stepFlipped}
-                {@render stepHeaderRemoveButton(step, stepDimmed)}
-              {:else}
-                <span class="inline-block h-5 w-5 shrink-0" aria-hidden="true"></span>
-              {/if}
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div
-                use:dragHandle
-                aria-label="Drag to reorder step. Double-click header to open step settings."
-                data-cursor="grab"
-                data-no-marquee
-                class="flex min-h-5 min-w-0 flex-1 items-center justify-end"
-                ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
-                title="Double-click to open step settings"
-              >
-                <span
-                  data-multiplier-label
-                  class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
-                    stepDimmed,
-                  )}"
-                  aria-hidden="true"
-                >
-                  {multiplierLabel}
-                </span>
-              </div>
-            </div>
-          {:else}
-            <div
-              class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
-              data-no-long-press
-            >
-              {#if !stepFlipped}
-                {@render stepHeaderRemoveButton(step, stepDimmed)}
-              {:else}
-                <span class="inline-block h-5 w-5 shrink-0" aria-hidden="true"></span>
-              {/if}
-              <div
-                role="presentation"
-                aria-label="Double-click header to open step settings."
-                data-cursor="default"
-                class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
-                  ? 'opacity-80'
-                  : 'opacity-60'}"
-                onpointerdown={stopPointerPropagation}
-                ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
-                title="Double-click to open step settings"
-              >
-                <span
-                  data-multiplier-label
-                  class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
-                    stepDimmed,
-                  )}"
-                  aria-hidden="true"
-                >
-                  {multiplierLabel}
-                </span>
-              </div>
-            </div>
-          {/if}
-
+      {#snippet front()}
+        <div class="h-full min-h-0 w-full min-w-0">
           <div
-            class="relative flex min-h-0 min-w-0 flex-1 flex-col gap-1 px-1 py-1 {stepDimmed
-              ? 'opacity-80'
-              : ''}"
+            class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-75 {stepCellSurfaceClass(
+              stepDimmed,
+            )} {isStepSelected
+              ? `${accent.borderActive} ring-2 ring-white/30`
+              : stepCellPlaybackClass(activeGates[step], stepDimmed)} {stepDimmed
+              ? ''
+              : accent.cellFocusWithinBorder}"
           >
-            <DurationBar
-              {accent}
-              muted={stepDimmed}
-              stepMuted={stepIsMuted && !stepDimmed}
-              value={stepDurationFraction[step]}
-              velocity={stepVelocity[step]}
-              resetValue={defaultStepDurationFraction}
-              ariaLabel="Step duration fraction"
-              onValueChange={(fraction) => onDurationChange(row, step, fraction)}
-            />
-            <div class="flex min-w-0 items-center pt-1 pb-1">
-              <div class="flex min-w-0 items-baseline gap-1.5">
-                <NoteDragInput
-                  {accent}
-                  muted={stepDimmed}
-                  value={notes[step]}
-                  resetValue={defaultStepNote}
-                  ariaLabel="Step note"
-                  onValueChange={(midi) => onNoteChange(row, step, midi)}
-                />
-                <VelocityDragInput
-                  {accent}
-                  muted={stepDimmed}
-                  value={stepVelocity[step]}
-                  resetValue={defaultStepVelocity}
-                  ariaLabel="Step velocity"
-                  onValueChange={(value) => onVelocityChange(row, step, value)}
-                />
-              </div>
+            {#if reorderEnabled}
               <div
-                class="min-h-5 min-w-4 flex-1 touch-none"
-                role="presentation"
-                aria-label="Double-click to open step settings"
-                ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
-                title="Double-click to open step settings"
-              ></div>
+                class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
+                data-no-long-press
+              >
+                {#if !stepFlipped}
+                  {@render stepHeaderRemoveButton(step, stepDimmed)}
+                {:else}
+                  <span class="inline-block h-5 w-5 shrink-0" aria-hidden="true"></span>
+                {/if}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                  use:dragHandle
+                  aria-label="Drag to reorder step. Double-click header to open step settings."
+                  data-cursor="grab"
+                  data-no-marquee
+                  class="flex min-h-5 min-w-0 flex-1 items-center justify-end"
+                  ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
+                  title="Double-click to open step settings"
+                >
+                  <span
+                    data-multiplier-label
+                    class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
+                      stepDimmed,
+                    )}"
+                    aria-hidden="true"
+                  >
+                    {multiplierLabel}
+                  </span>
+                </div>
+              </div>
+            {:else}
+              <div
+                class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
+                data-no-long-press
+              >
+                {#if !stepFlipped}
+                  {@render stepHeaderRemoveButton(step, stepDimmed)}
+                {:else}
+                  <span class="inline-block h-5 w-5 shrink-0" aria-hidden="true"></span>
+                {/if}
+                <div
+                  role="presentation"
+                  aria-label="Double-click header to open step settings."
+                  data-cursor="default"
+                  class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
+                    ? 'opacity-80'
+                    : 'opacity-60'}"
+                  onpointerdown={stopPointerPropagation}
+                  ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
+                  title="Double-click to open step settings"
+                >
+                  <span
+                    data-multiplier-label
+                    class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
+                      stepDimmed,
+                    )}"
+                    aria-hidden="true"
+                  >
+                    {multiplierLabel}
+                  </span>
+                </div>
+              </div>
+            {/if}
+
+            <div
+              class="relative flex min-h-0 min-w-0 flex-1 flex-col gap-1 px-1 py-1 {stepDimmed
+                ? 'opacity-80'
+                : ''}"
+            >
+              <DurationBar
+                {accent}
+                muted={stepDimmed}
+                stepMuted={stepIsMuted && !stepDimmed}
+                value={stepDurationFraction[step]}
+                velocity={stepVelocity[step]}
+                resetValue={defaultStepDurationFraction}
+                ariaLabel="Step duration fraction"
+                onValueChange={(fraction) => onDurationChange(row, step, fraction)}
+              />
+              <div class="flex min-w-0 items-center pt-1 pb-1">
+                <div class="flex min-w-0 items-baseline gap-1.5">
+                  <NoteDragInput
+                    {accent}
+                    muted={stepDimmed}
+                    value={notes[step]}
+                    resetValue={defaultStepNote}
+                    ariaLabel="Step note"
+                    onValueChange={(midi) => onNoteChange(row, step, midi)}
+                  />
+                  <VelocityDragInput
+                    {accent}
+                    muted={stepDimmed}
+                    value={stepVelocity[step]}
+                    resetValue={defaultStepVelocity}
+                    ariaLabel="Step velocity"
+                    onValueChange={(value) => onVelocityChange(row, step, value)}
+                  />
+                </div>
+                <div
+                  class="min-h-5 min-w-4 flex-1 touch-none"
+                  role="presentation"
+                  aria-label="Double-click to open step settings"
+                  ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
+                  title="Double-click to open step settings"
+                ></div>
+              </div>
             </div>
+
+            {@render stepSkipMuteFooter(step, stepFlipped)}
           </div>
-
-          {@render stepSkipMuteFooter(step, stepFlipped)}
         </div>
-      </div>
+      {/snippet}
 
+      {#snippet backHeader()}
       <div
-        slot="back-header"
         class="flex min-w-0 flex-1 items-center justify-start gap-1"
         data-no-long-press
       >
@@ -1066,53 +1060,58 @@
           </span>
         </div>
       </div>
+      {/snippet}
 
-      <div slot="back" class="flex min-h-0 w-full min-w-0 flex-1 items-stretch">
-        <div
-          data-no-flip-close
-          class="grid h-full w-max shrink-0 grid-rows-[1fr_1fr] items-center"
-        >
-          <ProbabilityDragInput
-            {accent}
-            muted={stepDimmed}
-            value={stepProbability[step] ?? 100}
-            resetValue={100}
-            ariaLabel="Step probability"
-            onValueChange={(value) => onStepProbabilityChange(row, step, value)}
-          />
-          <div class="flex shrink-0 items-baseline justify-start gap-0.5">
-            <StepNumberDragInput
+      {#snippet back()}
+        <div class="flex min-h-0 w-full min-w-0 flex-1 items-stretch">
+          <div
+            data-no-flip-close
+            class="grid h-full w-max shrink-0 grid-rows-[1fr_1fr] items-center"
+          >
+            <ProbabilityDragInput
               {accent}
               muted={stepDimmed}
-              value={stepCycle[step] ?? 1}
-              min={1}
-              max={64}
-              resetValue={1}
-              ariaLabel="Step cycle length"
-              onValueChange={(value) => onStepCycleChange(row, step, value)}
+              value={stepProbability[step] ?? 100}
+              resetValue={100}
+              ariaLabel="Step probability"
+              onValueChange={(value) => onStepProbabilityChange(row, step, value)}
             />
-            <span
-              class="pointer-events-none font-sans text-xs leading-none font-bold text-zinc-400 select-none"
-              aria-hidden="true">/</span
-            >
-            <StepNumberDragInput
-              {accent}
-              muted={stepDimmed}
-              value={stepCycleOffset[step] ?? 0}
-              min={0}
-              max={Math.max(0, (stepCycle[step] ?? 1) - 1)}
-              displayAdd={1}
-              resetValue={0}
-              ariaLabel="Step cycle offset"
-              onValueChange={(value) => onStepCycleOffsetChange(row, step, value)}
-            />
+            <div class="flex shrink-0 items-baseline justify-start gap-0.5">
+              <StepNumberDragInput
+                {accent}
+                muted={stepDimmed}
+                value={stepCycle[step] ?? 1}
+                min={1}
+                max={64}
+                resetValue={1}
+                ariaLabel="Step cycle length"
+                onValueChange={(value) => onStepCycleChange(row, step, value)}
+              />
+              <span
+                class="pointer-events-none font-sans text-xs leading-none font-bold text-zinc-400 select-none"
+                aria-hidden="true">/</span
+              >
+              <StepNumberDragInput
+                {accent}
+                muted={stepDimmed}
+                value={stepCycleOffset[step] ?? 0}
+                min={0}
+                max={Math.max(0, (stepCycle[step] ?? 1) - 1)}
+                displayAdd={1}
+                resetValue={0}
+                ariaLabel="Step cycle offset"
+                onValueChange={(value) => onStepCycleOffsetChange(row, step, value)}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      {/snippet}
 
-      <div slot="back-footer">
+      {#snippet backFooter()}
+      <div>
         {@render stepSkipMuteFooter(step, stepFlipped)}
       </div>
+      {/snippet}
     </StepCardFlip>
     </div>
 
@@ -1179,7 +1178,7 @@
       {#each stepIds as stepId, step (stepId)}
         {@const cellWidth = cellWidthForStep(step)}
         <div
-          use:cellShellAction={step}
+          {@attach cellShellAttachment(step)}
           data-bulk-step-cell
           data-step-row={row}
           data-step-id={stepId}
@@ -1207,10 +1206,10 @@
       onfinalize={handleFinalize}
       class="flex w-max shrink-0 items-stretch overflow-visible"
     >
-      {#each dndItems as item, index (`${item.id}:${layoutFingerprint}`)}
+      {#each renderedDndItems as item, index (`${item.id}:${layoutFingerprint}`)}
         {@const layout = layoutForItem(item, index)}
         <div
-          use:cellShellAction={layout.step}
+          {@attach cellShellAttachment(layout.step)}
           data-bulk-step-cell={layout.step >= 0 ? true : undefined}
           data-step-row={layout.step >= 0 ? row : undefined}
           data-step-id={layout.step >= 0 ? stepIds[layout.step] : undefined}

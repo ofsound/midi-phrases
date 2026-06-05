@@ -3,12 +3,23 @@
   import { defaultPulseIndex, pulseNoteKinds, pulseOptions } from "./pulseLayout.js";
   import PulseNoteIcon from "./PulseNoteIcon.svelte";
 
-  export let value = defaultPulseIndex;
-  export let ariaLabel = "Pulse length";
-  /** @type {import('./rowAccentTheme.js').RowAccent} */
-  export let accent = emeraldRowAccent;
-  /** @type {(index: number) => void | Promise<void>} */
-  export let onValueChange = () => {};
+  
+  
+  /**
+   * @typedef {Object} Props
+   * @property {any} [value]
+   * @property {string} [ariaLabel]
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {(index: number) => void | Promise<void>} [onValueChange]
+   */
+
+  /** @type {Props} */
+  let {
+    value = defaultPulseIndex,
+    ariaLabel = "Pulse length",
+    accent = emeraldRowAccent,
+    onValueChange = () => {}
+  } = $props();
 </script>
 
 <div class="flex gap-1" role="radiogroup" aria-label={ariaLabel}>

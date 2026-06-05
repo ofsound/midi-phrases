@@ -1,31 +1,45 @@
 <script>
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
-  /** @type {{ index: number, label: string }[]} */
-  export let options;
-  export let value;
-  /** Option index restored on double-click; omit to disable reset. */
-  export let resetValue = undefined;
-  export let muted = false;
-  export let ariaLabel = "Bipolar knob";
-  /** @type {import('./rowAccentTheme.js').RowAccent} */
-  export let accent = emeraldRowAccent;
-  /** @type {(index: number) => void | Promise<void>} */
-  export let onValueChange = () => {};
+  
+  
+  
+  
+  /**
+   * @typedef {Object} Props
+   * @property {{ index: number, label: string }[]} options
+   * @property {any} value
+   * @property {any} [resetValue] - Option index restored on double-click; omit to disable reset.
+   * @property {boolean} [muted]
+   * @property {string} [ariaLabel]
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {(index: number) => void | Promise<void>} [onValueChange]
+   */
+
+  /** @type {Props} */
+  let {
+    options,
+    value,
+    resetValue = undefined,
+    muted = false,
+    ariaLabel = "Bipolar knob",
+    accent = emeraldRowAccent,
+    onValueChange = () => {}
+  } = $props();
 
   const pixelsPerStep = 10;
   const minAngleDeg = -135;
   const maxAngleDeg = 135;
 
-  let dragging = false;
+  let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
 
-  $: maxIndex = Math.max(0, options.length - 1);
-  $: valuePosition = Math.max(0, options.findIndex((option) => option.index === value));
-  $: currentLabel = options.find((option) => option.index === value)?.label ?? "";
-  $: indicatorAngleDeg =
-    maxIndex > 0 ? minAngleDeg + (valuePosition / maxIndex) * (maxAngleDeg - minAngleDeg) : 0;
+  let maxIndex = $derived(Math.max(0, options.length - 1));
+  let valuePosition = $derived(Math.max(0, options.findIndex((option) => option.index === value)));
+  let currentLabel = $derived(options.find((option) => option.index === value)?.label ?? "");
+  let indicatorAngleDeg =
+    $derived(maxIndex > 0 ? minAngleDeg + (valuePosition / maxIndex) * (maxAngleDeg - minAngleDeg) : 0);
 
   /** @param {number} position */
   function indexAtPosition(position) {

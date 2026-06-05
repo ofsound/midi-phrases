@@ -1,20 +1,45 @@
 <script>
-  export let value;
-  export let label = "";
-  export let fullWidth = false;
-  export let min = 0;
-  export let max = 127;
-  export let ariaLabel = "Slider";
-  /** @type {(value: number) => void | Promise<void>} */
-  export let onValueChange = () => {};
+  
+  /**
+   * @typedef {Object} Props
+   * @property {any} value
+   * @property {string} [label]
+   * @property {boolean} [fullWidth]
+   * @property {number} [min]
+   * @property {number} [max]
+   * @property {string} [ariaLabel]
+   * @property {(value: number) => void | Promise<void>} [onValueChange]
+   */
+
+  /** @type {Props} */
+  let {
+    value,
+    label = "",
+    fullWidth = false,
+    min = 0,
+    max = 127,
+    ariaLabel = "Slider",
+    onValueChange = () => {}
+  } = $props();
 
   /** @type {HTMLDivElement | null} */
-  let trackEl = null;
-  let dragging = false;
+  let trackEl = $state(null);
+  let dragging = $state(false);
 
-  $: range = Math.max(0, max - min);
-  $: thumbPercent = range > 0 ? ((value - min) / range) * 100 : 0;
-  $: displayValue = String(Math.round(value));
+  let range = $derived(Math.max(0, max - min));
+  let thumbPercent = $derived(range > 0 ? ((value - min) / range) * 100 : 0);
+  let displayValue = $derived(String(Math.round(value)));
+
+  /** @param {HTMLDivElement} node */
+  function trackAttachment(node) {
+    trackEl = node;
+
+    return () => {
+      if (trackEl === node) {
+        trackEl = null;
+      }
+    };
+  }
 
   function valueFromClientX(clientX) {
     if (!trackEl) return value;
@@ -65,7 +90,7 @@
   </div>
 
   <div
-    bind:this={trackEl}
+    {@attach trackAttachment}
     data-cursor="pointer"
     class="relative h-5 touch-none select-none"
     role="slider"

@@ -1,4 +1,5 @@
 <script>
+  import { SvelteSet } from "svelte/reactivity";
   import { midiToNoteName } from "./midiNoteNames.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import {
@@ -8,24 +9,34 @@
     recordPianoRangeLabel,
   } from "./pianoKeyboardLayout.js";
 
-  export let row = 0;
-  /** @type {import('./rowAccentTheme.js').RowAccent} */
-  export let accent = emeraldRowAccent;
-  /** @type {Set<number>} */
-  export let heldKeys = new Set();
-  /** @type {(midi: number) => void} */
-  export let onNotePress = () => {};
+  
+  
+  
+  /**
+   * @typedef {Object} Props
+   * @property {number} [row]
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {Set<number>} [heldKeys]
+   * @property {(midi: number) => void} [onNotePress]
+   */
+
+  /** @type {Props} */
+  let {
+    row = 0,
+    accent = emeraldRowAccent,
+    heldKeys = new Set(),
+    onNotePress = () => {}
+  } = $props();
 
   /** Default view: three octave-up steps from the bottom (starts ~C1, not C-2). */
-  let octaveOffset = 3;
+  let octaveOffset = $state(3);
 
   /** @type {Set<number>} */
-  let pointerHeldKeys = new Set();
+  const pointerHeldKeys = new SvelteSet();
 
-  $: octaveOffset = clampRecordPianoOctaveOffset(octaveOffset);
-  $: range = recordPianoMidiRange(octaveOffset);
-  $: layout = buildRecordPianoKeys(range.lowest, range.highest);
-  $: rangeLabel = recordPianoRangeLabel(range.lowest, range.highest);
+  let range = $derived(recordPianoMidiRange(octaveOffset));
+  let layout = $derived(buildRecordPianoKeys(range.lowest, range.highest));
+  let rangeLabel = $derived(recordPianoRangeLabel(range.lowest, range.highest));
 
   function isKeyHeld(midi) {
     return heldKeys.has(midi) || pointerHeldKeys.has(midi);
@@ -35,7 +46,7 @@
   function pressKey(midi) {
     if (pointerHeldKeys.has(midi)) return;
 
-    pointerHeldKeys = new Set([...pointerHeldKeys, midi]);
+    pointerHeldKeys.add(midi);
     onNotePress(midi);
   }
 
@@ -43,9 +54,7 @@
   function releaseKey(midi) {
     if (!pointerHeldKeys.has(midi)) return;
 
-    const next = new Set(pointerHeldKeys);
-    next.delete(midi);
-    pointerHeldKeys = next;
+    pointerHeldKeys.delete(midi);
   }
 
   function shiftOctaveDown() {
