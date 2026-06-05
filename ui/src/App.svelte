@@ -1870,9 +1870,8 @@
       const loopSlotChanged = clampedLoopSlot !== activeLoopSlot;
       activeLoopSlot = clampedLoopSlot;
 
-      if (clampedLoopSlot < 0) {
-        loopBraceEnabled = false;
-      } else if (
+      if (
+        clampedLoopSlot >= 0 &&
         loopSlotChanged &&
         nativeFunctionAvailable("getPatternSlotState")
       ) {
