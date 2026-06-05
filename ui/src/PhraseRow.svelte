@@ -1126,6 +1126,21 @@
   </div>
 {/snippet}
 
+{#snippet largeAddStepButton(label, insertStep)}
+  <button
+    type="button"
+    aria-label={label}
+    data-cursor="pointer"
+    class="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-dashed text-4xl leading-none font-semibold transition-colors outline-none focus:ring-1 {muted
+      ? 'border-zinc-700 bg-zinc-950 text-zinc-600 focus:ring-zinc-500'
+      : `${accent.borderActive} bg-zinc-950 ${accent.textAccent} ${accent.ringFocusWithWidth} hover:bg-zinc-900`}"
+    onpointerdown={(event) => event.stopPropagation()}
+    onclick={() => onInsertStep(row, insertStep)}
+  >
+    +
+  </button>
+{/snippet}
+
 {#snippet gapInsert(insertStep)}
   <div
     data-insert-slot
@@ -1157,18 +1172,7 @@
 
   {#if isEmptyRow}
     <div class="flex shrink-0 items-center justify-center px-3">
-      <button
-        type="button"
-        aria-label="Add first step"
-        data-cursor="pointer"
-        class="flex h-16 w-28 shrink-0 items-center justify-center rounded-md border border-dashed text-4xl leading-none font-semibold transition-colors outline-none focus:ring-1 {muted
-          ? 'border-zinc-700 bg-zinc-950 text-zinc-600 focus:ring-zinc-500'
-          : `${accent.borderActive} bg-zinc-950 ${accent.textAccent} ${accent.ringFocusWithWidth} hover:bg-zinc-900`}"
-        onpointerdown={(event) => event.stopPropagation()}
-        onclick={() => onInsertStep(row, 0)}
-      >
-        +
-      </button>
+      {@render largeAddStepButton("Add first step", 0)}
     </div>
   {:else if reorderDisabled}
     <div class="flex w-max shrink-0 items-stretch overflow-visible">
@@ -1240,11 +1244,16 @@
       <StepInsertZone
         {accent}
         {muted}
-        onInsert={() => onInsertStep(row, stepIds.length)}
         onDuplicate={() => onDuplicateStep(row, stepIds.length)}
       />
     {/if}
   </div>
+
+  {#if !isEmptyRow}
+    <div class="flex shrink-0 items-center justify-center py-2 pr-3 pl-3">
+      {@render largeAddStepButton("Add step to end of row", stepIds.length)}
+    </div>
+  {/if}
 </div>
 
 <style>

@@ -2,7 +2,7 @@
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
   let {
-    onInsert,
+    onInsert = undefined,
     onDuplicate = undefined,
     accent = emeraldRowAccent,
     muted = false,
@@ -22,21 +22,23 @@
   ></span>
 
   <div
-    class="relative z-10 flex shrink-0 flex-col items-center gap-2 {onDuplicate
+    class="relative z-10 flex shrink-0 flex-col items-center gap-2 {onInsert && onDuplicate
       ? 'mb-2.5'
       : ''}"
   >
-    <button
-      type="button"
-      aria-label="Insert step"
-      data-cursor="pointer"
-      class="shrink-0 border-0 bg-transparent p-0 px-0.5 text-lg leading-none font-bold opacity-0 outline-none transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 {muted
-        ? 'text-zinc-500'
-        : accent.textAccent} {accent.insertZoneFocus}"
-      onclick={onInsert}
-    >
-      +
-    </button>
+    {#if onInsert}
+      <button
+        type="button"
+        aria-label="Insert step"
+        data-cursor="pointer"
+        class="shrink-0 border-0 bg-transparent p-0 px-0.5 text-lg leading-none font-bold opacity-0 outline-none transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 {muted
+          ? 'text-zinc-500'
+          : accent.textAccent} {accent.insertZoneFocus}"
+        onclick={onInsert}
+      >
+        +
+      </button>
+    {/if}
 
     {#if onDuplicate}
       <button
