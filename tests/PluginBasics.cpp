@@ -172,6 +172,17 @@ TEST_CASE ("Plugin instance", "[instance]")
                == PluginProcessor::swingSubdivisionCount - 1);
     }
 
+    SECTION ("row color UI state")
+    {
+        CHECK_FALSE (testPlugin.isRowColorsEnabled());
+
+        testPlugin.setRowColorsEnabled (true);
+        CHECK (testPlugin.isRowColorsEnabled());
+
+        testPlugin.setRowColorsEnabled (false);
+        CHECK_FALSE (testPlugin.isRowColorsEnabled());
+    }
+
     SECTION ("loop brace snaps to eighth notes")
     {
         CHECK (testPlugin.getLoopBraceStartQuarters()
@@ -2229,6 +2240,7 @@ TEST_CASE ("Plugin instance", "[instance]")
     {
         testPlugin.setCurrentPatternSlot (2);
         testPlugin.deactivatePatternOutput();
+        testPlugin.setRowColorsEnabled (true);
 
         CHECK (testPlugin.getCurrentPatternSlot() == -1);
         CHECK_FALSE (testPlugin.isPatternOutputArmed());
@@ -2243,6 +2255,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (reloaded.getCurrentPatternSlot() == -1);
         CHECK_FALSE (reloaded.isPatternOutputArmed());
         CHECK (reloaded.getViewPatternSlot() == 2);
+        CHECK (reloaded.isRowColorsEnabled());
     }
 
     SECTION ("state load clamps phrase rows to fixed audio-thread capacity")

@@ -16,11 +16,13 @@
   export let disabled = false;
   /** When true, use header control box styling (matches DiscreteDragSelect). */
   export let boxed = false;
+  /** Tight boxed width for compact header controls with short values. */
+  export let compact = false;
   /** @type {(value: number) => void | Promise<void>} */
   export let onValueChange = () => {};
 
-  const boxedControlClasses =
-    "flex h-8 w-[4.5rem] items-center justify-center rounded-md border bg-gradient-to-b from-zinc-700/50 to-zinc-950 px-2 text-sm font-semibold tabular-nums transition-[border-color,box-shadow] duration-75";
+  const boxedControlBaseClasses =
+    "flex h-8 items-center justify-center rounded-md border bg-gradient-to-b from-zinc-700/50 to-zinc-950 px-2 text-sm font-semibold tabular-nums transition-[border-color,box-shadow] duration-75";
 
   const pixelsPerStep = 4;
 
@@ -84,7 +86,7 @@
 <div
   data-cursor={disabled ? "default" : "ns-resize"}
   class="touch-none select-none outline-none {boxed
-    ? boxedControlClasses
+    ? `${boxedControlBaseClasses} ${compact ? 'w-14' : 'w-[4.5rem]'}`
     : 'inline-flex items-center rounded-sm'} {disabled
     ? 'opacity-50'
     : ''} {accent.ringFocusWithWidth} {boxed

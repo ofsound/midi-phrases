@@ -10,6 +10,8 @@
   export let ariaLabel = "Option";
   /** @type {import('./rowAccentTheme.js').RowAccent} */
   export let accent = emeraldRowAccent;
+  /** Tight boxed width for compact header controls with short labels. */
+  export let compact = false;
   /** @type {(index: number) => void | Promise<void>} */
   export let onValueChange = () => {};
 
@@ -73,7 +75,9 @@
 
 <div
   data-cursor="ns-resize"
-  class="flex h-8 w-[4.5rem] touch-none select-none items-center justify-center rounded-md border bg-gradient-to-b from-zinc-700/50 to-zinc-950 px-2 text-sm font-semibold tabular-nums outline-none transition-[border-color,box-shadow] duration-75 {accent.borderFocusVisible} {accent.ringFocusWithWidth} {dragging && !muted
+  class="flex h-8 touch-none select-none items-center justify-center rounded-md border bg-gradient-to-b from-zinc-700/50 to-zinc-950 px-2 text-sm font-semibold tabular-nums outline-none transition-[border-color,box-shadow] duration-75 {compact
+    ? 'w-14'
+    : 'w-[4.5rem]'} {accent.borderFocusVisible} {accent.ringFocusWithWidth} {dragging && !muted
     ? `${accent.dragBorder} ${accent.dragShadow}`
     : muted
       ? 'border-zinc-800 text-zinc-500'

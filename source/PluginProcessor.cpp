@@ -932,6 +932,16 @@ int PluginProcessor::getSwingSubdivisionIndex() const
     return swingSubdivisionIndex.load (std::memory_order_relaxed);
 }
 
+void PluginProcessor::setRowColorsEnabled (const bool enabled)
+{
+    rowColorsEnabled.store (enabled ? 1 : 0, std::memory_order_relaxed);
+}
+
+bool PluginProcessor::isRowColorsEnabled() const
+{
+    return rowColorsEnabled.load (std::memory_order_relaxed) != 0;
+}
+
 const juce::String PluginProcessor::getName() const
 {
     return JucePlugin_Name;
@@ -3446,6 +3456,7 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("velocityHumanizePercent", getVelocityHumanizePercent(), nullptr);
     state.setProperty ("timingHumanizePercent", getTimingHumanizePercent(), nullptr);
     state.setProperty ("swingSubdivisionIndex", getSwingSubdivisionIndex(), nullptr);
+    state.setProperty ("rowColorsEnabled", isRowColorsEnabled() ? 1 : 0, nullptr);
 
     for (int patternSlot = 0; patternSlot < patternSlotCount; ++patternSlot)
     {
@@ -3786,6 +3797,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         static_cast<int> (state.getProperty ("timingHumanizePercent", defaultTimingHumanizePercent)));
     setSwingSubdivisionIndex (
         static_cast<int> (state.getProperty ("swingSubdivisionIndex", defaultSwingSubdivisionIndex)));
+    setRowColorsEnabled (static_cast<int> (state.getProperty ("rowColorsEnabled", 0)) != 0);
 
     const auto storedPatternSlot = static_cast<int> (state.getProperty ("currentPatternSlot", 0));
     lastViewPatternSlot = clampPatternSlot (

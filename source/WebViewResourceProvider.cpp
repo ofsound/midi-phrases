@@ -352,6 +352,8 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                                 processor.getTimingHumanizePercent())
                        .withInitialisationData ("swingSubdivisionIndex",
                                                 processor.getSwingSubdivisionIndex())
+                       .withInitialisationData ("rowColorsEnabled",
+                                                processor.isRowColorsEnabled() ? 1 : 0)
                        .withInitialisationData ("loopBraceEnabled",
                                                 processor.isLoopBraceEnabled() ? 1 : 0)
                        .withInitialisationData ("loopBraceStart",
@@ -803,6 +805,15 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.setSwingSubdivisionIndex (varToInt (args[0]));
 
                                complete (processor.getSwingSubdivisionIndex());
+                           })
+                       .withNativeFunction (
+                           "setRowColorsEnabled",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setRowColorsEnabled (varToInt (args[0]) != 0);
+
+                               complete (processor.isRowColorsEnabled() ? 1 : 0);
                            })
                        .withNativeFunction (
                            "setLoopBraceEnabled",

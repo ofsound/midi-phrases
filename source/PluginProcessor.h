@@ -233,6 +233,9 @@ public:
     int getSwingSubdivisionIndex() const;
     static double swingSubdivisionForIndex (int subdivisionIndex);
 
+    void setRowColorsEnabled (bool enabled);
+    bool isRowColorsEnabled() const;
+
 private:
     struct PhraseRowSteps
     {
@@ -502,6 +505,7 @@ private:
     std::atomic<int> velocityHumanizePercent { defaultVelocityHumanizePercent };
     std::atomic<int> timingHumanizePercent { defaultTimingHumanizePercent };
     std::atomic<int> swingSubdivisionIndex { defaultSwingSubdivisionIndex };
+    std::atomic<int> rowColorsEnabled { 0 };
     std::atomic<int> standaloneTransportPlaying { 0 };
     std::atomic<int> standaloneTransportResetRequested { 0 };
     std::atomic<double> standaloneTempoBpm { 120.0 };

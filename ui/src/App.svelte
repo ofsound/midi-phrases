@@ -207,13 +207,13 @@
     }`;
   }
 
-  function headerIconToggleButtonClasses(active, enabled = true) {
-    return `flex h-8 w-8 items-center justify-center rounded-md border transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+  function brandIconToggleButtonClasses(active, enabled = true) {
+    return `flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
       !enabled
-        ? "border-zinc-800 bg-zinc-950 text-zinc-700"
+        ? "text-zinc-700"
         : active
-          ? "border-emerald-400 bg-emerald-400 text-zinc-950"
-          : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
+          ? "text-white"
+          : "text-zinc-500 hover:text-zinc-300"
     }`;
   }
 
@@ -446,7 +446,7 @@
 
     if (
       target.closest(
-        "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-no-marquee], [data-no-long-press], [data-insert-slot], [data-remove-button], [data-multiplier-resize]",
+        "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-bulk-step-cell], [data-no-marquee], [data-no-long-press], [data-insert-slot], [data-remove-button], [data-multiplier-resize]",
       )
     ) {
       return;
@@ -1174,6 +1174,13 @@
     await setPhraseRowMidiChannel(row, rowMidiChannel[row]);
   }
 
+  async function pushRowColorsEnabled() {
+    if (!nativeFunctionAvailable("setRowColorsEnabled")) return;
+
+    const setRowColorsEnabled = getNativeFunction("setRowColorsEnabled");
+    await setRowColorsEnabled(rowColorsEnabled ? 1 : 0);
+  }
+
   async function pushStepTimingMultiplier(row, step) {
     if (!nativeFunctionAvailable("setPhraseStepTimingMultiplier")) return;
 
@@ -1395,10 +1402,6 @@
     const parsed = Number.parseInt(String(value), 10);
 
     return Number.isNaN(parsed) ? 0 : Math.min(48, Math.max(-48, parsed));
-  }
-
-  function formatPercentValue(value) {
-    return `${Math.round(value)}%`;
   }
 
   function formatSemitoneValue(value) {
@@ -2049,6 +2052,12 @@
     }
   }
 
+  function loadRowColorsFromInitialisation() {
+    const init = unwrapJuceInit("rowColorsEnabled");
+
+    rowColorsEnabled = init === true || init === 1 || init === "1";
+  }
+
   async function pushLoopBraceEnabled(enabled) {
     if (!nativeFunctionAvailable("setLoopBraceEnabled")) return;
 
@@ -2333,6 +2342,7 @@
     loadPulseFromInitialisation();
     loadHumanizeControlsFromInitialisation();
     loadLoopBraceFromInitialisation();
+    loadRowColorsFromInitialisation();
     loadStandaloneTransportFromInitialisation();
     loadSlotStateFromInitialisation();
   }
@@ -2375,10 +2385,30 @@
         <ColorsToggle
           accent={emeraldRowAccent}
           enabled={rowColorsEnabled}
-          onChange={(next) => {
+          onChange={async (next) => {
             rowColorsEnabled = next;
+            await pushRowColorsEnabled();
           }}
         />
+        <button
+          type="button"
+          aria-label={globalStepBackView
+            ? "Show front of all steps"
+            : "Show advanced settings for all steps"}
+          aria-pressed={globalStepBackView}
+          title={globalStepBackView
+            ? "Show front of all steps"
+            : "Show advanced settings for all steps"}
+          disabled={selectableStepCount === 0}
+          data-cursor="pointer"
+          class={brandIconToggleButtonClasses(
+            globalStepBackView,
+            selectableStepCount > 0,
+          )}
+          onclick={toggleGlobalStepBackView}
+        >
+          <StepGearIcon class="pointer-events-none h-4 w-4" />
+        </button>
       </div>
       <h1 class="whitespace-nowrap text-xl font-semibold tracking-tight text-zinc-100">
         {pluginName} <span class="text-sm font-medium text-zinc-500">v{version}</span>
@@ -2400,6 +2430,7 @@
               <span class="text-xs font-semibold leading-none text-zinc-500">Swing</span>
               <StepNumberDragInput
                 boxed
+                compact
                 accent={emeraldRowAccent}
                 value={swingPercent}
                 min={0}
@@ -2415,6 +2446,7 @@
             <div class="flex flex-col items-start gap-1">
               <span class="text-xs font-semibold leading-none text-zinc-500">Sub</span>
               <DiscreteDragSelect
+                compact
                 accent={emeraldRowAccent}
                 options={swingSubdivisionOptions}
                 value={swingSubdivisionIndex}
@@ -2430,6 +2462,7 @@
               <span class="text-xs font-semibold leading-none text-zinc-500">Vel %</span>
             <StepNumberDragInput
               boxed
+              compact
               accent={emeraldRowAccent}
               value={velocityHumanizePercent}
               min={0}
@@ -2446,6 +2479,7 @@
             <span class="text-xs font-semibold leading-none text-zinc-500">Time %</span>
             <StepNumberDragInput
               boxed
+              compact
               accent={emeraldRowAccent}
               value={timingHumanizePercent}
               min={0}
@@ -2479,37 +2513,15 @@
             </button>
           </div>
           <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-zinc-500">View</span>
-            <button
-              type="button"
-              aria-label={globalStepBackView
-                ? "Show front of all steps"
-                : "Show advanced settings for all steps"}
-              aria-pressed={globalStepBackView}
-              title={globalStepBackView
-                ? "Show front of all steps"
-                : "Show advanced settings for all steps"}
-              disabled={selectableStepCount === 0}
-              data-cursor="pointer"
-              class={headerIconToggleButtonClasses(
-                globalStepBackView,
-                selectableStepCount > 0,
-              )}
-              onclick={toggleGlobalStepBackView}
-            >
-              <StepGearIcon class="pointer-events-none h-4 w-4" />
-            </button>
-          </div>
-          <div class="flex flex-col items-start gap-1">
             <span class="text-xs font-semibold leading-none text-zinc-500">Dur %</span>
             <StepNumberDragInput
               boxed
+              compact
               accent={emeraldRowAccent}
               value={bulkDurationPercent}
               min={0}
               max={100}
               resetValue={100}
-              formatValue={formatPercentValue}
               ariaLabel="Bulk step duration percent"
               disabled={selectedStepCount === 0}
               onValueChange={applyBulkDurationPercent}
@@ -2519,12 +2531,12 @@
             <span class="text-xs font-semibold leading-none text-zinc-500">Vel %</span>
             <StepNumberDragInput
               boxed
+              compact
               accent={emeraldRowAccent}
               value={bulkVelocityPercent}
               min={0}
               max={100}
               resetValue={100}
-              formatValue={formatPercentValue}
               ariaLabel="Bulk step velocity percent"
               disabled={selectedStepCount === 0}
               onValueChange={applyBulkVelocityPercent}
@@ -2534,6 +2546,7 @@
             <span class="text-xs font-semibold leading-none text-zinc-500">Trans</span>
             <StepNumberDragInput
               boxed
+              compact
               accent={emeraldRowAccent}
               value={bulkTransposeSemitones}
               min={-48}
