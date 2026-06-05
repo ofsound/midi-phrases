@@ -27,13 +27,14 @@
   } from "./rowAccentTheme.js";
   import { phraseRowMinHeightPx } from "./phraseRowLayout.js";
   import {
-    compensatedResizeBoundsPx,
     defaultStepTimingMultiplierIndex,
-    multiplierIndexFromCompensatedWidth,
+    maxMultiplierCellWidthPx,
+    minMultiplierCellWidthPx,
+    multiplierIndexFromWidth,
     multiplierLabelForIndex,
     rowCellDisplayWidthsPx,
     rowTimingOffsetShiftPx,
-    stepCellBaseWidthPx,
+    stepCellQuarterGridWidthPx,
     stepCellWidthPx,
     stepFooterActionSlotWidthPx,
     stepInsertZoneWidthPx,
@@ -72,9 +73,6 @@
   export let activeGates = [];
   /** @type {{ index: number, label: string }[]} */
   export let timingMultiplierOptions = [];
-  /** Fullest phrase row for solo-step gap compensation; from {@link phraseFullestRowReference}. */
-  /** @type {import('./stepCellLayout.js').PhraseReferenceRow | null} */
-  export let phraseReferenceRow = null;
   export let globalStepBackView = false;
   /** @type {string[]} */
   export let selectedStepIds = [];
@@ -299,10 +297,8 @@
     return stepIds.indexOf(stepId);
   }
 
-  $: rowLayoutOptions = { phraseReferenceRow };
   $: rowDisplayWidths = rowCellDisplayWidthsPx(
     resizePreviewMultipliers ?? stepTimingMultiplier,
-    rowLayoutOptions,
   );
 
   /** @param {number} step */
@@ -317,12 +313,7 @@
   function multiplierLabelForStep(step) {
     const index =
       resizingStep === step
-        ? multiplierIndexFromCompensatedWidth(
-            stepTimingMultiplier,
-            step,
-            resizeDisplayWidth,
-            rowLayoutOptions,
-          )
+        ? multiplierIndexFromWidth(resizeDisplayWidth)
         : stepTimingMultiplier[step];
 
     return multiplierLabelForIndex(index, timingMultiplierOptions);
@@ -338,7 +329,7 @@
     return `left: -${stepInsertZoneWidthPx}px; width: ${stepInsertZoneWidthPx}px;`;
   }
 
-  $: layoutFingerprint = `${stepCellBaseWidthPx}:${phraseReferenceRow?.totalDuration ?? 0}:${phraseReferenceRow?.stepCount ?? 0}:${stepIds.length}:${stepTimingMultiplier.join(",")}`;
+  $: layoutFingerprint = `${stepCellQuarterGridWidthPx}:${stepIds.length}:${stepTimingMultiplier.join(",")}`;
   let appliedLayoutFingerprint = "";
 
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
@@ -474,11 +465,8 @@
 
   /** @param {number} clientX */
   function resizeWidthFromClientX(clientX) {
-    const { min, max } = compensatedResizeBoundsPx(
-      stepTimingMultiplier,
-      resizingStep,
-      rowLayoutOptions,
-    );
+    const min = minMultiplierCellWidthPx();
+    const max = maxMultiplierCellWidthPx();
 
     return Math.round(
       Math.min(max, Math.max(min, resizeStartWidth + (clientX - resizeStartX))),
@@ -488,16 +476,11 @@
   function syncActiveResizeVisuals() {
     if (resizingStep < 0) return;
 
-    const previewIndex = multiplierIndexFromCompensatedWidth(
-      stepTimingMultiplier,
-      resizingStep,
-      resizeDisplayWidth,
-      rowLayoutOptions,
-    );
+    const previewIndex = multiplierIndexFromWidth(resizeDisplayWidth);
     const previewMultipliers = stepTimingMultiplier.slice();
     previewMultipliers[resizingStep] = previewIndex;
     resizePreviewMultipliers = previewMultipliers;
-    const widths = rowCellDisplayWidthsPx(previewMultipliers, rowLayoutOptions);
+    const widths = rowCellDisplayWidthsPx(previewMultipliers);
 
     cellShellElements.forEach((shell, step) => {
       if (step < 0 || step >= widths.length) return;
@@ -685,16 +668,11 @@
 
     const step = resizingStep;
     const shell = cellShellElements.get(step);
-    const snappedIndex = multiplierIndexFromCompensatedWidth(
-      stepTimingMultiplier,
-      step,
-      resizeDisplayWidth,
-      rowLayoutOptions,
-    );
+    const snappedIndex = multiplierIndexFromWidth(resizeDisplayWidth);
     const previewMultipliers = stepTimingMultiplier.slice();
     previewMultipliers[step] = snappedIndex;
     resizePreviewMultipliers = previewMultipliers;
-    const targetWidth = rowCellDisplayWidthsPx(previewMultipliers, rowLayoutOptions)[step];
+    const targetWidth = rowCellDisplayWidthsPx(previewMultipliers)[step];
 
     resizingStep = -1;
     stopResizeFrameLoop();
@@ -725,7 +703,7 @@
       }
     }
 
-    const committedWidths = rowCellDisplayWidthsPx(previewMultipliers, rowLayoutOptions);
+    const committedWidths = rowCellDisplayWidthsPx(previewMultipliers);
     cellShellElements.forEach((shell, shellStep) => {
       if (shellStep < 0 || shellStep >= committedWidths.length) return;
 
@@ -925,7 +903,7 @@
   {@const stepDimmed = muted || stepIsSkipped}
   {@const isStepSelected = selectedStepIdSet.has(stepIds[step])}
   <div
-    class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[box-shadow] duration-200 {stepCellPlaybackGlowClass(
+    class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[box-shadow] duration-75 {stepCellPlaybackGlowClass(
       activeGates[step],
       stepDimmed,
     )} {isStepSelected ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.28)]' : ''}"
@@ -943,7 +921,7 @@
     >
       <div slot="front" class="h-full min-h-0 w-full min-w-0">
         <div
-          class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-200 {stepCellSurfaceClass(
+          class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-75 {stepCellSurfaceClass(
             stepDimmed,
           )} {isStepSelected
             ? `${accent.borderActive} ring-2 ring-white/30`

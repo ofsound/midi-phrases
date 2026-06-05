@@ -110,7 +110,7 @@
       aria-hidden={!flipped}
     >
       <div
-        class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none {surfaceClass} {borderClass} {muted
+        class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-75 {surfaceClass} {borderClass} {muted
           ? ''
           : accent.cellFocusWithinBorder}"
       >

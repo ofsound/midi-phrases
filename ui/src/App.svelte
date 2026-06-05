@@ -32,7 +32,6 @@
     defaultStepTimingMultiplierIndex,
     maxPhraseStepsPerRow,
     findSingleMove,
-    phraseFullestRowReference,
     stepTimingMultiplierCount,
     timingMultiplierOptions,
   } from "./stepCellLayout.js";
@@ -63,7 +62,6 @@
   } from "./rowAccentTheme.js";
 
   let pluginName = "MIDI Phrases";
-  let version = "0.0.1";
   let grid = defaultPhraseGrid();
   /** @type {boolean[]} */
   let rowMuted = [false, false, false, false];
@@ -104,6 +102,8 @@
 
   let playbackPollFrameId = 0;
   let slotSelectionInFlight = 0;
+  let previousGateSnapshot = defaultPhraseGrid().map((row) => row.map(() => false));
+  let activeGateHoldUntil = defaultPhraseGrid().map((row) => row.map(() => 0));
 
   /** Row index armed for MIDI capture, or null. */
   let recordingRow = null;
@@ -162,6 +162,7 @@
   let marqueeSelection = null;
 
   const historyLimit = 100;
+  const stepTriggerFlashMs = 110;
   const historyButtonBaseClasses =
     "flex h-8 w-8 items-center justify-center rounded-md border bg-zinc-900 transition-colors outline-none focus:ring-1 focus:ring-emerald-400 disabled:border-zinc-800 disabled:text-zinc-700";
 
@@ -223,8 +224,6 @@
     pulseIndex,
   );
 
-  /** Fullest row for solo-step width (gap-compensated to match dense rows). */
-  $: phraseReferenceRow = phraseFullestRowReference(stepTimingMultiplier);
   $: selectedStepCount = selectedStepKeys.size;
   $: selectableStepCount = stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0);
   $: allStepsSelected = selectedStepCount === selectableStepCount && selectedStepCount > 0;
@@ -330,11 +329,6 @@
     if (selectableStepCount === 0) return;
 
     globalStepBackView = !globalStepBackView;
-  }
-
-  function clearStepSelection() {
-    setSelectedStepKeys(new Set());
-    bulkTransposeSemitones = 0;
   }
 
   function syncBulkControlsFromSelection() {
@@ -763,14 +757,22 @@
     return window.__JUCE__?.initialisationData?.__juce__functions?.includes?.(name) ?? false;
   }
 
-  $: {
+  function currentUiTimeMs() {
+    return window.performance?.now?.() ?? Date.now();
+  }
+
+  function inactiveGateMatrix() {
+    return grid.map((row) => row.map(() => false));
+  }
+
+  function gateSnapshotForBeat(beat) {
     const nextActiveGates = grid.map((row) => row.map(() => false));
 
-    if (playbackBeat >= 0) {
+    if (beat >= 0) {
       for (let row = 0; row < grid.length; row += 1) {
         for (let step = 0; step < grid[row].length; step += 1) {
           nextActiveGates[row][step] = isStepActiveAtBeat({
-            beat: playbackBeat,
+            beat,
             step,
             rowNotes: grid[row],
             rowMuted: rowMuted[row],
@@ -791,15 +793,41 @@
       }
     }
 
+    return nextActiveGates;
+  }
+
+  function updateActiveGatesForBeat(beat) {
+    const rawGates = gateSnapshotForBeat(beat);
+
+    if (beat < 0) {
+      previousGateSnapshot = rawGates;
+      activeGateHoldUntil = inactiveGateMatrix().map((row) => row.map(() => 0));
+      activeGates = rawGates;
+      return;
+    }
+
+    const now = currentUiTimeMs();
+    const nextHoldUntil = rawGates.map((rowGates, row) =>
+      rowGates.map((active, step) => {
+        const heldUntil = activeGateHoldUntil[row]?.[step] ?? 0;
+        const wasActive = previousGateSnapshot[row]?.[step] ?? false;
+
+        return active && !wasActive
+          ? Math.max(heldUntil, now + stepTriggerFlashMs)
+          : heldUntil;
+      }),
+    );
+    const nextActiveGates = rawGates.map((rowGates, row) =>
+      rowGates.map((active, step) => active || (nextHoldUntil[row]?.[step] ?? 0) > now),
+    );
+
+    previousGateSnapshot = rawGates;
+    activeGateHoldUntil = nextHoldUntil;
     activeGates = nextActiveGates;
   }
 
   if (window.__JUCE__?.initialisationData?.pluginName?.[0]) {
     pluginName = window.__JUCE__.initialisationData.pluginName[0];
-  }
-
-  if (window.__JUCE__?.initialisationData?.version?.[0]) {
-    version = window.__JUCE__.initialisationData.version[0];
   }
 
   function loadGridFromInitialisation() {
@@ -1876,6 +1904,8 @@
       playbackBeat = -1;
     }
 
+    updateActiveGatesForBeat(playbackBeat);
+
     await pollCurrentSlotState();
     await pollRowRecordingNotes();
 
@@ -2411,7 +2441,7 @@
         </button>
       </div>
       <h1 class="whitespace-nowrap text-xl font-semibold tracking-tight text-zinc-100">
-        {pluginName} <span class="text-sm font-medium text-zinc-500">v{version}</span>
+        {pluginName}
       </h1>
     </div>
 
@@ -2558,17 +2588,6 @@
               onValueChange={applyBulkTransposeSemitones}
             />
           </div>
-          <button
-            type="button"
-            aria-label="Clear selected steps"
-            title="Clear step selection"
-            disabled={selectedStepCount === 0}
-            data-cursor="pointer"
-            class={clearPatternButtonClasses(selectedStepCount > 0)}
-            onclick={clearStepSelection}
-          >
-            <RemoveXIcon class="pointer-events-none h-3 w-3" />
-          </button>
         </div>
         <div class="flex items-center gap-1">
           <button
@@ -2830,7 +2849,6 @@
               accent={rowAccent}
               timingOffsetIndex={rowTimingOffset[row]}
               timingOffsetVisualCompensationPx={phraseVisualOffsetCompensationPx}
-              {phraseReferenceRow}
               {pulseIndex}
               stepIds={stepIds[row]}
               notes={grid[row]}

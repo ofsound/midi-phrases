@@ -324,7 +324,6 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
     auto options = Options{}
                        .withNativeIntegrationEnabled()
                        .withInitialisationData ("pluginName", juce::var { PRODUCT_NAME_WITHOUT_VERSION })
-                       .withInitialisationData ("version", juce::var { VERSION })
                        .withInitialisationData ("currentPatternSlot", processor.getCurrentPatternSlot())
                        .withInitialisationData ("viewPatternSlot", processor.getViewPatternSlot())
                        .withInitialisationData ("patternOutputArmed",
