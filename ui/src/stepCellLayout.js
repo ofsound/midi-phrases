@@ -156,12 +156,9 @@ export function rowCellDisplayWidthsPx(multiplierIndices) {
  * Inserts are centered on `boundaryBeforePx` and on the trailing grid edge.
  *
  * @param {number[]} multiplierIndices
- * @param {{ resizeStep?: number, resizeDisplayWidth?: number }} [options]
  * @returns {{ layouts: RowStepLayout[], gridWidthPx: number }}
  */
-export function rowStepLayoutsPx(multiplierIndices, options = {}) {
-  const resizeStep = options.resizeStep ?? -1;
-  const resizeDisplayWidth = options.resizeDisplayWidth ?? 0;
+export function rowStepLayoutsPx(multiplierIndices) {
   const W = stepCellQuarterGridWidthPx;
   const gapPx = stepInsertZoneWidthPx;
   const paddingPx = stepCellPaddingPx;
@@ -173,10 +170,7 @@ export function rowStepLayoutsPx(multiplierIndices, options = {}) {
   for (let step = 0; step < multiplierIndices.length; step += 1) {
     const columns = quarterGridColumnsForMultiplierIndex(multiplierIndices[step]);
     const boundaryBeforePx = cumulativeColumns * W;
-    const widthPx =
-      step === resizeStep && resizeStep >= 0
-        ? Math.round(resizeDisplayWidth)
-        : columns * W - gapPx;
+    const widthPx = columns * W - gapPx;
 
     layouts.push({
       leftPx: boundaryBeforePx + paddingPx,

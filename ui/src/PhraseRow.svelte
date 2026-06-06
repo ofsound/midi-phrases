@@ -329,10 +329,7 @@
 
   /** @param {number} step */
   function multiplierLabelForStep(step) {
-    const index =
-      resizingStep === step
-        ? multiplierIndexFromWidth(resizeDisplayWidth)
-        : stepTimingMultiplier[step];
+    const index = (resizePreviewMultipliers ?? stepTimingMultiplier)[step];
 
     return multiplierLabelForIndex(index, timingMultiplierOptions);
   }
@@ -526,8 +523,7 @@
     cellShellElements.forEach((shell, step) => {
       if (step < 0 || step >= widths.length) return;
 
-      const width = step === resizingStep ? resizeDisplayWidth : widths[step];
-      applyCellShellWidthPx(shell, width);
+      applyCellShellWidthPx(shell, widths[step]);
     });
 
     const shell = cellShellElements.get(resizingStep);
@@ -822,12 +818,7 @@
     transformDraggedElement,
   });
   let activeMultipliers = $derived(resizePreviewMultipliers ?? stepTimingMultiplier);
-  let rowStepLayout = $derived(
-    rowStepLayoutsPx(
-      activeMultipliers,
-      resizingStep >= 0 ? { resizeStep: resizingStep, resizeDisplayWidth } : {},
-    ),
-  );
+  let rowStepLayout = $derived(rowStepLayoutsPx(activeMultipliers));
   let rowGridSpanPx = $derived(
     rowGridWidthPx(activeMultipliers),
   );
@@ -1331,9 +1322,7 @@
               data-step-index={layout.step >= 0 ? layout.step : undefined}
               data-step-selected={layout.step >= 0 && selectedStepIdSet.has(stepIds[layout.step]) ? true : undefined}
               animate:flip={resizingStep >= 0 ? undefined : { duration: flipDurationMs }}
-              class="relative shrink-0 overflow-visible {resizingStep >= 0
-                ? 'step-cell-resize-tween'
-                : ''} {isShadowItem(item) ? 'pointer-events-none' : ''}"
+              class="relative shrink-0 overflow-visible {isShadowItem(item) ? 'pointer-events-none' : ''}"
               style={fixedFlexStyle(layout.cellWidth)}
               style:margin-left={layout.step === 0
                 ? `${stepCellPaddingPx}px`
@@ -1359,12 +1348,3 @@
   {/if}
 </div>
 
-<style>
-  .step-cell-resize-tween {
-    transition:
-      flex-basis 100ms ease-out,
-      width 100ms ease-out,
-      min-width 100ms ease-out,
-      max-width 100ms ease-out;
-  }
-</style>
