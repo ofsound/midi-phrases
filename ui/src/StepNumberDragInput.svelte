@@ -1,4 +1,5 @@
 <script>
+  import { onDestroy } from "svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
   
@@ -21,6 +22,10 @@
    * @property {boolean} [disabled]
    * @property {boolean} [boxed] - When true, use header control box styling (matches DiscreteDragSelect).
    * @property {boolean} [compact] - Tight boxed width for compact header controls with short values.
+   * @property {boolean} [deferCommit] - Preview while dragging; commit on release.
+   * @property {() => void} [onGestureStart] - Called at drag start when {@link deferCommit} is true.
+   * @property {(value: number) => void} [onValuePreview] - Lightweight preview while dragging.
+   * @property {(value: number) => void | Promise<void>} [onValueCommit] - Final commit on release.
    * @property {(value: number) => void | Promise<void>} [onValueChange]
    */
 
@@ -38,6 +43,10 @@
     disabled = false,
     boxed = false,
     compact = false,
+    deferCommit = false,
+    onGestureStart = undefined,
+    onValuePreview = undefined,
+    onValueCommit = undefined,
     onValueChange = () => {}
   } = $props();
 
@@ -49,6 +58,9 @@
   let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
+  let previewFrameId = 0;
+  /** @type {number | null} */
+  let pendingPreviewValue = null;
 
   let displayValue =
     $derived(formatValue !== undefined
@@ -68,6 +80,57 @@
     return clampValue(dragStartValue + steps);
   }
 
+  function cancelPreviewFrame() {
+    if (!previewFrameId) return;
+
+    cancelAnimationFrame(previewFrameId);
+    previewFrameId = 0;
+  }
+
+  function flushPreviewFrame() {
+    previewFrameId = 0;
+
+    const next = pendingPreviewValue;
+    pendingPreviewValue = null;
+
+    if (next !== null) {
+      onValuePreview?.(next);
+    }
+  }
+
+  /** @param {number} next */
+  function schedulePreview(next) {
+    if (next === value) return;
+
+    if (!deferCommit || !onValuePreview) {
+      onValueChange(next);
+      return;
+    }
+
+    pendingPreviewValue = next;
+
+    if (previewFrameId) return;
+
+    previewFrameId = requestAnimationFrame(flushPreviewFrame);
+  }
+
+  /** @param {number} next */
+  function commitDeferredValue(next) {
+    onGestureStart?.();
+    onValuePreview?.(next);
+    onValueCommit?.(next);
+  }
+
+  /** @param {number} next */
+  function applyValue(next) {
+    if (deferCommit && onValueCommit) {
+      commitDeferredValue(next);
+      return;
+    }
+
+    onValueChange(next);
+  }
+
   /** @param {PointerEvent} event */
   function onPointerDown(event) {
     if (disabled) return;
@@ -76,21 +139,36 @@
     dragging = true;
     dragStartY = event.clientY;
     dragStartValue = value;
+
+    if (deferCommit) {
+      onGestureStart?.();
+    }
   }
 
   /** @param {PointerEvent} event */
   function onPointerMove(event) {
     if (!dragging || disabled) return;
 
-    const next = valueFromDrag(event.clientY);
-
-    if (next !== value) onValueChange(next);
+    schedulePreview(valueFromDrag(event.clientY));
   }
 
   /** @param {PointerEvent} event */
   function onPointerUp(event) {
     dragging = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
+
+    if (!deferCommit || !onValueCommit) {
+      cancelPreviewFrame();
+      pendingPreviewValue = null;
+      return;
+    }
+
+    const finalValue =
+      pendingPreviewValue ?? clampValue(valueFromDrag(event.clientY));
+
+    cancelPreviewFrame();
+    pendingPreviewValue = null;
+    onValueCommit(finalValue);
   }
 
   /** @param {MouseEvent} event */
@@ -99,8 +177,12 @@
 
     event.preventDefault();
 
-    if (value !== resetValue) onValueChange(resetValue);
+    if (value !== resetValue) applyValue(resetValue);
   }
+
+  onDestroy(() => {
+    cancelPreviewFrame();
+  });
 </script>
 
 <div
@@ -142,11 +224,11 @@
     if (event.key === "ArrowUp") {
       event.preventDefault();
 
-      if (value < max) onValueChange(value + 1);
+      if (value < max) applyValue(value + 1);
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
 
-      if (value > min) onValueChange(value - 1);
+      if (value > min) applyValue(value - 1);
     }
   }}
 >

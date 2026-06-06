@@ -161,6 +161,10 @@
   let bulkDurationPercent = $state(100);
   let bulkVelocityPercent = $state(100);
   let bulkTransposeSemitones = $state(0);
+  /** @type {ReturnType<typeof createHistorySnapshot> | null} */
+  let bulkEditGestureBefore = null;
+  /** @type {Map<string, number> | null} */
+  let bulkTransposeBaselineByKey = null;
   /** @type {{ startX: number, startY: number, currentX: number, currentY: number, addToSelection: boolean, baseKeys: Set<string> } | null} */
   let marqueeSelection = $state(null);
 
@@ -1475,65 +1479,122 @@
     }
   }
 
-  async function applyBulkDurationPercent(value) {
+  function beginBulkEditGesture() {
+    if (!bulkEditGestureBefore) {
+      bulkEditGestureBefore = createHistorySnapshot();
+    }
+  }
+
+  function resetBulkEditGesture() {
+    bulkEditGestureBefore = null;
+    bulkTransposeBaselineByKey = null;
+  }
+
+  async function commitBulkEditGesture(label, syncFn) {
+    const before = bulkEditGestureBefore;
+    resetBulkEditGesture();
+
+    if (!before) return;
+
+    await syncFn();
+    const after = createHistorySnapshot();
+    pushHistoryEntry(label, before, after);
+  }
+
+  function previewBulkDurationPercent(value) {
     const clamped = clampBulkPercent(value);
     bulkDurationPercent = clamped;
     const locations = selectedStepLocations();
 
     if (locations.length === 0) return;
 
-    await commitHistory("Bulk duration", async () => {
-      const next = cloneMatrix(stepDurationFraction);
-      const fraction = clamped / 100;
+    const fraction = clamped / 100;
 
-      for (const { row, step } of locations) {
-        next[row][step] = fraction;
-      }
+    for (const { row, step } of locations) {
+      stepDurationFraction[row][step] = fraction;
+    }
+  }
 
-      stepDurationFraction = next;
+  async function commitBulkDurationPercent(value) {
+    const clamped = clampBulkPercent(value);
+    const locations = selectedStepLocations();
+
+    if (locations.length === 0) {
+      resetBulkEditGesture();
+      return;
+    }
+
+    previewBulkDurationPercent(clamped);
+
+    await commitBulkEditGesture("Bulk duration", async () => {
       await pushRowsForSelectedLocations(locations);
     });
   }
 
-  async function applyBulkVelocityPercent(value) {
+  function previewBulkVelocityPercent(value) {
     const clamped = clampBulkPercent(value);
     bulkVelocityPercent = clamped;
     const locations = selectedStepLocations();
 
     if (locations.length === 0) return;
 
-    await commitHistory("Bulk velocity", async () => {
-      const next = cloneMatrix(stepVelocity);
-      const velocity = Math.round((clamped / 100) * 127);
+    const velocity = Math.round((clamped / 100) * 127);
 
-      for (const { row, step } of locations) {
-        next[row][step] = velocity;
-      }
+    for (const { row, step } of locations) {
+      stepVelocity[row][step] = velocity;
+    }
+  }
 
-      stepVelocity = next;
+  async function commitBulkVelocityPercent(value) {
+    const clamped = clampBulkPercent(value);
+    const locations = selectedStepLocations();
+
+    if (locations.length === 0) {
+      resetBulkEditGesture();
+      return;
+    }
+
+    previewBulkVelocityPercent(clamped);
+
+    await commitBulkEditGesture("Bulk velocity", async () => {
       await pushRowsForSelectedLocations(locations);
     });
   }
 
-  async function applyBulkTransposeSemitones(value) {
+  function previewBulkTransposeSemitones(value) {
     const clamped = clampTransposeSemitones(value);
-    const delta = clamped - bulkTransposeSemitones;
-    bulkTransposeSemitones = clamped;
-
-    if (delta === 0) return;
-
     const locations = selectedStepLocations();
 
     if (locations.length === 0) return;
 
-    await commitHistory("Bulk transpose", async () => {
-      const next = cloneMatrix(grid);
+    if (!bulkTransposeBaselineByKey) {
+      bulkTransposeBaselineByKey = new Map();
 
-      for (const { row, step } of locations) {
-        next[row][step] = Math.min(127, Math.max(0, next[row][step] + delta));
+      for (const { row, step, key } of locations) {
+        bulkTransposeBaselineByKey.set(key, grid[row][step]);
       }
+    }
 
-      grid = next;
+    bulkTransposeSemitones = clamped;
+
+    for (const { row, step, key } of locations) {
+      const baseline = bulkTransposeBaselineByKey.get(key) ?? grid[row][step];
+      grid[row][step] = Math.min(127, Math.max(0, baseline + clamped));
+    }
+  }
+
+  async function commitBulkTransposeSemitones(value) {
+    const clamped = clampTransposeSemitones(value);
+    const locations = selectedStepLocations();
+
+    if (locations.length === 0) {
+      resetBulkEditGesture();
+      return;
+    }
+
+    previewBulkTransposeSemitones(clamped);
+
+    await commitBulkEditGesture("Bulk transpose", async () => {
       await pushRowsForSelectedLocations(locations);
     });
   }
@@ -2559,6 +2620,7 @@
             <StepNumberDragInput
               boxed
               compact
+              deferCommit
               accent={emeraldRowAccent}
               value={bulkDurationPercent}
               min={0}
@@ -2566,7 +2628,9 @@
               resetValue={100}
               ariaLabel="Bulk step duration percent"
               disabled={selectedStepCount === 0}
-              onValueChange={applyBulkDurationPercent}
+              onGestureStart={beginBulkEditGesture}
+              onValuePreview={previewBulkDurationPercent}
+              onValueCommit={commitBulkDurationPercent}
             />
           </div>
           <div class="flex flex-col items-start gap-1">
@@ -2574,6 +2638,7 @@
             <StepNumberDragInput
               boxed
               compact
+              deferCommit
               accent={emeraldRowAccent}
               value={bulkVelocityPercent}
               min={0}
@@ -2581,7 +2646,9 @@
               resetValue={100}
               ariaLabel="Bulk step velocity percent"
               disabled={selectedStepCount === 0}
-              onValueChange={applyBulkVelocityPercent}
+              onGestureStart={beginBulkEditGesture}
+              onValuePreview={previewBulkVelocityPercent}
+              onValueCommit={commitBulkVelocityPercent}
             />
           </div>
           <div class="flex flex-col items-start gap-1">
@@ -2589,6 +2656,7 @@
             <StepNumberDragInput
               boxed
               compact
+              deferCommit
               accent={emeraldRowAccent}
               value={bulkTransposeSemitones}
               min={-48}
@@ -2597,7 +2665,9 @@
               formatValue={formatSemitoneValue}
               ariaLabel="Bulk step transpose semitones"
               disabled={selectedStepCount === 0}
-              onValueChange={applyBulkTransposeSemitones}
+              onGestureStart={beginBulkEditGesture}
+              onValuePreview={previewBulkTransposeSemitones}
+              onValueCommit={commitBulkTransposeSemitones}
             />
           </div>
         </div>
