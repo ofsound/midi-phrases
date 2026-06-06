@@ -1195,9 +1195,9 @@
     type="button"
     aria-label={label}
     data-cursor="pointer"
-    class="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-dashed text-4xl leading-none font-semibold transition-colors outline-none focus:ring-1 {muted
-      ? 'border-zinc-700 bg-zinc-950 text-zinc-600 focus:ring-zinc-500'
-      : `${accent.borderActive} bg-zinc-950 ${accent.textAccent} ${accent.ringFocusWithWidth} hover:bg-zinc-900`}"
+    class="flex size-[54px] shrink-0 items-center justify-center border border-transparent bg-transparent text-[1.9rem] leading-none font-semibold transition-colors outline-none focus:ring-1 {muted
+      ? 'text-zinc-600 focus:ring-zinc-500'
+      : `${accent.textAccent} ${accent.ringFocusWithWidth}`}"
     onpointerdown={(event) => event.stopPropagation()}
     onclick={() => onInsertStep(row, insertStep)}
   >
