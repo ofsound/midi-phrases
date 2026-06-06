@@ -852,7 +852,7 @@
     data-cursor="ew-resize"
     aria-label="Resize step timing multiplier"
     disabled={isDragging || removeBlocked}
-    class="absolute top-0 right-0 bottom-5 z-[60] w-4 touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+    class="absolute top-0 right-0 bottom-5 z-[60] w-[11px] touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
     onpointerdown={(event) => beginMultiplierResize(event, step)}
     onmousedown={(event) => beginMultiplierResize(event, step)}
   ></button>
