@@ -89,7 +89,7 @@
 </script>
 
 <div
-  data-cursor="ns-resize"
+  data-cursor="vertical-drag"
   class="flex h-8 touch-none select-none items-center justify-center rounded-md border bg-gradient-to-b from-zinc-700/50 to-zinc-950 px-2 text-sm font-semibold tabular-nums outline-none transition-[border-color,box-shadow] duration-75 {compact
     ? 'w-14'
     : 'w-[4.5rem]'} {accent.borderFocusVisible} {accent.ringFocusWithWidth} {dragging && !muted

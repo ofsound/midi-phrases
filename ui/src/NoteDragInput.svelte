@@ -77,7 +77,7 @@
 </script>
 
 <div
-  data-cursor="ns-resize"
+  data-cursor="vertical-drag"
   class="inline-flex touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {muted
     ? 'text-zinc-500'
     : dragging

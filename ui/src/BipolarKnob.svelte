@@ -91,7 +91,7 @@
 
 <div class="transition-opacity duration-200 {muted ? 'opacity-75' : ''}">
   <div
-    data-cursor="ns-resize"
+    data-cursor="vertical-drag"
     class="relative h-9 w-9 touch-none select-none rounded-full border-2 bg-zinc-900 outline-none transition-[border-color,box-shadow] duration-75 {accent.borderFocusVisible} focus-visible:ring-1 {accent.ringFocus} {dragging && !muted
       ? `${accent.dragBorder} ${accent.dragShadow}`
       : muted

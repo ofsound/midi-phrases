@@ -20,6 +20,13 @@ juce::MouseCursor mouseCursorFromWebName (const juce::String& name)
     if (name == "grab" || name == "grabbing")
         return juce::MouseCursor (juce::MouseCursor::DraggingHandCursor);
 
+    if (name == "none")
+    {
+        juce::Image image (juce::Image::ARGB, 16, 16, true);
+        image.clear (image.getBounds());
+        return juce::MouseCursor (image, 8, 8);
+    }
+
     return juce::MouseCursor (juce::MouseCursor::NormalCursor);
 }
 } // namespace

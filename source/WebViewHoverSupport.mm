@@ -39,6 +39,24 @@ NSCursor* nsCursorForName (const juce::String& cursorName)
     if (cursorName == "grab")
         return [NSCursor openHandCursor];
 
+    if (cursorName == "none")
+    {
+        static NSCursor* transparentCursor = nil;
+        static dispatch_once_t onceToken;
+
+        dispatch_once (&onceToken, ^{
+            const auto size = NSMakeSize (16.0, 16.0);
+            NSImage* const image = [[NSImage alloc] initWithSize: size];
+            [image lockFocus];
+            [[NSColor clearColor] set];
+            NSRectFill (NSMakeRect (0.0, 0.0, size.width, size.height));
+            [image unlockFocus];
+            transparentCursor = [[NSCursor alloc] initWithImage: image hotSpot: NSMakePoint (8.0, 8.0)];
+        });
+
+        return transparentCursor;
+    }
+
     return [NSCursor arrowCursor];
 }
 } // namespace

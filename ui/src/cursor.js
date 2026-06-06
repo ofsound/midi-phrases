@@ -2,6 +2,7 @@ import { getNativeFunction } from "@juce/index.js";
 
 const dragCursorMap = {
   grab: "grabbing",
+  "vertical-drag": "none",
 };
 
 let activeCursor = "";
@@ -25,7 +26,30 @@ function isDisabledCursorElement(element) {
 function cursorForElement(element) {
   if (isDisabledCursorElement(element)) return "default";
 
-  return element.getAttribute("data-cursor") || "";
+  const cursor = element.getAttribute("data-cursor") || "";
+
+  if (cursor === "vertical-drag") return "pointer";
+
+  return cursor;
+}
+
+function rawCursorFromTarget(target) {
+  if (!(target instanceof Element)) return "";
+
+  const cursorElement = target.closest("[data-cursor], button, [role='button']");
+  if (!cursorElement || isDisabledCursorElement(cursorElement)) return "";
+
+  return cursorElement.getAttribute("data-cursor") || "";
+}
+
+function activeDragCursorFromTarget(target) {
+  const raw = rawCursorFromTarget(target);
+
+  if (raw === "vertical-drag") return "vertical-drag";
+
+  const cursor = cursorFromTarget(target);
+
+  return cursor === "default" ? "" : cursor;
 }
 
 function cursorFromTarget(target) {
@@ -211,8 +235,8 @@ export function installCursorSync() {
   };
 
   const onPointerDown = (event) => {
-    const cursor = cursorFromTarget(event.target);
-    if (cursor === "default") return;
+    const cursor = activeDragCursorFromTarget(event.target);
+    if (!cursor) return;
 
     setActiveCursor(cursor);
   };

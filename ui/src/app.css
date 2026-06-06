@@ -46,6 +46,10 @@
     cursor: ns-resize !important;
   }
 
+  [data-cursor="vertical-drag"] {
+    cursor: pointer !important;
+  }
+
   [data-cursor="grab"] {
     cursor: grab !important;
   }
@@ -78,6 +82,11 @@
   body[data-cursor="ns-resize"],
   body[data-cursor="ns-resize"] * {
     cursor: ns-resize !important;
+  }
+
+  body[data-cursor="none"],
+  body[data-cursor="none"] * {
+    cursor: none !important;
   }
 
   body[data-cursor="grab"],

@@ -186,7 +186,7 @@
 </script>
 
 <div
-  data-cursor={disabled ? "default" : "ns-resize"}
+  data-cursor={disabled ? "default" : "vertical-drag"}
   class="touch-none select-none outline-none {boxed
     ? `${boxedControlBaseClasses} ${compact ? 'w-14' : 'w-[4.5rem]'}`
     : 'inline-flex items-center rounded-sm'} {disabled
