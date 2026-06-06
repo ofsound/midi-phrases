@@ -1303,18 +1303,15 @@
     </div>
   {/if}
 
-  <div class="relative z-50 shrink-0 self-stretch">
-    {#if !isEmptyRow}
-      <StepInsertZone
-        {accent}
-        {muted}
-        onDuplicate={() => onDuplicateStep(row, stepIds.length)}
-      />
-    {/if}
-  </div>
-
   {#if !isEmptyRow}
-    <div class="flex shrink-0 items-center justify-center py-2 pr-3 pl-3">
+    <div class="relative flex shrink-0 items-center px-3">
+      <div class="absolute inset-y-0 -left-4 z-10 w-4">
+        <StepInsertZone
+          {accent}
+          {muted}
+          onDuplicate={() => onDuplicateStep(row, stepIds.length)}
+        />
+      </div>
       {@render largeAddStepButton("Add step to end of row", stepIds.length)}
     </div>
   {/if}

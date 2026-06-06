@@ -2443,8 +2443,8 @@
 
 <main class="flex h-full flex-col overflow-hidden p-6">
   <div class="shrink-0 -mx-6">
-  <header class="flex items-end gap-6 px-6 pb-6">
-    <div class="shrink-0 self-start">
+  <header class="flex items-center gap-4 px-6 pb-6">
+    <div class="shrink-0">
       <div class="flex items-center gap-1.5">
         <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
         <ColorsToggle
@@ -2480,7 +2480,7 @@
       </h1>
     </div>
 
-    <div class="flex min-w-0 flex-1 flex-wrap items-end gap-x-6 gap-y-3">
+    <div class="flex min-w-0 flex-1 flex-nowrap items-end justify-center gap-x-3">
         <div class="flex flex-col items-start gap-1">
           <span class="text-xs font-semibold leading-none text-zinc-500">Pulse</span>
           <PulseNoteButtonGroup
@@ -2490,7 +2490,7 @@
           />
         </div>
         <div class="flex items-end">
-          <div class="flex items-end gap-3">
+          <div class="flex items-end gap-2">
             <div class="flex flex-col items-start gap-1">
               <span class="text-xs font-semibold leading-none text-zinc-500">Swing</span>
               <StepNumberDragInput
@@ -2521,8 +2521,8 @@
               />
             </div>
           </div>
-          <div class="w-5 shrink-0" aria-hidden="true"></div>
-          <div class="flex items-end gap-3">
+          <div class="w-2 shrink-0" aria-hidden="true"></div>
+          <div class="flex items-end gap-2">
             <div class="flex flex-col items-start gap-1">
               <span class="text-xs font-semibold leading-none text-zinc-500">Vel %</span>
             <StepNumberDragInput
@@ -2559,7 +2559,7 @@
           </div>
           </div>
         </div>
-        <div class="flex items-end gap-3 border-l border-zinc-800 pl-5">
+        <div class="flex items-end gap-2 border-l border-zinc-800 pl-3">
           <div class="flex flex-col items-start gap-1">
             <span class="text-xs font-semibold leading-none text-zinc-500">Steps</span>
             <button
@@ -2671,7 +2671,7 @@
             />
           </div>
         </div>
-        <div class="flex items-center gap-1">
+        <div class="flex shrink-0 items-end gap-1 border-l border-r border-zinc-800 px-3">
           <button
             type="button"
             aria-label="Undo"
@@ -2721,40 +2721,40 @@
         </div>
     </div>
 
-    <div class="flex shrink-0 items-end gap-3">
-      <div
-        class="grid grid-cols-[4rem_auto_auto_auto] items-center gap-x-2 gap-y-1.5"
-      >
+    <div class="flex shrink-0 items-end gap-2">
+      <div class="grid grid-cols-[3rem_auto_auto] items-center gap-x-1 gap-y-1">
         <span class="text-right text-xs font-semibold leading-none text-zinc-500">Patterns</span>
-        <div class="flex items-center gap-1">
-          {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
-            <button
-              type="button"
-              aria-label={patternCopySource === slot
-                ? `Pattern ${slot + 1} selected as copy source`
-                : `Select pattern ${slot + 1}`}
-              aria-pressed={activePatternSlot === slot}
-              title={patternCopySource === slot
-                ? "Copy source selected"
-                : "Shift-click to copy from this pattern"}
-              data-cursor="pointer"
-              class={slotButtonClasses(activePatternSlot === slot, true, patternCopySource === slot)}
-              onclick={(event) => handlePatternSlotClick(event, slot)}
-            >
-              {slot + 1}
-            </button>
-          {/each}
+        <div class="flex items-center gap-0.5">
+          <div class="flex items-center gap-1">
+            {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
+              <button
+                type="button"
+                aria-label={patternCopySource === slot
+                  ? `Pattern ${slot + 1} selected as copy source`
+                  : `Select pattern ${slot + 1}`}
+                aria-pressed={activePatternSlot === slot}
+                title={patternCopySource === slot
+                  ? "Copy source selected"
+                  : "Shift-click to copy from this pattern"}
+                data-cursor="pointer"
+                class={slotButtonClasses(activePatternSlot === slot, true, patternCopySource === slot)}
+                onclick={(event) => handlePatternSlotClick(event, slot)}
+              >
+                {slot + 1}
+              </button>
+            {/each}
+          </div>
+          <button
+            type="button"
+            aria-label="Clear selected pattern"
+            title="Clear pattern shown in the grid"
+            data-cursor="pointer"
+            class={clearPatternButtonClasses(true)}
+            onclick={clearSelectedPatternSlot}
+          >
+            <RemoveXIcon class="pointer-events-none h-3 w-3" />
+          </button>
         </div>
-        <button
-          type="button"
-          aria-label="Clear selected pattern"
-          title="Clear pattern shown in the grid"
-          data-cursor="pointer"
-          class={clearPatternButtonClasses(true)}
-          onclick={clearSelectedPatternSlot}
-        >
-          <RemoveXIcon class="pointer-events-none h-3 w-3" />
-        </button>
         <button
           type="button"
           aria-label="Mute output"
