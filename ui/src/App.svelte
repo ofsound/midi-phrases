@@ -238,7 +238,6 @@
     rowTimingOffset,
     pulseIndex,
   ));
-
   let selectedStepCount = $derived(selectedStepKeysForGrid.size);
   let selectableStepCount = $derived(stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0));
   let allStepsSelected = $derived(selectedStepCount === selectableStepCount && selectedStepCount > 0);

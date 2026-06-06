@@ -10,7 +10,7 @@
 </script>
 
 <div
-  class="group relative flex h-full w-4 shrink-0 flex-col items-center justify-center py-2"
+  class="group relative flex h-full w-full flex-col items-center justify-center"
   role="group"
   aria-label="Step insert controls"
 >
@@ -21,11 +21,7 @@
     aria-hidden="true"
   ></span>
 
-  <div
-    class="relative z-10 flex shrink-0 flex-col items-center gap-2 {onInsert && onDuplicate
-      ? 'mb-2.5'
-      : ''}"
-  >
+  <div class="relative z-10 flex shrink-0 flex-col items-center justify-center gap-2">
     {#if onInsert}
       <button
         type="button"

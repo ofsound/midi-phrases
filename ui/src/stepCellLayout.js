@@ -20,29 +20,51 @@ export const defaultStepTimingMultiplierIndex = timingMultiplierValues.indexOf(1
 /** Matches PluginProcessor::maxPhraseStepsPerRow. */
 export const maxPhraseStepsPerRow = 64;
 
-/** Width of one invisible 0.25× grid unit — fits D#4 + 127 aligned with bar/header. */
-export const stepCellQuarterGridWidthPx = 73;
+/**
+ * Width of one invisible 0.25× grid unit.
+ * Sized so a 0.25× shell (N×W − 2P) fits “G#4 127” with note + velocity.
+ */
+export const stepCellQuarterGridWidthPx = 89;
 
-/** Minimum shell width for the smallest (0.25×) step cell. */
-export const stepCellMinWidthPx = stepCellQuarterGridWidthPx;
+/** Width of the insert divider control between cells (centered in the inter-step gap). */
+export const stepInsertZoneWidthPx = 16;
+
+/** Left edge for an insert slot centered on a quarter-grid boundary. */
+export function insertSlotLeftPxAtGridBoundaryPx(boundaryPx) {
+  return boundaryPx - stepInsertZoneWidthPx / 2;
+}
+
+/** Padding from a grid line to the step shell on each side (= half the insert zone). */
+export const stepCellPaddingPx = stepInsertZoneWidthPx / 2;
+
+/** Minimum shell width for the smallest (0.25×) step cell (1 column − 2 paddings). */
+export const stepCellMinWidthPx = stepCellQuarterGridWidthPx - stepInsertZoneWidthPx;
 
 /** Width of one skip / mute / gear slot in the 0.25× step footer (three equal columns). */
 export const stepFooterActionSlotWidthPx = stepCellMinWidthPx / 3;
 
-/** Base pixel width for a step with timing multiplier index at 1×. */
+/** Base pixel width for a step with timing multiplier index at 1× (four grid columns). */
 export const stepCellBaseWidthPx = stepCellQuarterGridWidthPx / stepTimingMultiplierQuarterStep;
-
-/** Width of the insert divider control between cells. */
-export const stepInsertZoneWidthPx = 16;
 
 /** Row timing offset in quarter notes; matches PluginProcessor::rowTimingOffsetValues. */
 export const timingOffsetValues = [-0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75];
 
+/** @param {number} durationQuarters */
+export function durationToQuarterGridSteps(durationQuarters) {
+  return Math.round(durationQuarters / stepTimingMultiplierQuarterStep);
+}
+
+/** @param {number} quarterGridSteps */
+export function quarterGridStepsToWidthPx(quarterGridSteps) {
+  return quarterGridSteps * stepCellQuarterGridWidthPx;
+}
+
 /** @param {number} offsetIndex @param {number} [pulseIndex] */
 export function rowTimingOffsetShiftPx(offsetIndex, pulseIndex = defaultPulseIndex) {
-  const offset = (timingOffsetValues[offsetIndex] ?? 0) * pulseQuartersForIndex(pulseIndex);
+  const offsetQuarters =
+    (timingOffsetValues[offsetIndex] ?? 0) * pulseQuartersForIndex(pulseIndex);
 
-  return Math.round(stepCellBaseWidthPx * offset);
+  return quarterGridStepsToWidthPx(durationToQuarterGridSteps(offsetQuarters));
 }
 
 /** @param {number} multiplierIndex */
@@ -67,7 +89,7 @@ export const timingMultiplierOptions = timingMultiplierValues.map((value, index)
 }));
 
 /** @param {number} multiplierIndex */
-export function stepCellWidthPx(multiplierIndex) {
+export function quarterGridColumnsForMultiplierIndex(multiplierIndex) {
   const normalizedIndex = Number.isFinite(multiplierIndex)
     ? Math.round(multiplierIndex)
     : defaultStepTimingMultiplierIndex;
@@ -76,31 +98,114 @@ export function stepCellWidthPx(multiplierIndex) {
     Math.max(0, normalizedIndex),
   );
 
-  return stepCellQuarterGridWidthPx * (clampedIndex + 1);
+  return clampedIndex + 1;
+}
+
+/** Nominal grid span in px (N columns × W, before padding). */
+export function stepCellGridSpanPx(multiplierIndex) {
+  return (
+    quarterGridColumnsForMultiplierIndex(multiplierIndex) * stepCellQuarterGridWidthPx
+  );
 }
 
 /**
- * Per-cell display widths on the fixed 0.25× grid.
- * Insert zone spacing is a separate margin between cells, never subtracted from a cell.
+ * Step shell width on the quarter grid: N columns wide minus padding on both outer edges.
+ * 0.25× → 1W − 2P, 0.5× → 2W − 2P, 1× → 4W − 2P, etc.
+ *
+ * @param {number} multiplierIndex
+ */
+export function stepDisplayWidthPx(multiplierIndex) {
+  return stepCellGridSpanPx(multiplierIndex) - stepInsertZoneWidthPx;
+}
+
+/** @deprecated Use {@link stepDisplayWidthPx}; kept for call sites that mean shell width. */
+export function stepCellWidthPx(multiplierIndex) {
+  return stepDisplayWidthPx(multiplierIndex);
+}
+
+/** Total row span on the quarter grid in px (musical duration, ignores inter-step gaps). */
+export function rowGridWidthPx(multiplierIndices) {
+  const totalColumns = multiplierIndices.reduce(
+    (sum, index) => sum + quarterGridColumnsForMultiplierIndex(index),
+    0,
+  );
+
+  return totalColumns * stepCellQuarterGridWidthPx;
+}
+
+/**
+ * Per-cell display widths (N×W − 2P). Gaps between cells are separate margins.
  *
  * @param {number[]} multiplierIndices
  */
 export function rowCellDisplayWidthsPx(multiplierIndices) {
-  return multiplierIndices.map((index) => stepCellWidthPx(index));
+  return multiplierIndices.map((index) => stepDisplayWidthPx(index));
+}
+
+/**
+ * @typedef {{
+ *   leftPx: number,
+ *   widthPx: number,
+ *   boundaryBeforePx: number,
+ *   gridColumns: number,
+ * }} RowStepLayout
+ */
+
+/**
+ * Absolute positions for each step shell on the row grid.
+ * Inserts are centered on `boundaryBeforePx` and on the trailing grid edge.
+ *
+ * @param {number[]} multiplierIndices
+ * @param {{ resizeStep?: number, resizeDisplayWidth?: number }} [options]
+ * @returns {{ layouts: RowStepLayout[], gridWidthPx: number }}
+ */
+export function rowStepLayoutsPx(multiplierIndices, options = {}) {
+  const resizeStep = options.resizeStep ?? -1;
+  const resizeDisplayWidth = options.resizeDisplayWidth ?? 0;
+  const W = stepCellQuarterGridWidthPx;
+  const gapPx = stepInsertZoneWidthPx;
+  const paddingPx = stepCellPaddingPx;
+
+  let cumulativeColumns = 0;
+  /** @type {RowStepLayout[]} */
+  const layouts = [];
+
+  for (let step = 0; step < multiplierIndices.length; step += 1) {
+    const columns = quarterGridColumnsForMultiplierIndex(multiplierIndices[step]);
+    const boundaryBeforePx = cumulativeColumns * W;
+    const widthPx =
+      step === resizeStep && resizeStep >= 0
+        ? Math.round(resizeDisplayWidth)
+        : columns * W - gapPx;
+
+    layouts.push({
+      leftPx: boundaryBeforePx + paddingPx,
+      widthPx,
+      boundaryBeforePx,
+      gridColumns: columns,
+    });
+
+    cumulativeColumns += columns;
+  }
+
+  return {
+    layouts,
+    gridWidthPx: cumulativeColumns * W,
+  };
 }
 
 export function minMultiplierCellWidthPx() {
-  return stepCellWidthPx(0);
+  return stepDisplayWidthPx(0);
 }
 
 export function maxMultiplierCellWidthPx() {
-  return stepCellWidthPx(timingMultiplierValues.length - 1);
+  return stepDisplayWidthPx(timingMultiplierValues.length - 1);
 }
 
 /** @param {number} widthPx */
 export function multiplierIndexFromWidth(widthPx) {
   return multiplierIndexFromSnapWidths(
-    timingMultiplierValues.map((_, index) => stepCellWidthPx(index)),
+    timingMultiplierValues.map((_, index) => stepDisplayWidthPx(index)),
     widthPx,
   );
 }

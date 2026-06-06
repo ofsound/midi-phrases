@@ -26,7 +26,7 @@
     toggleIconActiveClasses,
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
-  import { phraseRowMinHeightPx } from "./phraseRowLayout.js";
+  import { phraseRowEndAddStepInsetPx, phraseRowMinHeightPx } from "./phraseRowLayout.js";
   import {
     defaultStepTimingMultiplierIndex,
     maxMultiplierCellWidthPx,
@@ -34,9 +34,13 @@
     multiplierIndexFromWidth,
     multiplierLabelForIndex,
     rowCellDisplayWidthsPx,
+    rowGridWidthPx,
+    insertSlotLeftPxAtGridBoundaryPx,
+    rowStepLayoutsPx,
     rowTimingOffsetShiftPx,
+    stepCellPaddingPx,
     stepCellQuarterGridWidthPx,
-    stepCellWidthPx,
+    stepDisplayWidthPx,
     stepFooterActionSlotWidthPx,
     stepInsertZoneWidthPx,
   } from "./stepCellLayout.js";
@@ -319,7 +323,7 @@
   function cellWidthForStep(step) {
     return (
       rowDisplayWidths[step]
-      ?? stepCellWidthPx(stepTimingMultiplier[step] ?? defaultStepTimingMultiplierIndex)
+      ?? stepDisplayWidthPx(stepTimingMultiplier[step] ?? defaultStepTimingMultiplierIndex)
     );
   }
 
@@ -338,9 +342,14 @@
     return `flex-grow: 0; flex-shrink: 0; flex-basis: ${widthPx}px; width: ${widthPx}px; min-width: ${widthPx}px; max-width: ${widthPx}px;`;
   }
 
-  /** @param {number} insertStep */
-  function gapInsertStyle() {
-    return `left: -${stepInsertZoneWidthPx}px; width: ${stepInsertZoneWidthPx}px;`;
+  /** @param {number} leftPx */
+  function insertSlotStyle(leftPx) {
+    return `left: ${leftPx}px; width: ${stepInsertZoneWidthPx}px;`;
+  }
+
+  /** @param {number} boundaryPx */
+  function insertLeftAtBoundary(boundaryPx) {
+    return insertSlotLeftPxAtGridBoundaryPx(boundaryPx);
   }
 
   /** @param {CustomEvent} event */
@@ -517,7 +526,8 @@
     cellShellElements.forEach((shell, step) => {
       if (step < 0 || step >= widths.length) return;
 
-      applyCellShellWidthPx(shell, widths[step]);
+      const width = step === resizingStep ? resizeDisplayWidth : widths[step];
+      applyCellShellWidthPx(shell, width);
     });
 
     const shell = cellShellElements.get(resizingStep);
@@ -797,7 +807,9 @@
   };
   let stepFlipInteractionDisabled =
     $derived(isDragging || removeBlocked || resizingStep >= 0);
-  let layoutFingerprint = $derived(`${stepCellQuarterGridWidthPx}:${stepIds.length}:${stepTimingMultiplier.join(",")}`);
+  let layoutFingerprint = $derived(
+    `${stepCellQuarterGridWidthPx}:${stepIds.length}:${stepTimingMultiplier.join(",")}`,
+  );
   let orderedStepItems = $derived(stepIds.map((id) => ({ id })));
   let renderedDndItems = $derived(isDragging ? dndItems : orderedStepItems);
   let dndZoneOptions = $derived({
@@ -809,14 +821,24 @@
     dropTargetStyle: { outline: "none" },
     transformDraggedElement,
   });
-  let rowDisplayWidths = $derived(rowCellDisplayWidthsPx(
-    resizePreviewMultipliers ?? stepTimingMultiplier,
-  ));
+  let activeMultipliers = $derived(resizePreviewMultipliers ?? stepTimingMultiplier);
+  let rowStepLayout = $derived(
+    rowStepLayoutsPx(
+      activeMultipliers,
+      resizingStep >= 0 ? { resizeStep: resizingStep, resizeDisplayWidth } : {},
+    ),
+  );
+  let rowGridSpanPx = $derived(
+    rowGridWidthPx(activeMultipliers),
+  );
+  let rowDisplayWidths = $derived(rowStepLayout.layouts.map((layout) => layout.widthPx));
+  let trailingInsertLeftPx = $derived(insertLeftAtBoundary(rowGridSpanPx));
+  let trailingAddStepLeftPx = $derived(rowGridSpanPx + phraseRowEndAddStepInsetPx);
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
   let rowCellLayouts = $derived(renderedDndItems.map((item, index) => {
     const step = isShadowItem(item) ? stepIndexFromId(draggedStepId) : stepIndexFromId(item.id);
     const cellWidth =
-      step >= 0 ? rowDisplayWidths[step] : stepCellWidthPx(2);
+      step >= 0 ? rowDisplayWidths[step] : stepDisplayWidthPx(2);
 
     return {
       cellWidth,
@@ -1205,18 +1227,45 @@
   </button>
 {/snippet}
 
-{#snippet gapInsert(insertStep)}
+{#snippet gridInsertSlot(leftPx, insertStep, mode)}
   <div
     data-insert-slot
-    class="pointer-events-auto absolute inset-y-0 z-50"
-    style={gapInsertStyle()}
+    class="pointer-events-auto absolute top-0 bottom-0 z-[60]"
+    style={insertSlotStyle(leftPx)}
   >
     <StepInsertZone
       {accent}
       {muted}
-      onInsert={() => onInsertStep(row, insertStep)}
-      onDuplicate={() => onDuplicateStep(row, insertStep)}
+      onInsert={mode === "leading" || mode === "between"
+        ? () => onInsertStep(row, insertStep)
+        : undefined}
+      onDuplicate={mode === "between" || mode === "trailing"
+        ? () => onDuplicateStep(row, insertStep)
+        : undefined}
     />
+  </div>
+{/snippet}
+
+{#snippet rowInsertSlots()}
+  {@render gridInsertSlot(insertLeftAtBoundary(0), 0, "leading")}
+  {#each rowStepLayout.layouts as layout, step (step)}
+    {#if step > 0}
+      {@render gridInsertSlot(
+        insertLeftAtBoundary(layout.boundaryBeforePx),
+        step,
+        "between",
+      )}
+    {/if}
+  {/each}
+  {@render gridInsertSlot(trailingInsertLeftPx, stepIds.length, "trailing")}
+{/snippet}
+
+{#snippet trailingAddStep()}
+  <div
+    class="pointer-events-auto absolute top-0 bottom-0 z-40 flex items-center"
+    style:left="{trailingAddStepLeftPx}px"
+  >
+    {@render largeAddStepButton("Add step to end of row", stepIds.length)}
   </div>
 {/snippet}
 
@@ -1228,91 +1277,84 @@
     timingOffsetVisualCompensationPx}px"
   onpointerdown={handleBulkSelectPointerDown}
 >
-  <div class="relative z-50 shrink-0 self-stretch">
-    {#if !isEmptyRow}
-      <StepInsertZone {accent} {muted} onInsert={() => onInsertStep(row, 0)} />
-    {/if}
-  </div>
-
   {#if isEmptyRow}
-    <div class="flex shrink-0 items-center justify-center px-3">
+    <div class="relative flex shrink-0 items-center" style:padding-left="{phraseRowEndAddStepInsetPx}px">
       {@render largeAddStepButton("Add first step", 0)}
-    </div>
-  {:else if reorderDisabled}
-    <div class="flex w-max shrink-0 items-stretch overflow-visible">
-      {#each stepIds as stepId, step (stepId)}
-        {@const cellWidth = cellWidthForStep(step)}
-        <div
-          {@attach cellShellAttachment(step)}
-          data-bulk-step-cell
-          data-step-row={row}
-          data-step-id={stepId}
-          data-step-index={step}
-          data-step-selected={selectedStepIdSet.has(stepId) ? true : undefined}
-          class="relative shrink-0 overflow-visible {resizingStep >= 0
-            ? 'step-cell-resize-tween'
-            : ''}"
-          style={fixedFlexStyle(cellWidth)}
-          style:margin-left={step > 0 ? `${stepInsertZoneWidthPx}px` : undefined}
-        >
-          {#if step > 0}
-            {@render gapInsert(step)}
-          {/if}
-          <div class="pointer-events-auto h-full overflow-visible">
-            {@render stepCell(step, false)}
-          </div>
-        </div>
-      {/each}
     </div>
   {:else}
     <div
-      use:dragHandleZone={dndZoneOptions}
-      onconsider={handleConsider}
-      onfinalize={handleFinalize}
-      class="flex w-max shrink-0 items-stretch overflow-visible"
+      class="relative w-max min-w-0 shrink-0 self-stretch overflow-visible"
+      style:min-width="{rowGridSpanPx}px"
+      style:padding-right="{stepCellPaddingPx}px"
     >
-      {#each renderedDndItems as item, index (`${item.id}:${layoutFingerprint}`)}
-        {@const layout = layoutForItem(item, index)}
-        <div
-          {@attach cellShellAttachment(layout.step)}
-          data-bulk-step-cell={layout.step >= 0 ? true : undefined}
-          data-step-row={layout.step >= 0 ? row : undefined}
-          data-step-id={layout.step >= 0 ? stepIds[layout.step] : undefined}
-          data-step-index={layout.step >= 0 ? layout.step : undefined}
-          data-step-selected={layout.step >= 0 && selectedStepIdSet.has(stepIds[layout.step]) ? true : undefined}
-          animate:flip={resizingStep >= 0 ? undefined : { duration: flipDurationMs }}
-          class="relative shrink-0 overflow-visible {resizingStep >= 0
-            ? 'step-cell-resize-tween'
-            : ''} {isShadowItem(item) ? 'pointer-events-none' : ''}"
-          style={fixedFlexStyle(layout.cellWidth)}
-          style:margin-left={layout.gapBefore ? `${stepInsertZoneWidthPx}px` : undefined}
-          aria-hidden={isShadowItem(item) ? true : undefined}
-        >
-          {#if layout.gapBefore && !isShadowItem(item)}
-            {@render gapInsert(layout.step)}
-          {/if}
-          {#if isShadowItem(item)}
-            <div class="shrink-0" style={fixedFlexStyle(layout.cellWidth)}></div>
-          {:else}
-            <div class="pointer-events-auto h-full overflow-visible">
-              {@render stepCell(layout.step, true)}
-            </div>
-          {/if}
-        </div>
-      {/each}
-    </div>
-  {/if}
+      {@render rowInsertSlots()}
 
-  {#if !isEmptyRow}
-    <div class="relative flex shrink-0 items-center px-3">
-      <div class="absolute inset-y-0 -left-4 z-10 w-4">
-        <StepInsertZone
-          {accent}
-          {muted}
-          onDuplicate={() => onDuplicateStep(row, stepIds.length)}
-        />
-      </div>
-      {@render largeAddStepButton("Add step to end of row", stepIds.length)}
+      {#if reorderDisabled}
+        <div class="relative flex w-max shrink-0 items-stretch overflow-visible">
+          {#each stepIds as stepId, step (stepId)}
+            {@const cellWidth = cellWidthForStep(step)}
+            <div
+              {@attach cellShellAttachment(step)}
+              data-bulk-step-cell
+              data-step-row={row}
+              data-step-id={stepId}
+              data-step-index={step}
+              data-step-selected={selectedStepIdSet.has(stepId) ? true : undefined}
+              class="relative shrink-0 overflow-visible {resizingStep >= 0
+                ? 'step-cell-resize-tween'
+                : ''}"
+              style={fixedFlexStyle(cellWidth)}
+              style:margin-left={step === 0
+                ? `${stepCellPaddingPx}px`
+                : `${stepInsertZoneWidthPx}px`}
+            >
+              <div class="pointer-events-auto h-full overflow-visible">
+                {@render stepCell(step, false)}
+              </div>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <div
+          use:dragHandleZone={dndZoneOptions}
+          onconsider={handleConsider}
+          onfinalize={handleFinalize}
+          class="relative flex w-max shrink-0 items-stretch overflow-visible"
+        >
+          {#each renderedDndItems as item, index (`${item.id}:${layoutFingerprint}`)}
+            {@const layout = layoutForItem(item, index)}
+            <div
+              {@attach cellShellAttachment(layout.step)}
+              data-bulk-step-cell={layout.step >= 0 ? true : undefined}
+              data-step-row={layout.step >= 0 ? row : undefined}
+              data-step-id={layout.step >= 0 ? stepIds[layout.step] : undefined}
+              data-step-index={layout.step >= 0 ? layout.step : undefined}
+              data-step-selected={layout.step >= 0 && selectedStepIdSet.has(stepIds[layout.step]) ? true : undefined}
+              animate:flip={resizingStep >= 0 ? undefined : { duration: flipDurationMs }}
+              class="relative shrink-0 overflow-visible {resizingStep >= 0
+                ? 'step-cell-resize-tween'
+                : ''} {isShadowItem(item) ? 'pointer-events-none' : ''}"
+              style={fixedFlexStyle(layout.cellWidth)}
+              style:margin-left={layout.step === 0
+                ? `${stepCellPaddingPx}px`
+                : layout.step > 0
+                  ? `${stepInsertZoneWidthPx}px`
+                  : undefined}
+              aria-hidden={isShadowItem(item) ? true : undefined}
+            >
+              {#if isShadowItem(item)}
+                <div class="shrink-0" style={fixedFlexStyle(layout.cellWidth)}></div>
+              {:else}
+                <div class="pointer-events-auto h-full overflow-visible">
+                  {@render stepCell(layout.step, true)}
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+
+      {@render trailingAddStep()}
     </div>
   {/if}
 </div>

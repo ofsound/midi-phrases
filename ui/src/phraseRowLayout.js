@@ -1,4 +1,4 @@
-import { rowTimingOffsetShiftPx, stepInsertZoneWidthPx } from "./stepCellLayout.js";
+import { rowTimingOffsetShiftPx, stepCellPaddingPx } from "./stepCellLayout.js";
 
 /** Matches PhraseRow scroll container `pl-2`. */
 export const phraseRowScrollPaddingLeftPx = 8;
@@ -16,16 +16,8 @@ export const phraseStepCellMinHeightPx = 100;
 export const phraseRowMinHeightPx =
   phraseStepCellMinHeightPx + phraseRowScrollPaddingVerticalPx;
 
-/** Inset from PhraseRow left edge to the left edge of step 0 when row offset is 0. */
-export const phraseFirstStepLeftOffsetPx =
-  phraseRowScrollPaddingLeftPx + stepInsertZoneWidthPx;
-
-/**
- * Vertical beat guide: centered in the inter-step gap (leading insert zone before step 0).
- * Sits stepInsertZoneWidthPx / 2 left of the first step edges when all offsets are 0.
- */
-export const phraseBeatGuideOffsetPx =
-  phraseFirstStepLeftOffsetPx - stepInsertZoneWidthPx / 2;
+/** Matches App row header `gap-1` between controls and before PhraseRow. */
+export const phraseRowHeaderGapPx = 4;
 
 /** Matches row record icon button `h-9 w-9`. */
 export const phraseRowActionIconControlWidthPx = 36;
@@ -33,27 +25,52 @@ export const phraseRowActionIconControlWidthPx = 36;
 /** Matches row on/off toggle `h-10 w-10`. */
 export const phraseRowMuteControlWidthPx = 40;
 
-/** Matches App row header `gap-1` between controls and before PhraseRow. */
-export const phraseRowHeaderGapPx = 4;
-
 /** Matches BipolarKnob `h-9 w-9` in the row header. */
 export const phraseRowOffsetKnobWidthPx = 36;
 
+/** Inset from PhraseRow left edge to the row’s quarter-grid origin (offset 0). */
+export const phraseGridOriginLeftOffsetPx = phraseRowScrollPaddingLeftPx;
+
+/** Inset from PhraseRow left edge to step 0’s shell when row offset is 0. */
+export const phraseFirstStepLeftOffsetPx =
+  phraseGridOriginLeftOffsetPx + stepCellPaddingPx;
+
+/** Horizontal gap after the last step cell before the row-end add button (`px-3`). */
+export const phraseRowEndAddStepInsetPx = 12;
+
 /**
- * Fixed width from the row container’s left edge to PhraseRow’s left edge.
- * Must stay in sync with App.svelte row header controls (includes trailing gap-1).
+ * Row header order in App.svelte: mute → record → offset knob → PhraseRow.
+ * Trailing edge of the offset knob measured from the row container’s left edge.
  */
-export const phraseRowLeadingControlsWidthPx =
+export const phraseRowOffsetKnobTrailingEdgePx =
   phraseRowMuteControlWidthPx +
   phraseRowHeaderGapPx +
-  phraseRowOffsetKnobWidthPx +
-  phraseRowHeaderGapPx +
   phraseRowActionIconControlWidthPx +
-  phraseRowHeaderGapPx;
+  phraseRowHeaderGapPx +
+  phraseRowOffsetKnobWidthPx;
 
-/** Row leading controls after the mute button (record action, knob + gaps). */
+/**
+ * Fixed width from the row container’s left edge to PhraseRow’s left edge.
+ * Includes the trailing `gap-1` after the offset knob.
+ */
+export const phraseRowLeadingControlsWidthPx =
+  phraseRowOffsetKnobTrailingEdgePx + phraseRowHeaderGapPx;
+
+/** Row leading controls after the mute button (record, knob + gaps). */
 export const phraseRowLeadingControlsAfterMuteWidthPx =
   phraseRowLeadingControlsWidthPx - phraseRowMuteControlWidthPx;
+
+/** Global X of step 0’s shell when that row’s timing offset is 0 (before compensation). */
+export const phraseFirstStepShellGlobalLeftPx =
+  phraseRowLeadingControlsWidthPx + phraseFirstStepLeftOffsetPx;
+
+/**
+ * Beat guide sits midway between the offset knob and step 0 so spacing is even
+ * on both sides of the line (offset from PhraseRow’s left edge).
+ */
+export const phraseBeatGuideOffsetPx =
+  (phraseRowOffsetKnobTrailingEdgePx + phraseFirstStepShellGlobalLeftPx) / 2 -
+  phraseRowLeadingControlsWidthPx;
 
 /**
  * UI-only horizontal shift for the phrase grid and beat guide.
@@ -79,7 +96,7 @@ export function phraseGridVisualOffsetCompensationPx(rowTimingOffsetIndices, pul
 }
 
 /**
- * Global X for the beat-one guide (center of the leading inter-step gap).
+ * Global X for the beat-one guide (even gap from offset knob and step 0).
  * @param {number} [visualCompensationPx] UI shift from {@link phraseGridVisualOffsetCompensationPx}
  */
 export function phraseBeatGuideGlobalLeftPx(visualCompensationPx = 0) {
@@ -87,10 +104,9 @@ export function phraseBeatGuideGlobalLeftPx(visualCompensationPx = 0) {
 }
 
 /**
- * Global X for the left edge of step 0 when that row’s timing offset is 0.
- * Use to align header controls (e.g. pulse) with the phrase grid.
+ * Global X for the left edge of step 0’s shell when that row’s timing offset is 0.
  * @param {number} [visualCompensationPx] UI shift from {@link phraseGridVisualOffsetCompensationPx}
  */
 export function phraseFirstStepGlobalLeftPx(visualCompensationPx = 0) {
-  return phraseRowLeadingControlsWidthPx + phraseFirstStepLeftOffsetPx + visualCompensationPx;
+  return phraseFirstStepShellGlobalLeftPx + visualCompensationPx;
 }
