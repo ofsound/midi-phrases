@@ -110,6 +110,7 @@
    * @property {(row: number, step: number, cycle: number) => void | Promise<void>} [onStepCycleChange]
    * @property {(row: number, step: number, cycleOffset: number) => void | Promise<void>} [onStepCycleOffsetChange]
    * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
+   * @property {(event: PointerEvent) => void} [onBulkSelectBackgroundDoubleClick]
    */
 
   /** @type {Props} */
@@ -148,10 +149,13 @@
     onStepProbabilityChange = () => {},
     onStepCycleChange = () => {},
     onStepCycleOffsetChange = () => {},
-    onBulkSelectPointerDown = () => {}
+    onBulkSelectPointerDown = () => {},
+    onBulkSelectBackgroundDoubleClick = () => {}
   } = $props();
   const flipDurationMs = 200;
   const removeBlockMs = 500;
+  const backgroundDoubleClickIntervalMs = 400;
+  const backgroundDoubleClickMaxDistancePx = 16;
   const draggedElementId = "dnd-action-dragged-el";
 
   /** @type {{ id: string }[]} */
@@ -177,6 +181,9 @@
   let resizeFrameId = 0;
   let resizeEndHandled = false;
   let dragYLockFrameId = 0;
+  let lastBulkBackgroundPointerDownTime = 0;
+  let lastBulkBackgroundPointerDownX = 0;
+  let lastBulkBackgroundPointerDownY = 0;
   const flipOverrides = new SvelteSet();
   /** @type {Map<number, HTMLElement>} */
   const cellShellElements = new SvelteMap();
@@ -243,7 +250,6 @@
       flipOverrides.clear();
     }
   }
-
 
   function blockRemoveTemporarily() {
     removeBlocked = true;
@@ -400,6 +406,57 @@
   /** @param {PointerEvent} event */
   function stopPointerPropagation(event) {
     event.stopPropagation();
+  }
+
+  /** @param {PointerEvent} event */
+  function shouldIgnoreBulkBackgroundInteraction(event) {
+    const target = event.target;
+
+    if (!(target instanceof Element)) return true;
+
+    return Boolean(
+      target.closest(
+        "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-bulk-step-cell], [data-no-marquee], [data-no-long-press], [data-insert-slot], [data-remove-button], [data-multiplier-resize]",
+      ),
+    );
+  }
+
+  /** @param {PointerEvent} event */
+  function handleBulkSelectPointerDown(event) {
+    if (
+      event.button !== 0 ||
+      isDragging ||
+      resizingStep >= 0 ||
+      shouldIgnoreBulkBackgroundInteraction(event)
+    ) {
+      onBulkSelectPointerDown(event);
+      return;
+    }
+
+    const now = performance.now();
+    const elapsed = now - lastBulkBackgroundPointerDownTime;
+    const distance = Math.hypot(
+      event.clientX - lastBulkBackgroundPointerDownX,
+      event.clientY - lastBulkBackgroundPointerDownY,
+    );
+
+    if (
+      lastBulkBackgroundPointerDownTime > 0 &&
+      elapsed <= backgroundDoubleClickIntervalMs &&
+      distance <= backgroundDoubleClickMaxDistancePx
+    ) {
+      lastBulkBackgroundPointerDownTime = 0;
+      event.preventDefault();
+      event.stopPropagation();
+      onBulkSelectBackgroundDoubleClick(event);
+      return;
+    }
+
+    lastBulkBackgroundPointerDownTime = now;
+    lastBulkBackgroundPointerDownX = event.clientX;
+    lastBulkBackgroundPointerDownY = event.clientY;
+
+    onBulkSelectPointerDown(event);
   }
 
   /** @param {MouseEvent} event @param {number} step */
@@ -1161,7 +1218,7 @@
   style:min-height="{phraseRowMinHeightPx}px"
   style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex, pulseIndex) +
     timingOffsetVisualCompensationPx}px"
-  onpointerdown={onBulkSelectPointerDown}
+  onpointerdown={handleBulkSelectPointerDown}
 >
   <div class="relative z-50 shrink-0 self-stretch">
     {#if !isEmptyRow}

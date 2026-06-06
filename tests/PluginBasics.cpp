@@ -623,7 +623,9 @@ TEST_CASE ("Plugin instance", "[instance]")
 
     SECTION ("row MIDI channel")
     {
-        CHECK (testPlugin.getPhraseRowMidiChannel (0) == PluginProcessor::defaultPhraseRowMidiChannel);
+        for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
+            CHECK (testPlugin.getPhraseRowMidiChannel (row)
+                   == PluginProcessor::defaultPhraseRowMidiChannelForRow (row));
 
         testPlugin.setPhraseRowMidiChannel (0, 5);
         testPlugin.setPhraseRowMidiChannel (1, 16);

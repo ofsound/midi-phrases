@@ -27,7 +27,7 @@ export const phraseFirstStepLeftOffsetPx =
 export const phraseBeatGuideOffsetPx =
   phraseFirstStepLeftOffsetPx - stepInsertZoneWidthPx / 2;
 
-/** Matches row action icon buttons `h-9 w-9`. */
+/** Matches row record icon button `h-9 w-9`. */
 export const phraseRowActionIconControlWidthPx = 36;
 
 /** Matches row on/off toggle `h-10 w-10`. */
@@ -35,9 +35,6 @@ export const phraseRowMuteControlWidthPx = 40;
 
 /** Matches App row header `gap-1` between controls and before PhraseRow. */
 export const phraseRowHeaderGapPx = 4;
-
-/** MIDI channel slot in App (`w-10`). */
-export const phraseRowMidiChannelWidthPx = 40;
 
 /** Matches BipolarKnob `h-9 w-9` in the row header. */
 export const phraseRowOffsetKnobWidthPx = 36;
@@ -49,20 +46,12 @@ export const phraseRowOffsetKnobWidthPx = 36;
 export const phraseRowLeadingControlsWidthPx =
   phraseRowMuteControlWidthPx +
   phraseRowHeaderGapPx +
-  phraseRowMidiChannelWidthPx +
-  phraseRowHeaderGapPx +
   phraseRowOffsetKnobWidthPx +
-  phraseRowHeaderGapPx +
-  phraseRowActionIconControlWidthPx +
-  phraseRowHeaderGapPx +
-  phraseRowActionIconControlWidthPx +
-  phraseRowHeaderGapPx +
-  phraseRowActionIconControlWidthPx +
   phraseRowHeaderGapPx +
   phraseRowActionIconControlWidthPx +
   phraseRowHeaderGapPx;
 
-/** Row leading controls after the mute button (MIDI, knob, order actions + gaps). */
+/** Row leading controls after the mute button (record action, knob + gaps). */
 export const phraseRowLeadingControlsAfterMuteWidthPx =
   phraseRowLeadingControlsWidthPx - phraseRowMuteControlWidthPx;
 

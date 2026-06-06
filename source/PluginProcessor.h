@@ -77,6 +77,8 @@ public:
     static constexpr int minPhraseRowMidiChannel = 1;
     static constexpr int maxPhraseRowMidiChannel = 16;
     static constexpr int defaultPhraseRowMidiChannel = 1;
+    static constexpr std::array<int, phraseRowCount> defaultPhraseRowMidiChannels { 1, 2, 3, 4 };
+    static int defaultPhraseRowMidiChannelForRow (int row);
 
     void setPhraseRowMidiChannel (int row, int channel);
     int getPhraseRowMidiChannel (int row) const;

@@ -429,7 +429,8 @@ void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
 
         pattern.sequencer.muted[static_cast<size_t> (row)] = row == 0 ? 0 : 1;
         pattern.sequencer.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
-        pattern.sequencer.midiChannel[static_cast<size_t> (row)] = defaultPhraseRowMidiChannel;
+        pattern.sequencer.midiChannel[static_cast<size_t> (row)] =
+            defaultPhraseRowMidiChannelForRow (row);
     }
 
     pattern.loopBrace.enabled = 0;
@@ -1216,9 +1217,17 @@ void PluginProcessor::setPhraseRowMidiChannel (const int row, const int channel)
 int PluginProcessor::getPhraseRowMidiChannel (const int row) const
 {
     if (row < 0 || row >= phraseRowCount)
-        return defaultPhraseRowMidiChannel;
+        return defaultPhraseRowMidiChannelForRow (row);
 
     return modelSequencer().midiChannel[static_cast<size_t> (row)];
+}
+
+int PluginProcessor::defaultPhraseRowMidiChannelForRow (const int row)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return defaultPhraseRowMidiChannel;
+
+    return defaultPhraseRowMidiChannels[static_cast<size_t> (row)];
 }
 
 void PluginProcessor::setPhraseStepTimingMultiplier (const int row,
@@ -2039,7 +2048,7 @@ int PluginProcessor::getPatternPhraseRowTimingOffset (const int patternSlot, con
 int PluginProcessor::getPatternPhraseRowMidiChannel (const int patternSlot, const int row) const
 {
     if (row < 0 || row >= phraseRowCount)
-        return defaultPhraseRowMidiChannel;
+        return defaultPhraseRowMidiChannelForRow (row);
 
     return modelPattern (patternSlot).sequencer.midiChannel[static_cast<size_t> (row)];
 }
@@ -3739,7 +3748,8 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             pattern.sequencer.midiChannel[static_cast<size_t> (row)] = juce::jlimit (
                 minPhraseRowMidiChannel,
                 maxPhraseRowMidiChannel,
-                static_cast<int> (rowTree.getProperty ("midiChannel", defaultPhraseRowMidiChannel)));
+                static_cast<int> (
+                    rowTree.getProperty ("midiChannel", defaultPhraseRowMidiChannelForRow (row))));
             rebuildRowTimingLayout (steps);
         }
 
@@ -3850,7 +3860,8 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         modelSequencer().midiChannel[static_cast<size_t> (row)] = juce::jlimit (
             minPhraseRowMidiChannel,
             maxPhraseRowMidiChannel,
-            static_cast<int> (rowTree.getProperty ("midiChannel", defaultPhraseRowMidiChannel)));
+            static_cast<int> (
+                rowTree.getProperty ("midiChannel", defaultPhraseRowMidiChannelForRow (row))));
         rebuildRowTimingLayout (steps);
         publishRowToAudio (row);
 

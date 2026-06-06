@@ -1,6 +1,6 @@
 <script>
   import { onMount } from "svelte";
-  import { SvelteSet } from "svelte/reactivity";
+  import { SvelteMap, SvelteSet } from "svelte/reactivity";
   import { getNativeFunction } from "@juce/index.js";
   import {
     defaultPhraseGrid,
@@ -24,7 +24,6 @@
   import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
   import StepGearIcon from "./StepGearIcon.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
-  import MidiChannelStepper from "./MidiChannelStepper.svelte";
   import PhraseRow from "./PhraseRow.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
   import PianoRollPreview from "./PianoRollPreview.svelte";
@@ -77,7 +76,7 @@
     defaultRowTimingOffsetIndex,
   ]);
   /** @type {number[]} */
-  let rowMidiChannel = $state([1, 1, 1, 1]);
+  let rowMidiChannel = $state([1, 2, 3, 4]);
   /** @type {number[][]} */
   let stepDurationFraction = $state(defaultStepDurationGrid());
   /** @type {number[][]} */
@@ -212,6 +211,14 @@
     }`;
   }
 
+  function bulkActionIconButtonClasses(enabled = true) {
+    return `flex h-8 w-8 items-center justify-center rounded-md border transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+      enabled
+        ? "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-100"
+        : "border-zinc-800 bg-zinc-950 text-zinc-700"
+    }`;
+  }
+
   function brandIconToggleButtonClasses(active, enabled = true) {
     return `flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
       !enabled
@@ -231,6 +238,15 @@
   let selectedStepCount = $derived(selectedStepKeysForGrid.size);
   let selectableStepCount = $derived(stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0));
   let allStepsSelected = $derived(selectedStepCount === selectableStepCount && selectedStepCount > 0);
+  let selectedStepReverseAvailable = $derived.by(() => {
+    const selectedByRow = new SvelteMap();
+
+    for (const { row } of selectedStepLocations()) {
+      selectedByRow.set(row, (selectedByRow.get(row) ?? 0) + 1);
+    }
+
+    return [...selectedByRow.values()].some((count) => count > 1);
+  });
   let marqueeLeft = $derived(marqueeSelection
     ? Math.min(marqueeSelection.startX, marqueeSelection.currentX)
     : 0);
@@ -313,6 +329,24 @@
     }
 
     return locations;
+  }
+
+  function selectedStepLocationsByPosition() {
+    return selectedStepLocations().sort((left, right) =>
+      left.row === right.row ? left.step - right.step : left.row - right.row,
+    );
+  }
+
+  function selectedStepLocationsGroupedByRow() {
+    const groups = new SvelteMap();
+
+    for (const location of selectedStepLocationsByPosition()) {
+      const rowLocations = groups.get(location.row) ?? [];
+      rowLocations.push(location);
+      groups.set(location.row, rowLocations);
+    }
+
+    return groups;
   }
 
   function selectAllStepsForBulkEdit() {
@@ -884,7 +918,7 @@
 
     if (!Array.isArray(init)) return;
 
-    const next = [1, 1, 1, 1];
+    const next = [1, 2, 3, 4];
 
     for (let row = 0; row < 4; row += 1) {
       const value = Number.parseInt(String(init[row]), 10);
@@ -1135,20 +1169,6 @@
     }
   }
 
-  async function pushReversePhraseRowSteps(row) {
-    if (!nativeFunctionAvailable("reversePhraseRowSteps")) return;
-
-    const reversePhraseRowSteps = getNativeFunction("reversePhraseRowSteps");
-    await reversePhraseRowSteps(row);
-  }
-
-  async function pushReorderPhraseRowSteps(row, stepOrder) {
-    if (!nativeFunctionAvailable("reorderPhraseRowSteps")) return;
-
-    const reorderPhraseRowSteps = getNativeFunction("reorderPhraseRowSteps");
-    await reorderPhraseRowSteps(row, stepOrder);
-  }
-
   async function pushCurrentPhraseRow(row) {
     if (nativeFunctionAvailable("replacePhraseRow")) {
       const replacePhraseRow = getNativeFunction("replacePhraseRow");
@@ -1282,36 +1302,6 @@
     });
   }
 
-  async function reverseRowStepOrder(row) {
-    if (!grid[row] || grid[row].length <= 1) return;
-
-    await commitHistory("Reverse row", async () => {
-      applyRowStepOrder(
-        row,
-        grid[row].map((_, step) => grid[row].length - 1 - step),
-      );
-
-      await pushReversePhraseRowSteps(row);
-    });
-  }
-
-  function applyRowStepOrder(row, stepOrder) {
-    const reorder = (values) => stepOrder.map((sourceStep) => values[sourceStep]);
-
-    grid[row] = reorder(grid[row]);
-    stepDurationFraction[row] = reorder(stepDurationFraction[row]);
-    stepTimingMultiplier[row] = reorder(stepTimingMultiplier[row]);
-    stepVelocity[row] = reorder(stepVelocity[row]);
-    stepMuted[row] = reorder(stepMuted[row]);
-    stepSkipped[row] = reorder(stepSkipped[row]);
-    stepProbability[row] = reorder(stepProbability[row]);
-    stepCycle[row] = reorder(stepCycle[row]);
-    stepCycleOffset[row] = reorder(stepCycleOffset[row]);
-    activeGates[row] = reorder(activeGates[row]);
-    stepIds[row] = reorder(stepIds[row]);
-
-  }
-
   function randomStepOrder(stepCount) {
     const stepOrder = Array.from({ length: stepCount }, (_, step) => step);
 
@@ -1328,39 +1318,111 @@
     return stepOrder;
   }
 
-  async function randomizeRowStepOrder(row) {
-    if (!grid[row] || grid[row].length <= 1) return;
-
-    await commitHistory("Randomize row", async () => {
-      const stepOrder = randomStepOrder(grid[row].length);
-      applyRowStepOrder(row, stepOrder);
-      await pushReorderPhraseRowSteps(row, stepOrder);
-    });
+  function stepPayloadAt(row, step) {
+    return {
+      note: grid[row][step],
+      durationFraction: stepDurationFraction[row][step],
+      timingMultiplier: stepTimingMultiplier[row][step],
+      velocity: stepVelocity[row][step],
+      muted: stepMuted[row][step],
+      skipped: stepSkipped[row][step],
+      probability: stepProbability[row][step],
+      cycle: stepCycle[row][step],
+      cycleOffset: stepCycleOffset[row][step],
+      activeGate: activeGates[row]?.[step] ?? false,
+    };
   }
 
-  async function randomizeRowOctaves(row) {
-    if (!grid[row] || grid[row].length === 0) return;
+  function writeStepPayload(row, step, payload) {
+    grid[row][step] = payload.note;
+    stepDurationFraction[row][step] = payload.durationFraction;
+    stepTimingMultiplier[row][step] = payload.timingMultiplier;
+    stepVelocity[row][step] = payload.velocity;
+    stepMuted[row][step] = payload.muted;
+    stepSkipped[row][step] = payload.skipped;
+    stepProbability[row][step] = payload.probability;
+    stepCycle[row][step] = payload.cycle;
+    stepCycleOffset[row][step] = payload.cycleOffset;
+    activeGates[row][step] = payload.activeGate;
+  }
 
-    await commitHistory("Randomize row octaves", async () => {
-      grid[row] = grid[row].map((midi) => {
-        const shift = Math.random() < 0.5 ? -12 : 12;
-        return Math.min(127, Math.max(0, midi + shift));
-      });
+  async function pushRowsForRowSet(rows) {
+    for (const row of rows) {
       await pushCurrentPhraseRow(row);
+    }
+  }
+
+  async function shuffleSelectedSteps() {
+    const locations = selectedStepLocationsByPosition();
+
+    if (locations.length <= 1) return;
+
+    await commitHistory("Shuffle selected steps", async () => {
+      const payloads = locations.map(({ row, step }) => stepPayloadAt(row, step));
+      const stepOrder = randomStepOrder(locations.length);
+      const changedRows = new SvelteSet(locations.map(({ row }) => row));
+
+      for (let index = 0; index < locations.length; index += 1) {
+        const { row, step } = locations[index];
+        writeStepPayload(row, step, payloads[stepOrder[index]]);
+      }
+
+      await pushRowsForRowSet(changedRows);
     });
+
+    syncBulkControlsFromSelection();
+  }
+
+  async function randomizeSelectedStepOctaves() {
+    const locations = selectedStepLocationsByPosition();
+
+    if (locations.length === 0) return;
+
+    await commitHistory("Randomize selected octaves", async () => {
+      const changedRows = new SvelteSet(locations.map(({ row }) => row));
+
+      for (const { row, step } of locations) {
+        const shift = Math.random() < 0.5 ? -12 : 12;
+        grid[row][step] = Math.min(127, Math.max(0, grid[row][step] + shift));
+      }
+
+      await pushRowsForRowSet(changedRows);
+    });
+
+    syncBulkControlsFromSelection();
+  }
+
+  async function reverseSelectedStepsByRow() {
+    const groups = [...selectedStepLocationsGroupedByRow().entries()]
+      .filter(([, locations]) => locations.length > 1);
+
+    if (groups.length === 0) return;
+
+    await commitHistory("Reverse selected steps", async () => {
+      const changedRows = new SvelteSet();
+
+      for (const [row, locations] of groups) {
+        const payloads = locations
+          .map(({ step }) => stepPayloadAt(row, step))
+          .reverse();
+
+        for (let index = 0; index < locations.length; index += 1) {
+          writeStepPayload(row, locations[index].step, payloads[index]);
+        }
+
+        changedRows.add(row);
+      }
+
+      await pushRowsForRowSet(changedRows);
+    });
+
+    syncBulkControlsFromSelection();
   }
 
   async function selectRowTimingOffset(row, offsetIndex) {
     await commitHistory("Change row timing", async () => {
       rowTimingOffset[row] = offsetIndex;
       await pushRowTimingOffset(row);
-    });
-  }
-
-  async function selectRowMidiChannel(row, channel) {
-    await commitHistory("Change MIDI channel", async () => {
-      rowMidiChannel[row] = Math.min(16, Math.max(1, channel));
-      await pushRowMidiChannel(row);
     });
   }
 
@@ -2455,6 +2517,44 @@
             </button>
           </div>
           <div class="flex flex-col items-start gap-1">
+            <span class="text-xs font-semibold leading-none text-zinc-500">Ops</span>
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="Reverse selected steps by row"
+                title="Reverse selected steps by row"
+                disabled={!selectedStepReverseAvailable}
+                data-cursor="pointer"
+                class={bulkActionIconButtonClasses(selectedStepReverseAvailable)}
+                onclick={reverseSelectedStepsByRow}
+              >
+                <RowReverseOrderIcon class="pointer-events-none h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Shuffle selected steps"
+                title="Shuffle selected steps across rows"
+                disabled={selectedStepCount <= 1}
+                data-cursor="pointer"
+                class={bulkActionIconButtonClasses(selectedStepCount > 1)}
+                onclick={shuffleSelectedSteps}
+              >
+                <RowRandomizeOrderIcon class="pointer-events-none h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Randomize selected step octaves"
+                title="Randomize selected step octaves"
+                disabled={selectedStepCount === 0}
+                data-cursor="pointer"
+                class={bulkActionIconButtonClasses(selectedStepCount > 0)}
+                onclick={randomizeSelectedStepOctaves}
+              >
+                <RowRandomizeOctaveIcon class="pointer-events-none h-5 w-5" />
+              </button>
+            </div>
+          </div>
+          <div class="flex flex-col items-start gap-1">
             <span class="text-xs font-semibold leading-none text-zinc-500">Dur %</span>
             <StepNumberDragInput
               boxed
@@ -2679,16 +2779,26 @@
               >
                 <RowDisableIcon class="h-9 w-9" />
               </button>
-              <div class="flex h-9 w-10 shrink-0 items-center justify-center">
-                <MidiChannelStepper
-                  accent={rowAccent}
-                  value={rowMidiChannel[row]}
-                  resetValue={1}
-                  ariaLabel="Row {row + 1} MIDI channel"
-                  muted={rowMuted[row]}
-                  onValueChange={(channel) => selectRowMidiChannel(row, channel)}
+              <button
+                type="button"
+                aria-label={recordingRow === row ? "Stop row recording" : "Record row from MIDI"}
+                aria-pressed={recordingRow === row}
+                data-cursor="pointer"
+                class="{rowActionIconControlClasses} {rowMuted[row]
+                  ? 'text-red-950'
+                  : recordingRow === row
+                    ? 'text-red-400'
+                    : 'text-red-500 hover:text-red-400'}"
+                onclick={() => toggleRowRecording(row)}
+                title={recordingRow === row
+                  ? "Stop recording (notes fill this row as 1× steps)"
+                  : "Record row from MIDI keyboard (first note replaces row)"}
+              >
+                <RowRecordIcon
+                  class="pointer-events-none h-9 w-9"
+                  recording={recordingRow === row}
                 />
-              </div>
+              </button>
               <BipolarKnob
                 accent={rowAccent}
                 options={timingOffsetOptions}
@@ -2698,100 +2808,47 @@
                 muted={rowMuted[row]}
                 onValueChange={(offsetIndex) => selectRowTimingOffset(row, offsetIndex)}
               />
-              <button
-                type="button"
-                aria-label={recordingRow === row ? "Stop row recording" : "Record row from MIDI"}
-                aria-pressed={recordingRow === row}
-                data-cursor="pointer"
-                class="{rowActionIconControlClasses} {rowMuted[row]
-                  ? 'text-zinc-600'
-                  : recordingRow === row
-                    ? `${rowAccent.textAccent} ${toggleIconActiveClasses}`
-                    : `${toggleIconRestClasses} hover:text-zinc-300`}"
-                onclick={() => toggleRowRecording(row)}
-                title={recordingRow === row
-                  ? "Stop recording (notes fill this row as 1× steps)"
-                  : "Record row from MIDI keyboard (first note replaces row)"}
-              >
-                <RowRecordIcon
-                  class="pointer-events-none h-6 w-6"
-                  recording={recordingRow === row}
-                />
-              </button>
-              <button
-                type="button"
-                aria-label="Reverse row step order"
-                data-cursor="pointer"
-                class="{rowActionIconControlClasses} {rowMuted[row]
-                  ? 'text-zinc-600'
-                  : `${toggleIconRestClasses} hover:text-zinc-300`}"
-                onclick={() => reverseRowStepOrder(row)}
-                title="Reverse row step order"
-              >
-                <RowReverseOrderIcon class="pointer-events-none h-6 w-6" />
-              </button>
-              <button
-                type="button"
-                aria-label="Randomize row step order"
-                data-cursor="pointer"
-                class="{rowActionIconControlClasses} {rowMuted[row]
-                  ? 'text-zinc-600'
-                  : `${toggleIconRestClasses} hover:text-zinc-300`}"
-                onclick={() => randomizeRowStepOrder(row)}
-                title="Randomize row step order"
-              >
-                <RowRandomizeOrderIcon class="pointer-events-none h-6 w-6" />
-              </button>
-              <button
-                type="button"
-                aria-label="Randomize row octaves"
-                data-cursor="pointer"
-                class="{rowActionIconControlClasses} {rowMuted[row]
-                  ? 'text-zinc-600'
-                  : `${toggleIconRestClasses} hover:text-zinc-300`}"
-                onclick={() => randomizeRowOctaves(row)}
-                title="Randomize row octaves"
-              >
-                <RowRandomizeOctaveIcon class="pointer-events-none h-6 w-6" />
-              </button>
             </div>
-            <PhraseRow
-              {row}
-              muted={rowMuted[row]}
-              accent={rowAccent}
-              timingOffsetIndex={rowTimingOffset[row]}
-              timingOffsetVisualCompensationPx={phraseVisualOffsetCompensationPx}
-              {pulseIndex}
-              stepIds={stepIds[row]}
-              notes={grid[row]}
-              stepDurationFraction={stepDurationFraction[row]}
-              stepTimingMultiplier={stepTimingMultiplier[row]}
-              stepVelocity={stepVelocity[row]}
-              stepMuted={stepMuted[row]}
-              stepSkipped={stepSkipped[row]}
-              stepProbability={stepProbability[row]}
-              stepCycle={stepCycle[row]}
-              stepCycleOffset={stepCycleOffset[row]}
-              activeGates={activeGates[row]}
-              globalStepBackView={globalStepBackView}
-              selectedStepIds={selectedStepIdsByRow[row]}
-              {timingMultiplierOptions}
-              onReorder={reorderRowByIds}
-              onMoveCommitted={commitRowMove}
-              onRemoveStep={removeStep}
-              onInsertStep={insertStep}
-              onDuplicateStep={duplicateStep}
-              onNoteChange={setPhraseNoteValue}
-              onMultiplierChange={selectStepTimingMultiplier}
-              onDurationChange={selectStepDurationFraction}
-              onVelocityChange={setStepVelocity}
-              onStepMuteChange={setStepMuted}
-              onStepSkipChange={setStepSkipped}
-              onStepProbabilityChange={setStepProbability}
-              onStepCycleChange={setStepCycle}
-              onStepCycleOffsetChange={setStepCycleOffset}
-              onBulkSelectPointerDown={beginStepMarqueeSelection}
-            />
+            {#key globalStepBackView}
+              <PhraseRow
+                {row}
+                muted={rowMuted[row]}
+                accent={rowAccent}
+                timingOffsetIndex={rowTimingOffset[row]}
+                timingOffsetVisualCompensationPx={phraseVisualOffsetCompensationPx}
+                {pulseIndex}
+                stepIds={stepIds[row]}
+                notes={grid[row]}
+                stepDurationFraction={stepDurationFraction[row]}
+                stepTimingMultiplier={stepTimingMultiplier[row]}
+                stepVelocity={stepVelocity[row]}
+                stepMuted={stepMuted[row]}
+                stepSkipped={stepSkipped[row]}
+                stepProbability={stepProbability[row]}
+                stepCycle={stepCycle[row]}
+                stepCycleOffset={stepCycleOffset[row]}
+                activeGates={activeGates[row]}
+                globalStepBackView={globalStepBackView}
+                selectedStepIds={selectedStepIdsByRow[row]}
+                {timingMultiplierOptions}
+                onReorder={reorderRowByIds}
+                onMoveCommitted={commitRowMove}
+                onRemoveStep={removeStep}
+                onInsertStep={insertStep}
+                onDuplicateStep={duplicateStep}
+                onNoteChange={setPhraseNoteValue}
+                onMultiplierChange={selectStepTimingMultiplier}
+                onDurationChange={selectStepDurationFraction}
+                onVelocityChange={setStepVelocity}
+                onStepMuteChange={setStepMuted}
+                onStepSkipChange={setStepSkipped}
+                onStepProbabilityChange={setStepProbability}
+                onStepCycleChange={setStepCycle}
+                onStepCycleOffsetChange={setStepCycleOffset}
+                onBulkSelectPointerDown={beginStepMarqueeSelection}
+                onBulkSelectBackgroundDoubleClick={selectAllStepsForBulkEdit}
+              />
+            {/key}
           </div>
         {/each}
       </div>
