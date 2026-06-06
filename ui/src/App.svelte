@@ -2809,46 +2809,44 @@
                 onValueChange={(offsetIndex) => selectRowTimingOffset(row, offsetIndex)}
               />
             </div>
-            {#key globalStepBackView}
-              <PhraseRow
-                {row}
-                muted={rowMuted[row]}
-                accent={rowAccent}
-                timingOffsetIndex={rowTimingOffset[row]}
-                timingOffsetVisualCompensationPx={phraseVisualOffsetCompensationPx}
-                {pulseIndex}
-                stepIds={stepIds[row]}
-                notes={grid[row]}
-                stepDurationFraction={stepDurationFraction[row]}
-                stepTimingMultiplier={stepTimingMultiplier[row]}
-                stepVelocity={stepVelocity[row]}
-                stepMuted={stepMuted[row]}
-                stepSkipped={stepSkipped[row]}
-                stepProbability={stepProbability[row]}
-                stepCycle={stepCycle[row]}
-                stepCycleOffset={stepCycleOffset[row]}
-                activeGates={activeGates[row]}
-                globalStepBackView={globalStepBackView}
-                selectedStepIds={selectedStepIdsByRow[row]}
-                {timingMultiplierOptions}
-                onReorder={reorderRowByIds}
-                onMoveCommitted={commitRowMove}
-                onRemoveStep={removeStep}
-                onInsertStep={insertStep}
-                onDuplicateStep={duplicateStep}
-                onNoteChange={setPhraseNoteValue}
-                onMultiplierChange={selectStepTimingMultiplier}
-                onDurationChange={selectStepDurationFraction}
-                onVelocityChange={setStepVelocity}
-                onStepMuteChange={setStepMuted}
-                onStepSkipChange={setStepSkipped}
-                onStepProbabilityChange={setStepProbability}
-                onStepCycleChange={setStepCycle}
-                onStepCycleOffsetChange={setStepCycleOffset}
-                onBulkSelectPointerDown={beginStepMarqueeSelection}
-                onBulkSelectBackgroundDoubleClick={selectAllStepsForBulkEdit}
-              />
-            {/key}
+            <PhraseRow
+              {row}
+              muted={rowMuted[row]}
+              accent={rowAccent}
+              timingOffsetIndex={rowTimingOffset[row]}
+              timingOffsetVisualCompensationPx={phraseVisualOffsetCompensationPx}
+              {pulseIndex}
+              stepIds={stepIds[row]}
+              notes={grid[row]}
+              stepDurationFraction={stepDurationFraction[row]}
+              stepTimingMultiplier={stepTimingMultiplier[row]}
+              stepVelocity={stepVelocity[row]}
+              stepMuted={stepMuted[row]}
+              stepSkipped={stepSkipped[row]}
+              stepProbability={stepProbability[row]}
+              stepCycle={stepCycle[row]}
+              stepCycleOffset={stepCycleOffset[row]}
+              activeGates={activeGates[row]}
+              globalStepBackView={globalStepBackView}
+              selectedStepIds={selectedStepIdsByRow[row]}
+              {timingMultiplierOptions}
+              onReorder={reorderRowByIds}
+              onMoveCommitted={commitRowMove}
+              onRemoveStep={removeStep}
+              onInsertStep={insertStep}
+              onDuplicateStep={duplicateStep}
+              onNoteChange={setPhraseNoteValue}
+              onMultiplierChange={selectStepTimingMultiplier}
+              onDurationChange={selectStepDurationFraction}
+              onVelocityChange={setStepVelocity}
+              onStepMuteChange={setStepMuted}
+              onStepSkipChange={setStepSkipped}
+              onStepProbabilityChange={setStepProbability}
+              onStepCycleChange={setStepCycle}
+              onStepCycleOffsetChange={setStepCycleOffset}
+              onBulkSelectPointerDown={beginStepMarqueeSelection}
+              onBulkSelectBackgroundDoubleClick={selectAllStepsForBulkEdit}
+            />
           </div>
         {/each}
       </div>

@@ -1,6 +1,6 @@
 <script>
   import { onDestroy } from "svelte";
-  import { SvelteMap, SvelteSet } from "svelte/reactivity";
+  import { SvelteSet } from "svelte/reactivity";
   import { flip } from "svelte/animate";
   import { dragHandle, dragHandleZone, TRIGGERS } from "svelte-dnd-action";
   import DurationBar from "./DurationBar.svelte";
@@ -186,7 +186,7 @@
   let lastBulkBackgroundPointerDownY = 0;
   const flipOverrides = new SvelteSet();
   /** @type {Map<number, HTMLElement>} */
-  const cellShellElements = new SvelteMap();
+  const cellShellElements = new Map();
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
   let resizeListenerEntries = [];
   const resizeCapture = { capture: true };
@@ -485,6 +485,14 @@
     if (!shell || step < 0 || step >= rowDisplayWidths.length) return;
 
     applyCellShellWidthPx(shell, rowDisplayWidths[step]);
+  }
+
+  function resyncAllCellShellWidths() {
+    if (resizingStep >= 0) return;
+
+    cellShellElements.forEach((_, step) => {
+      resyncCellShellWidth(step);
+    });
   }
 
   /** @param {number} clientX */
