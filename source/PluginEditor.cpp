@@ -166,7 +166,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
 
     setResizeLimits (1000, 480, 2000, 1200);
     setResizable (true, true);
-    setSize (1560, 1024);
+    setSize (1560, processorRef.hasStandaloneTransport() ? 1088 : 1024);
 }
 
 PluginEditor::~PluginEditor()

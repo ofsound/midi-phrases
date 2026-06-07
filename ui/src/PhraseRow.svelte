@@ -98,6 +98,7 @@
    * @property {boolean[]} [activeGates]
    * @property {{ index: number, label: string }[]} [timingMultiplierOptions]
    * @property {boolean} [globalStepBackView]
+   * @property {number} [globalStepBackViewCommand]
    * @property {string[]} [selectedStepIds]
    * @property {(row: number, orderedIds: string[]) => void} [onReorder]
    * @property {(row: number, beforeIds: string[], afterIds: string[]) => void | Promise<void>} [onMoveCommitted]
@@ -138,6 +139,7 @@
     activeGates = [],
     timingMultiplierOptions = [],
     globalStepBackView = false,
+    globalStepBackViewCommand = 0,
     selectedStepIds = [],
     onReorder = () => {},
     onMoveCommitted = () => {},
@@ -796,6 +798,22 @@
   let globalStepBackFingerprint = $derived(stepIds.join("|"));
   const flipOverrideKey = (step) =>
     `${globalStepBackView ? "back" : "front"}:${globalStepBackFingerprint}:${step}`;
+  let appliedGlobalStepBackViewCommand = -1;
+  let appliedGlobalStepBackFingerprint = "";
+
+  $effect(() => {
+    if (
+      globalStepBackViewCommand === appliedGlobalStepBackViewCommand &&
+      globalStepBackFingerprint === appliedGlobalStepBackFingerprint
+    ) {
+      return;
+    }
+
+    flipOverrides.clear();
+    appliedGlobalStepBackViewCommand = globalStepBackViewCommand;
+    appliedGlobalStepBackFingerprint = globalStepBackFingerprint;
+  });
+
   const isStepFlipped = (step) => {
     const hasOverride = flipOverrides.has(flipOverrideKey(step));
 
@@ -1347,4 +1365,3 @@
     </div>
   {/if}
 </div>
-

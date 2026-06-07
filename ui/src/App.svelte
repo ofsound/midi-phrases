@@ -158,6 +158,7 @@
   );
   let selectedStepIdsByRow = $derived(selectedStepIdsByRowForKeys(selectedStepKeysForGrid));
   let globalStepBackView = $state(false);
+  let globalStepBackViewCommand = $state(0);
   let bulkDurationPercent = $state(100);
   let bulkVelocityPercent = $state(100);
   let bulkTransposeSemitones = $state(0);
@@ -361,6 +362,7 @@
     if (selectableStepCount === 0) return;
 
     globalStepBackView = !globalStepBackView;
+    globalStepBackViewCommand += 1;
   }
 
   function syncBulkControlsFromSelection() {
@@ -2442,6 +2444,34 @@
 
 <main class="flex h-full flex-col overflow-hidden p-6">
   <div class="shrink-0 -mx-6">
+  {#if standaloneTransportAvailable}
+    <div class="flex items-center justify-end gap-2 px-6 pb-3">
+      <button
+        type="button"
+        aria-label={standalonePlaying ? "Stop standalone transport" : "Start standalone transport"}
+        aria-pressed={standalonePlaying}
+        data-cursor="pointer"
+        class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 {standalonePlaying
+          ? 'border-emerald-500 bg-emerald-500 text-zinc-950'
+          : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-600'}"
+        onclick={toggleStandaloneTransport}
+      >
+        {standalonePlaying ? "Stop" : "Play"}
+      </button>
+      <label class="flex items-center gap-1.5 text-xs font-medium uppercase text-zinc-500">
+        BPM
+        <input
+          type="number"
+          min="20"
+          max="300"
+          step="1"
+          value={Math.round(standaloneTempoBpm)}
+          class="h-8 w-[4.5rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-sm font-semibold text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+          onchange={setStandaloneTempoFromInput}
+        />
+      </label>
+    </div>
+  {/if}
   <header class="flex items-center gap-4 px-6 pb-6">
     <div class="shrink-0">
       <div class="flex items-center gap-1.5">
@@ -2786,34 +2816,6 @@
         </div>
         <div aria-hidden="true"></div>
       </div>
-      {#if standaloneTransportAvailable}
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            aria-label={standalonePlaying ? "Stop standalone transport" : "Start standalone transport"}
-            aria-pressed={standalonePlaying}
-            data-cursor="pointer"
-            class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 {standalonePlaying
-              ? 'border-emerald-500 bg-emerald-500 text-zinc-950'
-              : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-600'}"
-            onclick={toggleStandaloneTransport}
-          >
-            {standalonePlaying ? "Stop" : "Play"}
-          </button>
-          <label class="flex items-center gap-1.5 text-xs font-medium uppercase text-zinc-500">
-            BPM
-            <input
-              type="number"
-              min="20"
-              max="300"
-              step="1"
-              value={Math.round(standaloneTempoBpm)}
-              class="h-8 w-[4.5rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-sm font-semibold text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-              onchange={setStandaloneTempoFromInput}
-            />
-          </label>
-        </div>
-      {/if}
     </div>
   </header>
   <div class="h-0.5 w-full bg-zinc-500/40" role="separator" aria-hidden="true"></div>
@@ -2897,6 +2899,7 @@
               stepCycleOffset={stepCycleOffset[row]}
               activeGates={activeGates[row]}
               globalStepBackView={globalStepBackView}
+              globalStepBackViewCommand={globalStepBackViewCommand}
               selectedStepIds={selectedStepIdsByRow[row]}
               {timingMultiplierOptions}
               onReorder={reorderRowByIds}
