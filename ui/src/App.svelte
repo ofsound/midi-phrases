@@ -1685,7 +1685,7 @@
     });
   }
 
-  async function insertStep(row, step) {
+  async function insertStep(row, step, multiplierIndex = defaultStepTimingMultiplierIndex) {
     await commitHistory("Insert step", async () => {
       const defaultDurations = defaultStepDurationGrid();
       const defaultMultipliers = defaultStepTimingMultiplierGrid();
@@ -1698,11 +1698,7 @@
 
       grid[row].splice(step, 0, defaultStepNote);
       stepDurationFraction[row].splice(step, 0, defaultDurations[row]?.[0] ?? 1);
-      stepTimingMultiplier[row].splice(
-        step,
-        0,
-        defaultMultipliers[row]?.[0] ?? defaultStepTimingMultiplierIndex,
-      );
+      stepTimingMultiplier[row].splice(step, 0, multiplierIndex);
       stepVelocity[row].splice(step, 0, defaultVelocities[row]?.[0] ?? 100);
       stepMuted[row].splice(step, 0, defaultMuted[row]?.[0] ?? false);
       stepSkipped[row].splice(step, 0, defaultSkipped[row]?.[0] ?? false);
@@ -1717,6 +1713,10 @@
 
       const insertPhraseStep = getNativeFunction("insertPhraseStep");
       await insertPhraseStep(row, step);
+
+      if (multiplierIndex !== defaultStepTimingMultiplierIndex) {
+        await pushStepTimingMultiplier(row, step);
+      }
     });
   }
 

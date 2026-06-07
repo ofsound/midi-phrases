@@ -1,12 +1,31 @@
 <script>
+  import PlusDragButton from "./PlusDragButton.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
+  import {
+    defaultStepTimingMultiplierIndex,
+    insertStepTimingMultiplierOptions,
+    timingMultiplierOptions,
+  } from "./stepCellLayout.js";
 
+  /**
+   * @typedef {Object} Props
+   * @property {(multiplierIndex: number) => void | Promise<void>} [onInsert]
+   * @property {() => void | Promise<void>} [onDuplicate]
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {boolean} [muted]
+   * @property {{ index: number, label: string }[]} [timingMultiplierOptions]
+   */
+
+  /** @type {Props} */
   let {
     onInsert = undefined,
     onDuplicate = undefined,
     accent = emeraldRowAccent,
     muted = false,
+    timingMultiplierOptions: multiplierOptions = timingMultiplierOptions,
   } = $props();
+
+  let insertMultiplierOptions = $derived(insertStepTimingMultiplierOptions(multiplierOptions));
 </script>
 
 <div
@@ -23,17 +42,14 @@
 
   <div class="relative z-10 flex shrink-0 flex-col items-center justify-center gap-2">
     {#if onInsert}
-      <button
-        type="button"
-        aria-label="Insert step"
-        data-cursor="pointer"
-        class="shrink-0 border-0 bg-transparent p-0 px-0.5 text-lg leading-none font-bold opacity-0 outline-none transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 {muted
-          ? 'text-zinc-500'
-          : accent.textAccent} {accent.insertZoneFocus}"
-        onclick={onInsert}
-      >
-        +
-      </button>
+      <PlusDragButton
+        {accent}
+        {muted}
+        ariaLabel="Insert step"
+        options={insertMultiplierOptions}
+        defaultIndex={defaultStepTimingMultiplierIndex}
+        onConfirm={onInsert}
+      />
     {/if}
 
     {#if onDuplicate}

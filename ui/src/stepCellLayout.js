@@ -17,6 +17,9 @@ export const timingMultiplierValues = Array.from(
 /** Default index for 1× step length. */
 export const defaultStepTimingMultiplierIndex = timingMultiplierValues.indexOf(1);
 
+/** Upper bound for timing multiplier chosen via + drag-insert (0.25×–2×). */
+export const insertStepTimingMultiplierMax = 2;
+
 /** Matches PluginProcessor::maxPhraseStepsPerRow. */
 export const maxPhraseStepsPerRow = 64;
 
@@ -87,6 +90,15 @@ export const timingMultiplierOptions = timingMultiplierValues.map((value, index)
   index,
   label: formatTimingMultiplierLabel(value),
 }));
+
+/** @param {{ index: number, label: string }[]} [options] */
+export function insertStepTimingMultiplierOptions(options = timingMultiplierOptions) {
+  return options.filter((option) => {
+    const value = timingMultiplierAtIndex(option.index);
+
+    return value >= stepTimingMultiplierMin && value <= insertStepTimingMultiplierMax;
+  });
+}
 
 /** @param {number} multiplierIndex */
 export function quarterGridColumnsForMultiplierIndex(multiplierIndex) {

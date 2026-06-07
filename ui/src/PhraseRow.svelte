@@ -7,6 +7,7 @@
   import NoteDragInput from "./NoteDragInput.svelte";
   import VelocityDragInput from "./VelocityDragInput.svelte";
   import StepInsertZone from "./StepInsertZone.svelte";
+  import PlusDragButton from "./PlusDragButton.svelte";
   import StepCardFlip from "./StepCardFlip.svelte";
   import StepGearIcon from "./StepGearIcon.svelte";
   import RemoveXIcon from "./RemoveXIcon.svelte";
@@ -29,6 +30,7 @@
   import { phraseRowEndAddStepInsetPx, phraseRowMinHeightPx } from "./phraseRowLayout.js";
   import {
     defaultStepTimingMultiplierIndex,
+    insertStepTimingMultiplierOptions,
     maxMultiplierCellWidthPx,
     minMultiplierCellWidthPx,
     multiplierIndexFromWidth,
@@ -103,7 +105,7 @@
    * @property {(row: number, orderedIds: string[]) => void} [onReorder]
    * @property {(row: number, beforeIds: string[], afterIds: string[]) => void | Promise<void>} [onMoveCommitted]
    * @property {(row: number, step: number) => void | Promise<void>} [onRemoveStep]
-   * @property {(row: number, step: number) => void | Promise<void>} [onInsertStep]
+   * @property {(row: number, step: number, multiplierIndex?: number) => void | Promise<void>} [onInsertStep]
    * @property {(row: number, step: number) => void | Promise<void>} [onDuplicateStep]
    * @property {(row: number, step: number, midi: number) => void | Promise<void>} [onNoteChange]
    * @property {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} [onMultiplierChange]
@@ -795,6 +797,7 @@
   let isEmptyRow = $derived(stepIds.length === 0);
   let reorderDisabled = $derived(stepIds.length <= 1);
   let selectedStepIdSet = $derived(new Set(selectedStepIds));
+  let insertMultiplierOptions = $derived(insertStepTimingMultiplierOptions(timingMultiplierOptions));
   let globalStepBackFingerprint = $derived(stepIds.join("|"));
   const flipOverrideKey = (step) =>
     `${globalStepBackView ? "back" : "front"}:${globalStepBackFingerprint}:${step}`;
@@ -1222,18 +1225,15 @@
 {/snippet}
 
 {#snippet largeAddStepButton(label, insertStep)}
-  <button
-    type="button"
-    aria-label={label}
-    data-cursor="pointer"
-    class="flex size-[54px] shrink-0 items-center justify-center border border-transparent bg-transparent text-[1.9rem] leading-none font-semibold transition-colors outline-none focus:ring-1 {muted
-      ? 'text-zinc-600 focus:ring-zinc-500'
-      : `${accent.textAccent} ${accent.ringFocusWithWidth}`}"
-    onpointerdown={(event) => event.stopPropagation()}
-    onclick={() => onInsertStep(row, insertStep)}
-  >
-    +
-  </button>
+  <PlusDragButton
+    {accent}
+    {muted}
+    ariaLabel={label}
+    variant="large"
+    options={insertMultiplierOptions}
+    defaultIndex={defaultStepTimingMultiplierIndex}
+    onConfirm={(multiplierIndex) => onInsertStep(row, insertStep, multiplierIndex)}
+  />
 {/snippet}
 
 {#snippet gridInsertSlot(leftPx, insertStep, mode)}
@@ -1245,8 +1245,9 @@
     <StepInsertZone
       {accent}
       {muted}
+      {timingMultiplierOptions}
       onInsert={mode === "leading" || mode === "between"
-        ? () => onInsertStep(row, insertStep)
+        ? (multiplierIndex) => onInsertStep(row, insertStep, multiplierIndex)
         : undefined}
       onDuplicate={mode === "between" || mode === "trailing"
         ? () => onDuplicateStep(row, insertStep)
