@@ -1283,7 +1283,7 @@
   class="flex min-w-0 flex-1 items-stretch overflow-x-auto pt-2 pr-2 pb-2 pl-2"
   role="presentation"
   style:min-height="{phraseRowMinHeightPx}px"
-  style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex, pulseIndex) +
+  style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex) +
     timingOffsetVisualCompensationPx}px"
   onpointerdown={handleBulkSelectPointerDown}
 >

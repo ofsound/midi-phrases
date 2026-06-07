@@ -237,7 +237,6 @@
   /** UI-only; shifts phrase rows and beat-one guide when any row has a negative offset. */
   let phraseVisualOffsetCompensationPx = $derived(phraseGridVisualOffsetCompensationPx(
     rowTimingOffset,
-    pulseIndex,
   ));
   let selectedStepCount = $derived(selectedStepKeysForGrid.size);
   let selectableStepCount = $derived(stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0));

@@ -36,7 +36,13 @@ export function probabilityPasses(step, triggerCount, probability) {
  * @typedef {{ start: number, end: number, midi: number, velocity: number, row: number, step: number }} ScheduledNote
  */
 
-/** @param {number} offsetIndex @param {number} [pulseIndex] */
+/**
+ * Row timing offset in quarter notes for scheduling / piano-roll preview.
+ * Pulse-scaled so 0.25 matches the length of a 0.25× step at the current pulse.
+ *
+ * @param {number} offsetIndex
+ * @param {number} [pulseIndex]
+ */
 export function rowTimingOffsetQuarters(offsetIndex, pulseIndex = defaultPulseIndex) {
   return (timingOffsetValues[offsetIndex] ?? 0) * pulseQuartersForIndex(pulseIndex);
 }

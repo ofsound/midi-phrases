@@ -1,4 +1,3 @@
-import { defaultPulseIndex, pulseQuartersForIndex } from "./pulseLayout.js";
 
 export const stepTimingMultiplierQuarterStep = 0.25;
 export const stepTimingMultiplierMin = 0.25;
@@ -49,7 +48,10 @@ export const stepFooterActionSlotWidthPx = stepCellMinWidthPx / 3;
 /** Base pixel width for a step with timing multiplier index at 1× (four grid columns). */
 export const stepCellBaseWidthPx = stepCellQuarterGridWidthPx / stepTimingMultiplierQuarterStep;
 
-/** Row timing offset in quarter notes; matches PluginProcessor::rowTimingOffsetValues. */
+/**
+ * Row timing offset in step-timing-multiplier units on the fixed quarter grid
+ * (e.g. 0.25 = one 0.25× step column); matches PluginProcessor::rowTimingOffsetValues.
+ */
 export const timingOffsetValues = [-0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75];
 
 /** @param {number} durationQuarters */
@@ -62,12 +64,16 @@ export function quarterGridStepsToWidthPx(quarterGridSteps) {
   return quarterGridSteps * stepCellQuarterGridWidthPx;
 }
 
-/** @param {number} offsetIndex @param {number} [pulseIndex] */
-export function rowTimingOffsetShiftPx(offsetIndex, pulseIndex = defaultPulseIndex) {
-  const offsetQuarters =
-    (timingOffsetValues[offsetIndex] ?? 0) * pulseQuartersForIndex(pulseIndex);
+/**
+ * Phrase-row horizontal shift for a timing offset index.
+ * Uses the fixed step grid only (no pulse scaling): 0.25 aligns with one 0.25× step column.
+ *
+ * @param {number} offsetIndex
+ */
+export function rowTimingOffsetShiftPx(offsetIndex) {
+  const offsetMultiplier = timingOffsetValues[offsetIndex] ?? 0;
 
-  return quarterGridStepsToWidthPx(durationToQuarterGridSteps(offsetQuarters));
+  return quarterGridStepsToWidthPx(durationToQuarterGridSteps(offsetMultiplier));
 }
 
 /** @param {number} multiplierIndex */

@@ -79,13 +79,12 @@ export const phraseBeatGuideOffsetPx =
  * moves right by the same amount. Does not affect scheduling or native state.
  *
  * @param {number[]} rowTimingOffsetIndices
- * @param {number} [pulseIndex]
  */
-export function phraseGridVisualOffsetCompensationPx(rowTimingOffsetIndices, pulseIndex) {
+export function phraseGridVisualOffsetCompensationPx(rowTimingOffsetIndices) {
   let minShiftPx = 0;
 
   for (const offsetIndex of rowTimingOffsetIndices) {
-    const shiftPx = rowTimingOffsetShiftPx(offsetIndex, pulseIndex);
+    const shiftPx = rowTimingOffsetShiftPx(offsetIndex);
 
     if (shiftPx < minShiftPx) {
       minShiftPx = shiftPx;
