@@ -64,7 +64,7 @@
     onLoopBraceChange = () => {}
   } = $props();
 
-  const pxPerQuarter = 14;
+  const pxPerQuarter = 28;
   const rowHeightPx = 11;
   const keyboardWidthPx = 44;
   const rulerHeightPx = 28;
