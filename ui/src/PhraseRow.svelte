@@ -1285,8 +1285,10 @@
 
 <div
   class="flex min-w-0 flex-1 overflow-hidden"
-  style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex) +
+  role="presentation"
+  style:padding-left="{rowTimingOffsetShiftPx(timingOffsetIndex) +
     timingOffsetVisualCompensationPx}px"
+  onpointerdown={handleBulkSelectPointerDown}
 >
   <div
     class="pointer-events-none shrink-0 self-stretch"
@@ -1297,7 +1299,6 @@
     class="flex min-w-0 flex-1 items-stretch overflow-x-auto pt-2 pr-2 pb-2"
     role="presentation"
     style:min-height="{phraseRowMinHeightPx}px"
-    onpointerdown={handleBulkSelectPointerDown}
   >
   {#if isEmptyRow}
     <div class="relative flex shrink-0 items-center" style:padding-left="{phraseRowEndAddStepInsetPx}px">
