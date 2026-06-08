@@ -2883,7 +2883,7 @@
     <div class="flex shrink-0 items-end gap-2">
       <div class="grid grid-cols-[3rem_auto_auto] items-center gap-x-1 gap-y-1">
         <span class="text-right text-xs font-semibold leading-none text-zinc-500">Patterns</span>
-        <div class="flex items-center gap-0.5">
+        <div class="flex items-center gap-0.5 pl-1.5">
           <div class="flex items-center gap-1">
             {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
               <button
@@ -2927,7 +2927,7 @@
         </button>
 
         <span class="text-right text-xs font-semibold leading-none text-zinc-500">Loops</span>
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-1 pl-1.5">
           {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
             <button
               type="button"

@@ -142,6 +142,7 @@
     position: absolute;
     inset: 0;
     border-radius: 2px;
+    pointer-events: none;
     background: linear-gradient(145deg, #2b2b2b 0%, #101010 100%);
     border: 2px solid #181818;
     box-shadow:
@@ -160,6 +161,7 @@
   .combination-mode-button-face {
     position: absolute;
     inset: 6px;
+    pointer-events: none;
     display: flex;
     align-items: center;
     justify-content: center;
