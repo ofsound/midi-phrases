@@ -1093,7 +1093,7 @@
             {/if}
 
             <div
-              class="relative flex min-h-0 min-w-0 flex-1 flex-col gap-1 px-1 py-1 {stepDimmed
+              class="relative flex min-h-0 min-w-0 flex-1 flex-col gap-1 px-1 pt-0.5 pb-1 {stepDimmed
                 ? 'opacity-80'
                 : ''}"
             >
@@ -1107,7 +1107,7 @@
                 ariaLabel="Step duration fraction"
                 onValueChange={(fraction) => onDurationChange(row, step, fraction)}
               />
-              <div class="flex min-w-0 items-center pt-1 pb-1">
+              <div class="flex min-w-0 items-center pt-0.5 pb-0.5">
                 <div class="flex min-w-0 items-baseline gap-1.5">
                   <NoteDragInput
                     {accent}

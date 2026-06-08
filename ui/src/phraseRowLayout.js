@@ -19,7 +19,7 @@ export const phraseRowInterRowGapPx = 12;
  * Minimum front-face step cell height (header h-5, body, footer h-5, border-2).
  * Keeps zero-step rows the same band height as rows with steps.
  */
-export const phraseStepCellMinHeightPx = 100;
+export const phraseStepCellMinHeightPx = 92;
 
 /** PhraseRow scroll container min-height including vertical padding. */
 export const phraseRowMinHeightPx =

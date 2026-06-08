@@ -135,7 +135,7 @@
   <div
     {@attach trackAttachment}
     data-cursor="pointer"
-    class="relative h-4 touch-none select-none outline-none {accent.ringFocusWithWidth} {muted
+    class="relative h-3.5 touch-none select-none outline-none {accent.ringFocusWithWidth} {muted
       ? 'bg-zinc-800'
       : 'bg-zinc-600'}"
     role="slider"
