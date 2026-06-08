@@ -14,7 +14,7 @@
 </script>
 
 <div
-  class="combination-mode-rail -mx-6 flex min-h-[4.25rem] shrink-0 items-center justify-center border-t border-b border-zinc-900/80 px-6 py-2.5"
+  class="combination-mode-rail -mx-6 my-4 flex min-h-[4.25rem] shrink-0 items-center justify-center border-t border-b border-zinc-900/80 px-6 py-2.5"
 >
   <div class="flex items-center" role="group" aria-label="Combination modes">
     {#each combinationModes as mode, index (mode.index)}
