@@ -258,7 +258,7 @@
   }
 
   function brandIconToggleButtonClasses(active, enabled = true) {
-    return `flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+    return `flex h-3 w-3 shrink-0 items-center justify-center border-0 bg-transparent p-0 transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
       !enabled
         ? "text-zinc-700"
         : active
@@ -291,7 +291,7 @@
   ));
   let activeScaleName = $derived(scaleName(scaleRoot, scaleModeIndex));
   let activeKeyCenterLabel = $derived(keyCenters[scaleRoot]?.label ?? "C");
-  let activeScaleModeLabel = $derived(scaleModes[scaleModeIndex]?.label ?? "Chromatic");
+  let activeScaleModeLabel = $derived(scaleModes[scaleModeIndex]?.shortLabel ?? "Chrom");
   let selectedStepCount = $derived(selectedStepKeysForGrid.size);
   let selectableStepCount = $derived(stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0));
   let selectedStepReverseAvailable = $derived.by(() => {
@@ -2594,10 +2594,12 @@
     </div>
   {/if}
   <header class="flex items-end gap-3 px-6 pb-3">
-    <div class="flex shrink-0 items-end gap-5">
-      <div class="shrink-0">
-        <div class="flex items-center gap-1.5">
-          <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
+    <div class="relative flex shrink-0 -translate-y-3 items-end gap-5">
+      <div class="flex flex-col items-start gap-1">
+        <div class="flex h-3 items-center gap-1.5">
+          <p class="text-xs font-medium uppercase leading-none tracking-widest text-emerald-400">
+            ofsound
+          </p>
           <ColorsToggle
             accent={emeraldRowAccent}
             enabled={rowColorsEnabled}
@@ -2623,12 +2625,16 @@
             )}
             onclick={toggleGlobalStepBackView}
           >
-            <StepGearIcon class="pointer-events-none h-4 w-4" />
+            <StepGearIcon class="pointer-events-none h-3 w-3" />
           </button>
         </div>
-        <h1 class="whitespace-nowrap text-xl font-semibold tracking-tight text-zinc-100">
-          {pluginName}
-        </h1>
+        <div class="flex h-8 items-end">
+          <h1
+            class="whitespace-nowrap text-3xl font-semibold leading-none tracking-tight text-zinc-100 translate-y-0.5"
+          >
+            {pluginName}
+          </h1>
+        </div>
       </div>
 
       <button
@@ -2637,17 +2643,20 @@
         aria-pressed={scaleDialogOpen}
         title={activeScaleName}
         data-cursor="pointer"
-        class="flex flex-col items-start gap-1.5 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-emerald-400"
+        class="flex flex-col items-start gap-1 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-emerald-400"
         onclick={() => {
           scaleDialogOpen = true;
         }}
       >
-        <p class="text-sm font-semibold leading-none text-zinc-100">{activeKeyCenterLabel}</p>
-        <p class="text-sm font-semibold leading-none text-emerald-300">{activeScaleModeLabel}</p>
+        <div class="h-3" aria-hidden="true"></div>
+        <div class="-translate-y-0.5 flex h-8 flex-col items-start justify-end gap-1">
+          <p class="text-base font-semibold leading-none text-zinc-100">{activeKeyCenterLabel}</p>
+          <p class="text-sm font-semibold uppercase leading-none text-emerald-300">{activeScaleModeLabel}</p>
+        </div>
       </button>
     </div>
 
-    <div class="flex min-w-0 flex-1 flex-nowrap items-end justify-end gap-x-3">
+    <div class="relative flex min-w-0 flex-1 -translate-y-3 flex-nowrap items-end justify-end gap-x-3">
         <div class="flex flex-col items-start gap-1">
           <span class="text-xs font-semibold leading-none text-zinc-500">Pulse</span>
           <PulseNoteButtonGroup

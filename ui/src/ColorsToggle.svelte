@@ -25,10 +25,10 @@
   aria-label={visualOn ? "Disable row colors" : "Enable row colors"}
   aria-pressed={visualOn}
   data-cursor="pointer"
-  class="flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors {accent.controlFocus} {visualOn
+  class="flex h-3 w-3 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors {accent.controlFocus} {visualOn
     ? 'text-white'
     : 'text-zinc-500'}"
   onclick={handleClick}
 >
-  <ColorsPaletteIcon class="pointer-events-none h-4 w-4" />
+  <ColorsPaletteIcon class="pointer-events-none h-3 w-3" />
 </button>
