@@ -408,10 +408,15 @@ PluginProcessor::~PluginProcessor()
 {
 }
 
-int PluginProcessor::defaultNoteForRow (int row)
+int PluginProcessor::defaultStepNoteForScaleRoot (const int scaleRoot)
+{
+    return (defaultStepOctave + 2) * 12 + clampScaleRoot (scaleRoot);
+}
+
+int PluginProcessor::defaultNoteForRow (const int row) const
 {
     juce::ignoreUnused (row);
-    return defaultStepNote;
+    return defaultStepNoteForScaleRoot (modelPattern (getViewPatternSlot()).scaleRoot);
 }
 
 bool PluginProcessor::isValidStep (const int row, const int step) const
@@ -490,13 +495,19 @@ const PluginProcessor::PhraseRowSteps& PluginProcessor::modelRow (const int row)
     return modelSequencer().rows[static_cast<size_t> (row)];
 }
 
-void PluginProcessor::initialiseRowDefaults (PhraseRowSteps& steps, const int row, const int stepCount)
+void PluginProcessor::initialiseRowDefaults (PhraseRowSteps& steps,
+                                             const int row,
+                                             const int stepCount,
+                                             const int scaleRoot)
 {
+    juce::ignoreUnused (row);
     steps.stepCount = juce::jlimit (0, maxPhraseStepsPerRow, stepCount);
+
+    const auto defaultNote = defaultStepNoteForScaleRoot (scaleRoot);
 
     for (int step = 0; step < maxPhraseStepsPerRow; ++step)
     {
-        steps.notes[static_cast<size_t> (step)] = defaultNoteForRow (row);
+        steps.notes[static_cast<size_t> (step)] = defaultNote;
         steps.timingMultiplier[static_cast<size_t> (step)] = defaultStepTimingMultiplierIndex;
         steps.durationFraction[static_cast<size_t> (step)] = defaultStepDurationFraction;
         steps.velocity[static_cast<size_t> (step)] = defaultStepVelocity;
@@ -512,11 +523,15 @@ void PluginProcessor::initialiseRowDefaults (PhraseRowSteps& steps, const int ro
 
 void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
 {
+    pattern.scaleRoot = defaultScaleRoot;
+    pattern.scaleModeIndex = defaultScaleModeIndex;
+
     for (int row = 0; row < phraseRowCount; ++row)
     {
         initialiseRowDefaults (pattern.sequencer.rows[static_cast<size_t> (row)],
                                row,
-                               defaultPhraseStepsPerRow);
+                               defaultPhraseStepsPerRow,
+                               pattern.scaleRoot);
 
         pattern.sequencer.muted[static_cast<size_t> (row)] = row == 0 ? 0 : 1;
         pattern.sequencer.timingOffset[static_cast<size_t> (row)] = defaultRowTimingOffsetIndex;
@@ -527,8 +542,6 @@ void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
     pattern.loopBrace.enabled = 0;
     pattern.loopBrace.startQuarters = defaultLoopBraceStartQuarters;
     pattern.loopBrace.endQuarters = defaultLoopBraceEndQuarters;
-    pattern.scaleRoot = defaultScaleRoot;
-    pattern.scaleModeIndex = defaultScaleModeIndex;
 }
 
 void PluginProcessor::rebuildRowTimingLayout (PhraseRowSteps& steps)
@@ -755,7 +768,7 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
                     row.cycleOffset[current] = row.cycleOffset[previous];
                 }
 
-                row.notes[index] = defaultNoteForRow (command.row);
+                row.notes[index] = defaultStepNoteForScaleRoot (pattern.scaleRoot);
                 row.timingMultiplier[index] = defaultStepTimingMultiplierIndex;
                 row.durationFraction[index] = defaultStepDurationFraction;
                 row.velocity[index] = defaultStepVelocity;
@@ -1664,7 +1677,10 @@ void PluginProcessor::replacePhraseRowSteps (
         return;
 
     auto& steps = modelRow (row);
-    initialiseRowDefaults (steps, row, juce::jlimit (0, maxPhraseStepsPerRow, stepCount));
+    initialiseRowDefaults (steps,
+                           row,
+                           juce::jlimit (0, maxPhraseStepsPerRow, stepCount),
+                           modelPattern (getViewPatternSlot()).scaleRoot);
 
     for (int step = 0; step < steps.stepCount; ++step)
     {
@@ -2183,7 +2199,7 @@ int PluginProcessor::getPatternPhraseNote (const int patternSlot, const int row,
 {
     if (row < 0 || row >= phraseRowCount || step < 0
         || step >= getPatternPhraseRowStepCount (patternSlot, row))
-        return defaultStepNote;
+        return defaultStepNoteForScaleRoot (modelPattern (patternSlot).scaleRoot);
 
     return modelPattern (patternSlot).sequencer.rows[static_cast<size_t> (row)]
         .notes[static_cast<size_t> (step)];
@@ -3078,6 +3094,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 {
     constexpr auto epsilon = 1.0e-9;
     const auto& state = audioSequencer();
+    const auto emptyRowDefaultNote = defaultStepNoteForScaleRoot (
+        audioPatterns[static_cast<size_t> (clampPatternSlot (audioActivePatternSlot))].scaleRoot);
     const auto modeMask = clampCombinationModeMask (state.combinationModeMask);
     const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
     const auto swing = swingPercent.load (std::memory_order_relaxed);
@@ -3287,7 +3305,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
         const auto firstNoteForRow = [&] (const int row) {
             const auto& rowSteps = state.rows[static_cast<size_t> (row)];
-            return rowSteps.stepCount > 0 ? rowSteps.notes[0] : defaultNoteForRow (row);
+            return rowSteps.stepCount > 0 ? rowSteps.notes[0] : emptyRowDefaultNote;
         };
 
         for (size_t index = 0; index < eventCount; ++index)
@@ -3342,7 +3360,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             const auto& modSteps = state.rows[static_cast<size_t> (modRow)];
             const auto modBaseNote = modSteps.stepCount > 0
                                          ? modSteps.notes[0]
-                                         : defaultNoteForRow (modRow);
+                                         : emptyRowDefaultNote;
 
             for (int modStep = 0; modStep < modSteps.stepCount && write < combinedWorkingEvents.size(); ++modStep)
             {
@@ -4314,6 +4332,8 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         const auto patternSlot = clampPatternSlot (
             static_cast<int> (patternTree.getProperty ("index", i)));
         auto& pattern = modelPattern (patternSlot);
+        const auto patternScaleRoot = clampScaleRoot (
+            static_cast<int> (patternTree.getProperty ("scaleRoot", defaultScaleRoot)));
 
         for (int rowIndex = 0; rowIndex < patternTree.getNumChildren(); ++rowIndex)
         {
@@ -4333,7 +4353,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                 static_cast<int> (rowTree.getProperty ("stepCount", defaultPhraseStepsPerRow)));
 
             auto& steps = pattern.sequencer.rows[static_cast<size_t> (row)];
-            initialiseRowDefaults (steps, row, stepCount);
+            initialiseRowDefaults (steps, row, stepCount, patternScaleRoot);
 
             for (int step = 0; step < stepCount; ++step)
             {
@@ -4350,7 +4370,9 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                 steps.notes[index] = juce::jlimit (
                     0,
                     127,
-                    static_cast<int> (rowTree.getProperty (propName, defaultNoteForRow (row))));
+                    static_cast<int> (rowTree.getProperty (
+                        propName,
+                        defaultStepNoteForScaleRoot (patternScaleRoot))));
                 steps.timingMultiplier[index] = stepTimingMultiplierIndexFromState (
                     static_cast<int> (rowTree.getProperty (timingMultiplierPropName,
                                                            defaultStepTimingMultiplierIndex)),
@@ -4450,7 +4472,8 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             static_cast<int> (rowTree.getProperty ("stepCount", defaultPhraseStepsPerRow)));
 
         auto& steps = modelRow (row);
-        initialiseRowDefaults (steps, row, stepCount);
+        const auto patternScaleRoot = modelPattern (getViewPatternSlot()).scaleRoot;
+        initialiseRowDefaults (steps, row, stepCount, patternScaleRoot);
 
         for (int step = 0; step < stepCount; ++step)
         {
@@ -4463,7 +4486,9 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             const auto cyclePropName = "cycle" + juce::String (step);
             const auto cycleOffsetPropName = "cycleOffset" + juce::String (step);
             const auto timingMultiplierPropName = "timingMultiplier" + juce::String (step);
-            const auto note = static_cast<int> (rowTree.getProperty (propName, defaultNoteForRow (row)));
+            const auto note = static_cast<int> (rowTree.getProperty (
+                propName,
+                defaultStepNoteForScaleRoot (patternScaleRoot)));
             steps.notes[static_cast<size_t> (step)] = juce::jlimit (0, 127, note);
             steps.timingMultiplier[static_cast<size_t> (step)] = stepTimingMultiplierIndexFromState (
                 static_cast<int> (rowTree.getProperty (timingMultiplierPropName,

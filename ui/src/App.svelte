@@ -13,7 +13,7 @@
     defaultStepCycleGrid,
     defaultStepCycleOffsetGrid,
     defaultStepVelocityGrid,
-    defaultStepNote,
+    defaultStepNoteForScaleRoot,
     defaultStepDurationFraction,
     defaultStepVelocity,
   } from "./midiNoteNames.js";
@@ -291,6 +291,7 @@
   ));
   let activeScaleName = $derived(scaleName(scaleRoot, scaleModeIndex));
   let activeKeyCenterLabel = $derived(keyCenters[scaleRoot]?.label ?? "C");
+  let defaultNewStepNote = $derived(defaultStepNoteForScaleRoot(scaleRoot));
   let activeScaleModeLabel = $derived(scaleModes[scaleModeIndex]?.shortLabel ?? "Chrom");
   let selectedStepCount = $derived(selectedStepKeysForGrid.size);
   let selectableStepCount = $derived(stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0));
@@ -1802,7 +1803,7 @@
       const defaultCycle = defaultStepCycleGrid();
       const defaultCycleOffset = defaultStepCycleOffsetGrid();
 
-      grid[row].splice(step, 0, defaultStepNote);
+      grid[row].splice(step, 0, defaultNewStepNote);
       stepDurationFraction[row].splice(step, 0, defaultDurations[row]?.[0] ?? 1);
       stepTimingMultiplier[row].splice(step, 0, multiplierIndex);
       stepVelocity[row].splice(step, 0, defaultVelocities[row]?.[0] ?? 100);
@@ -3038,6 +3039,7 @@
               globalStepBackViewCommand={globalStepBackViewCommand}
               selectedStepIds={selectedStepIdsByRow[row]}
               stepNoteValue={stepNoteByCurrentScale}
+              defaultStepNote={defaultNewStepNote}
               {timingMultiplierOptions}
               onReorder={reorderRowByIds}
               onMoveCommitted={commitRowMove}

@@ -1,3 +1,5 @@
+import { clampScaleRoot, defaultScaleRoot } from "./scaleUtils.js";
+
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 const LETTER_SEMITONE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
@@ -44,8 +46,16 @@ export const defaultRowTimingOffsetIndex = 3;
 /** Matches PluginProcessor::defaultStepVelocity. */
 export const defaultStepVelocity = 100;
 
-/** Matches PluginProcessor::defaultStepNote (C3). */
-export const defaultStepNote = 60;
+/** Matches PluginProcessor::defaultStepOctave. */
+export const defaultStepOctave = 3;
+
+/** Matches PluginProcessor::defaultStepNoteForScaleRoot. */
+export function defaultStepNoteForScaleRoot(scaleRoot) {
+  return (defaultStepOctave + 2) * 12 + clampScaleRoot(scaleRoot);
+}
+
+/** Key-center note at defaultStepOctave when scale root is C. */
+export const defaultStepNote = defaultStepNoteForScaleRoot(defaultScaleRoot);
 
 /** Matches PluginProcessor::defaultStepDurationFraction. */
 export const defaultStepDurationFraction = 1;
@@ -58,8 +68,8 @@ export const defaultPhraseGrid = () => [
 ];
 
 /** Default MIDI note for a phrase row (matches PluginProcessor::defaultNoteForRow). */
-export function defaultNoteForRow(_row) {
-  return defaultStepNote;
+export function defaultNoteForRow(_row, scaleRoot = defaultScaleRoot) {
+  return defaultStepNoteForScaleRoot(scaleRoot);
 }
 
 export const defaultStepDurationGrid = () => [

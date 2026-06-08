@@ -18,7 +18,6 @@
   import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
   import {
-    defaultStepNote,
     defaultStepDurationFraction,
     defaultStepVelocity,
   } from "./midiNoteNames.js";
@@ -107,6 +106,7 @@
    * @property {number} [globalStepBackViewCommand]
    * @property {string[]} [selectedStepIds]
    * @property {(value: number, delta: number) => number} [stepNoteValue]
+   * @property {number} [defaultStepNote]
    * @property {(row: number, orderedIds: string[]) => void} [onReorder]
    * @property {(row: number, beforeIds: string[], afterIds: string[]) => void | Promise<void>} [onMoveCommitted]
    * @property {(row: number, step: number) => void | Promise<void>} [onRemoveStep]
@@ -149,6 +149,7 @@
     globalStepBackViewCommand = 0,
     selectedStepIds = [],
     stepNoteValue = (value, delta) => value + delta,
+    defaultStepNote = 60,
     onReorder = () => {},
     onMoveCommitted = () => {},
     onRemoveStep = () => {},

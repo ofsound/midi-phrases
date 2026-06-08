@@ -118,7 +118,10 @@ public:
     double getPhraseStepDurationFraction (int row, int step) const;
 
     static constexpr int defaultStepVelocity = 100;
-    static constexpr int defaultStepNote = 60; // C3
+    static constexpr int defaultStepOctave = 3;
+    static constexpr int defaultStepNote = 60; // C3 (key center C at defaultStepOctave)
+
+    static int defaultStepNoteForScaleRoot (int scaleRoot);
 
     void setPhraseStepVelocity (int row, int step, int velocity);
     int getPhraseStepVelocity (int row, int step) const;
@@ -362,7 +365,7 @@ private:
 
     static BusesProperties createBusesProperties();
 
-    static int defaultNoteForRow (int row);
+    int defaultNoteForRow (int row) const;
     void resetPhraseStepToDefaults (int row, int step);
     void resetPendingNoteOffs();
     void resetPendingNoteOns();
@@ -395,7 +398,7 @@ private:
                               int bufferSamples,
                               juce::MidiBuffer& midiMessages);
     void flushPendingNoteOns (int bufferSamples, juce::MidiBuffer& midiMessages);
-    void initialiseRowDefaults (PhraseRowSteps& steps, int row, int stepCount);
+    void initialiseRowDefaults (PhraseRowSteps& steps, int row, int stepCount, int scaleRoot);
     void rebuildRowTimingLayout (PhraseRowSteps& steps);
     void reverseRowSteps (PhraseRowSteps& steps);
     bool applyRowStepOrder (PhraseRowSteps& steps,
