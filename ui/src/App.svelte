@@ -2559,7 +2559,7 @@
   });
 </script>
 
-<main class="flex h-full flex-col overflow-hidden p-6 transition-[filter,opacity] duration-150 {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}">
+<main class="flex h-full flex-col overflow-hidden px-6 pt-3 pb-6 transition-[filter,opacity] duration-150 {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}">
   <div class="shrink-0 -mx-6">
   {#if standaloneTransportAvailable}
     <div class="flex items-center justify-end gap-2 px-6 pb-3">
@@ -2976,7 +2976,7 @@
           title="Beat one"
         ></div>
         <div
-          class="h-5 shrink-0"
+          class="h-3 shrink-0"
           role="presentation"
           aria-hidden="true"
           onpointerdown={handleRowGapBulkSelectPointerDown}
@@ -3074,7 +3074,7 @@
           </div>
           {#if row < grid.length - 1}
             <div
-              class="h-5 shrink-0"
+              class="h-3 shrink-0"
               role="presentation"
               aria-hidden="true"
               onpointerdown={handleRowGapBulkSelectPointerDown}

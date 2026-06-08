@@ -12,8 +12,8 @@ export const phraseRowScrollPaddingTopPx = phraseRowScrollPaddingVerticalPx / 2;
 /** Matches PhraseRow scroll container `pb-2`. */
 export const phraseRowScrollPaddingBottomPx = phraseRowScrollPaddingVerticalPx / 2;
 
-/** Matches App row gap spacers (`h-5`). */
-export const phraseRowInterRowGapPx = 20;
+/** Matches App row gap spacers (`h-3`). */
+export const phraseRowInterRowGapPx = 12;
 
 /**
  * Minimum front-face step cell height (header h-5, body, footer h-5, border-2).
