@@ -2606,7 +2606,7 @@
             </button>
           </div>
           <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-zinc-500">Ops</span>
+            <span class="text-xs font-semibold leading-none text-zinc-500">Operation</span>
             <div class="flex items-center gap-1">
               <button
                 type="button"
@@ -2680,7 +2680,7 @@
             />
           </div>
           <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-zinc-500">Trans</span>
+            <span class="text-xs font-semibold leading-none text-zinc-500">Pitch</span>
             <StepNumberDragInput
               boxed
               compact
@@ -2691,7 +2691,7 @@
               max={48}
               resetValue={0}
               formatValue={formatSemitoneValue}
-              ariaLabel="Bulk step transpose semitones"
+              ariaLabel="Bulk step pitch semitones"
               disabled={selectedStepCount === 0}
               onGestureStart={beginBulkEditGesture}
               onValuePreview={previewBulkTransposeSemitones}
