@@ -24,7 +24,6 @@
   import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
   import StepGearIcon from "./StepGearIcon.svelte";
   import ScaleModeDialog from "./ScaleModeDialog.svelte";
-  import ScaleModeIcon from "./ScaleModeIcon.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
   import PhraseRow from "./PhraseRow.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
@@ -70,6 +69,8 @@
     clampScaleRoot,
     defaultScaleModeIndex,
     defaultScaleRoot,
+    keyCenters,
+    scaleModes,
     scaleName,
     transposeMidiByScaleDegrees,
   } from "./scaleUtils.js";
@@ -289,6 +290,8 @@
     rowTimingOffset,
   ));
   let activeScaleName = $derived(scaleName(scaleRoot, scaleModeIndex));
+  let activeKeyCenterLabel = $derived(keyCenters[scaleRoot]?.label ?? "C");
+  let activeScaleModeLabel = $derived(scaleModes[scaleModeIndex]?.label ?? "Chromatic");
   let selectedStepCount = $derived(selectedStepKeysForGrid.size);
   let selectableStepCount = $derived(stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0));
   let selectedStepReverseAvailable = $derived.by(() => {
@@ -2590,57 +2593,61 @@
       </label>
     </div>
   {/if}
-  <header class="flex items-center gap-4 px-6 pb-3">
-    <div class="shrink-0">
-      <div class="flex items-center gap-1.5">
-        <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
-        <ColorsToggle
-          accent={emeraldRowAccent}
-          enabled={rowColorsEnabled}
-          onChange={async (next) => {
-            rowColorsEnabled = next;
-            await pushRowColorsEnabled();
-          }}
-        />
-        <button
-          type="button"
-          aria-label={`Choose scale mode, current ${activeScaleName}`}
-          aria-pressed={scaleDialogOpen}
-          title={activeScaleName}
-          data-cursor="pointer"
-          class={brandIconToggleButtonClasses(scaleDialogOpen)}
-          onclick={() => {
-            scaleDialogOpen = true;
-          }}
-        >
-          <ScaleModeIcon class="pointer-events-none h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          aria-label={globalStepBackView
-            ? "Show front of all steps"
-            : "Show advanced settings for all steps"}
-          aria-pressed={globalStepBackView}
-          title={globalStepBackView
-            ? "Show front of all steps"
-            : "Show advanced settings for all steps"}
-          disabled={selectableStepCount === 0}
-          data-cursor="pointer"
-          class={brandIconToggleButtonClasses(
-            globalStepBackView,
-            selectableStepCount > 0,
-          )}
-          onclick={toggleGlobalStepBackView}
-        >
-          <StepGearIcon class="pointer-events-none h-4 w-4" />
-        </button>
+  <header class="flex items-end gap-3 px-6 pb-3">
+    <div class="flex shrink-0 items-end gap-5">
+      <div class="shrink-0">
+        <div class="flex items-center gap-1.5">
+          <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
+          <ColorsToggle
+            accent={emeraldRowAccent}
+            enabled={rowColorsEnabled}
+            onChange={async (next) => {
+              rowColorsEnabled = next;
+              await pushRowColorsEnabled();
+            }}
+          />
+          <button
+            type="button"
+            aria-label={globalStepBackView
+              ? "Show front of all steps"
+              : "Show advanced settings for all steps"}
+            aria-pressed={globalStepBackView}
+            title={globalStepBackView
+              ? "Show front of all steps"
+              : "Show advanced settings for all steps"}
+            disabled={selectableStepCount === 0}
+            data-cursor="pointer"
+            class={brandIconToggleButtonClasses(
+              globalStepBackView,
+              selectableStepCount > 0,
+            )}
+            onclick={toggleGlobalStepBackView}
+          >
+            <StepGearIcon class="pointer-events-none h-4 w-4" />
+          </button>
+        </div>
+        <h1 class="whitespace-nowrap text-xl font-semibold tracking-tight text-zinc-100">
+          {pluginName}
+        </h1>
       </div>
-      <h1 class="whitespace-nowrap text-xl font-semibold tracking-tight text-zinc-100">
-        {pluginName}
-      </h1>
+
+      <button
+        type="button"
+        aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
+        aria-pressed={scaleDialogOpen}
+        title={activeScaleName}
+        data-cursor="pointer"
+        class="flex flex-col items-start gap-1.5 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-emerald-400"
+        onclick={() => {
+          scaleDialogOpen = true;
+        }}
+      >
+        <p class="text-sm font-semibold leading-none text-zinc-100">{activeKeyCenterLabel}</p>
+        <p class="text-sm font-semibold leading-none text-emerald-300">{activeScaleModeLabel}</p>
+      </button>
     </div>
 
-    <div class="flex min-w-0 flex-1 flex-nowrap items-end justify-center gap-x-3">
+    <div class="flex min-w-0 flex-1 flex-nowrap items-end justify-end gap-x-3">
         <div class="flex flex-col items-start gap-1">
           <span class="text-xs font-semibold leading-none text-zinc-500">Pulse</span>
           <PulseNoteButtonGroup
