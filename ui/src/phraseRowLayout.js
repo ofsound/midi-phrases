@@ -6,6 +6,15 @@ export const phraseRowScrollPaddingLeftPx = 8;
 /** Matches PhraseRow scroll container `pt-2` + `pb-2` (16px root). */
 export const phraseRowScrollPaddingVerticalPx = 16;
 
+/** Matches PhraseRow scroll container `pt-2`. */
+export const phraseRowScrollPaddingTopPx = phraseRowScrollPaddingVerticalPx / 2;
+
+/** Matches PhraseRow scroll container `pb-2`. */
+export const phraseRowScrollPaddingBottomPx = phraseRowScrollPaddingVerticalPx / 2;
+
+/** Matches App row gap spacers (`h-5`). */
+export const phraseRowInterRowGapPx = 20;
+
 /**
  * Minimum front-face step cell height (header h-5, body, footer h-5, border-2).
  * Keeps zero-step rows the same band height as rows with steps.
@@ -104,6 +113,21 @@ export function phraseGridVisualOffsetCompensationPx(rowTimingOffsetIndices) {
 export function phraseBeatGuideGlobalLeftPx(visualCompensationPx = 0) {
   return phraseRowLeadingControlsWidthPx + phraseBeatGuideOffsetPx + visualCompensationPx;
 }
+
+/**
+ * How far the beat-one guide extends past the top/bottom of step cells.
+ * Matches PhraseRow vertical scroll padding (`pt-2` / `pb-2`).
+ */
+export const phraseBeatGuideVerticalOverhangPx = phraseRowScrollPaddingBottomPx;
+
+/**
+ * Top inset for the beat-one guide within the phrase grid column.
+ * One overhang above the first row's step cells (below the top inter-row gap).
+ */
+export const phraseBeatGuideTopPx =
+  phraseRowInterRowGapPx +
+  phraseRowScrollPaddingTopPx -
+  phraseBeatGuideVerticalOverhangPx;
 
 /**
  * Global X for the left edge of step 0’s shell when that row’s timing offset is 0.

@@ -51,6 +51,7 @@
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
     phraseBeatGuideGlobalLeftPx,
+    phraseBeatGuideTopPx,
     phraseGridVisualOffsetCompensationPx,
   } from "./phraseRowLayout.js";
   import {
@@ -2588,7 +2589,7 @@
       </label>
     </div>
   {/if}
-  <header class="flex items-center gap-4 px-6 pb-6">
+  <header class="flex items-center gap-4 px-6 pb-3">
     <div class="shrink-0">
       <div class="flex items-center gap-1.5">
         <p class="text-xs font-medium uppercase tracking-widest text-emerald-400">ofsound</p>
@@ -2962,15 +2963,15 @@
       </div>
     </div>
   </header>
-  <div class="h-0.5 w-full bg-zinc-500/40" role="separator" aria-hidden="true"></div>
   </div>
 
   <section class="flex min-h-0 flex-1 flex-col overflow-hidden">
     <div class="w-full shrink-0">
       <div class="relative flex flex-col">
         <div
-          class="pointer-events-none absolute top-0 bottom-0 z-0 w-px bg-zinc-600/70"
+          class="pointer-events-none absolute bottom-0 z-0 w-px bg-zinc-600/70"
           style:left="{phraseBeatGuideGlobalLeftPx(phraseVisualOffsetCompensationPx)}px"
+          style:top="{phraseBeatGuideTopPx}px"
           aria-hidden="true"
           title="Beat one"
         ></div>
