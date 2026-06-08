@@ -211,16 +211,6 @@
     }`;
   }
 
-  function bulkSelectButtonClasses(active, enabled = true) {
-    return `flex h-8 min-w-12 items-center justify-center rounded-md border px-3 text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
-      !enabled
-        ? "border-zinc-800 bg-zinc-950 text-zinc-700"
-        : active
-          ? "border-emerald-400 bg-emerald-400 text-zinc-950"
-          : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
-    }`;
-  }
-
   function bulkActionIconButtonClasses(enabled = true) {
     return `flex h-8 w-8 items-center justify-center rounded-md border transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
       enabled
@@ -245,7 +235,6 @@
   ));
   let selectedStepCount = $derived(selectedStepKeysForGrid.size);
   let selectableStepCount = $derived(stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0));
-  let allStepsSelected = $derived(selectedStepCount === selectableStepCount && selectedStepCount > 0);
   let selectedStepReverseAvailable = $derived.by(() => {
     const selectedByRow = new SvelteMap();
 
@@ -2623,23 +2612,6 @@
           </div>
         </div>
         <div class="flex items-end gap-2 border-l border-zinc-800 pl-3">
-          <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-zinc-500">Steps</span>
-            <button
-              type="button"
-              aria-label="Select all steps for bulk editing"
-              aria-pressed={allStepsSelected}
-              title="Select all steps"
-              data-cursor="pointer"
-              class={bulkSelectButtonClasses(
-                allStepsSelected,
-                selectableStepCount > 0,
-              )}
-              onclick={selectAllStepsForBulkEdit}
-            >
-              All
-            </button>
-          </div>
           <div class="flex flex-col items-start gap-1">
             <span class="text-xs font-semibold leading-none text-zinc-500">Operation</span>
             <div class="flex items-center gap-1">
