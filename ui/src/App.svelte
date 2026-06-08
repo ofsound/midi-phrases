@@ -168,8 +168,13 @@
   let bulkTransposeBaselineByKey = null;
   /** @type {{ startX: number, startY: number, currentX: number, currentY: number, addToSelection: boolean, baseKeys: Set<string> } | null} */
   let marqueeSelection = $state(null);
+  let lastRowGapPointerDownTime = 0;
+  let lastRowGapPointerDownX = 0;
+  let lastRowGapPointerDownY = 0;
 
   const historyLimit = 100;
+  const rowGapDoubleClickIntervalMs = 400;
+  const rowGapDoubleClickMaxDistancePx = 16;
   const stepTriggerFlashMs = 110;
   const historyButtonBaseClasses =
     "flex h-8 w-8 items-center justify-center rounded-md border bg-zinc-900 transition-colors outline-none focus:ring-1 focus:ring-emerald-400 disabled:border-zinc-800 disabled:text-zinc-700";
@@ -461,6 +466,36 @@
     document.removeEventListener("pointermove", updateMarqueePointer);
     document.removeEventListener("pointerup", finishMarqueeSelection);
     document.removeEventListener("pointercancel", cancelMarqueeSelection);
+  }
+
+  /** @param {PointerEvent} event */
+  function handleRowGapBulkSelectPointerDown(event) {
+    if (event.button !== 0) return;
+
+    const now = performance.now();
+    const elapsed = now - lastRowGapPointerDownTime;
+    const distance = Math.hypot(
+      event.clientX - lastRowGapPointerDownX,
+      event.clientY - lastRowGapPointerDownY,
+    );
+
+    if (
+      lastRowGapPointerDownTime > 0 &&
+      elapsed <= rowGapDoubleClickIntervalMs &&
+      distance <= rowGapDoubleClickMaxDistancePx
+    ) {
+      lastRowGapPointerDownTime = 0;
+      event.preventDefault();
+      event.stopPropagation();
+      selectAllStepsForBulkEdit();
+      return;
+    }
+
+    lastRowGapPointerDownTime = now;
+    lastRowGapPointerDownX = event.clientX;
+    lastRowGapPointerDownY = event.clientY;
+
+    beginStepMarqueeSelection(event);
   }
 
   /** @param {PointerEvent} event */
@@ -2820,14 +2855,20 @@
   <div class="h-0.5 w-full bg-zinc-500/40" role="separator" aria-hidden="true"></div>
   </div>
 
-  <section class="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+  <section class="flex min-h-0 flex-1 flex-col overflow-hidden">
     <div class="w-full shrink-0">
-      <div class="relative flex flex-col gap-5">
+      <div class="relative flex flex-col">
         <div
           class="pointer-events-none absolute top-0 bottom-0 z-0 w-px bg-zinc-600/70"
           style:left="{phraseBeatGuideGlobalLeftPx(phraseVisualOffsetCompensationPx)}px"
           aria-hidden="true"
           title="Beat one"
+        ></div>
+        <div
+          class="h-5 shrink-0"
+          role="presentation"
+          aria-hidden="true"
+          onpointerdown={handleRowGapBulkSelectPointerDown}
         ></div>
         {#each grid as _row, row (row)}
           {@const rowAccent = rowAccentFor(row, rowColorsEnabled)}
@@ -2919,6 +2960,14 @@
               onBulkSelectBackgroundDoubleClick={selectAllStepsForBulkEdit}
             />
           </div>
+          {#if row < grid.length - 1}
+            <div
+              class="h-5 shrink-0"
+              role="presentation"
+              aria-hidden="true"
+              onpointerdown={handleRowGapBulkSelectPointerDown}
+            ></div>
+          {/if}
         {/each}
       </div>
     </div>
