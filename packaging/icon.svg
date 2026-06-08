@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MIDI Phrases app icon. Transparent canvas, inset white plate, emerald phrase bars. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none" aria-label="MIDI Phrases icon">
+  <defs>
+    <linearGradient id="note-fill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6ee7b7" />
+      <stop offset="55%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="note-fill-dim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+  </defs>
+
+  <rect x="101" y="101" width="823" height="823" rx="122" fill="#ffffff" stroke="#d4d4d8" stroke-width="3" />
+
+  <g stroke="#d4d4d8" stroke-width="2.5" stroke-linecap="round">
+    <line x1="192" y1="288" x2="832" y2="288" />
+    <line x1="192" y1="416" x2="832" y2="416" />
+    <line x1="192" y1="544" x2="832" y2="544" />
+    <line x1="192" y1="672" x2="832" y2="672" />
+    <line x1="320" y1="256" x2="320" y2="704" />
+    <line x1="512" y1="256" x2="512" y2="704" />
+    <line x1="704" y1="256" x2="704" y2="704" />
+  </g>
+
+  <g>
+    <rect x="208" y="304" width="232" height="52" rx="13" fill="url(#note-fill)" stroke="#059669" stroke-width="3" />
+    <rect x="400" y="432" width="296" height="52" rx="13" fill="url(#note-fill)" stroke="#059669" stroke-width="3" />
+    <rect x="256" y="560" width="188" height="52" rx="13" fill="url(#note-fill-dim)" stroke="#10b981" stroke-width="3" />
+    <rect x="488" y="688" width="248" height="52" rx="13" fill="url(#note-fill-dim)" stroke="#10b981" stroke-width="3" />
+  </g>
+
+  <rect x="400" y="432" width="296" height="52" rx="13" fill="none" stroke="#ffffff" stroke-width="5" opacity="0.65" />
+</svg>
