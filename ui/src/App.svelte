@@ -37,6 +37,7 @@
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
   import {
+    combinationModes,
     isStepActiveAtBeat,
     swingSubdivisionOptions,
     swingSubdivisionValues,
@@ -142,7 +143,7 @@
   let activeLoopSlot = $state(-1);
   let loopSlotAssigned = $state(Array.from({ length: 8 }, () => false));
   let loopSlotPattern = Array.from({ length: 8 }, () => 0);
-  let headerToggleSlots = $state(Array.from({ length: 4 }, () => false));
+  let combinationModeMask = $state(0);
   let pulseIndex = $state(defaultPulseIndex);
   let swingPercent = $state(0);
   let velocityHumanizePercent = $state(0);
@@ -188,8 +189,24 @@
     }`;
   }
 
-  function toggleHeaderSlot(slot) {
-    headerToggleSlots[slot] = !headerToggleSlots[slot];
+  async function toggleCombinationMode(modeIndex) {
+    const bit = 1 << modeIndex;
+    const enabled = (combinationModeMask & bit) === 0;
+    const nextMask = enabled ? combinationModeMask | bit : combinationModeMask & ~bit;
+
+    combinationModeMask = nextMask;
+
+    if (!nativeFunctionAvailable("setCombinationModeEnabled")) return;
+
+    const confirmed = await getNativeFunction("setCombinationModeEnabled")(
+      modeIndex,
+      enabled ? 1 : 0,
+    );
+    const parsed = Number.parseInt(String(confirmed), 10);
+
+    if (!Number.isNaN(parsed)) {
+      combinationModeMask = parsed & 0xf;
+    }
   }
 
   function slotButtonClasses(active, assigned = true, copySource = false) {
@@ -549,6 +566,7 @@
       velocityHumanizePercent,
       timingHumanizePercent,
       swingSubdivisionIndex,
+      combinationModeMask,
       loopBraceEnabled,
       loopBraceStart,
       loopBraceEnd,
@@ -603,6 +621,7 @@
     velocityHumanizePercent = next.velocityHumanizePercent;
     timingHumanizePercent = next.timingHumanizePercent;
     swingSubdivisionIndex = next.swingSubdivisionIndex;
+    combinationModeMask = next.combinationModeMask ?? 0;
     loopBraceEnabled = next.loopBraceEnabled;
     loopBraceStart = next.loopBraceStart;
     loopBraceEnd = next.loopBraceEnd;
@@ -632,6 +651,7 @@
     stepProbability = cloneMatrix(state.phraseStepProbability ?? stepProbability);
     stepCycle = cloneMatrix(state.phraseStepCycle ?? stepCycle);
     stepCycleOffset = cloneMatrix(state.phraseStepCycleOffset ?? stepCycleOffset);
+    combinationModeMask = Number.parseInt(String(state.combinationModeMask ?? 0), 10) & 0xf;
     loopBraceEnabled = Boolean(Number.parseInt(String(state.loopBraceEnabled ?? 0), 10));
     loopBraceStart = Number.parseFloat(String(state.loopBraceStart ?? 0));
     loopBraceEnd = Number.parseFloat(String(state.loopBraceEnd ?? 8));
@@ -730,6 +750,14 @@
 
     if (nativeFunctionAvailable("setSwingSubdivisionIndex")) {
       await getNativeFunction("setSwingSubdivisionIndex")(snapshot.swingSubdivisionIndex);
+    }
+
+    if (nativeFunctionAvailable("setCombinationModeEnabled")) {
+      const setCombinationModeEnabled = getNativeFunction("setCombinationModeEnabled");
+
+      for (const mode of combinationModes) {
+        await setCombinationModeEnabled(mode.index, (snapshot.combinationModeMask & mode.bit) !== 0 ? 1 : 0);
+      }
     }
 
     if (snapshot.loopBraceStart > previousSnapshot.loopBraceStart) {
@@ -2154,6 +2182,14 @@
     rowColorsEnabled = init === true || init === 1 || init === "1";
   }
 
+  function loadCombinationModesFromInitialisation() {
+    const init = unwrapJuceInit("combinationModeMask");
+    const raw = Array.isArray(init) ? init[0] : init;
+    const value = Number.parseInt(String(raw ?? 0), 10);
+
+    combinationModeMask = Number.isNaN(value) ? 0 : value & 0xf;
+  }
+
   async function pushLoopBraceEnabled(enabled) {
     if (!nativeFunctionAvailable("setLoopBraceEnabled")) return;
 
@@ -2437,6 +2473,7 @@
     loadHumanizeControlsFromInitialisation();
     loadLoopBraceFromInitialisation();
     loadRowColorsFromInitialisation();
+    loadCombinationModesFromInitialisation();
     loadStandaloneTransportFromInitialisation();
     loadSlotStateFromInitialisation();
   }
@@ -2540,30 +2577,32 @@
     <div class="flex min-w-0 flex-1 flex-nowrap items-end justify-center gap-x-3">
         <div class="flex shrink-0 flex-col gap-1">
           <div class="flex items-center gap-1">
-            {#each [0, 1] as slot (slot)}
+            {#each combinationModes.slice(0, 2) as mode (mode.index)}
               <button
                 type="button"
-                aria-label={`Toggle slot ${slot + 1}`}
-                aria-pressed={headerToggleSlots[slot]}
+                aria-label={`Toggle ${mode.name} mode`}
+                aria-pressed={(combinationModeMask & mode.bit) !== 0}
+                title={mode.name}
                 data-cursor="pointer"
-                class={slotButtonClasses(headerToggleSlots[slot], true)}
-                onclick={() => toggleHeaderSlot(slot)}
+                class={slotButtonClasses((combinationModeMask & mode.bit) !== 0, true)}
+                onclick={() => toggleCombinationMode(mode.index)}
               >
-                {slot + 1}
+                {mode.label}
               </button>
             {/each}
           </div>
           <div class="flex items-center gap-1">
-            {#each [2, 3] as slot (slot)}
+            {#each combinationModes.slice(2, 4) as mode (mode.index)}
               <button
                 type="button"
-                aria-label={`Toggle slot ${slot + 1}`}
-                aria-pressed={headerToggleSlots[slot]}
+                aria-label={`Toggle ${mode.name} mode`}
+                aria-pressed={(combinationModeMask & mode.bit) !== 0}
+                title={mode.name}
                 data-cursor="pointer"
-                class={slotButtonClasses(headerToggleSlots[slot], true)}
-                onclick={() => toggleHeaderSlot(slot)}
+                class={slotButtonClasses((combinationModeMask & mode.bit) !== 0, true)}
+                onclick={() => toggleCombinationMode(mode.index)}
               >
-                {slot + 1}
+                {mode.label}
               </button>
             {/each}
           </div>
@@ -3000,6 +3039,7 @@
         stepProbability={stepProbability}
         stepCycle={stepCycle}
         stepCycleOffset={stepCycleOffset}
+        {combinationModeMask}
         {pulseIndex}
         {swingPercent}
         {swingSubdivisionIndex}

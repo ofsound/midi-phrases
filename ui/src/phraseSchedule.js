@@ -4,6 +4,13 @@ import { timingMultiplierAtIndex, timingOffsetValues } from "./stepCellLayout.js
 export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
 
 const EPSILON = 1e-9;
+const MAX_COMBINED_PREVIEW_NOTES = 4096;
+export const combinationModes = [
+  { index: 0, bit: 1, label: "W", name: "Weave" },
+  { index: 1, bit: 2, label: "L", name: "Logic" },
+  { index: 2, bit: 4, label: "X", name: "Cross-Mod" },
+  { index: 3, bit: 8, label: "E", name: "Echo" },
+];
 export const swingSubdivisionValues = [0.25, 0.5, 1];
 
 /** @type {{ index: number, label: string }[]} */
@@ -30,6 +37,28 @@ export function probabilityPasses(step, triggerCount, probability) {
   const hash = (step * 2654435761 + triggerCount * 1597334677) >>> 0;
 
   return hash % 100 < chance;
+}
+
+/** @param {number} mask @param {number} modeIndex */
+export function combinationModeEnabled(mask, modeIndex) {
+  return (mask & (1 << modeIndex)) !== 0;
+}
+
+/** @param {number} row @param {number} step @param {number} ppq */
+function deterministicEventHash(row, step, ppq) {
+  let value =
+    ((row + 1) * 0x9e3779b9) ^
+    ((step + 1) * 0x85ebca6b) ^
+    (Math.round(ppq * 960) * 0xc2b2ae35);
+
+  value >>>= 0;
+  value ^= value >>> 16;
+  value = Math.imul(value, 0x7feb352d);
+  value ^= value >>> 15;
+  value = Math.imul(value, 0x846ca68b);
+  value ^= value >>> 16;
+
+  return value >>> 0;
 }
 
 /**
@@ -128,6 +157,7 @@ export function stepStartInCycleForStep(stepStartQuarters, step) {
  * @param {number} [params.pulseIndex]
  * @param {number} [params.swingPercent]
  * @param {number} [params.swingSubdivisionIndex]
+ * @param {number} [params.combinationModeMask]
  * @param {number} [params.lengthQuarters]
  * @returns {ScheduledNote[]}
  */
@@ -146,6 +176,7 @@ export function buildPhraseSchedule({
   pulseIndex = defaultPulseIndex,
   swingPercent = 0,
   swingSubdivisionIndex = 1,
+  combinationModeMask = 0,
   lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
 }) {
   const ppqStart = 0;
@@ -281,7 +312,183 @@ export function buildPhraseSchedule({
     flushActive(ppqEnd);
   }
 
-  return scheduled.sort((a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row);
+  const sorted = scheduled.sort((a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row);
+
+  return applyCombinationModes({
+    scheduled: sorted,
+    notes,
+    rowMuted,
+    stepTimingMultiplier,
+    stepVelocity,
+    stepDurationFraction,
+    stepMuted,
+    stepSkipped,
+    pulseIndex,
+    combinationModeMask,
+    lengthQuarters,
+  });
+}
+
+/** @param {ScheduledNote[]} events */
+function groupByStart(events) {
+  /** @type {ScheduledNote[][]} */
+  const groups = [];
+
+  for (const event of events) {
+    const group = groups[groups.length - 1];
+
+    if (group && Math.abs(group[0].start - event.start) <= EPSILON) {
+      group.push(event);
+    } else {
+      groups.push([event]);
+    }
+  }
+
+  return groups;
+}
+
+/**
+ * @param {object} params
+ * @param {ScheduledNote[]} params.scheduled
+ * @param {number[][]} params.notes
+ * @param {boolean[]} params.rowMuted
+ * @param {number[][]} params.stepTimingMultiplier
+ * @param {number[][]} params.stepVelocity
+ * @param {number[][]} params.stepDurationFraction
+ * @param {boolean[][]} params.stepMuted
+ * @param {boolean[][]} params.stepSkipped
+ * @param {number} params.pulseIndex
+ * @param {number} params.combinationModeMask
+ * @param {number} params.lengthQuarters
+ * @returns {ScheduledNote[]}
+ */
+function applyCombinationModes({
+  scheduled,
+  notes,
+  rowMuted,
+  stepTimingMultiplier,
+  stepVelocity,
+  stepDurationFraction,
+  stepMuted,
+  stepSkipped,
+  pulseIndex,
+  combinationModeMask,
+  lengthQuarters,
+}) {
+  if ((combinationModeMask & 0xf) === 0 || scheduled.length === 0) return scheduled;
+
+  let events = scheduled.map((event) => ({ ...event }));
+  const activeRows = notes
+    .map((rowNotes, row) => ({ row, rowNotes }))
+    .filter(({ row, rowNotes }) => !rowMuted[row] && rowNotes.length > 0)
+    .map(({ row }) => row);
+
+  if (activeRows.length === 0) return [];
+
+  if (combinationModeEnabled(combinationModeMask, 1)) {
+    events = groupByStart(events)
+      .filter((group) => group.length === 1)
+      .map((group) => group[0]);
+  }
+
+  if (events.length === 0) return [];
+
+  if (combinationModeEnabled(combinationModeMask, 2) && activeRows.length > 1) {
+    events = events.map((event) => {
+      const activeIndex = Math.max(0, activeRows.indexOf(event.row));
+      const pitchRow = activeRows[(activeIndex + 1) % activeRows.length];
+      const velocityRow = activeRows[(activeIndex + 2) % activeRows.length];
+      const durationRow = activeRows[(activeIndex + 3) % activeRows.length];
+      const pitchStep = event.step % Math.max(1, notes[pitchRow]?.length ?? 1);
+      const velocityStep = event.step % Math.max(1, stepVelocity[velocityRow]?.length ?? 1);
+      const durationStep = event.step % Math.max(1, stepDurationFraction[durationRow]?.length ?? 1);
+      const pitchBase = notes[pitchRow]?.[0] ?? 60;
+      const interval = (notes[pitchRow]?.[pitchStep] ?? pitchBase) - pitchBase;
+      const layout = rowStepLayout(
+        stepTimingMultiplier[durationRow] ?? [],
+        pulseIndex,
+        stepSkipped[durationRow] ?? [],
+      );
+      const duration =
+        (layout.stepLengthQuarters[durationStep] ?? event.end - event.start) *
+        (stepDurationFraction[durationRow]?.[durationStep] ?? 1);
+
+      return {
+        ...event,
+        midi: Math.min(127, Math.max(0, event.midi + interval)),
+        velocity: Math.min(127, Math.max(1, stepVelocity[velocityRow]?.[velocityStep] ?? event.velocity)),
+        end: event.start + (duration > EPSILON ? duration : event.end - event.start),
+      };
+    });
+  }
+
+  if (combinationModeEnabled(combinationModeMask, 3) && activeRows.length > 1) {
+    /** @type {ScheduledNote[]} */
+    const multiplied = [];
+
+    for (const event of events) {
+      const activeIndex = Math.max(0, activeRows.indexOf(event.row));
+      const modRow = activeRows[(activeIndex + 1) % activeRows.length];
+      const modNotes = notes[modRow] ?? [];
+      const modBase = modNotes[0] ?? 60;
+      const modLayout = rowStepLayout(
+        stepTimingMultiplier[modRow] ?? [],
+        pulseIndex,
+        stepSkipped[modRow] ?? [],
+      );
+
+      for (let modStep = 0; modStep < modNotes.length; modStep += 1) {
+        if (multiplied.length >= MAX_COMBINED_PREVIEW_NOTES) break;
+        if (stepSkipped[modRow]?.[modStep] || stepMuted[modRow]?.[modStep]) continue;
+        if ((stepVelocity[modRow]?.[modStep] ?? 0) <= 0) continue;
+
+        const start = event.start + (modLayout.stepStartQuarters[modStep] ?? 0);
+
+        if (start < -EPSILON || start >= lengthQuarters - EPSILON) continue;
+
+        const modDuration =
+          (modLayout.stepLengthQuarters[modStep] ?? event.end - event.start) *
+          (stepDurationFraction[modRow]?.[modStep] ?? 1);
+        const duration = Math.min(event.end - event.start, modDuration);
+
+        if (duration <= EPSILON) continue;
+
+        multiplied.push({
+          ...event,
+          start,
+          end: start + duration,
+          midi: Math.min(127, Math.max(0, event.midi + modNotes[modStep] - modBase)),
+          velocity: Math.round((event.velocity + (stepVelocity[modRow]?.[modStep] ?? event.velocity)) / 2),
+          step: modStep,
+        });
+      }
+    }
+
+    events = multiplied;
+  }
+
+  if (events.length === 0) return [];
+
+  events = events.sort((a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row);
+
+  if (combinationModeEnabled(combinationModeMask, 0)) {
+    events = groupByStart(events).map((group) => {
+      if (group.length === 1) return group[0];
+
+      const totalWeight = group.reduce((total, event) => total + Math.max(1, event.velocity), 0);
+      let pick = deterministicEventHash(group[0].row, group[0].step, group[0].start) % Math.max(1, totalWeight);
+
+      for (const event of group) {
+        pick -= Math.max(1, event.velocity);
+
+        if (pick < 0) return event;
+      }
+
+      return group[group.length - 1];
+    });
+  }
+
+  return events.sort((a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row);
 }
 
 /** @param {ScheduledNote[]} scheduled @param {number} [paddingSemitones] */

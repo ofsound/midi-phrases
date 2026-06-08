@@ -11,7 +11,7 @@ constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5,
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 12;
+constexpr int phraseStateVersion = 13;
 
 int clampStepProbability (const int probability)
 {
@@ -54,6 +54,38 @@ double nextRandomUnitDouble (std::uint32_t& state)
 int clampPercent (const int percent)
 {
     return juce::jlimit (0, 100, percent);
+}
+
+int combinationModeBit (const int modeIndex)
+{
+    if (modeIndex < 0 || modeIndex >= PluginProcessor::combinationModeCount)
+        return 0;
+
+    return 1 << modeIndex;
+}
+
+int clampCombinationModeMask (const int mask)
+{
+    return mask & ((1 << PluginProcessor::combinationModeCount) - 1);
+}
+
+bool combinationModeEnabled (const int mask, const int modeIndex)
+{
+    const auto bit = combinationModeBit (modeIndex);
+    return bit != 0 && (mask & bit) != 0;
+}
+
+std::uint32_t deterministicEventHash (const int row, const int step, const double ppq)
+{
+    auto value = static_cast<std::uint32_t> (row + 1) * 0x9E3779B9u
+                 ^ static_cast<std::uint32_t> (step + 1) * 0x85EBCA6Bu
+                 ^ static_cast<std::uint32_t> (std::llround (ppq * 960.0)) * 0xC2B2AE35u;
+    value ^= value >> 16;
+    value *= 0x7FEB352Du;
+    value ^= value >> 15;
+    value *= 0x846CA68Bu;
+    value ^= value >> 16;
+    return value;
 }
 
 int humanizeVelocityValue (int velocity, const int humanizePercent, std::uint32_t& randomState)
@@ -175,10 +207,17 @@ void PluginProcessor::resetPendingNoteOns()
     pendingNoteOnCount = 0;
 }
 
+void PluginProcessor::resetPendingCombinedNoteOffs()
+{
+    pendingCombinedNoteOffCount = 0;
+}
+
 void PluginProcessor::resetActiveGeneratedNotes()
 {
     for (auto& channelNotes : activeGeneratedNoteCounts)
         channelNotes.fill (0);
+
+    resetPendingCombinedNoteOffs();
 }
 
 void PluginProcessor::resetLastEmittedTriggers()
@@ -246,6 +285,48 @@ void PluginProcessor::flushPendingGeneratedNoteOffs (const int sampleOffset,
         pending.note = -1;
         pending.samplesRemaining = 0;
     }
+
+    for (size_t i = 0; i < pendingCombinedNoteOffCount; ++i)
+    {
+        const auto& pending = pendingCombinedNoteOffs[i];
+
+        if (pending.note >= 0)
+            emitGeneratedNoteOff (pending.channel, pending.note, offset, midiMessages);
+    }
+
+    resetPendingCombinedNoteOffs();
+}
+
+void PluginProcessor::flushPendingCombinedNoteOffs (const int bufferSamples,
+                                                    juce::MidiBuffer& midiMessages)
+{
+    if (pendingCombinedNoteOffCount == 0)
+        return;
+
+    size_t writeIndex = 0;
+
+    for (size_t i = 0; i < pendingCombinedNoteOffCount; ++i)
+    {
+        auto pending = pendingCombinedNoteOffs[i];
+
+        if (pending.note < 0)
+            continue;
+
+        if (pending.samplesRemaining < bufferSamples)
+        {
+            emitGeneratedNoteOff (pending.channel,
+                                  pending.note,
+                                  pending.samplesRemaining,
+                                  midiMessages);
+        }
+        else
+        {
+            pending.samplesRemaining -= bufferSamples;
+            pendingCombinedNoteOffs[writeIndex++] = pending;
+        }
+    }
+
+    pendingCombinedNoteOffCount = writeIndex;
 }
 
 void PluginProcessor::flushActiveGeneratedNotes (const int sampleOffset,
@@ -530,7 +611,8 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
         if (command.type != SequencerCommand::Type::ReplacePattern
             && command.type != SequencerCommand::Type::SetLoopBraceEnabled
             && command.type != SequencerCommand::Type::SetLoopBraceStart
-            && command.type != SequencerCommand::Type::SetLoopBraceEnd)
+            && command.type != SequencerCommand::Type::SetLoopBraceEnd
+            && command.type != SequencerCommand::Type::SetCombinationModeMask)
             return;
     }
 
@@ -806,6 +888,10 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
                 clampLoopBraceEnd (command.doubleValue, pattern.loopBrace.startQuarters);
             break;
 
+        case SequencerCommand::Type::SetCombinationModeMask:
+            state.combinationModeMask = clampCombinationModeMask (command.intValue);
+            break;
+
         case SequencerCommand::Type::ReplacePattern:
             pattern = command.patternState;
             for (auto& patternRow : pattern.sequencer.rows)
@@ -818,7 +904,8 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
         && (command.type == SequencerCommand::Type::ReplacePattern
             || command.type == SequencerCommand::Type::ReplaceRow
             || command.type == SequencerCommand::Type::SetRowMuted
-            || command.type == SequencerCommand::Type::SetRowMidiChannel))
+            || command.type == SequencerCommand::Type::SetRowMidiChannel
+            || command.type == SequencerCommand::Type::SetCombinationModeMask))
     {
         for (auto& flush : phraseRowFlushNoteOff)
             flush.store (1);
@@ -1026,6 +1113,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
     resetPendingNoteOffs();
     resetPendingNoteOns();
+    resetPendingCombinedNoteOffs();
     resetActiveGeneratedNotes();
 }
 
@@ -1076,6 +1164,47 @@ bool PluginProcessor::isPhraseRowMuted (int row) const
         return false;
 
     return modelSequencer().muted[static_cast<size_t> (row)] != 0;
+}
+
+void PluginProcessor::setCombinationModeEnabled (const int modeIndex, const bool enabled)
+{
+    const auto bit = combinationModeBit (modeIndex);
+
+    if (bit == 0)
+        return;
+
+    auto& state = modelSequencer();
+    const auto previous = clampCombinationModeMask (state.combinationModeMask);
+    const auto next = enabled ? (previous | bit) : (previous & ~bit);
+
+    if (next == previous)
+        return;
+
+    state.combinationModeMask = next;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetCombinationModeMask;
+    command.patternSlot = getViewPatternSlot();
+    command.intValue = next;
+    publishCommandToAudio (command);
+
+    for (auto& flush : phraseRowFlushNoteOff)
+        flush.store (1);
+}
+
+bool PluginProcessor::isCombinationModeEnabled (const int modeIndex) const
+{
+    return combinationModeEnabled (getCombinationModeMask(), modeIndex);
+}
+
+int PluginProcessor::getCombinationModeMask() const
+{
+    return clampCombinationModeMask (modelSequencer().combinationModeMask);
+}
+
+int PluginProcessor::getPatternCombinationModeMask (const int patternSlot) const
+{
+    return clampCombinationModeMask (modelPattern (patternSlot).sequencer.combinationModeMask);
 }
 
 void PluginProcessor::reverseRowSteps (PhraseRowSteps& steps)
@@ -1903,6 +2032,7 @@ void PluginProcessor::applyMuteOutputSilence (juce::MidiBuffer& midiMessages)
     resetLastEmittedTriggers();
     resetPendingNoteOffs();
     resetPendingNoteOns();
+    resetPendingCombinedNoteOffs();
     resetStepCycleCounters();
 }
 
@@ -1930,6 +2060,7 @@ void PluginProcessor::applyAudioPatternSlot (const int patternSlot)
     resetLastEmittedTriggers();
     resetPendingNoteOffs();
     resetPendingNoteOns();
+    resetPendingCombinedNoteOffs();
     resetStepCycleCounters();
 }
 
@@ -2417,6 +2548,7 @@ void PluginProcessor::applyAudioLoopSlot (const int loopSlot, const double reanc
     resetLastEmittedTriggers();
     resetPendingNoteOffs();
     resetPendingNoteOns();
+    resetPendingCombinedNoteOffs();
     resetStepCycleCounters();
 }
 
@@ -2906,6 +3038,457 @@ void PluginProcessor::processTransportPlaybackRange (const double transportPpqSt
     }
 }
 
+void PluginProcessor::processCombinedScheduledRange (const double schedulePpqStart,
+                                                     const double schedulePpqEnd,
+                                                     const double segmentTransportStartPpq,
+                                                     const double bufferTransportStartPpq,
+                                                     const int bufferSamples,
+                                                     const double ppqPerSample,
+                                                     juce::MidiBuffer& midiMessages,
+                                                     const bool resetRowTriggersAtSegmentStart)
+{
+    constexpr auto epsilon = 1.0e-9;
+    const auto& state = audioSequencer();
+    const auto modeMask = clampCombinationModeMask (state.combinationModeMask);
+    const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
+    const auto swing = swingPercent.load (std::memory_order_relaxed);
+    const auto velocityHumanize = velocityHumanizePercent.load (std::memory_order_relaxed);
+    const auto timingHumanize = timingHumanizePercent.load (std::memory_order_relaxed);
+    const auto swingSubdivision = swingSubdivisionIndex.load (std::memory_order_relaxed);
+
+    std::array<int, phraseRowCount> activeRows {};
+    auto activeRowCount = 0;
+
+    for (int row = 0; row < phraseRowCount; ++row)
+    {
+        if (state.muted[static_cast<size_t> (row)] == 0
+            && state.rows[static_cast<size_t> (row)].stepCount > 0
+            && state.rows[static_cast<size_t> (row)].cycleLengthQuarters > 0.0)
+        {
+            activeRows[static_cast<size_t> (activeRowCount++)] = row;
+        }
+    }
+
+    if (activeRowCount == 0)
+        return;
+
+    auto eventCount = static_cast<size_t> (0);
+    const auto appendEvent = [&] (const CombinedNoteEvent& event) {
+        if (eventCount >= combinedEvents.size())
+            return false;
+
+        combinedEvents[eventCount++] = event;
+        return true;
+    };
+
+    for (int row = 0; row < phraseRowCount; ++row)
+    {
+        if (state.muted[static_cast<size_t> (row)] != 0)
+            continue;
+
+        const auto& rowSteps = state.rows[static_cast<size_t> (row)];
+        const auto stepCount = rowSteps.stepCount;
+        const auto cycleLengthQuarters = rowSteps.cycleLengthQuarters;
+
+        if (stepCount <= 0 || cycleLengthQuarters <= 0.0)
+            continue;
+
+        const auto offset =
+            rowTimingOffsetForIndex (state.timingOffset[static_cast<size_t> (row)]) * pulse;
+        auto& scratch = processScratch[static_cast<size_t> (row)];
+        auto triggerCount = 0;
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            if (rowSteps.stepSkipped[static_cast<size_t> (step)] != 0)
+                continue;
+
+            const auto stepStartInCycle = rowSteps.stepStartQuarters[static_cast<size_t> (step)];
+            const auto nMin = static_cast<int> (std::ceil (
+                (schedulePpqStart - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+            const auto nMax = static_cast<int> (std::floor (
+                (schedulePpqEnd - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+
+            for (int cycle = nMin; cycle <= nMax; ++cycle)
+            {
+                const auto triggerPpq = static_cast<double> (cycle) * cycleLengthQuarters
+                                        + stepStartInCycle + offset;
+
+                if (triggerPpq < schedulePpqStart - epsilon || triggerPpq >= schedulePpqEnd - epsilon)
+                    continue;
+
+                if (triggerCount >= static_cast<int> (scratch.triggers.size()))
+                    break;
+
+                scratch.triggers[static_cast<size_t> (triggerCount)] = { triggerPpq, step };
+                ++triggerCount;
+            }
+        }
+
+        if (triggerCount == 0)
+            continue;
+
+        std::sort (scratch.triggers.begin(),
+                   scratch.triggers.begin() + triggerCount,
+                   [] (const ProcessScratch::StepTrigger& a, const ProcessScratch::StepTrigger& b) {
+                       return a.ppq < b.ppq;
+                   });
+
+        auto& lastTrigger = lastEmittedTriggerPpq[static_cast<size_t> (row)];
+
+        if (resetRowTriggersAtSegmentStart)
+            lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
+        else if (schedulePpqStart + epsilon < lastTrigger)
+            lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
+
+        for (int triggerIndex = 0; triggerIndex < triggerCount; ++triggerIndex)
+        {
+            const auto trigger = scratch.triggers[static_cast<size_t> (triggerIndex)];
+
+            if (trigger.ppq <= lastTrigger + epsilon)
+                continue;
+
+            lastTrigger = trigger.ppq;
+
+            const auto step = trigger.step;
+            auto velocity = rowSteps.velocity[static_cast<size_t> (step)];
+
+            if (velocity <= 0 || rowSteps.stepMuted[static_cast<size_t> (step)] != 0)
+                continue;
+
+            const auto cycle = clampStepCycle (rowSteps.cycle[static_cast<size_t> (step)]);
+            const auto cycleOffset =
+                clampStepCycleOffset (rowSteps.cycleOffset[static_cast<size_t> (step)], cycle);
+
+            if (cycle > 1)
+            {
+                auto& counter = stepCycleCounters[static_cast<size_t> (row)][static_cast<size_t> (step)];
+                const auto count = static_cast<int> (counter++);
+
+                if (! cycleGateMatches (count, cycle, cycleOffset))
+                    continue;
+            }
+
+            const auto probability =
+                clampStepProbability (rowSteps.probability[static_cast<size_t> (step)]);
+
+            if (probability <= 0)
+                continue;
+
+            if (probability < 100
+                && nextRandomUnit (playbackRandomState) * 100.0f
+                       >= static_cast<float> (probability))
+                continue;
+
+            const auto gateQuarters =
+                rowSteps.stepLengthQuarters[static_cast<size_t> (step)]
+                * rowSteps.durationFraction[static_cast<size_t> (step)];
+
+            if (gateQuarters <= epsilon)
+                continue;
+
+            velocity = humanizeVelocityValue (velocity, velocityHumanize, playbackRandomState);
+
+            if (! appendEvent (CombinedNoteEvent { trigger.ppq,
+                                                   gateQuarters,
+                                                   row,
+                                                   step,
+                                                   state.midiChannel[static_cast<size_t> (row)],
+                                                   rowSteps.notes[static_cast<size_t> (step)],
+                                                   velocity }))
+                break;
+        }
+    }
+
+    if (eventCount == 0)
+        return;
+
+    std::sort (combinedEvents.begin(),
+               combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
+               [] (const CombinedNoteEvent& a, const CombinedNoteEvent& b) {
+                   if (std::abs (a.ppq - b.ppq) > 1.0e-9)
+                       return a.ppq < b.ppq;
+
+                   return a.row == b.row ? a.step < b.step : a.row < b.row;
+               });
+
+    const auto copyFilteredEvents = [&] (const size_t count) {
+        for (size_t index = 0; index < count; ++index)
+            combinedEvents[index] = combinedWorkingEvents[index];
+    };
+
+    if (combinationModeEnabled (modeMask, combinationModeLogic))
+    {
+        auto write = static_cast<size_t> (0);
+
+        for (size_t read = 0; read < eventCount;)
+        {
+            auto groupEnd = read + 1;
+
+            while (groupEnd < eventCount
+                   && std::abs (combinedEvents[groupEnd].ppq - combinedEvents[read].ppq) <= epsilon)
+            {
+                ++groupEnd;
+            }
+
+            if (groupEnd - read == 1 && write < combinedWorkingEvents.size())
+                combinedWorkingEvents[write++] = combinedEvents[read];
+
+            read = groupEnd;
+        }
+
+        eventCount = write;
+        copyFilteredEvents (eventCount);
+
+        if (eventCount == 0)
+            return;
+    }
+
+    if (combinationModeEnabled (modeMask, combinationModeCrossModulation) && activeRowCount > 1)
+    {
+        const auto activeRowPosition = [&] (const int row) {
+            for (int index = 0; index < activeRowCount; ++index)
+            {
+                if (activeRows[static_cast<size_t> (index)] == row)
+                    return index;
+            }
+
+            return 0;
+        };
+
+        const auto firstNoteForRow = [&] (const int row) {
+            const auto& rowSteps = state.rows[static_cast<size_t> (row)];
+            return rowSteps.stepCount > 0 ? rowSteps.notes[0] : defaultNoteForRow (row);
+        };
+
+        for (size_t index = 0; index < eventCount; ++index)
+        {
+            auto& event = combinedEvents[index];
+            const auto position = activeRowPosition (event.row);
+            const auto pitchRow = activeRows[static_cast<size_t> ((position + 1) % activeRowCount)];
+            const auto velocityRow = activeRows[static_cast<size_t> ((position + 2) % activeRowCount)];
+            const auto durationRow = activeRows[static_cast<size_t> ((position + 3) % activeRowCount)];
+            const auto& pitchSteps = state.rows[static_cast<size_t> (pitchRow)];
+            const auto& velocitySteps = state.rows[static_cast<size_t> (velocityRow)];
+            const auto& durationSteps = state.rows[static_cast<size_t> (durationRow)];
+            const auto pitchStep = event.step % juce::jmax (1, pitchSteps.stepCount);
+            const auto velocityStep = event.step % juce::jmax (1, velocitySteps.stepCount);
+            const auto durationStep = event.step % juce::jmax (1, durationSteps.stepCount);
+            const auto interval = pitchSteps.notes[static_cast<size_t> (pitchStep)]
+                                  - firstNoteForRow (pitchRow);
+            event.note = juce::jlimit (0, 127, event.note + interval);
+            event.velocity = juce::jlimit (
+                1,
+                127,
+                velocitySteps.velocity[static_cast<size_t> (velocityStep)]);
+
+            const auto durationGate =
+                durationSteps.stepLengthQuarters[static_cast<size_t> (durationStep)]
+                * durationSteps.durationFraction[static_cast<size_t> (durationStep)];
+
+            if (durationGate > epsilon)
+                event.gateQuarters = durationGate;
+        }
+    }
+
+    if (combinationModeEnabled (modeMask, combinationModeMultiplyEcho) && activeRowCount > 1)
+    {
+        const auto activeRowPosition = [&] (const int row) {
+            for (int index = 0; index < activeRowCount; ++index)
+            {
+                if (activeRows[static_cast<size_t> (index)] == row)
+                    return index;
+            }
+
+            return 0;
+        };
+
+        auto write = static_cast<size_t> (0);
+
+        for (size_t read = 0; read < eventCount && write < combinedWorkingEvents.size(); ++read)
+        {
+            const auto& carrier = combinedEvents[read];
+            const auto position = activeRowPosition (carrier.row);
+            const auto modRow = activeRows[static_cast<size_t> ((position + 1) % activeRowCount)];
+            const auto& modSteps = state.rows[static_cast<size_t> (modRow)];
+            const auto modBaseNote = modSteps.stepCount > 0
+                                         ? modSteps.notes[0]
+                                         : defaultNoteForRow (modRow);
+
+            for (int modStep = 0; modStep < modSteps.stepCount && write < combinedWorkingEvents.size(); ++modStep)
+            {
+                const auto modIndex = static_cast<size_t> (modStep);
+
+                if (modSteps.stepSkipped[modIndex] != 0
+                    || modSteps.stepMuted[modIndex] != 0
+                    || modSteps.velocity[modIndex] <= 0)
+                    continue;
+
+                auto next = carrier;
+                next.ppq = carrier.ppq + modSteps.stepStartQuarters[modIndex];
+
+                if (next.ppq < schedulePpqStart - epsilon || next.ppq >= schedulePpqEnd - epsilon)
+                    continue;
+
+                const auto modGate =
+                    modSteps.stepLengthQuarters[modIndex] * modSteps.durationFraction[modIndex];
+
+                if (modGate <= epsilon)
+                    continue;
+
+                next.note = juce::jlimit (0, 127, carrier.note + modSteps.notes[modIndex] - modBaseNote);
+                next.velocity = juce::jlimit (1, 127, (carrier.velocity + modSteps.velocity[modIndex]) / 2);
+                next.gateQuarters = juce::jmin (carrier.gateQuarters, modGate);
+                next.step = modStep;
+                combinedWorkingEvents[write++] = next;
+            }
+        }
+
+        eventCount = write;
+        copyFilteredEvents (eventCount);
+
+        if (eventCount == 0)
+            return;
+
+        std::sort (combinedEvents.begin(),
+                   combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
+                   [] (const CombinedNoteEvent& a, const CombinedNoteEvent& b) {
+                       if (std::abs (a.ppq - b.ppq) > 1.0e-9)
+                           return a.ppq < b.ppq;
+
+                       return a.note == b.note ? a.row < b.row : a.note < b.note;
+                   });
+    }
+
+    if (combinationModeEnabled (modeMask, combinationModeWeave))
+    {
+        auto write = static_cast<size_t> (0);
+
+        for (size_t read = 0; read < eventCount;)
+        {
+            auto groupEnd = read + 1;
+
+            while (groupEnd < eventCount
+                   && std::abs (combinedEvents[groupEnd].ppq - combinedEvents[read].ppq) <= epsilon)
+            {
+                ++groupEnd;
+            }
+
+            if (groupEnd - read == 1)
+            {
+                if (write < combinedWorkingEvents.size())
+                    combinedWorkingEvents[write++] = combinedEvents[read];
+            }
+            else
+            {
+                auto totalWeight = 0;
+
+                for (size_t index = read; index < groupEnd; ++index)
+                    totalWeight += juce::jmax (1, combinedEvents[index].velocity);
+
+                auto pick = static_cast<int> (
+                    deterministicEventHash (combinedEvents[read].row,
+                                            combinedEvents[read].step,
+                                            combinedEvents[read].ppq)
+                    % static_cast<std::uint32_t> (juce::jmax (1, totalWeight)));
+                auto selected = read;
+
+                for (size_t index = read; index < groupEnd; ++index)
+                {
+                    pick -= juce::jmax (1, combinedEvents[index].velocity);
+
+                    if (pick < 0)
+                    {
+                        selected = index;
+                        break;
+                    }
+                }
+
+                if (write < combinedWorkingEvents.size())
+                    combinedWorkingEvents[write++] = combinedEvents[selected];
+            }
+
+            read = groupEnd;
+        }
+
+        eventCount = write;
+        copyFilteredEvents (eventCount);
+    }
+
+    for (size_t index = 0; index < eventCount; ++index)
+    {
+        auto event = combinedEvents[index];
+
+        if (event.gateQuarters <= epsilon || event.velocity <= 0)
+            continue;
+
+        const auto stepLength = event.gateQuarters;
+        const auto swingDelay = swingDelayQuartersForPpq (event.ppq, pulse, swing, swingSubdivision);
+        const auto timingRange = stepLength * timingHumanizeScale
+                                 * (static_cast<double> (clampPercent (timingHumanize)) / 100.0);
+        const auto timingOffset =
+            timingRange > 0.0 ? (nextRandomUnitDouble (playbackRandomState) * 2.0 - 1.0) * timingRange
+                              : 0.0;
+        const auto delayQuarters = juce::jmax (0.0, swingDelay + timingOffset);
+        const auto transportPpqAtNoteOn =
+            segmentTransportStartPpq + (event.ppq + delayQuarters - schedulePpqStart);
+        const auto sampleOffset = static_cast<int> (std::lround (
+            (transportPpqAtNoteOn - bufferTransportStartPpq) / ppqPerSample));
+        const auto segmentTransportEndPpq =
+            segmentTransportStartPpq + (schedulePpqEnd - schedulePpqStart);
+        const auto bufferTransportEndPpq =
+            bufferTransportStartPpq + static_cast<double> (bufferSamples) * ppqPerSample;
+        const auto scheduleEndsBeforeBuffer =
+            segmentTransportEndPpq < bufferTransportEndPpq - epsilon;
+        const auto gateEndTransportPpq =
+            scheduleEndsBeforeBuffer
+                ? juce::jmin (transportPpqAtNoteOn + event.gateQuarters, segmentTransportEndPpq)
+                : transportPpqAtNoteOn + event.gateQuarters;
+        const auto effectiveGateQuarters = gateEndTransportPpq - transportPpqAtNoteOn;
+
+        if (effectiveGateQuarters <= epsilon)
+            continue;
+
+        const auto noteGateSamples = juce::jmax (
+            1,
+            static_cast<int> (std::lround (
+                (scheduleEndsBeforeBuffer ? effectiveGateQuarters : event.gateQuarters)
+                / ppqPerSample)));
+
+        if (sampleOffset >= bufferSamples)
+        {
+            addPendingNoteOn (PendingNoteOn { event.row,
+                                              event.channel,
+                                              event.note,
+                                              event.velocity,
+                                              sampleOffset - bufferSamples,
+                                              noteGateSamples });
+            continue;
+        }
+
+        const auto clampedSampleOffset = juce::jmax (0, sampleOffset);
+        emitGeneratedNoteOn (event.channel,
+                             event.note,
+                             event.velocity,
+                             clampedSampleOffset,
+                             midiMessages);
+
+        const auto samplesUntilOff = clampedSampleOffset + noteGateSamples;
+
+        if (samplesUntilOff < bufferSamples)
+        {
+            emitGeneratedNoteOff (event.channel, event.note, samplesUntilOff, midiMessages);
+        }
+        else if (pendingCombinedNoteOffCount < pendingCombinedNoteOffs.size())
+        {
+            pendingCombinedNoteOffs[pendingCombinedNoteOffCount++] =
+                PendingCombinedNoteOff { event.channel,
+                                         event.note,
+                                         samplesUntilOff - bufferSamples };
+        }
+    }
+}
+
 void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                              const double schedulePpqEnd,
                                              const double segmentTransportStartPpq,
@@ -2941,6 +3524,19 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             pending.note = -1;
             pending.samplesRemaining = 0;
         }
+    }
+
+    if (audioSequencer().combinationModeMask != 0)
+    {
+        processCombinedScheduledRange (schedulePpqStart,
+                                       schedulePpqEnd,
+                                       segmentTransportStartPpq,
+                                       bufferTransportStartPpq,
+                                       bufferSamples,
+                                       ppqPerSample,
+                                       midiMessages,
+                                       resetRowTriggersAtSegmentStart);
+        return;
     }
 
     for (int row = 0; row < phraseRowCount; ++row)
@@ -3169,6 +3765,7 @@ void PluginProcessor::releaseResources()
 {
     resetPendingNoteOffs();
     resetPendingNoteOns();
+    resetPendingCombinedNoteOffs();
     resetActiveGeneratedNotes();
 }
 
@@ -3244,6 +3841,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         resetLastEmittedTriggers();
         resetPendingNoteOffs();
         resetPendingNoteOns();
+        resetPendingCombinedNoteOffs();
         clearLoopScheduleAnchor();
         loopScheduleReanchorRequested = false;
         currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
@@ -3264,6 +3862,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             resetLastEmittedTriggers();
             resetPendingNoteOffs();
             resetPendingNoteOns();
+            resetPendingCombinedNoteOffs();
             clearLoopScheduleAnchor();
             loopScheduleReanchorRequested = false;
             currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
@@ -3307,10 +3906,14 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     const auto bufferSamples = buffer.getNumSamples();
 
+    auto rowFlushRequested = false;
+
     for (int row = 0; row < phraseRowCount; ++row)
     {
         if (phraseRowFlushNoteOff[static_cast<size_t> (row)].exchange (0) == 0)
             continue;
+
+        rowFlushRequested = true;
 
         auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
 
@@ -3332,7 +3935,11 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         pendingNoteOnCount = writeIndex;
     }
 
+    if (rowFlushRequested && pendingCombinedNoteOffCount > 0)
+        flushPendingGeneratedNoteOffs (0, midiMessages);
+
     flushPendingNoteOns (bufferSamples, midiMessages);
+    flushPendingCombinedNoteOffs (bufferSamples, midiMessages);
 
     for (auto& pending : pendingNoteOffs)
     {
@@ -3558,6 +4165,9 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
         patternTree.setProperty ("loopBraceEnabled", isPatternLoopBraceEnabled (patternSlot), nullptr);
         patternTree.setProperty ("loopBraceStart", getPatternLoopBraceStartQuarters (patternSlot), nullptr);
         patternTree.setProperty ("loopBraceEnd", getPatternLoopBraceEndQuarters (patternSlot), nullptr);
+        patternTree.setProperty ("combinationModeMask",
+                                 getPatternCombinationModeMask (patternSlot),
+                                 nullptr);
 
         for (int row = 0; row < phraseRowCount; ++row)
         {
@@ -3761,6 +4371,8 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             patternTree.getProperty ("loopBraceEnd", defaultLoopBraceEndQuarters));
         pattern.loopBrace.startQuarters = clampLoopBraceStart (storedLoopStart, storedLoopEnd);
         pattern.loopBrace.endQuarters = clampLoopBraceEnd (storedLoopEnd, pattern.loopBrace.startQuarters);
+        pattern.sequencer.combinationModeMask = clampCombinationModeMask (
+            static_cast<int> (patternTree.getProperty ("combinationModeMask", 0)));
     }
 
     for (int i = 0; i < state.getNumChildren(); ++i)

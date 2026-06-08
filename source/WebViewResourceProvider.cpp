@@ -212,6 +212,8 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
                          processor.getPatternLoopBraceStartQuarters (patternSlot));
     object->setProperty ("loopBraceEnd",
                          processor.getPatternLoopBraceEndQuarters (patternSlot));
+    object->setProperty ("combinationModeMask",
+                         processor.getPatternCombinationModeMask (patternSlot));
 
     return juce::var (object.release());
 }
@@ -353,6 +355,8 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                                 processor.getSwingSubdivisionIndex())
                        .withInitialisationData ("rowColorsEnabled",
                                                 processor.isRowColorsEnabled() ? 1 : 0)
+                       .withInitialisationData ("combinationModeMask",
+                                                processor.getCombinationModeMask())
                        .withInitialisationData ("loopBraceEnabled",
                                                 processor.isLoopBraceEnabled() ? 1 : 0)
                        .withInitialisationData ("loopBraceStart",
@@ -813,6 +817,18 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.setRowColorsEnabled (varToInt (args[0]) != 0);
 
                                complete (processor.isRowColorsEnabled() ? 1 : 0);
+                           })
+                       .withNativeFunction (
+                           "setCombinationModeEnabled",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 2)
+                               {
+                                   processor.setCombinationModeEnabled (varToInt (args[0]),
+                                                                        varToInt (args[1]) != 0);
+                               }
+
+                               complete (processor.getCombinationModeMask());
                            })
                        .withNativeFunction (
                            "setLoopBraceEnabled",

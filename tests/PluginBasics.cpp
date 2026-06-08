@@ -183,6 +183,29 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK_FALSE (testPlugin.isRowColorsEnabled());
     }
 
+    SECTION ("combination modes are pattern state")
+    {
+        CHECK (testPlugin.getCombinationModeMask() == 0);
+
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, true);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+
+        const auto expectedMask =
+            (1 << PluginProcessor::combinationModeWeave)
+            | (1 << PluginProcessor::combinationModeMultiplyEcho);
+        CHECK (testPlugin.getCombinationModeMask() == expectedMask);
+        CHECK (testPlugin.getPatternCombinationModeMask (0) == expectedMask);
+
+        testPlugin.setCurrentPatternSlot (1);
+        CHECK (testPlugin.getCombinationModeMask() == 0);
+
+        testPlugin.copyPatternSlot (0, 1);
+        CHECK (testPlugin.getPatternCombinationModeMask (1) == expectedMask);
+
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, false);
+        CHECK_FALSE (testPlugin.isCombinationModeEnabled (PluginProcessor::combinationModeWeave));
+    }
+
     SECTION ("loop brace snaps to eighth notes")
     {
         CHECK (testPlugin.getLoopBraceStartQuarters()

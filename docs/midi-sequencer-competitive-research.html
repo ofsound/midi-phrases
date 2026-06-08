@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MIDI Melodic Sequencer Competitive Research — MIDI Phrases</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --surface: #181b22;
+      --surface-2: #1e222b;
+      --border: #2a2f3a;
+      --accent: #10b981;
+      --accent-dim: #14241c;
+      --accent-2: #3b82f6;
+      --warn: #f59e0b;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --code-bg: #252830;
+      --tier1: #6366f1;
+      --tier2: #8b5cf6;
+      --tier3: #64748b;
+      --p0: #ef4444;
+      --p1: #f59e0b;
+      --p2: #3b82f6;
+      --p3: #64748b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+    .page {
+      max-width: 56rem;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 5rem;
+    }
+    header.doc-header {
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 650;
+      margin: 0 0 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .subtitle {
+      color: var(--muted);
+      margin: 0.25rem 0;
+      font-size: 0.95rem;
+    }
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+    .tag {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .tag.accent { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+    nav.toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+    nav.toc h2 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin: 0 0 0.75rem;
+    }
+    nav.toc ol {
+      margin: 0;
+      padding-left: 1.25rem;
+      columns: 2;
+      column-gap: 2rem;
+    }
+    @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+    nav.toc a { color: var(--accent); text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+
+    section { margin-bottom: 2.75rem; }
+    h2 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      margin: 0 0 1rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 2px solid var(--accent);
+      display: inline-block;
+    }
+    h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 1.75rem 0 0.75rem;
+      color: var(--text);
+    }
+    h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin: 1.25rem 0 0.5rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    p { margin: 0.75rem 0; }
+    ul, ol { padding-left: 1.4rem; margin: 0.75rem 0; }
+    li { margin: 0.35rem 0; }
+    li::marker { color: var(--accent); }
+    a { color: #6ee7b7; }
+    a:hover { color: var(--accent); }
+    code {
+      font-family: ui-monospace, "Cascadia Code", "SF Mono", monospace;
+      font-size: 0.88em;
+      background: var(--code-bg);
+      padding: 0.12em 0.4em;
+      border-radius: 4px;
+    }
+    strong { font-weight: 600; }
+
+    .callout {
+      background: var(--accent-dim);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 1rem 1.15rem;
+      margin: 1.25rem 0;
+    }
+    .callout.warn {
+      background: #2a2210;
+      border-left-color: var(--warn);
+    }
+    .callout p { margin: 0; }
+    .callout p + p { margin-top: 0.5rem; }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.9rem;
+      margin: 1rem 0;
+      background: var(--surface);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 0.65rem 0.85rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    th {
+      background: var(--code-bg);
+      font-weight: 600;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    tr:hover td { background: var(--surface-2); }
+
+    .tier-badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      margin-right: 0.35rem;
+      vertical-align: middle;
+    }
+    .tier-1 { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; }
+    .tier-2 { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; }
+    .tier-3 { background: rgba(100, 116, 139, 0.25); color: #94a3b8; }
+
+    .priority-list { list-style: none; padding: 0; margin: 1rem 0; }
+    .priority-list li {
+      display: flex;
+      gap: 0.85rem;
+      align-items: flex-start;
+      padding: 0.85rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+    }
+    .priority-badge {
+      flex-shrink: 0;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      padding: 0.2rem 0.45rem;
+      border-radius: 4px;
+      margin-top: 0.15rem;
+    }
+    .p0 { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    .p1 { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .p2 { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+    .p3 { background: rgba(100, 116, 139, 0.25); color: #94a3b8; }
+
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin: 1.25rem 0;
+      overflow-x: auto;
+    }
+    .diagram-title {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+    .flow-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0.5rem 0;
+    }
+    .flow-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.85rem;
+      font-size: 0.85rem;
+      text-align: center;
+      min-width: 5rem;
+    }
+    .flow-box.highlight {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .flow-box.vision {
+      border-color: var(--accent-2);
+      background: #1a2744;
+    }
+    .flow-arrow { color: var(--muted); font-size: 1.1rem; }
+    .flow-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-top: 0.5rem;
+    }
+    @media (max-width: 640px) { .flow-columns { grid-template-columns: 1fr; } }
+    .flow-col-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    .compare-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+    }
+    .compare-card h4 {
+      margin: 0 0 0.5rem;
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: 1rem;
+      color: var(--text);
+    }
+    .compare-card .beats { color: #fca5a5; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .compare-card ul { margin: 0; padding-left: 1.1rem; font-size: 0.88rem; }
+
+    .strength-list li { color: var(--text); }
+    .gap-list li { color: #fca5a5; }
+
+    .quadrant {
+      position: relative;
+      width: 100%;
+      max-width: 28rem;
+      aspect-ratio: 1;
+      margin: 1.5rem auto;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .quadrant-axis-x, .quadrant-axis-y {
+      position: absolute;
+      background: var(--border);
+    }
+    .quadrant-axis-x {
+      left: 5%; right: 5%; top: 50%; height: 1px;
+    }
+    .quadrant-axis-y {
+      top: 5%; bottom: 5%; left: 50%; width: 1px;
+    }
+    .quadrant-label {
+      position: absolute;
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .quadrant-label.top { top: 2%; left: 50%; transform: translateX(-50%); }
+    .quadrant-label.bottom { bottom: 2%; left: 50%; transform: translateX(-50%); }
+    .quadrant-label.left { left: 2%; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: center; }
+    .quadrant-label.right { right: 2%; top: 50%; transform: translateY(-50%) rotate(90deg); transform-origin: center; }
+    .quadrant-dot {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      font-size: 0.68rem;
+      font-weight: 600;
+      white-space: nowrap;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .quadrant-dot.target { border-color: var(--accent); color: var(--accent); }
+    .quadrant-dot.today { border-color: var(--warn); color: var(--warn); }
+
+    .sources { font-size: 0.9rem; }
+    .sources li { margin: 0.5rem 0; }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="doc-header">
+      <h1>MIDI Melodic Sequencer Competitive Research</h1>
+      <p class="subtitle">MIDI Phrases · ofsound · research compiled 2026-06-07</p>
+      <p class="subtitle">Competitive analysis: who leads in which areas, highest-value features to add, and gaps relative to the original &ldquo;novel interleaving&rdquo; vision.</p>
+      <div class="tag-row">
+        <span class="tag accent">Product research</span>
+        <span class="tag">Competitive landscape</span>
+        <span class="tag">Roadmap input</span>
+      </div>
+    </header>
+
+    <nav class="toc" aria-label="Table of contents">
+      <h2>Contents</h2>
+      <ol>
+        <li><a href="#today">What MIDI Phrases is today</a></li>
+        <li><a href="#competitors">Competitor landscape</a></li>
+        <li><a href="#better">Who is better — and at what</a></li>
+        <li><a href="#ahead">Where MIDI Phrases is ahead</a></li>
+        <li><a href="#additions">Highest-value additions</a></li>
+        <li><a href="#lacking">What&rsquo;s lacking</a></li>
+        <li><a href="#strategy">Recommended strategic direction</a></li>
+        <li><a href="#sources">Sources</a></li>
+      </ol>
+    </nav>
+
+    <section id="today">
+      <h2>What MIDI Phrases is today</h2>
+      <p>MIDI Phrases is a <strong>4-lane, variable-length phrase sequencer</strong> with <strong>8 patterns</strong>, <strong>8 loop-brace slots</strong>, and <strong>live MIDI switching</strong> — not a fixed-grid step sequencer or chord-driven arpeggiator.</p>
+
+      <h3>Strengths already in the product</h3>
+      <ul class="strength-list">
+        <li>Parallel polyrhythmic lanes (each row loops independently with its own step count and timing multipliers)</li>
+        <li>Sectional composition: loop brace within a pattern + loop-slot recall (pattern + sub-range)</li>
+        <li>Performance workflow: MIDI notes 1–8 switch patterns, 9–16 switch loop slots, note 17 mutes output</li>
+        <li>Rich step model: probability, cycle gating, skip/mute, per-step duration/velocity/timing multiplier</li>
+        <li>Modern WebView editor: bulk edit, undo/redo, drag-and-drop reorder, recording, piano-roll preview</li>
+        <li>Solid C++ scheduling with extensive Catch2 tests (~2400 lines in <code>tests/PluginBasics.cpp</code>)</li>
+      </ul>
+
+      <h3>Original vision vs built reality</h3>
+      <p>From the <a href="chat-transcript-midi-phrases-poc.html">POC development transcript</a>:</p>
+      <div class="callout">
+        <p>&ldquo;Interleaves separate phrases in <strong>novel ways</strong>&rdquo; — rotation, call-and-response, density, probability, section switching.</p>
+      </div>
+      <p>Section switching (patterns + loop braces) is implemented. <strong>Algorithmic interleaving between lanes is not</strong> — today the 4 rows simply run in parallel and merge into one MIDI stream.</p>
+
+      <div class="diagram">
+        <div class="diagram-title">Architecture: built today vs original vision</div>
+        <div class="flow-columns">
+          <div>
+            <div class="flow-col-label">Built today</div>
+            <div class="flow-row">
+              <span class="flow-box">Row A loop</span>
+              <span class="flow-box">Row B loop</span>
+            </div>
+            <div class="flow-row">
+              <span class="flow-box">Row C loop</span>
+              <span class="flow-box">Row D loop</span>
+            </div>
+            <div class="flow-row">
+              <span class="flow-arrow">↓</span>
+              <span class="flow-box highlight">Merge MIDI out</span>
+            </div>
+          </div>
+          <div>
+            <div class="flow-col-label">Original vision</div>
+            <div class="flow-row">
+              <span class="flow-box vision">Phrase lanes</span>
+              <span class="flow-arrow">→</span>
+              <span class="flow-box vision">Interleave rules</span>
+              <span class="flow-arrow">→</span>
+              <span class="flow-box vision">Composed output</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="competitors">
+      <h2>Competitor landscape</h2>
+
+      <h3><span class="tier-badge tier-1">Tier 1</span> Closest direct competitors</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Price</th>
+            <th>Why it matters</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong><a href="https://venomode.com/plugins/phrasebox-2">Phrasebox 2</a></strong> (Venomode)</td>
+            <td>~£49–69</td>
+            <td><strong>Most direct competitor.</strong> Piano-roll phrase arpeggiator: unlimited rows, per-row note-selection rules (pitch/velocity/timing/random/fixed), CC automation lanes, scale lock, Euclidean fills, phrase generator, multi-channel output. Input chords reshape output instantly.</td>
+          </tr>
+          <tr>
+            <td><strong><a href="https://510k.de/products/polyllop-sequencer-au-vst">POLYLLOP</a></strong> (510k / Alexkid)</td>
+            <td>Paid</td>
+            <td><strong>Structurally similar:</strong> 4 simultaneous voices, independent lane lengths, 12 MIDI-switchable patterns, swing, scale quantization, real-time MIDI transpose. Separate parameter blocks (gate/pitch/length/hold/velocity) per voice. <strong>Drag MIDI export.</strong></td>
+          </tr>
+          <tr>
+            <td><strong><a href="https://stochas.org/stochas/">Stochas</a></strong> (Surge team, free/OSS)</td>
+            <td>Free</td>
+            <td>4 probabilistic layers, polyrhythms, pattern switching via MIDI, <strong>chain mode</strong> (conditional step logic), groove import, scale-constrained entry, stabilize-and-export workflow.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3><span class="tier-badge tier-2">Tier 2</span> Performance / generative sequencers</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Edge over MIDI Phrases</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong><a href="https://www.kirnu.fi/cream/">Kirnu Cream</a></strong></td>
+            <td>4 independent tracks × 12 patterns each; 9 step-data tabs per pattern with independent loop directions; deep MIDI performance engine; battle-tested timing accuracy.</td>
+          </tr>
+          <tr>
+            <td><strong><a href="https://xferrecords.com/products/cthulhu">Cthulhu</a></strong> (Xfer)</td>
+            <td>Chord memorizer + 8-tab polymetric arp; harmony tab for chord hits within arp; chord presets; drag chord/arp patterns to DAW. Different model (chord-in → riff-out) but dominates the &ldquo;melodic MIDI FX&rdquo; mindshare.</td>
+          </tr>
+          <tr>
+            <td><strong><a href="https://audiomodern.com/shop/plugins/riffer/">Audiomodern Riffer 3</a></strong></td>
+            <td>Generative dice + 53 scales + infinity mode; polyphonic multi-riff engine; drag MIDI export; iOS. Inspiration-first, not compositional control.</td>
+          </tr>
+          <tr>
+            <td><strong><a href="https://510k.de/">510k SEQUND / PEACH</a></strong></td>
+            <td>Polyrhythmic / polymetric arp family; PEACH adds latch, octave range, 12 pattern slots — similar live-switching DNA to MIDI Phrases.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3><span class="tier-badge tier-3">Tier 3</span> Adjacent (broader workflow, not pure sequencers)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Why users pick it instead</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong><a href="https://scalermusic.com/products/scaler-3/">Scaler 3</a></strong></td>
+            <td>Full music-theory workstation: chord progression engine, 100s of curated Motions (melodies/arps/bass), multi-lane Arrange timeline, plugin hosting, standalone app, drag MIDI to DAW. Solves &ldquo;I don&rsquo;t know what to play&rdquo; + &ldquo;arrange a song&rdquo; — not just sequence loops.</td>
+          </tr>
+          <tr>
+            <td><strong>HY-SEQ32 / HY-RPE2</strong></td>
+            <td>Deep modular multi-layer sequencing with modulation; popular with experimental/electronic producers.</td>
+          </tr>
+          <tr>
+            <td><strong>BlueARP, HY-MPS2, Hatefish RhyGenerator</strong></td>
+            <td>Free/cheap arp alternatives with solid feature density.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="better">
+      <h2>Who is &ldquo;better&rdquo; — and at what</h2>
+      <div class="compare-grid">
+        <div class="compare-card">
+          <h4>Phrasebox 2</h4>
+          <div class="beats">Beats MIDI Phrases on</div>
+          <ul>
+            <li>Harmonic reactivity (chord input drives pitch per row)</li>
+            <li>Unlimited rows and freeform piano-roll timing</li>
+            <li>CC/expression lanes</li>
+            <li>Scale lock, phrase generator, Euclidean tools</li>
+            <li>Mature commercial polish and documentation</li>
+          </ul>
+        </div>
+        <div class="compare-card">
+          <h4>POLYLLOP / SEQUND</h4>
+          <div class="beats">Beats MIDI Phrases on</div>
+          <ul>
+            <li>Per-parameter lane independence</li>
+            <li>Play modes (pendulum, random, bi-directional)</li>
+            <li>Scale quantization + MIDI transpose</li>
+            <li>MIDI drag-and-drop export</li>
+            <li>Windows + AAX coverage</li>
+          </ul>
+        </div>
+        <div class="compare-card">
+          <h4>Scaler 3</h4>
+          <div class="beats">Beats MIDI Phrases on</div>
+          <ul>
+            <li>Everything harmonic (chords, voicings, suggestions)</li>
+            <li>Content library (professional Motions/phrases)</li>
+            <li>Full arrangement timeline</li>
+            <li>Standalone + hosted instruments</li>
+            <li>Learning/onboarding for theory-weak users</li>
+          </ul>
+        </div>
+        <div class="compare-card">
+          <h4>Stochas</h4>
+          <div class="beats">Beats MIDI Phrases on</div>
+          <ul>
+            <li>Chain mode (procedural if/then step logic)</li>
+            <li>Groove templates from imported MIDI</li>
+            <li>Free + cross-platform</li>
+            <li>Stable-randomize-then-export workflow</li>
+          </ul>
+        </div>
+        <div class="compare-card">
+          <h4>Riffer 3</h4>
+          <div class="beats">Beats MIDI Phrases on</div>
+          <ul>
+            <li>Instant generative inspiration (one-click riffs in scale)</li>
+            <li>Infinity mode for ambient/generative sessions</li>
+            <li>Massive scale library + iOS</li>
+          </ul>
+        </div>
+        <div class="compare-card">
+          <h4>Cthulhu</h4>
+          <div class="beats">Beats MIDI Phrases on</div>
+          <ul>
+            <li>Chord progression workflow</li>
+            <li>Industry recognition and preset ecosystem</li>
+            <li>Drag-and-drop pattern export</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="ahead">
+      <h2>Where MIDI Phrases is ahead</h2>
+      <ol>
+        <li><strong>Loop brace + loop slots</strong> — sub-pattern sectional looping within a longer phrase, recallable via MIDI. Competitors have pattern banks; few combine in-pattern sectional braces with 8 dedicated loop-memory slots.</li>
+        <li><strong>Performance-first switching</strong> — pattern + loop + mute all on low MIDI notes with pulse-boundary quantization (clean note-off handling). POLYLLOP/SEQUND have pattern MIDI switching; Phrasebox is more editor-centric.</li>
+        <li><strong>Step flip-card depth</strong> — probability + cycle gating + timing multiplier + bulk ops in a modern Svelte UI. Comparable step richness to Stochas/POLYLLOP but with a cleaner editing UX.</li>
+        <li><strong>Variable step lengths on a phrase grid</strong> — closer to Eurorack thinking than fixed 16-step grids, without requiring a full DAW piano roll.</li>
+        <li><strong>Engine quality</strong> — realtime-safe C++ scheduling with strong test coverage is a solid foundation competitors don&rsquo;t always advertise.</li>
+      </ol>
+      <div class="callout">
+        <p><strong>Honest positioning:</strong> MIDI Phrases is a <strong>performance-oriented multi-lane phrase looper/composer</strong>, not yet a harmonic tool, generative engine, or full arrangement workstation. Its niche is <em>live sectional composition of parallel monophonic phrases</em> — if the &ldquo;novel interleaving&rdquo; vision lands, that niche widens significantly.</p>
+      </div>
+    </section>
+
+    <section id="additions">
+      <h2>Highest-value additions (prioritized)</h2>
+
+      <h4>P0 — Table stakes / unlock DAW workflow</h4>
+      <ul class="priority-list">
+        <li>
+          <span class="priority-badge p0">P0</span>
+          <div><strong>MIDI export</strong> — drag pattern/row to DAW clip, or &ldquo;Export SMF&rdquo;. POLYLLOP, Riffer, Cthulhu, Scaler, and Stochas all do this. Without it, MIDI Phrases is a live-only tool.</div>
+        </li>
+        <li>
+          <span class="priority-badge p0">P0</span>
+          <div><strong>Scale / key lock</strong> — constrain note entry, transpose, and randomize to a scale. Essential for melodic sequencing; every serious competitor has it.</div>
+        </li>
+        <li>
+          <span class="priority-badge p0">P0</span>
+          <div><strong>Wire up per-row MIDI channel UI</strong> — <code>ui/src/MidiChannelStepper.svelte</code> exists but is not connected; backend already supports it.</div>
+        </li>
+        <li>
+          <span class="priority-badge p0">P0</span>
+          <div><strong>More host-automatable parameters</strong> — today only <code>patternSlot</code> is a DAW parameter (<code>source/PluginProcessor.cpp</code>). Pulse, swing, humanize, loop position, and row mutes should be automatable for arrangement work.</div>
+        </li>
+      </ul>
+
+      <h4>P1 — Differentiation + original vision</h4>
+      <ul class="priority-list">
+        <li>
+          <span class="priority-badge p1">P1</span>
+          <div>
+            <strong>Algorithmic interleaving rules</strong> — the missing core from the POC:
+            <ul>
+              <li>Call-and-response (lane B only fires after lane A completes a phrase)</li>
+              <li>Rotation / round-robin note handoff between lanes</li>
+              <li>Density coupling (lane activity thins when another lane is busy)</li>
+              <li>Section-aware muting (auto-duck rows by rule, not just manual mute)</li>
+            </ul>
+            This is the feature no competitor owns cleanly and matches the product name.
+          </div>
+        </li>
+        <li>
+          <span class="priority-badge p1">P1</span>
+          <div><strong>Phrase / pattern generator</strong> — constrained random fill (scale-aware, rhythm templates, density target). Phrasebox and Riffer win on inspiration today; a generator that respects MIDI Phrases&rsquo; step model would close the gap without copying Riffer&rsquo;s &ldquo;dice&rdquo; UX.</div>
+        </li>
+        <li>
+          <span class="priority-badge p1">P1</span>
+          <div><strong>Chain / conditional step logic</strong> — Stochas-style &ldquo;if step X fires, force/suppress step Y&rdquo; for evolving patterns without manual editing.</div>
+        </li>
+        <li>
+          <span class="priority-badge p1">P1</span>
+          <div><strong>JS/C++ scheduling parity tests</strong> — <code>ui/src/phraseSchedule.js</code> preview can diverge from audio (probability RNG differs). Trust in the UI is critical for a sequencer.</div>
+        </li>
+      </ul>
+
+      <h4>P2 — Depth for power users</h4>
+      <ul class="priority-list">
+        <li>
+          <span class="priority-badge p2">P2</span>
+          <div><strong>CC / expression lanes</strong> — per-row or global MIDI CC curves (Phrasebox&rsquo;s killer feature for expressive phrases).</div>
+        </li>
+        <li>
+          <span class="priority-badge p2">P2</span>
+          <div><strong>Polyphonic row option</strong> — toggle per row: monophonic (current) vs allow overlapping notes on same row.</div>
+        </li>
+        <li>
+          <span class="priority-badge p2">P2</span>
+          <div><strong>Euclidean / fill tools</strong> — quick rhythmic scaffolding per row (Phrasebox, many modular tools).</div>
+        </li>
+        <li>
+          <span class="priority-badge p2">P2</span>
+          <div><strong>Preset / factory pattern library</strong> — curated starter phrases by genre (Scaler&rsquo;s Motions model shows content libraries drive adoption).</div>
+        </li>
+        <li>
+          <span class="priority-badge p2">P2</span>
+          <div><strong>MIDI input transpose / follow</strong> — hold a chord, phrases transpose to chord tones (Phrasebox/POLYLLOP model).</div>
+        </li>
+      </ul>
+
+      <h4>P3 — Platform / ecosystem (longer horizon)</h4>
+      <ul class="priority-list">
+        <li>
+          <span class="priority-badge p3">P3</span>
+          <div><strong>Standalone phrase library browser</strong> — save/load/share phrases independent of full plugin state.</div>
+        </li>
+        <li>
+          <span class="priority-badge p3">P3</span>
+          <div><strong>Windows polish + AAX</strong> — POLYLLOP/Scaler serve Pro Tools users; MIDI Phrases is macOS-CI-focused today.</div>
+        </li>
+        <li>
+          <span class="priority-badge p3">P3</span>
+          <div><strong>iOS / AUv3 performance UI</strong> — Riffer and Scaler have mobile; MIDI Phrases builds AUv3 but UX isn&rsquo;t optimized for touch performance.</div>
+        </li>
+      </ul>
+    </section>
+
+    <section id="lacking">
+      <h2>What&rsquo;s lacking (honest assessment)</h2>
+
+      <h3>Product / workflow gaps</h3>
+      <ul class="gap-list">
+        <li><strong>No harmonic intelligence</strong> — fixed MIDI pitches only; no scale, chord input, or voice leading. For melodic work, users must mentally transpose or edit in a DAW after capture.</li>
+        <li><strong>No MIDI export</strong> — the single biggest workflow blocker for composition (vs live jamming).</li>
+        <li><strong>Original interleaving vision unimplemented</strong> — parallel loops ≠ &ldquo;interleave in novel ways.&rdquo; The product name promises more than the engine delivers.</li>
+        <li><strong>Monophonic-only rows</strong> — limits chordal/harmonic phrases; Phrasebox and POLYLLOP are polyphonic.</li>
+        <li><strong>Hard caps</strong> — 4 rows, 64 steps/row (<code>source/PluginProcessor.h</code>); Phrasebox has unlimited rows/length.</li>
+        <li><strong>No content</strong> — no factory presets, no phrase packs, no onboarding examples. Cold start is intimidating vs Scaler/Riffer/Cthulhu.</li>
+        <li><strong>Thin DAW integration</strong> — one automatable parameter; no clip export; Ableton routing still awkward (documented workaround).</li>
+      </ul>
+
+      <h3>Technical / quality gaps</h3>
+      <ul class="gap-list">
+        <li><strong>Preview vs audio mismatch</strong> on probabilistic steps (deterministic JS hash vs runtime C++ RNG).</li>
+        <li><strong>Recording limitations</strong> — one row at a time, chords dropped, first note replaces row.</li>
+        <li><strong>No CC output</strong> beyond note on/off/velocity.</li>
+        <li><strong>No preset/program system</strong> (<code>getNumPrograms()</code> returns 1).</li>
+      </ul>
+
+      <h3>Competitive moat (what to protect and extend)</h3>
+      <div class="callout warn">
+        <p>The defensible angle is <strong>live sectional composition</strong>: parallel phrases + loop braces + MIDI-triggered section changes + (future) intelligent interleaving. No competitor combines all of these.</p>
+        <p>Phrasebox owns chord-reactive piano-roll phrases; Scaler owns theory + arrangement; POLYLLOP owns polymetric parameter lanes; Stochas owns probability chains. <strong>MIDI Phrases could own &ldquo;perform a composition from parallel phrases with intelligent lane interaction.&rdquo;</strong></p>
+      </div>
+    </section>
+
+    <section id="strategy">
+      <h2>Recommended strategic direction</h2>
+
+      <div class="diagram">
+        <div class="diagram-title">Feature positioning (harmonic intelligence vs live composition)</div>
+        <div class="quadrant" role="img" aria-label="Positioning chart: X axis low to high harmonic intelligence, Y axis loop playback to live composition">
+          <div class="quadrant-axis-x"></div>
+          <div class="quadrant-axis-y"></div>
+          <span class="quadrant-label top">Live composition</span>
+          <span class="quadrant-label bottom">Loop playback</span>
+          <span class="quadrant-label left">Low harmonic intelligence</span>
+          <span class="quadrant-label right">High harmonic intelligence</span>
+          <span class="quadrant-dot" style="left: 95%; top: 45%;">Scaler 3</span>
+          <span class="quadrant-dot" style="left: 75%; top: 55%;">Phrasebox 2</span>
+          <span class="quadrant-dot" style="left: 70%; top: 75%;">Riffer 3</span>
+          <span class="quadrant-dot" style="left: 85%; top: 65%;">Cthulhu</span>
+          <span class="quadrant-dot" style="left: 55%; top: 40%;">POLYLLOP</span>
+          <span class="quadrant-dot" style="left: 40%; top: 50%;">Stochas</span>
+          <span class="quadrant-dot today" style="left: 15%; top: 30%;">MIDI Phrases today</span>
+          <span class="quadrant-dot target" style="left: 45%; top: 15%;">MIDI Phrases target</span>
+        </div>
+      </div>
+
+      <p><strong>Near-term (highest ROI):</strong> MIDI export + scale lock + finish MIDI channel UI + interleaving rules v1.</p>
+      <p><strong>Medium-term:</strong> Phrase generator, CC lanes, chain logic, preset library.</p>
+      <p><strong>Avoid competing head-on with:</strong> Scaler (theory workstation), Riffer (random riff dice), Cthulhu (chord presets) — unless harmonic features become a deliberate second product axis.</p>
+    </section>
+
+    <section id="sources">
+      <h2>Sources</h2>
+      <ul class="sources">
+        <li><a href="https://venomode.com/plugins/phrasebox-2">Phrasebox 2</a> · <a href="https://www.lootaudio.com/_media/images/loot/Venomode/phrasebox-2/Phrasebox%202%20Manual%202-0-0.pdf">manual PDF</a></li>
+        <li><a href="https://510k.de/products/polyllop-sequencer-au-vst">POLYLLOP</a> (510k Arts)</li>
+        <li><a href="https://stochas.org/stochas/">Stochas</a></li>
+        <li><a href="https://scalermusic.com/products/scaler-3/">Scaler 3</a></li>
+        <li><a href="https://www.kirnu.fi/cream/">Kirnu Cream</a></li>
+        <li><a href="https://xferrecords.com/products/cthulhu">Cthulhu</a></li>
+        <li><a href="https://audiomodern.com/shop/plugins/riffer/">Audiomodern Riffer 3</a></li>
+        <li>Codebase: <code>source/PluginProcessor.cpp</code>, <code>ui/src/phraseSchedule.js</code>, <a href="chat-transcript-midi-phrases-poc.html">chat-transcript-midi-phrases-poc.html</a></li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>MIDI Phrases competitive research · ofsound · 2026-06-07 · Generated from agent research session</p>
+    </footer>
+  </div>
+</body>
+</html>

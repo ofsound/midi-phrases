@@ -30,6 +30,7 @@
    * @property {any} [pulseIndex]
    * @property {number} [swingPercent]
    * @property {number} [swingSubdivisionIndex]
+   * @property {number} [combinationModeMask]
    * @property {boolean} [rowColorsEnabled]
    * @property {any} [lengthQuarters]
    * @property {boolean} [loopEnabled]
@@ -55,6 +56,7 @@
     pulseIndex = defaultPulseIndex,
     swingPercent = 0,
     swingSubdivisionIndex = 1,
+    combinationModeMask = 0,
     rowColorsEnabled = false,
     lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
     loopEnabled = false,
@@ -98,6 +100,7 @@
     pulseIndex,
     swingPercent,
     swingSubdivisionIndex,
+    combinationModeMask,
     lengthQuarters,
   }));
 

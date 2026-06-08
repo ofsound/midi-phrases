@@ -55,9 +55,19 @@ public:
     static constexpr int patternSlotCount = 8;
     static constexpr int loopSlotCount = 8;
     static constexpr int midiMuteTriggerNote = patternSlotCount + loopSlotCount;
+    static constexpr int combinationModeCount = 4;
+    static constexpr int combinationModeWeave = 0;
+    static constexpr int combinationModeLogic = 1;
+    static constexpr int combinationModeCrossModulation = 2;
+    static constexpr int combinationModeMultiplyEcho = 3;
 
     void setPhraseNote (int row, int step, int noteNumber);
     int getPhraseNote (int row, int step) const;
+
+    void setCombinationModeEnabled (int modeIndex, bool enabled);
+    bool isCombinationModeEnabled (int modeIndex) const;
+    int getCombinationModeMask() const;
+    int getPatternCombinationModeMask (int patternSlot) const;
 
     void setPhraseRowMuted (int row, bool muted);
     bool isPhraseRowMuted (int row) const;
@@ -274,6 +284,7 @@ private:
         std::array<int, phraseRowCount> muted {};
         std::array<int, phraseRowCount> timingOffset {};
         std::array<int, phraseRowCount> midiChannel {};
+        int combinationModeMask = 0;
     };
 
     struct LoopBraceState
@@ -321,6 +332,7 @@ private:
             SetLoopBraceEnabled,
             SetLoopBraceStart,
             SetLoopBraceEnd,
+            SetCombinationModeMask,
             ReplacePattern
         };
 
@@ -343,6 +355,7 @@ private:
     void resetPhraseStepToDefaults (int row, int step);
     void resetPendingNoteOffs();
     void resetPendingNoteOns();
+    void resetPendingCombinedNoteOffs();
     void resetActiveGeneratedNotes();
     void resetLastEmittedTriggers();
     void resetStepCycleCounters();
@@ -359,6 +372,7 @@ private:
                                int sampleOffset,
                                juce::MidiBuffer& midiMessages);
     void flushPendingGeneratedNoteOffs (int sampleOffset, juce::MidiBuffer& midiMessages);
+    void flushPendingCombinedNoteOffs (int bufferSamples, juce::MidiBuffer& midiMessages);
     void flushActiveGeneratedNotes (int sampleOffset, juce::MidiBuffer& midiMessages);
     void addPendingNoteOn (const PendingNoteOn& note);
     void emitScheduledNoteOn (int row,
@@ -458,6 +472,14 @@ private:
                                 double ppqPerSample,
                                 juce::MidiBuffer& midiMessages,
                                 bool resetRowTriggersAtSegmentStart);
+    void processCombinedScheduledRange (double schedulePpqStart,
+                                        double schedulePpqEnd,
+                                        double segmentTransportStartPpq,
+                                        double bufferTransportStartPpq,
+                                        int bufferSamples,
+                                        double ppqPerSample,
+                                        juce::MidiBuffer& midiMessages,
+                                        bool resetRowTriggersAtSegmentStart);
 
     struct PendingNoteOff
     {
@@ -476,8 +498,28 @@ private:
         int gateSamples = 0;
     };
 
+    struct PendingCombinedNoteOff
+    {
+        int channel = 1;
+        int note = -1;
+        int samplesRemaining = 0;
+    };
+
+    struct CombinedNoteEvent
+    {
+        double ppq = 0.0;
+        double gateQuarters = 0.0;
+        int row = 0;
+        int step = 0;
+        int channel = 1;
+        int note = 60;
+        int velocity = defaultStepVelocity;
+    };
+
     static constexpr size_t sequencerCommandQueueCapacity = 1024;
     static constexpr size_t pendingNoteOnCapacity = static_cast<size_t> (phraseRowCount) * 16;
+    static constexpr size_t pendingCombinedNoteOffCapacity = 256;
+    static constexpr size_t combinedEventCapacity = 1024;
 
     std::array<PatternState, patternSlotCount> modelPatterns {};
     std::array<PatternState, patternSlotCount> audioPatterns {};
@@ -488,10 +530,14 @@ private:
     std::array<std::atomic<int>, phraseRowCount> phraseRowFlushNoteOff {};
     std::array<PendingNoteOff, phraseRowCount> pendingNoteOffs {};
     std::array<PendingNoteOn, pendingNoteOnCapacity> pendingNoteOns {};
+    std::array<PendingCombinedNoteOff, pendingCombinedNoteOffCapacity> pendingCombinedNoteOffs {};
     size_t pendingNoteOnCount = 0;
+    size_t pendingCombinedNoteOffCount = 0;
     std::array<std::array<int, 128>, 16> activeGeneratedNoteCounts {};
     std::array<double, phraseRowCount> lastEmittedTriggerPpq {};
     std::array<ProcessScratch, phraseRowCount> processScratch {};
+    std::array<CombinedNoteEvent, combinedEventCapacity> combinedEvents {};
+    std::array<CombinedNoteEvent, combinedEventCapacity> combinedWorkingEvents {};
     std::array<std::array<std::uint32_t, maxPhraseStepsPerRow>, phraseRowCount> stepCycleCounters {};
     std::uint32_t playbackRandomState = 0xA5C3F17Du;
     std::atomic<double> currentPlaybackPpq { -1.0 };

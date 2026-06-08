@@ -1,0 +1,421 @@
+# Combination Modes Technical Notes
+
+This document describes the implemented behavior of the four header combination
+modes in MIDI Phrases. It focuses on how phrase rows are converted into
+normalized MIDI events, how each mode transforms those events, and what MIDI
+output is produced.
+
+The implementation lives in two places:
+
+- Audio output: `PluginProcessor::processCombinedScheduledRange()` in
+  `source/PluginProcessor.cpp`
+- Piano-roll preview: `applyCombinationModes()` in `ui/src/phraseSchedule.js`
+
+The preview intentionally mirrors the same mode order and core transforms as the
+audio scheduler. The preview remains deterministic and visual-only; actual MIDI
+timing, probability, humanization, loop handling, and note output are owned by
+the C++ processor.
+
+## Mode Identity
+
+The four modes are stored as a bit mask on each pattern slot.
+
+| Bit | Header | Name | Processor constant |
+| --- | --- | --- | --- |
+| `1 << 0` | `W` | Weave | `combinationModeWeave` |
+| `1 << 1` | `L` | Logic | `combinationModeLogic` |
+| `1 << 2` | `X` | Cross-Mod | `combinationModeCrossModulation` |
+| `1 << 3` | `E` | Echo | `combinationModeMultiplyEcho` |
+
+The mask is pattern state, not global UI state. Copying a pattern copies its
+mode mask, and selecting a different pattern selects that pattern's mode
+combination. The mask is serialized in plugin state as `combinationModeMask`.
+
+When the mask is `0`, the processor uses the existing row-local scheduler. When
+any bit is enabled, the processor uses the combined scheduler.
+
+## Normalized Event Model
+
+The combined scheduler first converts all unmuted active rows into a fixed array
+of normalized note events:
+
+```cpp
+struct CombinedNoteEvent
+{
+    double ppq;
+    double gateQuarters;
+    int row;
+    int step;
+    int channel;
+    int note;
+    int velocity;
+};
+```
+
+The JavaScript preview uses the equivalent shape:
+
+```js
+{
+  start,
+  end,
+  midi,
+  velocity,
+  row,
+  step
+}
+```
+
+An active row is one that is not row-muted, has at least one step, and has a
+positive cycle length. Step-level skipped and muted state is still applied after
+row activation:
+
+- Skipped steps do not create triggers.
+- Muted steps do not create audio events in the C++ scheduler.
+- Velocity `0` steps do not create events.
+- Duration `0` steps do not create events.
+
+The initial event collection still honors row timing offset, step timing
+multiplier, step cycle/cycle offset, step probability, step duration, MIDI
+channel, and velocity humanization.
+
+## Trigger Collection
+
+For each active row, the scheduler computes step trigger positions in PPQ:
+
+```text
+triggerPpq = cycleIndex * rowCycleLength + stepStartInCycle + rowTimingOffset
+```
+
+Only triggers inside the current scheduled range are collected:
+
+```text
+schedulePpqStart <= triggerPpq < schedulePpqEnd
+```
+
+Each row has a fixed scratch trigger buffer. The combined event output also uses
+fixed arrays, so the audio thread does not allocate while rendering. Current
+combined capacity is `1024` events per scheduled range.
+
+Events are sorted by:
+
+```text
+ppq, then row, then step
+```
+
+This sorted list is the input to the mode chain.
+
+## Processing Order
+
+Modes can be enabled in any combination, but they always execute in this fixed
+order:
+
+1. Logic
+2. Cross-Mod
+3. Echo
+4. Weave
+
+The fixed order is important because some modes remove events, some transform
+attributes, and Echo can expand one event into many events. A stable order keeps
+combinations repeatable and makes pattern state deterministic.
+
+## Logic Mode
+
+Logic is currently an "exactly one" onset gate.
+
+Events are grouped by identical PPQ start time within a small epsilon. For each
+group:
+
+- If the group contains exactly one event, that event passes.
+- If the group contains two or more events, every event in that group is removed.
+
+In pseudocode:
+
+```text
+for each ppq group:
+    if group.size == 1:
+        keep group[0]
+    else:
+        drop all events in group
+```
+
+This is intentionally different from parity XOR for four inputs. A four-input
+XOR would pass groups with one or three active rows. The implemented behavior is
+the more collision-removing musical rule: only lone onsets survive.
+
+Output effect:
+
+- Sparse interlocking rhythms.
+- Same-time collisions are carved out.
+- Pitch, velocity, duration, and channel are unchanged for surviving events.
+
+## Cross-Mod Mode
+
+Cross-Mod transforms note attributes by reading from the other active rows. It
+does not create or remove events.
+
+For each event, the scheduler finds that event's row position in the active row
+list. With four rows, if the event came from active row position `i`, the source
+rows are:
+
+```text
+pitchRow    = activeRows[(i + 1) % activeRowCount]
+velocityRow = activeRows[(i + 2) % activeRowCount]
+durationRow = activeRows[(i + 3) % activeRowCount]
+```
+
+The event's own row remains the carrier for timing and MIDI channel. Other rows
+provide transformed pitch, velocity, and duration.
+
+### Pitch Rule
+
+The pitch row is interpreted as intervals relative to its first note:
+
+```text
+pitchStep = event.step % pitchRow.stepCount
+interval  = pitchRow.notes[pitchStep] - pitchRow.notes[0]
+event.note = clampMidi(event.note + interval)
+```
+
+This keeps the carrier row recognizable while using another row as an interval
+shape. It is chromatic semitone arithmetic, not scale-degree folding.
+
+Example:
+
+```text
+carrier note: 60
+pitch row:    [64, 67, 71]
+pitch step:   1
+interval:     67 - 64 = +3
+output note:  63
+```
+
+### Velocity Rule
+
+The velocity row directly supplies the output velocity:
+
+```text
+velocityStep = event.step % velocityRow.stepCount
+event.velocity = clamp(velocityRow.velocity[velocityStep], 1, 127)
+```
+
+The C++ scheduler applies velocity humanization before Cross-Mod. If Cross-Mod
+is enabled, the routed velocity replaces the collected event velocity.
+
+### Duration Rule
+
+The duration row supplies the output gate length:
+
+```text
+durationStep = event.step % durationRow.stepCount
+event.gateQuarters =
+    durationRow.stepLengthQuarters[durationStep]
+    * durationRow.durationFraction[durationStep]
+```
+
+If the routed duration is not positive, the previous gate length is retained.
+
+Output effect:
+
+- Carrier row keeps timing and MIDI channel.
+- Pitch can be shifted by another row's interval contour.
+- Velocity and gate length can come from different rows.
+- With fewer than two active rows, Cross-Mod is a no-op.
+
+## Echo Mode
+
+Echo is the implemented Multiply/convolution mode. It expands each carrier event
+against the next active row's step pattern.
+
+For each event:
+
+```text
+modRow = activeRows[(carrierActiveRowPosition + 1) % activeRowCount]
+```
+
+Then each valid step in `modRow` creates one derived event.
+
+Invalid modulator steps are skipped when:
+
+- The step is skipped.
+- The step is muted.
+- The step velocity is `0`.
+- The computed modulator gate is not positive.
+
+### Time Rule
+
+The modulator row's step start is added to the carrier event time:
+
+```text
+output.ppq = carrier.ppq + modRow.stepStartQuarters[modStep]
+```
+
+The event is kept only if it lands inside the current scheduled range:
+
+```text
+schedulePpqStart <= output.ppq < schedulePpqEnd
+```
+
+There is no wrap inside Echo. Events outside the current segment are truncated by
+the scheduler range.
+
+### Pitch Rule
+
+The modulator row is interpreted as intervals relative to its first note:
+
+```text
+modInterval = modRow.notes[modStep] - modRow.notes[0]
+output.note = clampMidi(carrier.note + modInterval)
+```
+
+This is the same chromatic interval interpretation used by Cross-Mod.
+
+### Velocity Rule
+
+Echo averages carrier and modulator velocities:
+
+```text
+output.velocity = clamp((carrier.velocity + modRow.velocity[modStep]) / 2, 1, 127)
+```
+
+### Duration Rule
+
+Echo uses the shorter of the carrier gate and modulator gate:
+
+```text
+modGate = modRow.stepLengthQuarters[modStep] * modRow.durationFraction[modStep]
+output.gateQuarters = min(carrier.gateQuarters, modGate)
+```
+
+### Density Limit
+
+Echo can grow quickly: one carrier event multiplied by `N` modulator steps yields
+up to `N` output events. The audio scheduler writes into a fixed `1024` event
+array. Once that array is full, additional Echo output for the current scheduled
+range is dropped.
+
+The preview has a separate visual cap of `4096` notes.
+
+Output effect:
+
+- Canons, ratchets, arpeggio clouds, and interval echoes.
+- Generated notes keep the carrier row's MIDI channel.
+- Generated `row` metadata remains the carrier row; generated `step` metadata is
+  set to the modulator step.
+- With fewer than two active rows, Echo is a no-op.
+
+## Weave Mode
+
+Weave chooses one winner when multiple events share the same PPQ start time. It
+does not alter single-event groups.
+
+Events are grouped by PPQ start. For each group:
+
+- If the group contains one event, keep it.
+- If the group contains multiple events, choose one event using deterministic
+  velocity-weighted selection.
+
+The weight for each candidate is:
+
+```text
+weight = max(1, event.velocity)
+```
+
+The picker uses a deterministic hash of the first grouped event:
+
+```text
+hash(row, step, ppq) % totalWeight
+```
+
+It then walks the group cumulatively until the weighted bucket is found.
+
+This means Weave is probabilistic in feel but deterministic in playback. The
+same phrase data at the same PPQ produces the same winner. It is not the same as
+the existing per-step probability control, which can vary in the C++ playback
+random stream.
+
+Output effect:
+
+- Same-time rows compete for a single output event.
+- Higher velocity events are more likely to win.
+- Since the choice is deterministic, repeated loops remain stable.
+- Weave runs after Echo, so it can also thin Echo-generated collisions.
+
+## Combining Modes
+
+Because all modes consume and return the same normalized event structure, any
+combination of the four mode bits can run together.
+
+Examples:
+
+### Logic + Cross-Mod
+
+1. Logic removes every same-time collision.
+2. Cross-Mod transforms pitch, velocity, and duration of surviving lone events.
+
+Result: sparse rhythm with cross-routed musical attributes.
+
+### Cross-Mod + Echo
+
+1. Cross-Mod first changes carrier pitch, velocity, and duration.
+2. Echo multiplies the already-modulated carriers through the next active row.
+
+Result: echoed/arpeggiated material based on the transformed phrase, not the raw
+phrase.
+
+### Logic + Echo + Weave
+
+1. Logic removes original same-time collisions.
+2. Echo expands surviving events.
+3. Weave thins any generated same-time Echo collisions to one winner.
+
+Result: sparse source material expanded into echoes while avoiding dense
+same-time stacks.
+
+## MIDI Output Rules
+
+After the mode chain completes, each event becomes MIDI note output:
+
+1. Swing and timing humanization are applied to note-on time.
+2. The event is converted from schedule PPQ to transport PPQ.
+3. Transport PPQ is converted to sample offset.
+4. `noteOn(channel, note, velocity)` is emitted.
+5. A matching note-off is emitted in the same block or stored in a fixed pending
+   note-off pool for a later block.
+
+Combined-mode note-offs use a separate fixed pool from the original row-local
+gate storage because Echo can generate more than one active note per row. The
+current combined note-off capacity is `256`.
+
+If the sample offset lands after the current buffer, the note-on is stored in
+the existing pending note-on queue and emitted later.
+
+## Loop and Pattern Switching
+
+The combined scheduler receives the same scheduled ranges as the original row
+scheduler. Loop brace mapping, transport discontinuity detection, and pattern or
+loop-slot switching are handled before either scheduler runs.
+
+When a row or mode state changes for the active audio pattern, the processor
+requests a note flush. This prevents old generated notes from continuing after a
+mode chain changes.
+
+## Preview Parity
+
+The UI preview follows the same mode order:
+
+```text
+Logic -> Cross-Mod -> Echo -> Weave
+```
+
+The preview intentionally differs in a few implementation details:
+
+- It does not model C++ playback-random state for probability or humanization.
+- It uses deterministic preview probability hashing already used by the
+  existing preview.
+- It caps visual Echo output at `4096` notes.
+- It does not emit MIDI or manage pending note-offs.
+
+The important musical outputs of the mode chain - which events survive, how
+pitch is transformed, how Echo expands events, and how Weave chooses collision
+winners - are mirrored.
+
