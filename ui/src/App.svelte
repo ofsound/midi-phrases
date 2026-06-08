@@ -23,6 +23,8 @@
   import RowRecordIcon from "./RowRecordIcon.svelte";
   import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
   import StepGearIcon from "./StepGearIcon.svelte";
+  import ScaleModeDialog from "./ScaleModeDialog.svelte";
+  import ScaleModeIcon from "./ScaleModeIcon.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
   import PhraseRow from "./PhraseRow.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
@@ -61,6 +63,14 @@
     toggleIconActiveClasses,
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
+  import {
+    clampScaleModeIndex,
+    clampScaleRoot,
+    defaultScaleModeIndex,
+    defaultScaleRoot,
+    scaleName,
+    transposeMidiByScaleDegrees,
+  } from "./scaleUtils.js";
 
   let pluginName = $state("MIDI Phrases");
   let grid = $state(defaultPhraseGrid());
@@ -138,12 +148,15 @@
   let standalonePlaying = $state(false);
   let standaloneTempoBpm = $state(120);
   let activePatternSlot = $state(0);
-  let viewPatternSlot = 0;
+  let viewPatternSlot = $state(0);
   let patternCopySource = $state(-1);
   let activeLoopSlot = $state(-1);
   let loopSlotAssigned = $state(Array.from({ length: 8 }, () => false));
   let loopSlotPattern = Array.from({ length: 8 }, () => 0);
   let combinationModeMask = $state(0);
+  let scaleRoot = $state(defaultScaleRoot);
+  let scaleModeIndex = $state(defaultScaleModeIndex);
+  let scaleDialogOpen = $state(false);
   let pulseIndex = $state(defaultPulseIndex);
   let swingPercent = $state(0);
   let velocityHumanizePercent = $state(0);
@@ -251,10 +264,29 @@
     }`;
   }
 
+  function stepNoteByCurrentScale(value, delta) {
+    return transposeMidiByScaleDegrees(value, delta, scaleRoot, scaleModeIndex);
+  }
+
+  async function setPatternScale(nextRoot, nextModeIndex) {
+    const root = clampScaleRoot(nextRoot);
+    const mode = clampScaleModeIndex(nextModeIndex);
+
+    await commitHistory("Change scale mode", async () => {
+      scaleRoot = root;
+      scaleModeIndex = mode;
+
+      if (nativeFunctionAvailable("setPatternScale")) {
+        await getNativeFunction("setPatternScale")(root, mode);
+      }
+    });
+  }
+
   /** UI-only; shifts phrase rows and beat-one guide when any row has a negative offset. */
   let phraseVisualOffsetCompensationPx = $derived(phraseGridVisualOffsetCompensationPx(
     rowTimingOffset,
   ));
+  let activeScaleName = $derived(scaleName(scaleRoot, scaleModeIndex));
   let selectedStepCount = $derived(selectedStepKeysForGrid.size);
   let selectableStepCount = $derived(stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0));
   let selectedStepReverseAvailable = $derived.by(() => {
@@ -567,6 +599,8 @@
       timingHumanizePercent,
       swingSubdivisionIndex,
       combinationModeMask,
+      scaleRoot,
+      scaleModeIndex,
       loopBraceEnabled,
       loopBraceStart,
       loopBraceEnd,
@@ -622,6 +656,8 @@
     timingHumanizePercent = next.timingHumanizePercent;
     swingSubdivisionIndex = next.swingSubdivisionIndex;
     combinationModeMask = next.combinationModeMask ?? 0;
+    scaleRoot = clampScaleRoot(next.scaleRoot ?? defaultScaleRoot);
+    scaleModeIndex = clampScaleModeIndex(next.scaleModeIndex ?? defaultScaleModeIndex);
     loopBraceEnabled = next.loopBraceEnabled;
     loopBraceStart = next.loopBraceStart;
     loopBraceEnd = next.loopBraceEnd;
@@ -652,6 +688,8 @@
     stepCycle = cloneMatrix(state.phraseStepCycle ?? stepCycle);
     stepCycleOffset = cloneMatrix(state.phraseStepCycleOffset ?? stepCycleOffset);
     combinationModeMask = Number.parseInt(String(state.combinationModeMask ?? 0), 10) & 0xf;
+    scaleRoot = clampScaleRoot(state.scaleRoot ?? defaultScaleRoot);
+    scaleModeIndex = clampScaleModeIndex(state.scaleModeIndex ?? defaultScaleModeIndex);
     loopBraceEnabled = Boolean(Number.parseInt(String(state.loopBraceEnabled ?? 0), 10));
     loopBraceStart = Number.parseFloat(String(state.loopBraceStart ?? 0));
     loopBraceEnd = Number.parseFloat(String(state.loopBraceEnd ?? 8));
@@ -758,6 +796,13 @@
       for (const mode of combinationModes) {
         await setCombinationModeEnabled(mode.index, (snapshot.combinationModeMask & mode.bit) !== 0 ? 1 : 0);
       }
+    }
+
+    if (nativeFunctionAvailable("setPatternScale")) {
+      await getNativeFunction("setPatternScale")(
+        snapshot.scaleRoot ?? defaultScaleRoot,
+        snapshot.scaleModeIndex ?? defaultScaleModeIndex,
+      );
     }
 
     if (snapshot.loopBraceStart > previousSnapshot.loopBraceStart) {
@@ -1625,7 +1670,7 @@
     if (locations.length === 0) return;
 
     if (!bulkTransposeBaselineByKey) {
-      bulkTransposeBaselineByKey = new Map();
+      bulkTransposeBaselineByKey = new SvelteMap();
 
       for (const { row, step, key } of locations) {
         bulkTransposeBaselineByKey.set(key, grid[row][step]);
@@ -1636,7 +1681,7 @@
 
     for (const { row, step, key } of locations) {
       const baseline = bulkTransposeBaselineByKey.get(key) ?? grid[row][step];
-      grid[row][step] = Math.min(127, Math.max(0, baseline + clamped));
+      grid[row][step] = stepNoteByCurrentScale(baseline, clamped);
     }
   }
 
@@ -2190,6 +2235,11 @@
     combinationModeMask = Number.isNaN(value) ? 0 : value & 0xf;
   }
 
+  function loadPatternScaleFromInitialisation() {
+    scaleRoot = clampScaleRoot(unwrapJuceInit("scaleRoot") ?? defaultScaleRoot);
+    scaleModeIndex = clampScaleModeIndex(unwrapJuceInit("scaleModeIndex") ?? defaultScaleModeIndex);
+  }
+
   async function pushLoopBraceEnabled(enabled) {
     if (!nativeFunctionAvailable("setLoopBraceEnabled")) return;
 
@@ -2474,6 +2524,7 @@
     loadLoopBraceFromInitialisation();
     loadRowColorsFromInitialisation();
     loadCombinationModesFromInitialisation();
+    loadPatternScaleFromInitialisation();
     loadStandaloneTransportFromInitialisation();
     loadSlotStateFromInitialisation();
   }
@@ -2507,7 +2558,7 @@
   });
 </script>
 
-<main class="flex h-full flex-col overflow-hidden p-6">
+<main class="flex h-full flex-col overflow-hidden p-6 transition-[filter,opacity] duration-150 {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}">
   <div class="shrink-0 -mx-6">
   {#if standaloneTransportAvailable}
     <div class="flex items-center justify-end gap-2 px-6 pb-3">
@@ -2549,6 +2600,19 @@
             await pushRowColorsEnabled();
           }}
         />
+        <button
+          type="button"
+          aria-label={`Choose scale mode, current ${activeScaleName}`}
+          aria-pressed={scaleDialogOpen}
+          title={activeScaleName}
+          data-cursor="pointer"
+          class={brandIconToggleButtonClasses(scaleDialogOpen)}
+          onclick={() => {
+            scaleDialogOpen = true;
+          }}
+        >
+          <ScaleModeIcon class="pointer-events-none h-4 w-4" />
+        </button>
         <button
           type="button"
           aria-label={globalStepBackView
@@ -2987,6 +3051,7 @@
               globalStepBackView={globalStepBackView}
               globalStepBackViewCommand={globalStepBackViewCommand}
               selectedStepIds={selectedStepIdsByRow[row]}
+              stepNoteValue={stepNoteByCurrentScale}
               {timingMultiplierOptions}
               onReorder={reorderRowByIds}
               onMoveCommitted={commitRowMove}
@@ -3059,3 +3124,15 @@
     ></div>
   {/if}
 </main>
+
+{#if scaleDialogOpen}
+  <ScaleModeDialog
+    root={scaleRoot}
+    modeIndex={scaleModeIndex}
+    patternSlot={activePatternSlot >= 0 ? activePatternSlot : viewPatternSlot}
+    onClose={() => {
+      scaleDialogOpen = false;
+    }}
+    onChange={setPatternScale}
+  />
+{/if}

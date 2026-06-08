@@ -11,7 +11,7 @@ constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5,
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 13;
+constexpr int phraseStateVersion = 14;
 
 int clampStepProbability (const int probability)
 {
@@ -67,6 +67,16 @@ int combinationModeBit (const int modeIndex)
 int clampCombinationModeMask (const int mask)
 {
     return mask & ((1 << PluginProcessor::combinationModeCount) - 1);
+}
+
+int clampScaleRoot (const int root)
+{
+    return juce::jlimit (0, PluginProcessor::scaleRootCount - 1, root);
+}
+
+int clampScaleModeIndex (const int modeIndex)
+{
+    return juce::jlimit (0, PluginProcessor::scaleModeCount - 1, modeIndex);
 }
 
 bool combinationModeEnabled (const int mask, const int modeIndex)
@@ -517,6 +527,8 @@ void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
     pattern.loopBrace.enabled = 0;
     pattern.loopBrace.startQuarters = defaultLoopBraceStartQuarters;
     pattern.loopBrace.endQuarters = defaultLoopBraceEndQuarters;
+    pattern.scaleRoot = defaultScaleRoot;
+    pattern.scaleModeIndex = defaultScaleModeIndex;
 }
 
 void PluginProcessor::rebuildRowTimingLayout (PhraseRowSteps& steps)
@@ -1205,6 +1217,23 @@ int PluginProcessor::getCombinationModeMask() const
 int PluginProcessor::getPatternCombinationModeMask (const int patternSlot) const
 {
     return clampCombinationModeMask (modelPattern (patternSlot).sequencer.combinationModeMask);
+}
+
+void PluginProcessor::setPatternScale (const int root, const int modeIndex)
+{
+    auto& pattern = modelPattern (getViewPatternSlot());
+    pattern.scaleRoot = clampScaleRoot (root);
+    pattern.scaleModeIndex = clampScaleModeIndex (modeIndex);
+}
+
+int PluginProcessor::getPatternScaleRoot (const int patternSlot) const
+{
+    return clampScaleRoot (modelPattern (patternSlot).scaleRoot);
+}
+
+int PluginProcessor::getPatternScaleModeIndex (const int patternSlot) const
+{
+    return clampScaleModeIndex (modelPattern (patternSlot).scaleModeIndex);
 }
 
 void PluginProcessor::reverseRowSteps (PhraseRowSteps& steps)
@@ -4168,6 +4197,8 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
         patternTree.setProperty ("combinationModeMask",
                                  getPatternCombinationModeMask (patternSlot),
                                  nullptr);
+        patternTree.setProperty ("scaleRoot", getPatternScaleRoot (patternSlot), nullptr);
+        patternTree.setProperty ("scaleModeIndex", getPatternScaleModeIndex (patternSlot), nullptr);
 
         for (int row = 0; row < phraseRowCount; ++row)
         {
@@ -4373,6 +4404,10 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         pattern.loopBrace.endQuarters = clampLoopBraceEnd (storedLoopEnd, pattern.loopBrace.startQuarters);
         pattern.sequencer.combinationModeMask = clampCombinationModeMask (
             static_cast<int> (patternTree.getProperty ("combinationModeMask", 0)));
+        pattern.scaleRoot = clampScaleRoot (
+            static_cast<int> (patternTree.getProperty ("scaleRoot", defaultScaleRoot)));
+        pattern.scaleModeIndex = clampScaleModeIndex (
+            static_cast<int> (patternTree.getProperty ("scaleModeIndex", defaultScaleModeIndex)));
     }
 
     for (int i = 0; i < state.getNumChildren(); ++i)

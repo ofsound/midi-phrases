@@ -12,6 +12,7 @@
    * @property {any} value
    * @property {any} [resetValue] - MIDI note to restore on double-click; omit to disable reset.
    * @property {string} [ariaLabel]
+   * @property {(value: number, delta: number) => number} [stepValue]
    * @property {(value: number) => void | Promise<void>} [onValueChange]
    */
 
@@ -22,6 +23,7 @@
     value,
     resetValue = undefined,
     ariaLabel = "Note",
+    stepValue = (current, delta) => current + delta,
     onValueChange = () => {}
   } = $props();
 
@@ -40,7 +42,7 @@
   function noteFromDrag(clientY) {
     const steps = Math.round((dragStartY - clientY) / pixelsPerStep);
 
-    return clampMidi(dragStartValue + steps);
+    return clampMidi(stepValue(dragStartValue, steps));
   }
 
   /** @param {PointerEvent} event */
@@ -100,11 +102,11 @@
     if (event.key === "ArrowUp") {
       event.preventDefault();
 
-      if (value < 127) onValueChange(value + 1);
+      if (value < 127) onValueChange(clampMidi(stepValue(value, 1)));
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
 
-      if (value > 0) onValueChange(value - 1);
+      if (value > 0) onValueChange(clampMidi(stepValue(value, -1)));
     }
   }}
 >

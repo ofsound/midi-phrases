@@ -69,6 +69,15 @@ public:
     int getCombinationModeMask() const;
     int getPatternCombinationModeMask (int patternSlot) const;
 
+    static constexpr int scaleRootCount = 12;
+    static constexpr int defaultScaleRoot = 0;
+    static constexpr int scaleModeCount = 16;
+    static constexpr int defaultScaleModeIndex = 0;
+
+    void setPatternScale (int root, int modeIndex);
+    int getPatternScaleRoot (int patternSlot) const;
+    int getPatternScaleModeIndex (int patternSlot) const;
+
     void setPhraseRowMuted (int row, bool muted);
     bool isPhraseRowMuted (int row) const;
 
@@ -298,6 +307,8 @@ private:
     {
         SequencerState sequencer {};
         LoopBraceState loopBrace {};
+        int scaleRoot = defaultScaleRoot;
+        int scaleModeIndex = defaultScaleModeIndex;
     };
 
     struct LoopSlotState

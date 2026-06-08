@@ -584,6 +584,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setLoopBraceStartQuarters (1.0);
         testPlugin.setLoopBraceEndQuarters (5.0);
         testPlugin.setLoopBraceEnabled (true);
+        testPlugin.setPatternScale (6, 7);
         testPlugin.saveCurrentBraceToLoopSlot (0);
 
         testPlugin.setCurrentPatternSlot (2);
@@ -622,10 +623,44 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.isPatternLoopBraceEnabled (1));
         CHECK (testPlugin.getPatternLoopBraceStartQuarters (1) == Catch::Approx (1.0));
         CHECK (testPlugin.getPatternLoopBraceEndQuarters (1) == Catch::Approx (5.0));
+        CHECK (testPlugin.getPatternScaleRoot (1) == 6);
+        CHECK (testPlugin.getPatternScaleModeIndex (1) == 7);
 
         testPlugin.copyPatternSlot (1, 1);
         CHECK (testPlugin.getPatternPhraseNote (1, 0, 0) == 48);
         CHECK (testPlugin.getPatternLoopBraceEndQuarters (1) == Catch::Approx (5.0));
+        CHECK (testPlugin.getPatternScaleRoot (1) == 6);
+    }
+
+    SECTION ("pattern scale mode is pattern state")
+    {
+        CHECK (testPlugin.getPatternScaleRoot (0) == PluginProcessor::defaultScaleRoot);
+        CHECK (testPlugin.getPatternScaleModeIndex (0) == PluginProcessor::defaultScaleModeIndex);
+
+        testPlugin.setPatternScale (3, 5);
+
+        CHECK (testPlugin.getPatternScaleRoot (0) == 3);
+        CHECK (testPlugin.getPatternScaleModeIndex (0) == 5);
+
+        testPlugin.setPatternScale (-10, 99);
+
+        CHECK (testPlugin.getPatternScaleRoot (0) == 0);
+        CHECK (testPlugin.getPatternScaleModeIndex (0) == PluginProcessor::scaleModeCount - 1);
+
+        testPlugin.setPatternScale (11, 13);
+
+        juce::MemoryBlock state;
+        testPlugin.getStateInformation (state);
+
+        PluginProcessor reloaded;
+        reloaded.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+
+        CHECK (reloaded.getPatternScaleRoot (0) == 11);
+        CHECK (reloaded.getPatternScaleModeIndex (0) == 13);
+
+        reloaded.clearPatternSlot (0);
+        CHECK (reloaded.getPatternScaleRoot (0) == PluginProcessor::defaultScaleRoot);
+        CHECK (reloaded.getPatternScaleModeIndex (0) == PluginProcessor::defaultScaleModeIndex);
     }
 
     SECTION ("row timing offset")

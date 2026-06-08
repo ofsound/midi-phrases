@@ -214,6 +214,8 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
                          processor.getPatternLoopBraceEndQuarters (patternSlot));
     object->setProperty ("combinationModeMask",
                          processor.getPatternCombinationModeMask (patternSlot));
+    object->setProperty ("scaleRoot", processor.getPatternScaleRoot (patternSlot));
+    object->setProperty ("scaleModeIndex", processor.getPatternScaleModeIndex (patternSlot));
 
     return juce::var (object.release());
 }
@@ -357,6 +359,12 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                                 processor.isRowColorsEnabled() ? 1 : 0)
                        .withInitialisationData ("combinationModeMask",
                                                 processor.getCombinationModeMask())
+                       .withInitialisationData ("scaleRoot",
+                                                processor.getPatternScaleRoot (
+                                                    patternSlotForNativeDefault (processor)))
+                       .withInitialisationData ("scaleModeIndex",
+                                                processor.getPatternScaleModeIndex (
+                                                    patternSlotForNativeDefault (processor)))
                        .withInitialisationData ("loopBraceEnabled",
                                                 processor.isLoopBraceEnabled() ? 1 : 0)
                        .withInitialisationData ("loopBraceStart",
@@ -461,6 +469,18 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                }
 
                                complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setPatternScale",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 2)
+                                   processor.setPatternScale (varToInt (args[0]),
+                                                              varToInt (args[1]));
+
+                               complete (createPatternStateVar (processor,
+                                                                patternSlotForNativeDefault (
+                                                                    processor)));
                            })
                        .withNativeFunction (
                            "setPhraseRowMuted",

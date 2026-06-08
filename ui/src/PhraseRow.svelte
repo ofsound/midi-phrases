@@ -1,6 +1,6 @@
 <script>
   import { onDestroy } from "svelte";
-  import { SvelteSet } from "svelte/reactivity";
+  import { SvelteMap, SvelteSet } from "svelte/reactivity";
   import { flip } from "svelte/animate";
   import { dragHandle, dragHandleZone, TRIGGERS } from "svelte-dnd-action";
   import DurationBar from "./DurationBar.svelte";
@@ -106,6 +106,7 @@
    * @property {boolean} [globalStepBackView]
    * @property {number} [globalStepBackViewCommand]
    * @property {string[]} [selectedStepIds]
+   * @property {(value: number, delta: number) => number} [stepNoteValue]
    * @property {(row: number, orderedIds: string[]) => void} [onReorder]
    * @property {(row: number, beforeIds: string[], afterIds: string[]) => void | Promise<void>} [onMoveCommitted]
    * @property {(row: number, step: number) => void | Promise<void>} [onRemoveStep]
@@ -147,6 +148,7 @@
     globalStepBackView = false,
     globalStepBackViewCommand = 0,
     selectedStepIds = [],
+    stepNoteValue = (value, delta) => value + delta,
     onReorder = () => {},
     onMoveCommitted = () => {},
     onRemoveStep = () => {},
@@ -198,7 +200,7 @@
   let lastBulkBackgroundPointerDownY = 0;
   const flipOverrides = new SvelteSet();
   /** @type {Map<number, HTMLElement>} */
-  const cellShellElements = new Map();
+  const cellShellElements = new SvelteMap();
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
   let resizeListenerEntries = [];
   const resizeCapture = { capture: true };
@@ -1113,6 +1115,7 @@
                     value={notes[step]}
                     resetValue={defaultStepNote}
                     ariaLabel="Step note"
+                    stepValue={stepNoteValue}
                     onValueChange={(midi) => onNoteChange(row, step, midi)}
                   />
                   <VelocityDragInput
