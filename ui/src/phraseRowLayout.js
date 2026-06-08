@@ -1,6 +1,6 @@
 import { rowTimingOffsetShiftPx, stepCellPaddingPx } from "./stepCellLayout.js";
 
-/** Matches PhraseRow scroll container `pl-2`. */
+/** Leading inset before the quarter grid (half of PhraseRow’s scroll clip gutter). */
 export const phraseRowScrollPaddingLeftPx = 8;
 
 /** Matches PhraseRow scroll container `pt-2` + `pb-2` (16px root). */
@@ -31,7 +31,10 @@ export const phraseRowOffsetKnobWidthPx = 36;
 /** Inset from PhraseRow left edge to the row’s quarter-grid origin (offset 0). */
 export const phraseGridOriginLeftOffsetPx = phraseRowScrollPaddingLeftPx;
 
-/** Inset from PhraseRow left edge to step 0’s shell when row offset is 0. */
+/**
+ * Inset from PhraseRow left edge to step 0’s shell when row offset is 0.
+ * Also the non-scrolling clip gutter width before the horizontal scroll area.
+ */
 export const phraseFirstStepLeftOffsetPx =
   phraseGridOriginLeftOffsetPx + stepCellPaddingPx;
 

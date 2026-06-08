@@ -27,7 +27,11 @@
     toggleIconActiveClasses,
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
-  import { phraseRowEndAddStepInsetPx, phraseRowMinHeightPx } from "./phraseRowLayout.js";
+  import {
+    phraseFirstStepLeftOffsetPx,
+    phraseRowEndAddStepInsetPx,
+    phraseRowMinHeightPx,
+  } from "./phraseRowLayout.js";
   import {
     defaultStepTimingMultiplierIndex,
     insertStepTimingMultiplierOptions,
@@ -1280,13 +1284,21 @@
 {/snippet}
 
 <div
-  class="flex min-w-0 flex-1 items-stretch overflow-x-auto pt-2 pr-2 pb-2 pl-2"
-  role="presentation"
-  style:min-height="{phraseRowMinHeightPx}px"
+  class="flex min-w-0 flex-1 overflow-hidden"
   style:margin-left="{rowTimingOffsetShiftPx(timingOffsetIndex) +
     timingOffsetVisualCompensationPx}px"
-  onpointerdown={handleBulkSelectPointerDown}
 >
+  <div
+    class="pointer-events-none shrink-0 self-stretch"
+    style:width="{phraseFirstStepLeftOffsetPx}px"
+    aria-hidden="true"
+  ></div>
+  <div
+    class="flex min-w-0 flex-1 items-stretch overflow-x-auto pt-2 pr-2 pb-2"
+    role="presentation"
+    style:min-height="{phraseRowMinHeightPx}px"
+    onpointerdown={handleBulkSelectPointerDown}
+  >
   {#if isEmptyRow}
     <div class="relative flex shrink-0 items-center" style:padding-left="{phraseRowEndAddStepInsetPx}px">
       {@render largeAddStepButton("Add first step", 0)}
@@ -1314,9 +1326,7 @@
                 ? 'step-cell-resize-tween'
                 : ''}"
               style={fixedFlexStyle(cellWidth)}
-              style:margin-left={step === 0
-                ? `${stepCellPaddingPx}px`
-                : `${stepInsertZoneWidthPx}px`}
+              style:margin-left={step === 0 ? "0px" : `${stepInsertZoneWidthPx}px`}
             >
               <div class="pointer-events-auto h-full overflow-visible">
                 {@render stepCell(step, false)}
@@ -1344,7 +1354,7 @@
               class="relative shrink-0 overflow-visible {isShadowItem(item) ? 'pointer-events-none' : ''}"
               style={fixedFlexStyle(layout.cellWidth)}
               style:margin-left={layout.step === 0
-                ? `${stepCellPaddingPx}px`
+                ? "0px"
                 : layout.step > 0
                   ? `${stepInsertZoneWidthPx}px`
                   : undefined}
@@ -1365,4 +1375,5 @@
       {@render trailingAddStep()}
     </div>
   {/if}
+  </div>
 </div>
