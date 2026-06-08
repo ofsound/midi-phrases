@@ -28,7 +28,7 @@
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
   import {
-    phraseFirstStepLeftOffsetPx,
+    phraseGridOriginLeftOffsetPx,
     phraseRowEndAddStepInsetPx,
     phraseRowMinHeightPx,
   } from "./phraseRowLayout.js";
@@ -1290,7 +1290,7 @@
 >
   <div
     class="pointer-events-none shrink-0 self-stretch"
-    style:width="{phraseFirstStepLeftOffsetPx}px"
+    style:width="{phraseGridOriginLeftOffsetPx}px"
     aria-hidden="true"
   ></div>
   <div
@@ -1326,7 +1326,9 @@
                 ? 'step-cell-resize-tween'
                 : ''}"
               style={fixedFlexStyle(cellWidth)}
-              style:margin-left={step === 0 ? "0px" : `${stepInsertZoneWidthPx}px`}
+              style:margin-left={step === 0
+                ? `${stepCellPaddingPx}px`
+                : `${stepInsertZoneWidthPx}px`}
             >
               <div class="pointer-events-auto h-full overflow-visible">
                 {@render stepCell(step, false)}
@@ -1354,7 +1356,7 @@
               class="relative shrink-0 overflow-visible {isShadowItem(item) ? 'pointer-events-none' : ''}"
               style={fixedFlexStyle(layout.cellWidth)}
               style:margin-left={layout.step === 0
-                ? "0px"
+                ? `${stepCellPaddingPx}px`
                 : layout.step > 0
                   ? `${stepInsertZoneWidthPx}px`
                   : undefined}

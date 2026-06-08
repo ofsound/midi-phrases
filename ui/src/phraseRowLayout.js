@@ -32,8 +32,8 @@ export const phraseRowOffsetKnobWidthPx = 36;
 export const phraseGridOriginLeftOffsetPx = phraseRowScrollPaddingLeftPx;
 
 /**
- * Inset from PhraseRow left edge to step 0’s shell when row offset is 0.
- * Also the non-scrolling clip gutter width before the horizontal scroll area.
+ * Inset from PhraseRow left edge to step 0’s shell when row offset is 0
+ * (scroll clip gutter + step 0’s `margin-left` inside the scroll area).
  */
 export const phraseFirstStepLeftOffsetPx =
   phraseGridOriginLeftOffsetPx + stepCellPaddingPx;
