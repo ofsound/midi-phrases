@@ -142,6 +142,7 @@
   let activeLoopSlot = $state(-1);
   let loopSlotAssigned = $state(Array.from({ length: 8 }, () => false));
   let loopSlotPattern = Array.from({ length: 8 }, () => 0);
+  let headerToggleSlots = $state(Array.from({ length: 4 }, () => false));
   let pulseIndex = $state(defaultPulseIndex);
   let swingPercent = $state(0);
   let velocityHumanizePercent = $state(0);
@@ -185,6 +186,10 @@
         ? "border-zinc-700 text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
         : "border-zinc-800 text-zinc-700"
     }`;
+  }
+
+  function toggleHeaderSlot(slot) {
+    headerToggleSlots[slot] = !headerToggleSlots[slot];
   }
 
   function slotButtonClasses(active, assigned = true, copySource = false) {
@@ -2533,7 +2538,37 @@
     </div>
 
     <div class="flex min-w-0 flex-1 flex-nowrap items-end justify-center gap-x-3">
-        <div class="flex flex-col items-start gap-1">
+        <div class="flex shrink-0 flex-col gap-1">
+          <div class="flex items-center gap-1">
+            {#each [0, 1] as slot (slot)}
+              <button
+                type="button"
+                aria-label={`Toggle slot ${slot + 1}`}
+                aria-pressed={headerToggleSlots[slot]}
+                data-cursor="pointer"
+                class={slotButtonClasses(headerToggleSlots[slot], true)}
+                onclick={() => toggleHeaderSlot(slot)}
+              >
+                {slot + 1}
+              </button>
+            {/each}
+          </div>
+          <div class="flex items-center gap-1">
+            {#each [2, 3] as slot (slot)}
+              <button
+                type="button"
+                aria-label={`Toggle slot ${slot + 1}`}
+                aria-pressed={headerToggleSlots[slot]}
+                data-cursor="pointer"
+                class={slotButtonClasses(headerToggleSlots[slot], true)}
+                onclick={() => toggleHeaderSlot(slot)}
+              >
+                {slot + 1}
+              </button>
+            {/each}
+          </div>
+        </div>
+        <div class="flex flex-col items-start gap-1 border-l border-zinc-800 pl-3">
           <span class="text-xs font-semibold leading-none text-zinc-500">Pulse</span>
           <PulseNoteButtonGroup
             accent={emeraldRowAccent}
