@@ -33,14 +33,7 @@
   role="group"
   aria-label="Step insert controls"
 >
-  <span
-    class="pointer-events-none min-h-0 w-0.5 flex-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 {muted
-      ? 'bg-zinc-600'
-      : accent.bgAccent}"
-    aria-hidden="true"
-  ></span>
-
-  <div class="relative z-10 flex shrink-0 flex-col items-center justify-center gap-2">
+  <div class="relative z-10 flex shrink-0 flex-col items-center justify-center gap-4">
     {#if onInsert}
       <PlusDragButton
         {accent}
@@ -57,14 +50,14 @@
         type="button"
         aria-label="Duplicate step to the left"
         data-cursor="pointer"
-        class="flex h-3.5 w-3.5 shrink-0 items-center justify-center border-0 bg-transparent p-0 opacity-0 outline-none transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 {muted
+        class="flex h-4 w-4 shrink-0 items-center justify-center border-0 bg-transparent p-0 opacity-0 outline-none transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 {muted
           ? 'text-zinc-500'
           : accent.textAccent} {accent.insertZoneFocus}"
         onclick={onDuplicate}
       >
         <svg
           viewBox="0 0 16 16"
-          class="h-3 w-3"
+          class="h-4 w-4"
           fill="none"
           stroke="currentColor"
           stroke-width="1.5"
@@ -78,11 +71,4 @@
       </button>
     {/if}
   </div>
-
-  <span
-    class="pointer-events-none min-h-0 w-0.5 flex-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 {muted
-      ? 'bg-zinc-600'
-      : accent.bgAccent}"
-    aria-hidden="true"
-  ></span>
 </div>
