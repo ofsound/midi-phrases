@@ -79,7 +79,7 @@
   }
 </script>
 
-<section class="mt-6 flex min-h-0 w-full flex-1 flex-col">
+<section class="flex min-h-0 w-full flex-1 flex-col">
   <div class="mb-2 flex shrink-0 items-center justify-between gap-3">
     <p class="text-xs font-medium uppercase tracking-widest text-zinc-500">
       Record keyboard · row {row + 1}

@@ -29,6 +29,7 @@
   import PhraseRow from "./PhraseRow.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
   import PianoRollPreview from "./PianoRollPreview.svelte";
+  import CombinationModeRail from "./CombinationModeRail.svelte";
   import RecordPianoKeyboard from "./RecordPianoKeyboard.svelte";
   import {
     defaultStepTimingMultiplierIndex,
@@ -2640,39 +2641,7 @@
     </div>
 
     <div class="flex min-w-0 flex-1 flex-nowrap items-end justify-center gap-x-3">
-        <div class="flex shrink-0 flex-col gap-1">
-          <div class="flex items-center gap-1">
-            {#each combinationModes.slice(0, 2) as mode (mode.index)}
-              <button
-                type="button"
-                aria-label={`Toggle ${mode.name} mode`}
-                aria-pressed={(combinationModeMask & mode.bit) !== 0}
-                title={mode.name}
-                data-cursor="pointer"
-                class={slotButtonClasses((combinationModeMask & mode.bit) !== 0, true)}
-                onclick={() => toggleCombinationMode(mode.index)}
-              >
-                {mode.label}
-              </button>
-            {/each}
-          </div>
-          <div class="flex items-center gap-1">
-            {#each combinationModes.slice(2, 4) as mode (mode.index)}
-              <button
-                type="button"
-                aria-label={`Toggle ${mode.name} mode`}
-                aria-pressed={(combinationModeMask & mode.bit) !== 0}
-                title={mode.name}
-                data-cursor="pointer"
-                class={slotButtonClasses((combinationModeMask & mode.bit) !== 0, true)}
-                onclick={() => toggleCombinationMode(mode.index)}
-              >
-                {mode.label}
-              </button>
-            {/each}
-          </div>
-        </div>
-        <div class="flex flex-col items-start gap-1 border-l border-zinc-800 pl-3">
+        <div class="flex flex-col items-start gap-1">
           <span class="text-xs font-semibold leading-none text-zinc-500">Pulse</span>
           <PulseNoteButtonGroup
             accent={emeraldRowAccent}
@@ -3083,6 +3052,8 @@
         {/each}
       </div>
     </div>
+
+    <CombinationModeRail mask={combinationModeMask} onToggle={toggleCombinationMode} />
 
     {#if recordingRow !== null}
       <RecordPianoKeyboard
