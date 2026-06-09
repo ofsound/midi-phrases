@@ -456,6 +456,13 @@ private:
                               int gateSamples,
                               int bufferSamples,
                               juce::MidiBuffer& midiMessages);
+    void emitLayeredGeneratedNote (int midiChannel,
+                                   int note,
+                                   int velocity,
+                                   int sampleOffset,
+                                   int gateSamples,
+                                   int bufferSamples,
+                                   juce::MidiBuffer& midiMessages);
     void flushPendingNoteOns (int bufferSamples, juce::MidiBuffer& midiMessages);
     void initialiseRowDefaults (PhraseRowSteps& steps, int row, int stepCount, int scaleRoot);
     void rebuildRowTimingLayout (PhraseRowSteps& steps);
@@ -569,6 +576,7 @@ private:
         int velocity = 0;
         int samplesRemaining = 0;
         int gateSamples = 0;
+        int layered = 0;
     };
 
     struct PendingCombinedNoteOff

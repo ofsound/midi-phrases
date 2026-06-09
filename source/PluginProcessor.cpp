@@ -3134,6 +3134,33 @@ void PluginProcessor::addPendingNoteOn (const PendingNoteOn& note)
     pendingNoteOns[pendingNoteOnCount++] = note;
 }
 
+void PluginProcessor::emitLayeredGeneratedNote (const int midiChannel,
+                                                const int note,
+                                                const int velocity,
+                                                const int sampleOffset,
+                                                const int gateSamples,
+                                                const int bufferSamples,
+                                                juce::MidiBuffer& midiMessages)
+{
+    if (sampleOffset < 0 || sampleOffset >= bufferSamples)
+        return;
+
+    const auto clampedSampleOffset = juce::jmax (0, sampleOffset);
+    emitGeneratedNoteOn (midiChannel, note, velocity, clampedSampleOffset, midiMessages);
+
+    const auto samplesUntilOff = clampedSampleOffset + gateSamples;
+
+    if (samplesUntilOff < bufferSamples)
+    {
+        emitGeneratedNoteOff (midiChannel, note, samplesUntilOff, midiMessages);
+    }
+    else if (pendingCombinedNoteOffCount < pendingCombinedNoteOffs.size())
+    {
+        pendingCombinedNoteOffs[pendingCombinedNoteOffCount++] =
+            PendingCombinedNoteOff { midiChannel, note, samplesUntilOff - bufferSamples };
+    }
+}
+
 void PluginProcessor::emitScheduledNoteOn (const int row,
                                            const int midiChannel,
                                            const int note,
@@ -3188,14 +3215,27 @@ void PluginProcessor::flushPendingNoteOns (const int bufferSamples, juce::MidiBu
 
         if (pending.samplesRemaining < bufferSamples)
         {
-            emitScheduledNoteOn (pending.row,
-                                 pending.channel,
-                                 pending.note,
-                                 pending.velocity,
-                                 pending.samplesRemaining,
-                                 pending.gateSamples,
-                                 bufferSamples,
-                                 midiMessages);
+            if (pending.layered != 0)
+            {
+                emitLayeredGeneratedNote (pending.channel,
+                                          pending.note,
+                                          pending.velocity,
+                                          pending.samplesRemaining,
+                                          pending.gateSamples,
+                                          bufferSamples,
+                                          midiMessages);
+            }
+            else
+            {
+                emitScheduledNoteOn (pending.row,
+                                     pending.channel,
+                                     pending.note,
+                                     pending.velocity,
+                                     pending.samplesRemaining,
+                                     pending.gateSamples,
+                                     bufferSamples,
+                                     midiMessages);
+            }
         }
         else
         {
@@ -4266,14 +4306,13 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
             if (tapOffset < bufferSamples)
             {
-                emitScheduledNoteOn (row,
-                                     midiChannel,
-                                     shiftedNote,
-                                     tapVelocity,
-                                     juce::jmax (0, tapOffset),
-                                     noteGateSamples,
-                                     bufferSamples,
-                                     midiMessages);
+                emitLayeredGeneratedNote (midiChannel,
+                                          shiftedNote,
+                                          tapVelocity,
+                                          juce::jmax (0, tapOffset),
+                                          noteGateSamples,
+                                          bufferSamples,
+                                          midiMessages);
             }
             else
             {
@@ -4282,7 +4321,8 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                                   shiftedNote,
                                                   tapVelocity,
                                                   tapOffset - bufferSamples,
-                                                  noteGateSamples });
+                                                  noteGateSamples,
+                                                  1 });
             }
         }
     };
@@ -4303,14 +4343,13 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             {
                 if (sampleOffset < bufferSamples)
                 {
-                    emitScheduledNoteOn (row,
-                                         midiChannel,
-                                         shiftedNote,
-                                         shiftedVelocity,
-                                         juce::jmax (0, sampleOffset),
-                                         noteGateSamples,
-                                         bufferSamples,
-                                         midiMessages);
+                    emitLayeredGeneratedNote (midiChannel,
+                                              shiftedNote,
+                                              shiftedVelocity,
+                                              juce::jmax (0, sampleOffset),
+                                              noteGateSamples,
+                                              bufferSamples,
+                                              midiMessages);
                 }
                 else
                 {
@@ -4319,7 +4358,8 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                                       shiftedNote,
                                                       shiftedVelocity,
                                                       sampleOffset - bufferSamples,
-                                                      noteGateSamples });
+                                                      noteGateSamples,
+                                                      1 });
                 }
 
                 emitShimmerTapsForNote (row,
@@ -4341,14 +4381,13 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             {
                 if (sampleOffset < bufferSamples)
                 {
-                    emitScheduledNoteOn (row,
-                                         midiChannel,
-                                         shiftedNote,
-                                         shiftedVelocity,
-                                         juce::jmax (0, sampleOffset),
-                                         noteGateSamples,
-                                         bufferSamples,
-                                         midiMessages);
+                    emitLayeredGeneratedNote (midiChannel,
+                                              shiftedNote,
+                                              shiftedVelocity,
+                                              juce::jmax (0, sampleOffset),
+                                              noteGateSamples,
+                                              bufferSamples,
+                                              midiMessages);
                 }
                 else
                 {
@@ -4357,7 +4396,8 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                                       shiftedNote,
                                                       shiftedVelocity,
                                                       sampleOffset - bufferSamples,
-                                                      noteGateSamples });
+                                                      noteGateSamples,
+                                                      1 });
                 }
 
                 emitShimmerTapsForNote (row,
