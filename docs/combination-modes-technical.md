@@ -20,12 +20,12 @@ the C++ processor.
 
 The four modes are stored as a bit mask on each pattern slot.
 
-| Bit | Header | Name | Processor constant |
-| --- | --- | --- | --- |
-| `1 << 0` | `W` | Weave | `combinationModeWeave` |
-| `1 << 1` | `L` | Logic | `combinationModeLogic` |
-| `1 << 2` | `X` | Cross-Mod | `combinationModeCrossModulation` |
-| `1 << 3` | `E` | Echo | `combinationModeMultiplyEcho` |
+| Bit      | Header | Name      | Processor constant               |
+| -------- | ------ | --------- | -------------------------------- |
+| `1 << 0` | `W`    | Weave     | `combinationModeWeave`           |
+| `1 << 1` | `L`    | Logic     | `combinationModeLogic`           |
+| `1 << 2` | `X`    | Cross-Mod | `combinationModeCrossModulation` |
+| `1 << 3` | `E`    | Echo      | `combinationModeMultiplyEcho`    |
 
 The mask is pattern state, not global UI state. Copying a pattern copies its
 mode mask, and selecting a different pattern selects that pattern's mode
@@ -56,12 +56,7 @@ The JavaScript preview uses the equivalent shape:
 
 ```js
 {
-  start,
-  end,
-  midi,
-  velocity,
-  row,
-  step
+  (start, end, midi, velocity, row, step);
 }
 ```
 
@@ -168,25 +163,30 @@ provide transformed pitch, velocity, and duration.
 
 ### Pitch Rule
 
-The pitch row is interpreted as intervals relative to its first note:
+The pitch row is interpreted as scale-degree motion relative to its first note,
+using the active pattern scale (root + mode from pattern state):
 
 ```text
 pitchStep = event.step % pitchRow.stepCount
-interval  = pitchRow.notes[pitchStep] - pitchRow.notes[0]
-event.note = clampMidi(event.note + interval)
+pitchDegreeDelta = scaleDegreeDelta(pitchRow.notes[0], pitchRow.notes[pitchStep], scaleRoot, scaleModeIndex)
+event.note = clampMidi(transposeMidiByScaleDegrees(event.note, pitchDegreeDelta, scaleRoot, scaleModeIndex))
 ```
 
-This keeps the carrier row recognizable while using another row as an interval
-shape. It is chromatic semitone arithmetic, not scale-degree folding.
+This keeps the carrier row recognizable while using another row as a contour
+shape. Cross-Mod uses the same scale-degree helpers as Echo.
 
-Example:
+Scale changes are published to the audio thread as `SetPatternScale` commands so
+Cross-Mod reads the same root/mode as the UI after queued pattern rebuilds.
+
+In Chromatic mode each semitone counts as one scale degree, so Cross-Mod matches
+the previous chromatic interval behavior. In diatonic and other modes, transformed
+pitches stay in the current scale.
+
+Example (C major, carrier C3 = 48, pitch row E4 → F4 at step 1):
 
 ```text
-carrier note: 60
-pitch row:    [64, 67, 71]
-pitch step:   1
-interval:     67 - 64 = +3
-output note:  63
+pitchDegreeDelta = +1 (E4 to F4)
+output note:      D3 (48 + one scale degree)
 ```
 
 ### Velocity Rule
@@ -275,8 +275,6 @@ after a pulse change).
 In Chromatic mode each semitone counts as one scale degree, so Echo matches the
 previous chromatic interval behavior. In diatonic and other modes, generated
 echoes stay in the current scale.
-
-Cross-Mod still uses chromatic semitone intervals; only Echo is scale-aware.
 
 ### Velocity Rule
 
@@ -427,4 +425,3 @@ The preview intentionally differs in a few implementation details:
 The important musical outputs of the mode chain - which events survive, how
 pitch is transformed, how Echo expands events, and how Weave chooses collision
 winners - are mirrored.
-

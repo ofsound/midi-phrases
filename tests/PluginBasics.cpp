@@ -113,6 +113,90 @@ TEST_CASE ("Echo mode follows pattern scale", "[instance]")
     testPlugin.setPlayHead (nullptr);
 }
 
+TEST_CASE ("Cross-Mod mode follows pattern scale", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeCrossModulation, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 2);
+    ensurePhraseRowStepCount (testPlugin, 1, 2);
+
+    testPlugin.setPhraseNote (0, 0, 48); // C3
+    testPlugin.setPhraseNote (0, 1, 48); // C3
+    testPlugin.setPhraseNote (1, 0, 64); // E4
+    testPlugin.setPhraseNote (1, 1, 65); // F4
+
+    for (int row = 0; row < 2; ++row)
+    {
+        const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            testPlugin.setPhraseStepTimingMultiplier (row,
+                                                        step,
+                                                        PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (row, step, 100);
+        }
+    }
+
+    testPlugin.setPatternScale (0, 1); // C major
+    CHECK (testPlugin.getPatternScaleModeIndex (0) == 1);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    testPlugin.setPlayHead (&playHead);
+
+    std::array<int, 128> noteOnCounts {};
+
+    for (int block = 0; block < 700; ++block)
+    {
+        midi.clear();
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                      * (120.0 / 60.0) / sampleRate);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+                ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+        }
+
+        if (playHead.info.getPpqPosition() >= 8.0)
+            break;
+    }
+
+    CHECK (noteOnCounts[50] > 0); // D3 scale-degree shift from C3 + (E4 -> F4)
+    CHECK (noteOnCounts[49] == 0); // C#3 would be chromatic, not in C major
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Plugin instance", "[instance]")
 {
     PluginProcessor testPlugin;

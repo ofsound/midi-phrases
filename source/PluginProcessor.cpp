@@ -3548,9 +3548,11 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             const auto pitchStep = event.step % juce::jmax (1, pitchSteps.stepCount);
             const auto velocityStep = event.step % juce::jmax (1, velocitySteps.stepCount);
             const auto durationStep = event.step % juce::jmax (1, durationSteps.stepCount);
-            const auto interval = pitchSteps.notes[static_cast<size_t> (pitchStep)]
-                                  - firstNoteForRow (pitchRow);
-            event.note = juce::jlimit (0, 127, event.note + interval);
+            event.note = echoNoteFromModStep (event.note,
+                                              firstNoteForRow (pitchRow),
+                                              pitchSteps.notes[static_cast<size_t> (pitchStep)],
+                                              scaleRoot,
+                                              scaleModeIndex);
             event.velocity = juce::jlimit (
                 1,
                 127,
