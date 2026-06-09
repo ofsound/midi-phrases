@@ -11,7 +11,7 @@ constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5,
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 14;
+constexpr int phraseStateVersion = 15;
 
 int clampStepProbability (const int probability)
 {
@@ -229,6 +229,38 @@ int clampOctavizerRelativeVelocity (const int relativeVelocity)
 int octavizerOutputVelocity (const int baseVelocity, const int relativeVelocity)
 {
     return juce::jlimit (1, 127, baseVelocity + clampOctavizerRelativeVelocity (relativeVelocity));
+}
+
+int clampShimmerDelayMultiplierIndex (const int multiplierIndex)
+{
+    return juce::jlimit (0, PluginProcessor::stepTimingMultiplierCount - 1, multiplierIndex);
+}
+
+int clampShimmerFeedbackPercent (const int feedbackPercent)
+{
+    return juce::jlimit (PluginProcessor::minShimmerFeedbackPercent,
+                       PluginProcessor::maxShimmerFeedbackPercent,
+                       feedbackPercent);
+}
+
+int clampShimmerMixPercent (const int mixPercent)
+{
+    return juce::jlimit (PluginProcessor::minShimmerMixPercent,
+                       PluginProcessor::maxShimmerMixPercent,
+                       mixPercent);
+}
+
+int shimmerTapVelocity (const int sourceVelocity,
+                        const int tap,
+                        const int feedbackPercent,
+                        const int mixPercent)
+{
+    const auto feedback =
+        static_cast<double> (clampShimmerFeedbackPercent (feedbackPercent)) / 100.0;
+    const auto mix = static_cast<double> (clampShimmerMixPercent (mixPercent)) / 100.0;
+
+    return static_cast<int> (std::lround (
+        static_cast<double> (sourceVelocity) * std::pow (feedback, tap) * mix));
 }
 
 std::uint32_t deterministicEventHash (const int row, const int step, const double ppq)
@@ -677,6 +709,10 @@ void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
     pattern.octavizerUp8vaEnabled = 0;
     pattern.octavizerDown8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
     pattern.octavizerUp8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
+    pattern.shimmerEnabled = 0;
+    pattern.shimmerDelayMultiplierIndex = defaultStepTimingMultiplierIndex;
+    pattern.shimmerFeedbackPercent = defaultShimmerFeedbackPercent;
+    pattern.shimmerMixPercent = defaultShimmerMixPercent;
 
     for (int row = 0; row < phraseRowCount; ++row)
     {
@@ -1101,6 +1137,23 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
                 clampOctavizerRelativeVelocity (command.intValue);
             break;
 
+        case SequencerCommand::Type::SetPatternShimmerEnabled:
+            pattern.shimmerEnabled = command.intValue != 0 ? 1 : 0;
+            break;
+
+        case SequencerCommand::Type::SetPatternShimmerDelayMultiplierIndex:
+            pattern.shimmerDelayMultiplierIndex =
+                clampShimmerDelayMultiplierIndex (command.intValue);
+            break;
+
+        case SequencerCommand::Type::SetPatternShimmerFeedbackPercent:
+            pattern.shimmerFeedbackPercent = clampShimmerFeedbackPercent (command.intValue);
+            break;
+
+        case SequencerCommand::Type::SetPatternShimmerMixPercent:
+            pattern.shimmerMixPercent = clampShimmerMixPercent (command.intValue);
+            break;
+
         case SequencerCommand::Type::ReplacePattern:
             pattern = command.patternState;
             for (auto& patternRow : pattern.sequencer.rows)
@@ -1128,7 +1181,11 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
         || command.type == SequencerCommand::Type::SetPatternOctavizerDown8vaEnabled
         || command.type == SequencerCommand::Type::SetPatternOctavizerUp8vaEnabled
         || command.type == SequencerCommand::Type::SetPatternOctavizerDown8vaRelativeVelocity
-        || command.type == SequencerCommand::Type::SetPatternOctavizerUp8vaRelativeVelocity)
+        || command.type == SequencerCommand::Type::SetPatternOctavizerUp8vaRelativeVelocity
+        || command.type == SequencerCommand::Type::SetPatternShimmerEnabled
+        || command.type == SequencerCommand::Type::SetPatternShimmerDelayMultiplierIndex
+        || command.type == SequencerCommand::Type::SetPatternShimmerFeedbackPercent
+        || command.type == SequencerCommand::Type::SetPatternShimmerMixPercent)
     {
         flushAllRows();
     }
@@ -1572,6 +1629,86 @@ int PluginProcessor::getPatternOctavizerUp8vaRelativeVelocity (const int pattern
 {
     return clampOctavizerRelativeVelocity (
         modelPattern (patternSlot).octavizerUp8vaRelativeVelocity);
+}
+
+void PluginProcessor::setPatternShimmerEnabled (const bool enabled)
+{
+    const auto patternSlot = getCurrentPatternSlot();
+    auto& pattern = modelPattern (patternSlot);
+
+    pattern.shimmerEnabled = enabled ? 1 : 0;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternShimmerEnabled;
+    command.patternSlot = patternSlot;
+    command.intValue = enabled ? 1 : 0;
+    publishCommandToAudio (command);
+}
+
+void PluginProcessor::setPatternShimmerDelayMultiplierIndex (const int multiplierIndex)
+{
+    const auto patternSlot = getCurrentPatternSlot();
+    const auto clamped = clampShimmerDelayMultiplierIndex (multiplierIndex);
+    auto& pattern = modelPattern (patternSlot);
+
+    pattern.shimmerDelayMultiplierIndex = clamped;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternShimmerDelayMultiplierIndex;
+    command.patternSlot = patternSlot;
+    command.intValue = clamped;
+    publishCommandToAudio (command);
+}
+
+void PluginProcessor::setPatternShimmerFeedbackPercent (const int feedbackPercent)
+{
+    const auto patternSlot = getCurrentPatternSlot();
+    const auto clamped = clampShimmerFeedbackPercent (feedbackPercent);
+    auto& pattern = modelPattern (patternSlot);
+
+    pattern.shimmerFeedbackPercent = clamped;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternShimmerFeedbackPercent;
+    command.patternSlot = patternSlot;
+    command.intValue = clamped;
+    publishCommandToAudio (command);
+}
+
+void PluginProcessor::setPatternShimmerMixPercent (const int mixPercent)
+{
+    const auto patternSlot = getCurrentPatternSlot();
+    const auto clamped = clampShimmerMixPercent (mixPercent);
+    auto& pattern = modelPattern (patternSlot);
+
+    pattern.shimmerMixPercent = clamped;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternShimmerMixPercent;
+    command.patternSlot = patternSlot;
+    command.intValue = clamped;
+    publishCommandToAudio (command);
+}
+
+bool PluginProcessor::isPatternShimmerEnabled (const int patternSlot) const
+{
+    return modelPattern (patternSlot).shimmerEnabled != 0;
+}
+
+int PluginProcessor::getPatternShimmerDelayMultiplierIndex (const int patternSlot) const
+{
+    return clampShimmerDelayMultiplierIndex (
+        modelPattern (patternSlot).shimmerDelayMultiplierIndex);
+}
+
+int PluginProcessor::getPatternShimmerFeedbackPercent (const int patternSlot) const
+{
+    return clampShimmerFeedbackPercent (modelPattern (patternSlot).shimmerFeedbackPercent);
+}
+
+int PluginProcessor::getPatternShimmerMixPercent (const int patternSlot) const
+{
+    return clampShimmerMixPercent (modelPattern (patternSlot).shimmerMixPercent);
 }
 
 void PluginProcessor::reverseRowSteps (PhraseRowSteps& steps)
@@ -3939,6 +4076,67 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         }
     }
 
+    {
+        const auto shimmerEnabled = activePattern.shimmerEnabled != 0;
+
+        if (shimmerEnabled && eventCount > 0)
+        {
+            const auto shimmerDelayQuarters =
+                stepTimingMultiplierForIndex (activePattern.shimmerDelayMultiplierIndex) * pulse;
+
+            if (shimmerDelayQuarters > epsilon)
+            {
+                const auto originalCount = eventCount;
+                auto write = eventCount;
+
+                for (size_t read = 0; read < originalCount; ++read)
+                {
+                    const auto& source = combinedEvents[read];
+
+                    for (int tap = 1;; ++tap)
+                    {
+                        const auto tapVelocity = shimmerTapVelocity (source.velocity,
+                                                                       tap,
+                                                                       activePattern.shimmerFeedbackPercent,
+                                                                       activePattern.shimmerMixPercent);
+
+                        if (tapVelocity <= 0)
+                            break;
+
+                        const auto shiftedNote = source.note + tap * octavizerSemitoneShift;
+
+                        if (shiftedNote > maxMidiNote)
+                            break;
+
+                        if (write >= combinedWorkingEvents.size())
+                            break;
+
+                        auto copy = source;
+                        copy.ppq = source.ppq + static_cast<double> (tap) * shimmerDelayQuarters;
+                        copy.note = shiftedNote;
+                        copy.velocity = tapVelocity;
+                        combinedWorkingEvents[write++] = copy;
+                    }
+
+                    if (write >= combinedWorkingEvents.size())
+                        break;
+                }
+
+                eventCount = write;
+                copyFilteredEvents (eventCount);
+
+                std::sort (combinedEvents.begin(),
+                           combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
+                           [] (const CombinedNoteEvent& a, const CombinedNoteEvent& b) {
+                               if (std::abs (a.ppq - b.ppq) > 1.0e-9)
+                                   return a.ppq < b.ppq;
+
+                               return a.note < b.note;
+                           });
+            }
+        }
+    }
+
     for (size_t index = 0; index < eventCount; ++index)
     {
         auto event = combinedEvents[index];
@@ -4030,6 +4228,64 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
     const auto octavizerUpEnabled = activePattern.octavizerUp8vaEnabled != 0;
     const auto octavizerDownRelativeVelocity = activePattern.octavizerDown8vaRelativeVelocity;
     const auto octavizerUpRelativeVelocity = activePattern.octavizerUp8vaRelativeVelocity;
+    const auto shimmerEnabled = activePattern.shimmerEnabled != 0;
+    const auto shimmerFeedbackPercent = activePattern.shimmerFeedbackPercent;
+    const auto shimmerMixPercent = activePattern.shimmerMixPercent;
+    const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
+    const auto shimmerDelayQuarters =
+        stepTimingMultiplierForIndex (activePattern.shimmerDelayMultiplierIndex) * pulse;
+    const auto shimmerDelaySamples =
+        shimmerDelayQuarters > epsilon
+            ? juce::jmax (1,
+                          static_cast<int> (std::lround (shimmerDelayQuarters / ppqPerSample)))
+            : 0;
+
+    const auto emitShimmerTapsForNote = [&] (const int row,
+                                             const int midiChannel,
+                                             const int baseNote,
+                                             const int baseVelocity,
+                                             const int sampleOffset,
+                                             const int noteGateSamples) {
+        if (! shimmerEnabled || shimmerDelaySamples <= 0 || baseVelocity <= 0)
+            return;
+
+        for (int tap = 1;; ++tap)
+        {
+            const auto tapVelocity =
+                shimmerTapVelocity (baseVelocity, tap, shimmerFeedbackPercent, shimmerMixPercent);
+
+            if (tapVelocity <= 0)
+                break;
+
+            const auto shiftedNote = baseNote + tap * octavizerSemitoneShift;
+
+            if (shiftedNote > maxMidiNote)
+                break;
+
+            const auto tapOffset = sampleOffset + tap * shimmerDelaySamples;
+
+            if (tapOffset < bufferSamples)
+            {
+                emitScheduledNoteOn (row,
+                                     midiChannel,
+                                     shiftedNote,
+                                     tapVelocity,
+                                     juce::jmax (0, tapOffset),
+                                     noteGateSamples,
+                                     bufferSamples,
+                                     midiMessages);
+            }
+            else
+            {
+                addPendingNoteOn (PendingNoteOn { row,
+                                                  midiChannel,
+                                                  shiftedNote,
+                                                  tapVelocity,
+                                                  tapOffset - bufferSamples,
+                                                  noteGateSamples });
+            }
+        }
+    };
 
     const auto emitOctavizerCopies = [&] (const int row,
                                           const int midiChannel,
@@ -4065,6 +4321,13 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                                       sampleOffset - bufferSamples,
                                                       noteGateSamples });
                 }
+
+                emitShimmerTapsForNote (row,
+                                        midiChannel,
+                                        shiftedNote,
+                                        shiftedVelocity,
+                                        sampleOffset,
+                                        noteGateSamples);
             }
         }
 
@@ -4096,6 +4359,13 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                                       sampleOffset - bufferSamples,
                                                       noteGateSamples });
                 }
+
+                emitShimmerTapsForNote (row,
+                                        midiChannel,
+                                        shiftedNote,
+                                        shiftedVelocity,
+                                        sampleOffset,
+                                        noteGateSamples);
             }
         }
     };
@@ -4147,7 +4417,6 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             continue;
 
         const auto midiChannel = state.midiChannel[static_cast<size_t> (row)];
-        const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
         const auto swing = swingPercent.load (std::memory_order_relaxed);
         const auto velocityHumanize = velocityHumanizePercent.load (std::memory_order_relaxed);
         const auto timingHumanize = timingHumanizePercent.load (std::memory_order_relaxed);
@@ -4351,6 +4620,12 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                          noteGateSamples,
                                          bufferSamples,
                                          midiMessages);
+                    emitShimmerTapsForNote (row,
+                                            midiChannel,
+                                            note,
+                                            velocity,
+                                            clampedSampleOffset,
+                                            noteGateSamples);
                     emitOctavizerCopies (row,
                                          midiChannel,
                                          note,
@@ -4367,6 +4642,12 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                                   velocity,
                                                   sampleOffset - bufferSamples,
                                                   noteGateSamples });
+                emitShimmerTapsForNote (row,
+                                        midiChannel,
+                                        note,
+                                        velocity,
+                                        sampleOffset,
+                                        noteGateSamples);
                 emitOctavizerCopies (row,
                                      midiChannel,
                                      note,
@@ -4805,6 +5086,18 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
         patternTree.setProperty ("octavizerUp8vaRelativeVelocity",
                                  getPatternOctavizerUp8vaRelativeVelocity (patternSlot),
                                  nullptr);
+        patternTree.setProperty ("shimmerEnabled",
+                                 isPatternShimmerEnabled (patternSlot) ? 1 : 0,
+                                 nullptr);
+        patternTree.setProperty ("shimmerDelayMultiplierIndex",
+                                 getPatternShimmerDelayMultiplierIndex (patternSlot),
+                                 nullptr);
+        patternTree.setProperty ("shimmerFeedbackPercent",
+                                 getPatternShimmerFeedbackPercent (patternSlot),
+                                 nullptr);
+        patternTree.setProperty ("shimmerMixPercent",
+                                 getPatternShimmerMixPercent (patternSlot),
+                                 nullptr);
 
         for (int row = 0; row < phraseRowCount; ++row)
         {
@@ -5035,6 +5328,17 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         pattern.octavizerUp8vaRelativeVelocity = clampOctavizerRelativeVelocity (
             static_cast<int> (patternTree.getProperty ("octavizerUp8vaRelativeVelocity",
                                                        defaultOctavizerRelativeVelocity)));
+        pattern.shimmerEnabled =
+            static_cast<int> (patternTree.getProperty ("shimmerEnabled", 0)) != 0 ? 1 : 0;
+        pattern.shimmerDelayMultiplierIndex = clampShimmerDelayMultiplierIndex (
+            static_cast<int> (patternTree.getProperty ("shimmerDelayMultiplierIndex",
+                                                       defaultStepTimingMultiplierIndex)));
+        pattern.shimmerFeedbackPercent = clampShimmerFeedbackPercent (
+            static_cast<int> (patternTree.getProperty ("shimmerFeedbackPercent",
+                                                       defaultShimmerFeedbackPercent)));
+        pattern.shimmerMixPercent = clampShimmerMixPercent (
+            static_cast<int> (patternTree.getProperty ("shimmerMixPercent",
+                                                       defaultShimmerMixPercent)));
     }
 
     for (int i = 0; i < state.getNumChildren(); ++i)

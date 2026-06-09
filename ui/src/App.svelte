@@ -48,6 +48,14 @@
     defaultOctavizerRelativeVelocity,
   } from "./octavizer.js";
   import {
+    clampShimmerDelayMultiplierIndex,
+    clampShimmerFeedbackPercent,
+    clampShimmerMixPercent,
+    defaultShimmerDelayMultiplierIndex,
+    defaultShimmerFeedbackPercent,
+    defaultShimmerMixPercent,
+  } from "./shimmer.js";
+  import {
     combinationModes,
     isStepActiveAtBeat,
     swingSubdivisionOptions,
@@ -192,6 +200,10 @@
   let octavizerUp8vaEnabled = $state(false);
   let octavizerDown8vaRelativeVelocity = $state(defaultOctavizerRelativeVelocity);
   let octavizerUp8vaRelativeVelocity = $state(defaultOctavizerRelativeVelocity);
+  let shimmerEnabled = $state(false);
+  let shimmerDelayMultiplierIndex = $state(defaultShimmerDelayMultiplierIndex);
+  let shimmerFeedbackPercent = $state(defaultShimmerFeedbackPercent);
+  let shimmerMixPercent = $state(defaultShimmerMixPercent);
   let scaleDialogOpen = $state(false);
   let pulseIndex = $state(defaultPulseIndex);
   let swingPercent = $state(0);
@@ -300,6 +312,18 @@
     octavizerUp8vaRelativeVelocity = clampOctavizerRelativeVelocity(up8vaRelativeVelocity);
   }
 
+  function setShimmerState({
+    enabled = shimmerEnabled,
+    delayMultiplierIndex = shimmerDelayMultiplierIndex,
+    feedbackPercent = shimmerFeedbackPercent,
+    mixPercent = shimmerMixPercent,
+  } = {}) {
+    shimmerEnabled = Boolean(enabled);
+    shimmerDelayMultiplierIndex = clampShimmerDelayMultiplierIndex(delayMultiplierIndex);
+    shimmerFeedbackPercent = clampShimmerFeedbackPercent(feedbackPercent);
+    shimmerMixPercent = clampShimmerMixPercent(mixPercent);
+  }
+
   async function syncOctavizerToNative() {
     if (nativeFunctionAvailable("setPatternOctavizerDown8vaEnabled")) {
       const confirmed = await getNativeFunction("setPatternOctavizerDown8vaEnabled")(
@@ -342,6 +366,48 @@
 
       if (!Number.isNaN(parsed)) {
         octavizerUp8vaRelativeVelocity = clampOctavizerRelativeVelocity(parsed);
+      }
+    }
+  }
+
+  async function syncShimmerToNative() {
+    if (nativeFunctionAvailable("setPatternShimmerEnabled")) {
+      const confirmed = await getNativeFunction("setPatternShimmerEnabled")(shimmerEnabled ? 1 : 0);
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        shimmerEnabled = parsed !== 0;
+      }
+    }
+
+    if (nativeFunctionAvailable("setPatternShimmerDelayMultiplierIndex")) {
+      const confirmed = await getNativeFunction("setPatternShimmerDelayMultiplierIndex")(
+        shimmerDelayMultiplierIndex,
+      );
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        shimmerDelayMultiplierIndex = clampShimmerDelayMultiplierIndex(parsed);
+      }
+    }
+
+    if (nativeFunctionAvailable("setPatternShimmerFeedbackPercent")) {
+      const confirmed = await getNativeFunction("setPatternShimmerFeedbackPercent")(
+        shimmerFeedbackPercent,
+      );
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        shimmerFeedbackPercent = clampShimmerFeedbackPercent(parsed);
+      }
+    }
+
+    if (nativeFunctionAvailable("setPatternShimmerMixPercent")) {
+      const confirmed = await getNativeFunction("setPatternShimmerMixPercent")(shimmerMixPercent);
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        shimmerMixPercent = clampShimmerMixPercent(parsed);
       }
     }
   }
@@ -398,6 +464,73 @@
     setOctavizerState({ up8vaRelativeVelocity: value });
     await syncOctavizerToNative();
     pushHistoryEntry("Octavizer 8va velocity", before, createHistorySnapshot());
+  }
+
+  async function handleShimmerToggle(enabled) {
+    const before = createHistorySnapshot();
+    setShimmerState({ enabled });
+    await syncShimmerToNative();
+    pushHistoryEntry("Shimmer", before, createHistorySnapshot());
+  }
+
+  async function handleShimmerDelayChange(value) {
+    setShimmerState({ delayMultiplierIndex: value });
+
+    if (nativeFunctionAvailable("setPatternShimmerDelayMultiplierIndex")) {
+      const confirmed = await getNativeFunction("setPatternShimmerDelayMultiplierIndex")(value);
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        shimmerDelayMultiplierIndex = clampShimmerDelayMultiplierIndex(parsed);
+      }
+    }
+  }
+
+  async function handleShimmerFeedbackChange(value) {
+    setShimmerState({ feedbackPercent: value });
+
+    if (nativeFunctionAvailable("setPatternShimmerFeedbackPercent")) {
+      const confirmed = await getNativeFunction("setPatternShimmerFeedbackPercent")(value);
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        shimmerFeedbackPercent = clampShimmerFeedbackPercent(parsed);
+      }
+    }
+  }
+
+  async function handleShimmerMixChange(value) {
+    setShimmerState({ mixPercent: value });
+
+    if (nativeFunctionAvailable("setPatternShimmerMixPercent")) {
+      const confirmed = await getNativeFunction("setPatternShimmerMixPercent")(value);
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        shimmerMixPercent = clampShimmerMixPercent(parsed);
+      }
+    }
+  }
+
+  async function commitShimmerDelay(value) {
+    const before = createHistorySnapshot();
+    setShimmerState({ delayMultiplierIndex: value });
+    await syncShimmerToNative();
+    pushHistoryEntry("Shimmer delay", before, createHistorySnapshot());
+  }
+
+  async function commitShimmerFeedback(value) {
+    const before = createHistorySnapshot();
+    setShimmerState({ feedbackPercent: value });
+    await syncShimmerToNative();
+    pushHistoryEntry("Shimmer feedback", before, createHistorySnapshot());
+  }
+
+  async function commitShimmerMix(value) {
+    const before = createHistorySnapshot();
+    setShimmerState({ mixPercent: value });
+    await syncShimmerToNative();
+    pushHistoryEntry("Shimmer mix", before, createHistorySnapshot());
   }
 
   async function toggleCombinationMode(modeIndex) {
@@ -821,6 +954,10 @@
       octavizerUp8vaEnabled,
       octavizerDown8vaRelativeVelocity,
       octavizerUp8vaRelativeVelocity,
+      shimmerEnabled,
+      shimmerDelayMultiplierIndex,
+      shimmerFeedbackPercent,
+      shimmerMixPercent,
       loopBraceEnabled,
       loopBraceStart,
       loopBraceEnd,
@@ -890,6 +1027,13 @@
       up8vaRelativeVelocity:
         next.octavizerUp8vaRelativeVelocity ?? defaultOctavizerRelativeVelocity,
     });
+    setShimmerState({
+      enabled: next.shimmerEnabled ?? false,
+      delayMultiplierIndex:
+        next.shimmerDelayMultiplierIndex ?? defaultShimmerDelayMultiplierIndex,
+      feedbackPercent: next.shimmerFeedbackPercent ?? defaultShimmerFeedbackPercent,
+      mixPercent: next.shimmerMixPercent ?? defaultShimmerMixPercent,
+    });
     loopBraceEnabled = next.loopBraceEnabled;
     loopBraceStart = next.loopBraceStart;
     loopBraceEnd = next.loopBraceEnd;
@@ -935,6 +1079,21 @@
       ),
       up8vaRelativeVelocity: Number.parseInt(
         String(state.octavizerUp8vaRelativeVelocity ?? defaultOctavizerRelativeVelocity),
+        10,
+      ),
+    });
+    setShimmerState({
+      enabled: Boolean(Number.parseInt(String(state.shimmerEnabled ?? 0), 10)),
+      delayMultiplierIndex: Number.parseInt(
+        String(state.shimmerDelayMultiplierIndex ?? defaultShimmerDelayMultiplierIndex),
+        10,
+      ),
+      feedbackPercent: Number.parseInt(
+        String(state.shimmerFeedbackPercent ?? defaultShimmerFeedbackPercent),
+        10,
+      ),
+      mixPercent: Number.parseInt(
+        String(state.shimmerMixPercent ?? defaultShimmerMixPercent),
         10,
       ),
     });
@@ -1067,6 +1226,15 @@
         snapshot.octavizerUp8vaRelativeVelocity ?? defaultOctavizerRelativeVelocity,
     });
     await syncOctavizerToNative();
+
+    setShimmerState({
+      enabled: snapshot.shimmerEnabled ?? false,
+      delayMultiplierIndex:
+        snapshot.shimmerDelayMultiplierIndex ?? defaultShimmerDelayMultiplierIndex,
+      feedbackPercent: snapshot.shimmerFeedbackPercent ?? defaultShimmerFeedbackPercent,
+      mixPercent: snapshot.shimmerMixPercent ?? defaultShimmerMixPercent,
+    });
+    await syncShimmerToNative();
 
     if (snapshot.loopBraceStart > previousSnapshot.loopBraceStart) {
       await pushLoopBraceEnd(snapshot.loopBraceEnd);
@@ -2525,6 +2693,24 @@
     });
   }
 
+  function loadShimmerFromInitialisation() {
+    setShimmerState({
+      enabled: Boolean(Number.parseInt(String(unwrapJuceInit("shimmerEnabled") ?? 0), 10)),
+      delayMultiplierIndex: Number.parseInt(
+        String(unwrapJuceInit("shimmerDelayMultiplierIndex") ?? defaultShimmerDelayMultiplierIndex),
+        10,
+      ),
+      feedbackPercent: Number.parseInt(
+        String(unwrapJuceInit("shimmerFeedbackPercent") ?? defaultShimmerFeedbackPercent),
+        10,
+      ),
+      mixPercent: Number.parseInt(
+        String(unwrapJuceInit("shimmerMixPercent") ?? defaultShimmerMixPercent),
+        10,
+      ),
+    });
+  }
+
   async function pushLoopBraceEnabled(enabled) {
     if (!nativeFunctionAvailable("setLoopBraceEnabled")) return;
 
@@ -2812,6 +2998,7 @@
     loadPatternScaleFromInitialisation();
     loadNoteBandpassFromInitialisation();
     loadOctavizerFromInitialisation();
+    loadShimmerFromInitialisation();
     loadStandaloneTransportFromInitialisation();
     loadSlotStateFromInitialisation();
   }
@@ -3370,6 +3557,17 @@
       onOctavizerUp8vaRelativeVelocityChange={handleOctavizerUp8vaRelativeVelocityChange}
       onOctavizerDown8vaRelativeVelocityCommit={commitOctavizerDown8vaRelativeVelocity}
       onOctavizerUp8vaRelativeVelocityCommit={commitOctavizerUp8vaRelativeVelocity}
+      shimmerEnabled={shimmerEnabled}
+      shimmerDelayMultiplierIndex={shimmerDelayMultiplierIndex}
+      shimmerFeedbackPercent={shimmerFeedbackPercent}
+      shimmerMixPercent={shimmerMixPercent}
+      onShimmerToggle={handleShimmerToggle}
+      onShimmerDelayChange={handleShimmerDelayChange}
+      onShimmerFeedbackChange={handleShimmerFeedbackChange}
+      onShimmerMixChange={handleShimmerMixChange}
+      onShimmerDelayCommit={commitShimmerDelay}
+      onShimmerFeedbackCommit={commitShimmerFeedback}
+      onShimmerMixCommit={commitShimmerMix}
     />
 
     {#if recordingRow !== null}
@@ -3402,6 +3600,10 @@
         octavizerUp8vaEnabled={octavizerUp8vaEnabled}
         octavizerDown8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}
         octavizerUp8vaRelativeVelocity={octavizerUp8vaRelativeVelocity}
+        shimmerEnabled={shimmerEnabled}
+        shimmerDelayMultiplierIndex={shimmerDelayMultiplierIndex}
+        shimmerFeedbackPercent={shimmerFeedbackPercent}
+        shimmerMixPercent={shimmerMixPercent}
         {pulseIndex}
         {swingPercent}
         {swingSubdivisionIndex}

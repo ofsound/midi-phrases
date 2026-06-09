@@ -228,6 +228,12 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
                          processor.getPatternOctavizerDown8vaRelativeVelocity (patternSlot));
     object->setProperty ("octavizerUp8vaRelativeVelocity",
                          processor.getPatternOctavizerUp8vaRelativeVelocity (patternSlot));
+    object->setProperty ("shimmerEnabled", processor.isPatternShimmerEnabled (patternSlot) ? 1 : 0);
+    object->setProperty ("shimmerDelayMultiplierIndex",
+                         processor.getPatternShimmerDelayMultiplierIndex (patternSlot));
+    object->setProperty ("shimmerFeedbackPercent",
+                         processor.getPatternShimmerFeedbackPercent (patternSlot));
+    object->setProperty ("shimmerMixPercent", processor.getPatternShimmerMixPercent (patternSlot));
 
     return juce::var (object.release());
 }
@@ -398,6 +404,20 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                                     patternSlotForNativeDefault (processor)))
                        .withInitialisationData ("octavizerUp8vaRelativeVelocity",
                                                 processor.getPatternOctavizerUp8vaRelativeVelocity (
+                                                    patternSlotForNativeDefault (processor)))
+                       .withInitialisationData ("shimmerEnabled",
+                                                processor.isPatternShimmerEnabled (
+                                                    patternSlotForNativeDefault (processor))
+                                                    ? 1
+                                                    : 0)
+                       .withInitialisationData ("shimmerDelayMultiplierIndex",
+                                                processor.getPatternShimmerDelayMultiplierIndex (
+                                                    patternSlotForNativeDefault (processor)))
+                       .withInitialisationData ("shimmerFeedbackPercent",
+                                                processor.getPatternShimmerFeedbackPercent (
+                                                    patternSlotForNativeDefault (processor)))
+                       .withInitialisationData ("shimmerMixPercent",
+                                                processor.getPatternShimmerMixPercent (
                                                     patternSlotForNativeDefault (processor)))
                        .withInitialisationData ("loopBraceEnabled",
                                                 processor.isLoopBraceEnabled() ? 1 : 0)
@@ -572,6 +592,48 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.setPatternOctavizerUp8vaRelativeVelocity (varToInt (args[0]));
 
                                complete (processor.getPatternOctavizerUp8vaRelativeVelocity (
+                                   patternSlotForNativeDefault (processor)));
+                           })
+                       .withNativeFunction (
+                           "setPatternShimmerEnabled",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPatternShimmerEnabled (varToInt (args[0]) != 0);
+
+                               complete (processor.isPatternShimmerEnabled (
+                                             patternSlotForNativeDefault (processor))
+                                         ? 1
+                                         : 0);
+                           })
+                       .withNativeFunction (
+                           "setPatternShimmerDelayMultiplierIndex",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPatternShimmerDelayMultiplierIndex (varToInt (args[0]));
+
+                               complete (processor.getPatternShimmerDelayMultiplierIndex (
+                                   patternSlotForNativeDefault (processor)));
+                           })
+                       .withNativeFunction (
+                           "setPatternShimmerFeedbackPercent",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPatternShimmerFeedbackPercent (varToInt (args[0]));
+
+                               complete (processor.getPatternShimmerFeedbackPercent (
+                                   patternSlotForNativeDefault (processor)));
+                           })
+                       .withNativeFunction (
+                           "setPatternShimmerMixPercent",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPatternShimmerMixPercent (varToInt (args[0]));
+
+                               complete (processor.getPatternShimmerMixPercent (
                                    patternSlotForNativeDefault (processor)));
                            })
                        .withNativeFunction (

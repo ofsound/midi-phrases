@@ -276,6 +276,83 @@
     box-shadow: var(--shadow-accent-focus);
   }
 
+  .shimmer-control {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .shimmer-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+  }
+
+  .shimmer-toggle {
+    width: 3.45rem;
+    height: 3.45rem;
+  }
+
+  .shimmer-toggle-face {
+    inset: 6px;
+  }
+
+  .shimmer-toggle-label {
+    font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+    text-transform: none;
+    text-align: center;
+  }
+
+  .shimmer-params {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .shimmer-param {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.35rem;
+    height: 1.15rem;
+    border-radius: 0.2rem;
+    border: 1px solid #3f3f46;
+    background: rgba(24, 24, 27, 0.92);
+    color: rgba(161, 161, 170, 0.92);
+    user-select: none;
+    transition:
+      border-color 120ms ease,
+      color 120ms ease,
+      box-shadow 120ms ease;
+  }
+
+  .shimmer-param-active {
+    border-color: color-mix(in srgb, var(--color-accent-400) 55%, #52525b);
+    color: rgba(228, 228, 231, 0.96);
+  }
+
+  .shimmer-param-dragging,
+  .shimmer-param:focus-visible {
+    border-color: color-mix(in srgb, var(--color-accent-400) 80%, #52525b);
+    color: var(--color-accent-300);
+    box-shadow: var(--shadow-accent-focus);
+  }
+
+  .shimmer-param-value {
+    font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
   .octavizer-relative-velocity-value {
     font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
     font-size: 0.62rem;

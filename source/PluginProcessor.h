@@ -101,6 +101,22 @@ public:
     int getPatternOctavizerDown8vaRelativeVelocity (int patternSlot) const;
     int getPatternOctavizerUp8vaRelativeVelocity (int patternSlot) const;
 
+    static constexpr int defaultShimmerFeedbackPercent = 70;
+    static constexpr int defaultShimmerMixPercent = 100;
+    static constexpr int minShimmerFeedbackPercent = 0;
+    static constexpr int maxShimmerFeedbackPercent = 100;
+    static constexpr int minShimmerMixPercent = 0;
+    static constexpr int maxShimmerMixPercent = 100;
+
+    void setPatternShimmerEnabled (bool enabled);
+    void setPatternShimmerDelayMultiplierIndex (int multiplierIndex);
+    void setPatternShimmerFeedbackPercent (int feedbackPercent);
+    void setPatternShimmerMixPercent (int mixPercent);
+    bool isPatternShimmerEnabled (int patternSlot) const;
+    int getPatternShimmerDelayMultiplierIndex (int patternSlot) const;
+    int getPatternShimmerFeedbackPercent (int patternSlot) const;
+    int getPatternShimmerMixPercent (int patternSlot) const;
+
     void setPhraseRowMuted (int row, bool muted);
     bool isPhraseRowMuted (int row) const;
 
@@ -341,6 +357,10 @@ private:
         int octavizerUp8vaEnabled = 0;
         int octavizerDown8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
         int octavizerUp8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
+        int shimmerEnabled = 0;
+        int shimmerDelayMultiplierIndex = defaultStepTimingMultiplierIndex;
+        int shimmerFeedbackPercent = defaultShimmerFeedbackPercent;
+        int shimmerMixPercent = defaultShimmerMixPercent;
     };
 
     struct LoopSlotState
@@ -382,6 +402,10 @@ private:
             SetPatternOctavizerUp8vaEnabled,
             SetPatternOctavizerDown8vaRelativeVelocity,
             SetPatternOctavizerUp8vaRelativeVelocity,
+            SetPatternShimmerEnabled,
+            SetPatternShimmerDelayMultiplierIndex,
+            SetPatternShimmerFeedbackPercent,
+            SetPatternShimmerMixPercent,
             ReplacePattern
         };
 

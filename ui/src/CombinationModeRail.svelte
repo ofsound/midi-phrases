@@ -2,6 +2,7 @@
   import CombinationModeIcon from "./CombinationModeIcon.svelte";
   import NoteBandpassSlider from "./NoteBandpassSlider.svelte";
   import OctavizerControl from "./OctavizerControl.svelte";
+  import ShimmerControl from "./ShimmerControl.svelte";
   import { combinationModes } from "./phraseSchedule.js";
 
   /**
@@ -24,6 +25,17 @@
    * @property {(value: number) => void | Promise<void>} [onOctavizerUp8vaRelativeVelocityChange]
    * @property {(value: number) => void | Promise<void>} [onOctavizerDown8vaRelativeVelocityCommit]
    * @property {(value: number) => void | Promise<void>} [onOctavizerUp8vaRelativeVelocityCommit]
+   * @property {boolean} shimmerEnabled
+   * @property {number} shimmerDelayMultiplierIndex
+   * @property {number} shimmerFeedbackPercent
+   * @property {number} shimmerMixPercent
+   * @property {(enabled: boolean) => void | Promise<void>} [onShimmerToggle]
+   * @property {(value: number) => void | Promise<void>} [onShimmerDelayChange]
+   * @property {(value: number) => void | Promise<void>} [onShimmerFeedbackChange]
+   * @property {(value: number) => void | Promise<void>} [onShimmerMixChange]
+   * @property {(value: number) => void | Promise<void>} [onShimmerDelayCommit]
+   * @property {(value: number) => void | Promise<void>} [onShimmerFeedbackCommit]
+   * @property {(value: number) => void | Promise<void>} [onShimmerMixCommit]
    */
 
   /** @type {Props} */
@@ -44,6 +56,17 @@
     onOctavizerUp8vaRelativeVelocityChange = () => {},
     onOctavizerDown8vaRelativeVelocityCommit = () => {},
     onOctavizerUp8vaRelativeVelocityCommit = () => {},
+    shimmerEnabled = false,
+    shimmerDelayMultiplierIndex = 3,
+    shimmerFeedbackPercent = 70,
+    shimmerMixPercent = 100,
+    onShimmerToggle = () => {},
+    onShimmerDelayChange = () => {},
+    onShimmerFeedbackChange = () => {},
+    onShimmerMixChange = () => {},
+    onShimmerDelayCommit = () => {},
+    onShimmerFeedbackCommit = () => {},
+    onShimmerMixCommit = () => {},
   } = $props();
 </script>
 
@@ -84,6 +107,20 @@
       onUp8vaRelativeVelocityChange={onOctavizerUp8vaRelativeVelocityChange}
       onDown8vaRelativeVelocityCommit={onOctavizerDown8vaRelativeVelocityCommit}
       onUp8vaRelativeVelocityCommit={onOctavizerUp8vaRelativeVelocityCommit}
+    />
+
+    <ShimmerControl
+      enabled={shimmerEnabled}
+      delayMultiplierIndex={shimmerDelayMultiplierIndex}
+      feedbackPercent={shimmerFeedbackPercent}
+      mixPercent={shimmerMixPercent}
+      onToggle={onShimmerToggle}
+      onDelayChange={onShimmerDelayChange}
+      onFeedbackChange={onShimmerFeedbackChange}
+      onMixChange={onShimmerMixChange}
+      onDelayCommit={onShimmerDelayCommit}
+      onFeedbackCommit={onShimmerFeedbackCommit}
+      onMixCommit={onShimmerMixCommit}
     />
   </div>
 
