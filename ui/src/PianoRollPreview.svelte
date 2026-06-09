@@ -31,6 +31,8 @@
    * @property {number} [swingPercent]
    * @property {number} [swingSubdivisionIndex]
    * @property {number} [combinationModeMask]
+   * @property {number} [scaleRoot]
+   * @property {number} [scaleModeIndex]
    * @property {boolean} [rowColorsEnabled]
    * @property {any} [lengthQuarters]
    * @property {boolean} [loopEnabled]
@@ -57,6 +59,8 @@
     swingPercent = 0,
     swingSubdivisionIndex = 1,
     combinationModeMask = 0,
+    scaleRoot = 0,
+    scaleModeIndex = 0,
     rowColorsEnabled = false,
     lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
     loopEnabled = false,
@@ -102,6 +106,8 @@
     swingSubdivisionIndex,
     combinationModeMask,
     lengthQuarters,
+    scaleRoot,
+    scaleModeIndex,
   }));
 
   let pitchRange = $derived(pitchRangeForSchedule(scheduled));

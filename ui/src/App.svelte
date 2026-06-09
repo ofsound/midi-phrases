@@ -3111,6 +3111,8 @@
         stepCycle={stepCycle}
         stepCycleOffset={stepCycleOffset}
         {combinationModeMask}
+        {scaleRoot}
+        {scaleModeIndex}
         {pulseIndex}
         {swingPercent}
         {swingSubdivisionIndex}

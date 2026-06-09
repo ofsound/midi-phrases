@@ -79,6 +79,129 @@ int clampScaleModeIndex (const int modeIndex)
     return juce::jlimit (0, PluginProcessor::scaleModeCount - 1, modeIndex);
 }
 
+struct ScaleModeDefinition
+{
+    const int* intervals = nullptr;
+    int count = 0;
+};
+
+constexpr int scaleModeChromaticIntervals[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+constexpr int scaleModeMajorIntervals[] = { 0, 2, 4, 5, 7, 9, 11 };
+constexpr int scaleModeNaturalMinorIntervals[] = { 0, 2, 3, 5, 7, 8, 10 };
+constexpr int scaleModeDorianIntervals[] = { 0, 2, 3, 5, 7, 9, 10 };
+constexpr int scaleModePhrygianIntervals[] = { 0, 1, 3, 5, 7, 8, 10 };
+constexpr int scaleModeLydianIntervals[] = { 0, 2, 4, 6, 7, 9, 11 };
+constexpr int scaleModeMixolydianIntervals[] = { 0, 2, 4, 5, 7, 9, 10 };
+constexpr int scaleModeLocrianIntervals[] = { 0, 1, 3, 5, 6, 8, 10 };
+constexpr int scaleModeHarmonicMinorIntervals[] = { 0, 2, 3, 5, 7, 8, 11 };
+constexpr int scaleModeMelodicMinorIntervals[] = { 0, 2, 3, 5, 7, 9, 11 };
+constexpr int scaleModeMajorPentatonicIntervals[] = { 0, 2, 4, 7, 9 };
+constexpr int scaleModeMinorPentatonicIntervals[] = { 0, 3, 5, 7, 10 };
+constexpr int scaleModeBluesIntervals[] = { 0, 3, 5, 6, 7, 10 };
+constexpr int scaleModeWholeToneIntervals[] = { 0, 2, 4, 6, 8, 10 };
+constexpr int scaleModeDiminishedWholeHalfIntervals[] = { 0, 2, 3, 5, 6, 8, 9, 11 };
+constexpr int scaleModeDiminishedHalfWholeIntervals[] = { 0, 1, 3, 4, 6, 7, 9, 10 };
+
+constexpr std::array<ScaleModeDefinition, PluginProcessor::scaleModeCount> scaleModeDefinitions { {
+    { scaleModeChromaticIntervals, 12 },
+    { scaleModeMajorIntervals, 7 },
+    { scaleModeNaturalMinorIntervals, 7 },
+    { scaleModeDorianIntervals, 7 },
+    { scaleModePhrygianIntervals, 7 },
+    { scaleModeLydianIntervals, 7 },
+    { scaleModeMixolydianIntervals, 7 },
+    { scaleModeLocrianIntervals, 7 },
+    { scaleModeHarmonicMinorIntervals, 7 },
+    { scaleModeMelodicMinorIntervals, 7 },
+    { scaleModeMajorPentatonicIntervals, 5 },
+    { scaleModeMinorPentatonicIntervals, 5 },
+    { scaleModeBluesIntervals, 6 },
+    { scaleModeWholeToneIntervals, 6 },
+    { scaleModeDiminishedWholeHalfIntervals, 8 },
+    { scaleModeDiminishedHalfWholeIntervals, 8 },
+} };
+
+bool pitchClassInScale (const int midi, const int root, const int modeIndex)
+{
+    const auto& mode = scaleModeDefinitions[static_cast<size_t> (clampScaleModeIndex (modeIndex))];
+    const auto pitchClass = juce::jlimit (0, 11, ((midi % 12) + 12) % 12);
+    const auto relative = (pitchClass - clampScaleRoot (root) + 12) % 12;
+
+    for (int index = 0; index < mode.count; ++index)
+    {
+        if (mode.intervals[index] == relative)
+            return true;
+    }
+
+    return false;
+}
+
+int transposeMidiByScaleDegrees (const int note,
+                                 const int degreeDelta,
+                                 const int root,
+                                 const int modeIndex)
+{
+    const auto delta = degreeDelta;
+    auto current = juce::jlimit (0, 127, note);
+
+    if (delta == 0)
+        return current;
+
+    const auto direction = delta > 0 ? 1 : -1;
+    auto remaining = std::abs (delta);
+
+    while (remaining > 0)
+    {
+        if ((direction > 0 && current >= 127) || (direction < 0 && current <= 0))
+            return current;
+
+        current += direction;
+
+        if (pitchClassInScale (current, root, modeIndex))
+            --remaining;
+    }
+
+    return current;
+}
+
+int scaleDegreeDelta (const int fromNote, const int toNote, const int root, const int modeIndex)
+{
+    const auto from = juce::jlimit (0, 127, fromNote);
+    const auto to = juce::jlimit (0, 127, toNote);
+
+    if (from == to)
+        return 0;
+
+    const auto direction = to > from ? 1 : -1;
+    auto current = from;
+    auto degrees = 0;
+
+    while ((direction > 0 && current < to) || (direction < 0 && current > to))
+    {
+        if ((direction > 0 && current >= 127) || (direction < 0 && current <= 0))
+            break;
+
+        current += direction;
+
+        if (pitchClassInScale (current, root, modeIndex))
+            degrees += direction;
+    }
+
+    return degrees;
+}
+
+int echoNoteFromModStep (const int carrierNote,
+                         const int modBaseNote,
+                         const int modStepNote,
+                         const int root,
+                         const int modeIndex)
+{
+    return transposeMidiByScaleDegrees (carrierNote,
+                                        scaleDegreeDelta (modBaseNote, modStepNote, root, modeIndex),
+                                        root,
+                                        modeIndex);
+}
+
 bool combinationModeEnabled (const int mask, const int modeIndex)
 {
     const auto bit = combinationModeBit (modeIndex);
@@ -637,7 +760,8 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             && command.type != SequencerCommand::Type::SetLoopBraceEnabled
             && command.type != SequencerCommand::Type::SetLoopBraceStart
             && command.type != SequencerCommand::Type::SetLoopBraceEnd
-            && command.type != SequencerCommand::Type::SetCombinationModeMask)
+            && command.type != SequencerCommand::Type::SetCombinationModeMask
+            && command.type != SequencerCommand::Type::SetPatternScale)
             return;
     }
 
@@ -915,6 +1039,11 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
 
         case SequencerCommand::Type::SetCombinationModeMask:
             state.combinationModeMask = clampCombinationModeMask (command.intValue);
+            break;
+
+        case SequencerCommand::Type::SetPatternScale:
+            pattern.scaleRoot = clampScaleRoot (command.step);
+            pattern.scaleModeIndex = clampScaleModeIndex (command.intValue);
             break;
 
         case SequencerCommand::Type::ReplacePattern:
@@ -1256,9 +1385,12 @@ void PluginProcessor::setPatternScale (const int root, const int modeIndex)
     pattern.scaleRoot = clampedRoot;
     pattern.scaleModeIndex = clampedMode;
 
-    auto& audioPattern = audioPatterns[static_cast<size_t> (clampPatternSlot (patternSlot))];
-    audioPattern.scaleRoot = clampedRoot;
-    audioPattern.scaleModeIndex = clampedMode;
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternScale;
+    command.patternSlot = patternSlot;
+    command.step = clampedRoot;
+    command.intValue = clampedMode;
+    publishCommandToAudio (command);
 }
 
 int PluginProcessor::getPatternScaleRoot (const int patternSlot) const
@@ -3116,8 +3248,11 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 {
     constexpr auto epsilon = 1.0e-9;
     const auto& state = audioSequencer();
-    const auto emptyRowDefaultNote = defaultStepNoteForScaleRoot (
-        audioPatterns[static_cast<size_t> (clampPatternSlot (audioActivePatternSlot))].scaleRoot);
+    const auto& activePattern =
+        audioPatterns[static_cast<size_t> (clampPatternSlot (audioActivePatternSlot))];
+    const auto scaleRoot = activePattern.scaleRoot;
+    const auto scaleModeIndex = activePattern.scaleModeIndex;
+    const auto emptyRowDefaultNote = defaultStepNoteForScaleRoot (scaleRoot);
     const auto modeMask = clampCombinationModeMask (state.combinationModeMask);
     const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
     const auto swing = swingPercent.load (std::memory_order_relaxed);
@@ -3210,8 +3345,53 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         else if (schedulePpqStart + epsilon < lastTrigger)
             lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
 
+        struct ActiveCombinedNote
+        {
+            double startPpq = 0.0;
+            double endPpq = 0.0;
+            int step = 0;
+            int channel = 0;
+            int note = 0;
+            int velocity = 0;
+            bool valid = false;
+        };
+
+        ActiveCombinedNote activeNote;
+        auto collectionFull = false;
+
+        const auto flushActiveNote = [&] (const double endTime) {
+            if (! activeNote.valid || collectionFull)
+                return;
+
+            const auto clippedEnd = juce::jmin (activeNote.endPpq, endTime);
+
+            if (clippedEnd <= activeNote.startPpq + epsilon)
+            {
+                activeNote.valid = false;
+                return;
+            }
+
+            if (! appendEvent (CombinedNoteEvent { activeNote.startPpq,
+                                                   clippedEnd - activeNote.startPpq,
+                                                   row,
+                                                   activeNote.step,
+                                                   activeNote.channel,
+                                                   activeNote.note,
+                                                   activeNote.velocity }))
+            {
+                collectionFull = true;
+                activeNote.valid = false;
+                return;
+            }
+
+            activeNote.valid = false;
+        };
+
         for (int triggerIndex = 0; triggerIndex < triggerCount; ++triggerIndex)
         {
+            if (collectionFull)
+                break;
+
             const auto trigger = scratch.triggers[static_cast<size_t> (triggerIndex)];
 
             if (trigger.ppq <= lastTrigger + epsilon)
@@ -3258,14 +3438,39 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
             velocity = humanizeVelocityValue (velocity, velocityHumanize, playbackRandomState);
 
-            if (! appendEvent (CombinedNoteEvent { trigger.ppq,
-                                                   gateQuarters,
-                                                   row,
-                                                   step,
-                                                   state.midiChannel[static_cast<size_t> (row)],
-                                                   rowSteps.notes[static_cast<size_t> (step)],
-                                                   velocity }))
+            const auto swingDelay =
+                swingDelayQuartersForPpq (trigger.ppq, pulse, swing, swingSubdivision);
+            const auto noteStart = trigger.ppq + swingDelay;
+
+            flushActiveNote (noteStart);
+
+            if (collectionFull)
                 break;
+
+            activeNote.startPpq = noteStart;
+            activeNote.endPpq = noteStart + gateQuarters;
+            activeNote.step = step;
+            activeNote.channel = state.midiChannel[static_cast<size_t> (row)];
+            activeNote.note = rowSteps.notes[static_cast<size_t> (step)];
+            activeNote.velocity = velocity;
+            activeNote.valid = true;
+        }
+
+        if (activeNote.valid && ! collectionFull)
+        {
+            const auto gateQuarters = activeNote.endPpq - activeNote.startPpq;
+
+            if (gateQuarters > epsilon)
+            {
+                if (! appendEvent (CombinedNoteEvent { activeNote.startPpq,
+                                                       gateQuarters,
+                                                       row,
+                                                       activeNote.step,
+                                                       activeNote.channel,
+                                                       activeNote.note,
+                                                       activeNote.velocity }))
+                    collectionFull = true;
+            }
         }
     }
 
@@ -3396,7 +3601,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                 auto next = carrier;
                 next.ppq = carrier.ppq + modSteps.stepStartQuarters[modIndex];
 
-                if (next.ppq < schedulePpqStart - epsilon || next.ppq >= schedulePpqEnd - epsilon)
+                if (next.ppq < schedulePpqStart - epsilon)
                     continue;
 
                 const auto modGate =
@@ -3405,7 +3610,11 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                 if (modGate <= epsilon)
                     continue;
 
-                next.note = juce::jlimit (0, 127, carrier.note + modSteps.notes[modIndex] - modBaseNote);
+                next.note = echoNoteFromModStep (carrier.note,
+                                                 modBaseNote,
+                                                 modSteps.notes[modIndex],
+                                                 scaleRoot,
+                                                 scaleModeIndex);
                 next.velocity = juce::jlimit (1, 127, (carrier.velocity + modSteps.velocity[modIndex]) / 2);
                 next.gateQuarters = juce::jmin (carrier.gateQuarters, modGate);
                 next.step = modStep;
@@ -3492,13 +3701,12 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             continue;
 
         const auto stepLength = event.gateQuarters;
-        const auto swingDelay = swingDelayQuartersForPpq (event.ppq, pulse, swing, swingSubdivision);
         const auto timingRange = stepLength * timingHumanizeScale
                                  * (static_cast<double> (clampPercent (timingHumanize)) / 100.0);
         const auto timingOffset =
             timingRange > 0.0 ? (nextRandomUnitDouble (playbackRandomState) * 2.0 - 1.0) * timingRange
                               : 0.0;
-        const auto delayQuarters = juce::jmax (0.0, swingDelay + timingOffset);
+        const auto delayQuarters = juce::jmax (0.0, timingOffset);
         const auto transportPpqAtNoteOn =
             segmentTransportStartPpq + (event.ppq + delayQuarters - schedulePpqStart);
         const auto sampleOffset = static_cast<int> (std::lround (

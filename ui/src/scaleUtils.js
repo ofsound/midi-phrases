@@ -115,3 +115,35 @@ export function transposeMidiByScaleDegrees(note, degreeDelta, root, modeIndex) 
 
   return current;
 }
+
+/** Signed scale-degree steps from one MIDI note to another (chromatic mode counts semitones). */
+export function scaleDegreeDelta(fromNote, toNote, root, modeIndex) {
+  const from = clampMidi(fromNote);
+  const to = clampMidi(toNote);
+
+  if (from === to) return 0;
+
+  const direction = to > from ? 1 : -1;
+  let current = from;
+  let degrees = 0;
+
+  while ((direction > 0 && current < to) || (direction < 0 && current > to)) {
+    if ((direction > 0 && current >= 127) || (direction < 0 && current <= 0)) {
+      break;
+    }
+
+    current += direction;
+
+    if (pitchClassInScale(current, root, modeIndex)) {
+      degrees += direction;
+    }
+  }
+
+  return degrees;
+}
+
+/** Echo pitch: apply the mod row's scale-degree contour to the carrier note. */
+export function echoNoteFromModStep(carrierNote, modBaseNote, modStepNote, root, modeIndex) {
+  const degreeDelta = scaleDegreeDelta(modBaseNote, modStepNote, root, modeIndex);
+  return transposeMidiByScaleDegrees(carrierNote, degreeDelta, root, modeIndex);
+}

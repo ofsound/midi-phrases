@@ -1,4 +1,9 @@
 import { defaultPulseIndex, pulseQuartersForIndex } from "./pulseLayout.js";
+import {
+  defaultScaleModeIndex,
+  defaultScaleRoot,
+  echoNoteFromModStep,
+} from "./scaleUtils.js";
 import { timingMultiplierAtIndex, timingOffsetValues } from "./stepCellLayout.js";
 
 export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
@@ -159,6 +164,8 @@ export function stepStartInCycleForStep(stepStartQuarters, step) {
  * @param {number} [params.swingSubdivisionIndex]
  * @param {number} [params.combinationModeMask]
  * @param {number} [params.lengthQuarters]
+ * @param {number} [params.scaleRoot]
+ * @param {number} [params.scaleModeIndex]
  * @returns {ScheduledNote[]}
  */
 export function buildPhraseSchedule({
@@ -178,6 +185,8 @@ export function buildPhraseSchedule({
   swingSubdivisionIndex = 1,
   combinationModeMask = 0,
   lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
+  scaleRoot = defaultScaleRoot,
+  scaleModeIndex = defaultScaleModeIndex,
 }) {
   const ppqStart = 0;
   const ppqEnd = lengthQuarters;
@@ -286,7 +295,7 @@ export function buildPhraseSchedule({
       const rowStepMuted = stepMuted[row] ?? [];
       const isStepMuted = rowStepMuted[step] ?? false;
 
-      if (velocity <= 0 && !isStepMuted) continue;
+      if (velocity <= 0 || isStepMuted) continue;
 
       const durationFraction = stepDurationFraction[row][step];
 
@@ -303,7 +312,7 @@ export function buildPhraseSchedule({
         start: noteStart,
         end: noteStart + gateQuarters,
         midi: rowNotes[step],
-        velocity: isStepMuted ? 0 : velocity,
+        velocity,
         row,
         step,
       };
@@ -326,6 +335,8 @@ export function buildPhraseSchedule({
     pulseIndex,
     combinationModeMask,
     lengthQuarters,
+    scaleRoot,
+    scaleModeIndex,
   });
 }
 
@@ -360,6 +371,8 @@ function groupByStart(events) {
  * @param {number} params.pulseIndex
  * @param {number} params.combinationModeMask
  * @param {number} params.lengthQuarters
+ * @param {number} params.scaleRoot
+ * @param {number} params.scaleModeIndex
  * @returns {ScheduledNote[]}
  */
 function applyCombinationModes({
@@ -374,13 +387,26 @@ function applyCombinationModes({
   pulseIndex,
   combinationModeMask,
   lengthQuarters,
+  scaleRoot,
+  scaleModeIndex,
 }) {
   if ((combinationModeMask & 0xf) === 0 || scheduled.length === 0) return scheduled;
 
   let events = scheduled.map((event) => ({ ...event }));
   const activeRows = notes
-    .map((rowNotes, row) => ({ row, rowNotes }))
-    .filter(({ row, rowNotes }) => !rowMuted[row] && rowNotes.length > 0)
+    .map((rowNotes, row) => {
+      const layout = rowStepLayout(
+        stepTimingMultiplier[row] ?? [],
+        pulseIndex,
+        stepSkipped[row] ?? [],
+      );
+
+      return { row, rowNotes, cycleLengthQuarters: layout.cycleLengthQuarters };
+    })
+    .filter(
+      ({ row, rowNotes, cycleLengthQuarters }) =>
+        !rowMuted[row] && rowNotes.length > 0 && cycleLengthQuarters > EPSILON,
+    )
     .map(({ row }) => row);
 
   if (activeRows.length === 0) return [];
@@ -457,7 +483,13 @@ function applyCombinationModes({
           ...event,
           start,
           end: start + duration,
-          midi: Math.min(127, Math.max(0, event.midi + modNotes[modStep] - modBase)),
+          midi: echoNoteFromModStep(
+            event.midi,
+            modBase,
+            modNotes[modStep] ?? modBase,
+            scaleRoot,
+            scaleModeIndex,
+          ),
           velocity: Math.round((event.velocity + (stepVelocity[modRow]?.[modStep] ?? event.velocity)) / 2),
           step: modStep,
         });

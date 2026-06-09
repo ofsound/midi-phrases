@@ -347,6 +347,7 @@ private:
             SetLoopBraceStart,
             SetLoopBraceEnd,
             SetCombinationModeMask,
+            SetPatternScale,
             ReplacePattern
         };
 

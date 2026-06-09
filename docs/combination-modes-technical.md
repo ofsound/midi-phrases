@@ -260,14 +260,23 @@ the scheduler range.
 
 ### Pitch Rule
 
-The modulator row is interpreted as intervals relative to its first note:
+The modulator row is interpreted as scale-degree motion relative to its first
+note, using the active pattern scale (root + mode from pattern state):
 
 ```text
-modInterval = modRow.notes[modStep] - modRow.notes[0]
-output.note = clampMidi(carrier.note + modInterval)
+modDegreeDelta = scaleDegreeDelta(modRow.notes[0], modRow.notes[modStep], scaleRoot, scaleModeIndex)
+output.note = clampMidi(transposeMidiByScaleDegrees(carrier.note, modDegreeDelta, scaleRoot, scaleModeIndex))
 ```
 
-This is the same chromatic interval interpretation used by Cross-Mod.
+Scale changes are published to the audio thread as `SetPatternScale` commands so
+Echo reads the same root/mode as the UI after queued pattern rebuilds (for example
+after a pulse change).
+
+In Chromatic mode each semitone counts as one scale degree, so Echo matches the
+previous chromatic interval behavior. In diatonic and other modes, generated
+echoes stay in the current scale.
+
+Cross-Mod still uses chromatic semitone intervals; only Echo is scale-aware.
 
 ### Velocity Rule
 

@@ -22,6 +22,97 @@ void ensurePhraseRowStepCount (PluginProcessor& plugin, const int row, const int
 }
 }
 
+TEST_CASE ("Echo mode follows pattern scale", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, false);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 2);
+    ensurePhraseRowStepCount (testPlugin, 2, 2);
+
+    testPlugin.setPhraseNote (0, 0, 57); // A3
+    testPlugin.setPhraseNote (1, 0, 53); // F3
+    testPlugin.setPhraseNote (1, 1, 48); // C3
+    testPlugin.setPhraseNote (2, 0, 64); // E4
+    testPlugin.setPhraseNote (2, 1, 65); // F4
+
+    testPlugin.setPhraseStepTimingMultiplier (0, 0, PluginProcessor::defaultStepTimingMultiplierIndex);
+    testPlugin.setPhraseStepTimingMultiplier (1, 0, PluginProcessor::defaultStepTimingMultiplierIndex);
+    testPlugin.setPhraseStepTimingMultiplier (1, 1, PluginProcessor::defaultStepTimingMultiplierIndex);
+    testPlugin.setPhraseStepTimingMultiplier (2, 0, 1);
+    testPlugin.setPhraseStepTimingMultiplier (2, 1, 2);
+    testPlugin.setPhraseRowTimingOffset (2, 4);
+
+    for (int row = 0; row < 3; ++row)
+    {
+        const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (row, step, 100);
+        }
+    }
+
+    testPlugin.setPatternScale (0, 1); // C major — after pulse publish so audio thread sees it
+    CHECK (testPlugin.getPatternScaleModeIndex (0) == 1);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    testPlugin.setPlayHead (&playHead);
+
+    std::array<int, 128> noteOnCounts {};
+
+    for (int block = 0; block < 700; ++block)
+    {
+        midi.clear();
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                      * (120.0 / 60.0) / sampleRate);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+                ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+        }
+
+        if (playHead.info.getPpqPosition() >= 8.0)
+            break;
+    }
+
+    CHECK (noteOnCounts[50] > 0); // D3 scale-degree echo from C3 + (E4 -> F4)
+    CHECK (noteOnCounts[49] == 0); // C#3 would be chromatic, not in C major
+    CHECK (noteOnCounts[52] > 0); // E3 = A3 shifted by F3 -> C3 scale degrees
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Plugin instance", "[instance]")
 {
     PluginProcessor testPlugin;
@@ -272,6 +363,262 @@ TEST_CASE ("Plugin instance", "[instance]")
 
         testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, false);
         CHECK_FALSE (testPlugin.isCombinationModeEnabled (PluginProcessor::combinationModeWeave));
+    }
+
+    SECTION ("multiply echo mode emits interval-shifted echoes")
+    {
+        testPlugin.prepareToPlay (1000.0, 512);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+        testPlugin.setPhraseRowMuted (0, false);
+        testPlugin.setPhraseRowMuted (1, false);
+        testPlugin.setPhraseRowMuted (2, false);
+        testPlugin.setPhraseRowMuted (3, true);
+
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+        ensurePhraseRowStepCount (testPlugin, 1, 2);
+        ensurePhraseRowStepCount (testPlugin, 2, 2);
+
+        testPlugin.setPhraseNote (0, 0, 57); // A3
+        testPlugin.setPhraseNote (1, 0, 53); // F3
+        testPlugin.setPhraseNote (1, 1, 48); // C3
+        testPlugin.setPhraseNote (2, 0, 64); // E4
+        testPlugin.setPhraseNote (2, 1, 65); // F4
+
+        testPlugin.setPhraseStepTimingMultiplier (0, 0, PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepTimingMultiplier (1, 0, PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepTimingMultiplier (1, 1, PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepTimingMultiplier (2, 0, 1); // 0.5x
+        testPlugin.setPhraseStepTimingMultiplier (2, 1, 2); // 0.75x
+        testPlugin.setPhraseRowTimingOffset (2, 4); // +0.25 quarters
+
+        for (int row = 0; row < 3; ++row)
+        {
+            const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+            for (int step = 0; step < stepCount; ++step)
+            {
+                testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+                testPlugin.setPhraseStepVelocity (row, step, 100);
+            }
+        }
+
+        juce::AudioBuffer<float> buffer (2, 512);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (120.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+        testPlugin.processBlock (buffer, midi);
+
+        std::array<int, 128> noteOnCounts {};
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+                ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+        }
+
+        CHECK (noteOnCounts[57] > 0); // A3 carrier echo
+        CHECK (noteOnCounts[53] > 0); // F3 from row 1 carriers
+        CHECK (noteOnCounts[64] > 0); // E4 from row 2
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("multiply echo mode emits bass interval echoes over eight quarters")
+    {
+        constexpr double sampleRate = 44100.0;
+        constexpr int blockSize = 512;
+
+        testPlugin.prepareToPlay (sampleRate, blockSize);
+        testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+        testPlugin.setPhraseRowMuted (0, false);
+        testPlugin.setPhraseRowMuted (1, false);
+        testPlugin.setPhraseRowMuted (2, false);
+        testPlugin.setPhraseRowMuted (3, true);
+
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+        ensurePhraseRowStepCount (testPlugin, 1, 2);
+        ensurePhraseRowStepCount (testPlugin, 2, 2);
+
+        testPlugin.setPhraseNote (0, 0, 57); // A3
+        testPlugin.setPhraseNote (1, 0, 53); // F3
+        testPlugin.setPhraseNote (1, 1, 48); // C3
+        testPlugin.setPhraseNote (2, 0, 64); // E4
+        testPlugin.setPhraseNote (2, 1, 65); // F4
+
+        testPlugin.setPhraseStepTimingMultiplier (0, 0, PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepTimingMultiplier (1, 0, PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepTimingMultiplier (1, 1, PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepTimingMultiplier (2, 0, 1); // 0.5x
+        testPlugin.setPhraseStepTimingMultiplier (2, 1, 2); // 0.75x
+        testPlugin.setPhraseRowTimingOffset (2, 4); // +0.25 quarters
+
+        for (int row = 0; row < 3; ++row)
+        {
+            const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+            for (int step = 0; step < stepCount; ++step)
+            {
+                testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+                testPlugin.setPhraseStepVelocity (row, step, 100);
+            }
+        }
+
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (120.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        std::array<int, 128> noteOnCounts {};
+
+        for (int block = 0; block < 700; ++block)
+        {
+            midi.clear();
+            playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                          * (120.0 / 60.0) / sampleRate);
+            testPlugin.processBlock (buffer, midi);
+
+            for (const auto metadata : midi)
+            {
+                const auto message = metadata.getMessage();
+
+                if (message.isNoteOn())
+                    ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+            }
+
+            if (playHead.info.getPpqPosition() >= 8.0)
+                break;
+        }
+
+        CHECK (noteOnCounts[48] > 0); // C3 bass carrier / echo
+        CHECK (noteOnCounts[49] > 0); // C#3 interval echo
+        CHECK (noteOnCounts[52] > 0); // E3 = A3 + (C3 - F3) interval echo
+        CHECK (noteOnCounts[53] > 0); // F3
+        CHECK (noteOnCounts[57] > 0); // A3
+        CHECK (noteOnCounts[64] > 0); // E4
+
+        auto totalNoteOns = 0;
+
+        for (const auto count : noteOnCounts)
+            totalNoteOns += count;
+
+        CHECK (totalNoteOns >= 30); // preview schedules ~44 note-ons over eight quarters
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("multiply echo mode notes sustain for step gate length")
+    {
+        constexpr double sampleRate = 44100.0;
+        constexpr int blockSize = 512;
+
+        testPlugin.prepareToPlay (sampleRate, blockSize);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+        testPlugin.setPhraseRowMuted (0, false);
+        testPlugin.setPhraseRowMuted (1, false);
+        testPlugin.setPhraseRowMuted (2, true);
+        testPlugin.setPhraseRowMuted (3, true);
+
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+        ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+        testPlugin.setPhraseNote (0, 0, 57); // A3
+        testPlugin.setPhraseNote (1, 0, 53); // F3
+        testPlugin.setPhraseStepTimingMultiplier (0, 0, PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepTimingMultiplier (1, 0, PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setPhraseStepDurationFraction (1, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (0, 0, 100);
+        testPlugin.setPhraseStepVelocity (1, 0, 100);
+
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (120.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        auto absoluteSample = 0;
+        auto noteOnAbsoluteSample = -1;
+        auto noteOffAbsoluteSample = -1;
+        auto trackedPitch = -1;
+
+        for (int block = 0; block < 96; ++block)
+        {
+            midi.clear();
+            playHead.info.setPpqPosition (static_cast<double> (absoluteSample)
+                                          * (120.0 / 60.0) / sampleRate);
+            testPlugin.processBlock (buffer, midi);
+
+            for (const auto metadata : midi)
+            {
+                const auto message = metadata.getMessage();
+                const auto eventSample = absoluteSample + metadata.samplePosition;
+
+                if (message.isNoteOn() && noteOnAbsoluteSample < 0)
+                {
+                    noteOnAbsoluteSample = eventSample;
+                    trackedPitch = message.getNoteNumber();
+                }
+
+                if (message.isNoteOff() && trackedPitch >= 0
+                    && message.getNoteNumber() == trackedPitch && noteOffAbsoluteSample < 0)
+                {
+                    noteOffAbsoluteSample = eventSample;
+                }
+            }
+
+            absoluteSample += blockSize;
+
+            if (noteOnAbsoluteSample >= 0 && noteOffAbsoluteSample >= 0)
+                break;
+        }
+
+        const auto samplesPerQuarter = static_cast<int> (std::lround (sampleRate * 60.0 / 120.0));
+        const auto minimumGateSamples = samplesPerQuarter / 4; // 0.25x shortest mod step gate
+
+        CHECK (noteOnAbsoluteSample >= 0);
+        CHECK (noteOffAbsoluteSample > noteOnAbsoluteSample);
+        CHECK ((noteOffAbsoluteSample - noteOnAbsoluteSample) >= minimumGateSamples);
+        testPlugin.setPlayHead (nullptr);
     }
 
     SECTION ("loop brace snaps to eighth notes")
