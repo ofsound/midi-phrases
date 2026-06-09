@@ -220,6 +220,14 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
                          processor.getPatternNoteBandpassLow (patternSlot));
     object->setProperty ("noteBandpassHighMidi",
                          processor.getPatternNoteBandpassHigh (patternSlot));
+    object->setProperty ("octavizerDown8vaEnabled",
+                         processor.isPatternOctavizerDown8vaEnabled (patternSlot) ? 1 : 0);
+    object->setProperty ("octavizerUp8vaEnabled",
+                         processor.isPatternOctavizerUp8vaEnabled (patternSlot) ? 1 : 0);
+    object->setProperty ("octavizerDown8vaRelativeVelocity",
+                         processor.getPatternOctavizerDown8vaRelativeVelocity (patternSlot));
+    object->setProperty ("octavizerUp8vaRelativeVelocity",
+                         processor.getPatternOctavizerUp8vaRelativeVelocity (patternSlot));
 
     return juce::var (object.release());
 }
@@ -375,6 +383,22 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("noteBandpassHighMidi",
                                                 processor.getPatternNoteBandpassHigh (
                                                     patternSlotForNativeDefault (processor)))
+                       .withInitialisationData ("octavizerDown8vaEnabled",
+                                                processor.isPatternOctavizerDown8vaEnabled (
+                                                    patternSlotForNativeDefault (processor))
+                                                    ? 1
+                                                    : 0)
+                       .withInitialisationData ("octavizerUp8vaEnabled",
+                                                processor.isPatternOctavizerUp8vaEnabled (
+                                                    patternSlotForNativeDefault (processor))
+                                                    ? 1
+                                                    : 0)
+                       .withInitialisationData ("octavizerDown8vaRelativeVelocity",
+                                                processor.getPatternOctavizerDown8vaRelativeVelocity (
+                                                    patternSlotForNativeDefault (processor)))
+                       .withInitialisationData ("octavizerUp8vaRelativeVelocity",
+                                                processor.getPatternOctavizerUp8vaRelativeVelocity (
+                                                    patternSlotForNativeDefault (processor)))
                        .withInitialisationData ("loopBraceEnabled",
                                                 processor.isLoopBraceEnabled() ? 1 : 0)
                        .withInitialisationData ("loopBraceStart",
@@ -505,6 +529,50 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                result.add (processor.getPatternNoteBandpassLow (patternSlot));
                                result.add (processor.getPatternNoteBandpassHigh (patternSlot));
                                complete (result);
+                           })
+                       .withNativeFunction (
+                           "setPatternOctavizerDown8vaEnabled",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPatternOctavizerDown8vaEnabled (varToInt (args[0]) != 0);
+
+                               complete (processor.isPatternOctavizerDown8vaEnabled (
+                                             patternSlotForNativeDefault (processor))
+                                         ? 1
+                                         : 0);
+                           })
+                       .withNativeFunction (
+                           "setPatternOctavizerUp8vaEnabled",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPatternOctavizerUp8vaEnabled (varToInt (args[0]) != 0);
+
+                               complete (processor.isPatternOctavizerUp8vaEnabled (
+                                             patternSlotForNativeDefault (processor))
+                                         ? 1
+                                         : 0);
+                           })
+                       .withNativeFunction (
+                           "setPatternOctavizerDown8vaRelativeVelocity",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPatternOctavizerDown8vaRelativeVelocity (varToInt (args[0]));
+
+                               complete (processor.getPatternOctavizerDown8vaRelativeVelocity (
+                                   patternSlotForNativeDefault (processor)));
+                           })
+                       .withNativeFunction (
+                           "setPatternOctavizerUp8vaRelativeVelocity",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPatternOctavizerUp8vaRelativeVelocity (varToInt (args[0]));
+
+                               complete (processor.getPatternOctavizerUp8vaRelativeVelocity (
+                                   patternSlotForNativeDefault (processor)));
                            })
                        .withNativeFunction (
                            "setPhraseRowMuted",

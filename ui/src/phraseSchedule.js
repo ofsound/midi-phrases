@@ -1,9 +1,6 @@
 import {defaultPulseIndex, pulseQuartersForIndex} from "./pulseLayout.js";
-import {
-  applyNoteBandpass,
-  defaultNoteBandpassHighMidi,
-  defaultNoteBandpassLowMidi,
-} from "./noteBandpass.js";
+import {applyNoteBandpass, defaultNoteBandpassHighMidi, defaultNoteBandpassLowMidi} from "./noteBandpass.js";
+import {applyOctavizer, defaultOctavizerRelativeVelocity} from "./octavizer.js";
 import {defaultScaleModeIndex, defaultScaleRoot, echoNoteFromModStep} from "./scaleUtils.js";
 import {timingMultiplierAtIndex, timingOffsetValues} from "./stepCellLayout.js";
 
@@ -155,6 +152,10 @@ export function stepStartInCycleForStep(stepStartQuarters, step) {
  * @param {number} [params.scaleModeIndex]
  * @param {number} [params.noteBandpassLowMidi]
  * @param {number} [params.noteBandpassHighMidi]
+ * @param {boolean} [params.octavizerDown8vaEnabled]
+ * @param {boolean} [params.octavizerUp8vaEnabled]
+ * @param {number} [params.octavizerDown8vaRelativeVelocity]
+ * @param {number} [params.octavizerUp8vaRelativeVelocity]
  * @returns {ScheduledNote[]}
  */
 export function buildPhraseSchedule({
@@ -178,6 +179,10 @@ export function buildPhraseSchedule({
   scaleModeIndex = defaultScaleModeIndex,
   noteBandpassLowMidi = defaultNoteBandpassLowMidi,
   noteBandpassHighMidi = defaultNoteBandpassHighMidi,
+  octavizerDown8vaEnabled = false,
+  octavizerUp8vaEnabled = false,
+  octavizerDown8vaRelativeVelocity = defaultOctavizerRelativeVelocity,
+  octavizerUp8vaRelativeVelocity = defaultOctavizerRelativeVelocity,
 }) {
   const ppqStart = 0;
   const ppqEnd = lengthQuarters;
@@ -317,7 +322,14 @@ export function buildPhraseSchedule({
     scaleModeIndex,
   });
 
-  return applyNoteBandpass(combined, noteBandpassLowMidi, noteBandpassHighMidi);
+  const bandpassed = applyNoteBandpass(combined, noteBandpassLowMidi, noteBandpassHighMidi);
+
+  return applyOctavizer(bandpassed, {
+    down8vaEnabled: octavizerDown8vaEnabled,
+    up8vaEnabled: octavizerUp8vaEnabled,
+    down8vaRelativeVelocity: octavizerDown8vaRelativeVelocity,
+    up8vaRelativeVelocity: octavizerUp8vaRelativeVelocity,
+  });
 }
 
 /** @param {ScheduledNote[]} events */

@@ -87,6 +87,20 @@ public:
     int getPatternNoteBandpassLow (int patternSlot) const;
     int getPatternNoteBandpassHigh (int patternSlot) const;
 
+    static constexpr int defaultOctavizerRelativeVelocity = 0;
+    static constexpr int minOctavizerRelativeVelocity = -127;
+    static constexpr int maxOctavizerRelativeVelocity = 127;
+    static constexpr int octavizerSemitoneShift = 12;
+
+    void setPatternOctavizerDown8vaEnabled (bool enabled);
+    void setPatternOctavizerUp8vaEnabled (bool enabled);
+    void setPatternOctavizerDown8vaRelativeVelocity (int relativeVelocity);
+    void setPatternOctavizerUp8vaRelativeVelocity (int relativeVelocity);
+    bool isPatternOctavizerDown8vaEnabled (int patternSlot) const;
+    bool isPatternOctavizerUp8vaEnabled (int patternSlot) const;
+    int getPatternOctavizerDown8vaRelativeVelocity (int patternSlot) const;
+    int getPatternOctavizerUp8vaRelativeVelocity (int patternSlot) const;
+
     void setPhraseRowMuted (int row, bool muted);
     bool isPhraseRowMuted (int row) const;
 
@@ -323,6 +337,10 @@ private:
         int scaleModeIndex = defaultScaleModeIndex;
         int noteBandpassLowMidi = defaultNoteBandpassLowMidi;
         int noteBandpassHighMidi = defaultNoteBandpassHighMidi;
+        int octavizerDown8vaEnabled = 0;
+        int octavizerUp8vaEnabled = 0;
+        int octavizerDown8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
+        int octavizerUp8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
     };
 
     struct LoopSlotState
@@ -360,6 +378,10 @@ private:
             SetCombinationModeMask,
             SetPatternScale,
             SetPatternNoteBandpass,
+            SetPatternOctavizerDown8vaEnabled,
+            SetPatternOctavizerUp8vaEnabled,
+            SetPatternOctavizerDown8vaRelativeVelocity,
+            SetPatternOctavizerUp8vaRelativeVelocity,
             ReplacePattern
         };
 

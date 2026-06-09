@@ -35,6 +35,10 @@
    * @property {number} [scaleModeIndex]
    * @property {number} [noteBandpassLowMidi]
    * @property {number} [noteBandpassHighMidi]
+   * @property {boolean} [octavizerDown8vaEnabled]
+   * @property {boolean} [octavizerUp8vaEnabled]
+   * @property {number} [octavizerDown8vaRelativeVelocity]
+   * @property {number} [octavizerUp8vaRelativeVelocity]
    * @property {boolean} [rowColorsEnabled]
    * @property {any} [lengthQuarters]
    * @property {boolean} [loopEnabled]
@@ -65,6 +69,10 @@
     scaleModeIndex = 0,
     noteBandpassLowMidi = 36,
     noteBandpassHighMidi = 108,
+    octavizerDown8vaEnabled = false,
+    octavizerUp8vaEnabled = false,
+    octavizerDown8vaRelativeVelocity = 0,
+    octavizerUp8vaRelativeVelocity = 0,
     rowColorsEnabled = false,
     lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
     loopEnabled = false,
@@ -114,6 +122,10 @@
     scaleModeIndex,
     noteBandpassLowMidi,
     noteBandpassHighMidi,
+    octavizerDown8vaEnabled,
+    octavizerUp8vaEnabled,
+    octavizerDown8vaRelativeVelocity,
+    octavizerUp8vaRelativeVelocity,
   }));
 
   let pitchRange = $derived(pitchRangeForSchedule(scheduled));

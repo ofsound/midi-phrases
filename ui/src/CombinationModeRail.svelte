@@ -1,6 +1,7 @@
 <script>
   import CombinationModeIcon from "./CombinationModeIcon.svelte";
   import NoteBandpassSlider from "./NoteBandpassSlider.svelte";
+  import OctavizerControl from "./OctavizerControl.svelte";
   import { combinationModes } from "./phraseSchedule.js";
 
   /**
@@ -13,6 +14,16 @@
    * @property {number} noteBandpassHighMidi
    * @property {(lowMidi: number, highMidi: number) => void} [onNoteBandpassChange]
    * @property {(lowMidi: number, highMidi: number) => void | Promise<void>} [onNoteBandpassCommit]
+   * @property {boolean} octavizerDown8vaEnabled
+   * @property {boolean} octavizerUp8vaEnabled
+   * @property {number} octavizerDown8vaRelativeVelocity
+   * @property {number} octavizerUp8vaRelativeVelocity
+   * @property {(enabled: boolean) => void | Promise<void>} [onOctavizerDown8vaToggle]
+   * @property {(enabled: boolean) => void | Promise<void>} [onOctavizerUp8vaToggle]
+   * @property {(value: number) => void | Promise<void>} [onOctavizerDown8vaRelativeVelocityChange]
+   * @property {(value: number) => void | Promise<void>} [onOctavizerUp8vaRelativeVelocityChange]
+   * @property {(value: number) => void | Promise<void>} [onOctavizerDown8vaRelativeVelocityCommit]
+   * @property {(value: number) => void | Promise<void>} [onOctavizerUp8vaRelativeVelocityCommit]
    */
 
   /** @type {Props} */
@@ -23,6 +34,16 @@
     noteBandpassHighMidi = 108,
     onNoteBandpassChange = () => {},
     onNoteBandpassCommit = () => {},
+    octavizerDown8vaEnabled = false,
+    octavizerUp8vaEnabled = false,
+    octavizerDown8vaRelativeVelocity = 0,
+    octavizerUp8vaRelativeVelocity = 0,
+    onOctavizerDown8vaToggle = () => {},
+    onOctavizerUp8vaToggle = () => {},
+    onOctavizerDown8vaRelativeVelocityChange = () => {},
+    onOctavizerUp8vaRelativeVelocityChange = () => {},
+    onOctavizerDown8vaRelativeVelocityCommit = () => {},
+    onOctavizerUp8vaRelativeVelocityCommit = () => {},
   } = $props();
 </script>
 
@@ -51,6 +72,19 @@
         </span>
       </button>
     {/each}
+
+    <OctavizerControl
+      down8vaEnabled={octavizerDown8vaEnabled}
+      up8vaEnabled={octavizerUp8vaEnabled}
+      down8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}
+      up8vaRelativeVelocity={octavizerUp8vaRelativeVelocity}
+      onDown8vaToggle={onOctavizerDown8vaToggle}
+      onUp8vaToggle={onOctavizerUp8vaToggle}
+      onDown8vaRelativeVelocityChange={onOctavizerDown8vaRelativeVelocityChange}
+      onUp8vaRelativeVelocityChange={onOctavizerUp8vaRelativeVelocityChange}
+      onDown8vaRelativeVelocityCommit={onOctavizerDown8vaRelativeVelocityCommit}
+      onUp8vaRelativeVelocityCommit={onOctavizerUp8vaRelativeVelocityCommit}
+    />
   </div>
 
   <NoteBandpassSlider

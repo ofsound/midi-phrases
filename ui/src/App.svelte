@@ -44,6 +44,10 @@
     defaultNoteBandpassLowMidi,
   } from "./noteBandpass.js";
   import {
+    clampOctavizerRelativeVelocity,
+    defaultOctavizerRelativeVelocity,
+  } from "./octavizer.js";
+  import {
     combinationModes,
     isStepActiveAtBeat,
     swingSubdivisionOptions,
@@ -184,6 +188,10 @@
   let scaleModeIndex = $state(defaultScaleModeIndex);
   let noteBandpassLowMidi = $state(defaultNoteBandpassLowMidi);
   let noteBandpassHighMidi = $state(defaultNoteBandpassHighMidi);
+  let octavizerDown8vaEnabled = $state(false);
+  let octavizerUp8vaEnabled = $state(false);
+  let octavizerDown8vaRelativeVelocity = $state(defaultOctavizerRelativeVelocity);
+  let octavizerUp8vaRelativeVelocity = $state(defaultOctavizerRelativeVelocity);
   let scaleDialogOpen = $state(false);
   let pulseIndex = $state(defaultPulseIndex);
   let swingPercent = $state(0);
@@ -278,6 +286,118 @@
     }
 
     pushHistoryEntry("Note bandpass", before, createHistorySnapshot());
+  }
+
+  function setOctavizerState({
+    down8vaEnabled = octavizerDown8vaEnabled,
+    up8vaEnabled = octavizerUp8vaEnabled,
+    down8vaRelativeVelocity = octavizerDown8vaRelativeVelocity,
+    up8vaRelativeVelocity = octavizerUp8vaRelativeVelocity,
+  } = {}) {
+    octavizerDown8vaEnabled = Boolean(down8vaEnabled);
+    octavizerUp8vaEnabled = Boolean(up8vaEnabled);
+    octavizerDown8vaRelativeVelocity = clampOctavizerRelativeVelocity(down8vaRelativeVelocity);
+    octavizerUp8vaRelativeVelocity = clampOctavizerRelativeVelocity(up8vaRelativeVelocity);
+  }
+
+  async function syncOctavizerToNative() {
+    if (nativeFunctionAvailable("setPatternOctavizerDown8vaEnabled")) {
+      const confirmed = await getNativeFunction("setPatternOctavizerDown8vaEnabled")(
+        octavizerDown8vaEnabled ? 1 : 0,
+      );
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        octavizerDown8vaEnabled = parsed !== 0;
+      }
+    }
+
+    if (nativeFunctionAvailable("setPatternOctavizerUp8vaEnabled")) {
+      const confirmed = await getNativeFunction("setPatternOctavizerUp8vaEnabled")(
+        octavizerUp8vaEnabled ? 1 : 0,
+      );
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        octavizerUp8vaEnabled = parsed !== 0;
+      }
+    }
+
+    if (nativeFunctionAvailable("setPatternOctavizerDown8vaRelativeVelocity")) {
+      const confirmed = await getNativeFunction("setPatternOctavizerDown8vaRelativeVelocity")(
+        octavizerDown8vaRelativeVelocity,
+      );
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        octavizerDown8vaRelativeVelocity = clampOctavizerRelativeVelocity(parsed);
+      }
+    }
+
+    if (nativeFunctionAvailable("setPatternOctavizerUp8vaRelativeVelocity")) {
+      const confirmed = await getNativeFunction("setPatternOctavizerUp8vaRelativeVelocity")(
+        octavizerUp8vaRelativeVelocity,
+      );
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        octavizerUp8vaRelativeVelocity = clampOctavizerRelativeVelocity(parsed);
+      }
+    }
+  }
+
+  async function handleOctavizerDown8vaToggle(enabled) {
+    const before = createHistorySnapshot();
+    setOctavizerState({ down8vaEnabled: enabled });
+    await syncOctavizerToNative();
+    pushHistoryEntry("Octavizer -8va", before, createHistorySnapshot());
+  }
+
+  async function handleOctavizerUp8vaToggle(enabled) {
+    const before = createHistorySnapshot();
+    setOctavizerState({ up8vaEnabled: enabled });
+    await syncOctavizerToNative();
+    pushHistoryEntry("Octavizer 8va", before, createHistorySnapshot());
+  }
+
+  async function handleOctavizerDown8vaRelativeVelocityChange(value) {
+    setOctavizerState({ down8vaRelativeVelocity: value });
+
+    if (nativeFunctionAvailable("setPatternOctavizerDown8vaRelativeVelocity")) {
+      const confirmed = await getNativeFunction("setPatternOctavizerDown8vaRelativeVelocity")(value);
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        octavizerDown8vaRelativeVelocity = clampOctavizerRelativeVelocity(parsed);
+      }
+    }
+  }
+
+  async function handleOctavizerUp8vaRelativeVelocityChange(value) {
+    setOctavizerState({ up8vaRelativeVelocity: value });
+
+    if (nativeFunctionAvailable("setPatternOctavizerUp8vaRelativeVelocity")) {
+      const confirmed = await getNativeFunction("setPatternOctavizerUp8vaRelativeVelocity")(value);
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        octavizerUp8vaRelativeVelocity = clampOctavizerRelativeVelocity(parsed);
+      }
+    }
+  }
+
+  async function commitOctavizerDown8vaRelativeVelocity(value) {
+    const before = createHistorySnapshot();
+    setOctavizerState({ down8vaRelativeVelocity: value });
+    await syncOctavizerToNative();
+    pushHistoryEntry("Octavizer -8va velocity", before, createHistorySnapshot());
+  }
+
+  async function commitOctavizerUp8vaRelativeVelocity(value) {
+    const before = createHistorySnapshot();
+    setOctavizerState({ up8vaRelativeVelocity: value });
+    await syncOctavizerToNative();
+    pushHistoryEntry("Octavizer 8va velocity", before, createHistorySnapshot());
   }
 
   async function toggleCombinationMode(modeIndex) {
@@ -697,6 +817,10 @@
       scaleModeIndex,
       noteBandpassLowMidi,
       noteBandpassHighMidi,
+      octavizerDown8vaEnabled,
+      octavizerUp8vaEnabled,
+      octavizerDown8vaRelativeVelocity,
+      octavizerUp8vaRelativeVelocity,
       loopBraceEnabled,
       loopBraceStart,
       loopBraceEnd,
@@ -758,6 +882,14 @@
       next.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
       next.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
     );
+    setOctavizerState({
+      down8vaEnabled: next.octavizerDown8vaEnabled ?? false,
+      up8vaEnabled: next.octavizerUp8vaEnabled ?? false,
+      down8vaRelativeVelocity:
+        next.octavizerDown8vaRelativeVelocity ?? defaultOctavizerRelativeVelocity,
+      up8vaRelativeVelocity:
+        next.octavizerUp8vaRelativeVelocity ?? defaultOctavizerRelativeVelocity,
+    });
     loopBraceEnabled = next.loopBraceEnabled;
     loopBraceStart = next.loopBraceStart;
     loopBraceEnd = next.loopBraceEnd;
@@ -794,6 +926,18 @@
       Number.parseInt(String(state.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi), 10),
       Number.parseInt(String(state.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi), 10),
     );
+    setOctavizerState({
+      down8vaEnabled: Boolean(Number.parseInt(String(state.octavizerDown8vaEnabled ?? 0), 10)),
+      up8vaEnabled: Boolean(Number.parseInt(String(state.octavizerUp8vaEnabled ?? 0), 10)),
+      down8vaRelativeVelocity: Number.parseInt(
+        String(state.octavizerDown8vaRelativeVelocity ?? defaultOctavizerRelativeVelocity),
+        10,
+      ),
+      up8vaRelativeVelocity: Number.parseInt(
+        String(state.octavizerUp8vaRelativeVelocity ?? defaultOctavizerRelativeVelocity),
+        10,
+      ),
+    });
     loopBraceEnabled = Boolean(Number.parseInt(String(state.loopBraceEnabled ?? 0), 10));
     loopBraceStart = Number.parseFloat(String(state.loopBraceStart ?? 0));
     loopBraceEnd = Number.parseFloat(String(state.loopBraceEnd ?? 8));
@@ -913,6 +1057,16 @@
         snapshot.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
       );
     }
+
+    setOctavizerState({
+      down8vaEnabled: snapshot.octavizerDown8vaEnabled ?? false,
+      up8vaEnabled: snapshot.octavizerUp8vaEnabled ?? false,
+      down8vaRelativeVelocity:
+        snapshot.octavizerDown8vaRelativeVelocity ?? defaultOctavizerRelativeVelocity,
+      up8vaRelativeVelocity:
+        snapshot.octavizerUp8vaRelativeVelocity ?? defaultOctavizerRelativeVelocity,
+    });
+    await syncOctavizerToNative();
 
     if (snapshot.loopBraceStart > previousSnapshot.loopBraceStart) {
       await pushLoopBraceEnd(snapshot.loopBraceEnd);
@@ -2352,6 +2506,25 @@
     );
   }
 
+  function loadOctavizerFromInitialisation() {
+    setOctavizerState({
+      down8vaEnabled: Boolean(
+        Number.parseInt(String(unwrapJuceInit("octavizerDown8vaEnabled") ?? 0), 10),
+      ),
+      up8vaEnabled: Boolean(
+        Number.parseInt(String(unwrapJuceInit("octavizerUp8vaEnabled") ?? 0), 10),
+      ),
+      down8vaRelativeVelocity: Number.parseInt(
+        String(unwrapJuceInit("octavizerDown8vaRelativeVelocity") ?? defaultOctavizerRelativeVelocity),
+        10,
+      ),
+      up8vaRelativeVelocity: Number.parseInt(
+        String(unwrapJuceInit("octavizerUp8vaRelativeVelocity") ?? defaultOctavizerRelativeVelocity),
+        10,
+      ),
+    });
+  }
+
   async function pushLoopBraceEnabled(enabled) {
     if (!nativeFunctionAvailable("setLoopBraceEnabled")) return;
 
@@ -2638,6 +2811,7 @@
     loadCombinationModesFromInitialisation();
     loadPatternScaleFromInitialisation();
     loadNoteBandpassFromInitialisation();
+    loadOctavizerFromInitialisation();
     loadStandaloneTransportFromInitialisation();
     loadSlotStateFromInitialisation();
   }
@@ -3186,6 +3360,16 @@
       noteBandpassHighMidi={noteBandpassHighMidi}
       onNoteBandpassChange={handleNoteBandpassChange}
       onNoteBandpassCommit={commitNoteBandpass}
+      octavizerDown8vaEnabled={octavizerDown8vaEnabled}
+      octavizerUp8vaEnabled={octavizerUp8vaEnabled}
+      octavizerDown8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}
+      octavizerUp8vaRelativeVelocity={octavizerUp8vaRelativeVelocity}
+      onOctavizerDown8vaToggle={handleOctavizerDown8vaToggle}
+      onOctavizerUp8vaToggle={handleOctavizerUp8vaToggle}
+      onOctavizerDown8vaRelativeVelocityChange={handleOctavizerDown8vaRelativeVelocityChange}
+      onOctavizerUp8vaRelativeVelocityChange={handleOctavizerUp8vaRelativeVelocityChange}
+      onOctavizerDown8vaRelativeVelocityCommit={commitOctavizerDown8vaRelativeVelocity}
+      onOctavizerUp8vaRelativeVelocityCommit={commitOctavizerUp8vaRelativeVelocity}
     />
 
     {#if recordingRow !== null}
@@ -3214,6 +3398,10 @@
         {scaleModeIndex}
         noteBandpassLowMidi={noteBandpassLowMidi}
         noteBandpassHighMidi={noteBandpassHighMidi}
+        octavizerDown8vaEnabled={octavizerDown8vaEnabled}
+        octavizerUp8vaEnabled={octavizerUp8vaEnabled}
+        octavizerDown8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}
+        octavizerUp8vaRelativeVelocity={octavizerUp8vaRelativeVelocity}
         {pulseIndex}
         {swingPercent}
         {swingSubdivisionIndex}

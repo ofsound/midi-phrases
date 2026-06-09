@@ -213,6 +213,77 @@
     background: rgba(228, 228, 231, 0.5);
   }
 
+  .octavizer-control {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .octavizer-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+  }
+
+  .octavizer-toggle {
+    width: 3.45rem;
+    height: 3.45rem;
+  }
+
+  .octavizer-toggle-face {
+    inset: 6px;
+  }
+
+  .octavizer-toggle-label {
+    font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    text-transform: none;
+  }
+
+  .octavizer-relative-velocity {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.35rem;
+    height: 1.15rem;
+    border-radius: 2px;
+    border: 1px solid rgba(82, 82, 91, 0.85);
+    background: rgba(24, 24, 27, 0.92);
+    color: rgba(161, 161, 170, 0.95);
+    touch-action: none;
+    user-select: none;
+    outline: none;
+    transition:
+      border-color 120ms ease,
+      color 120ms ease,
+      box-shadow 120ms ease;
+  }
+
+  .octavizer-relative-velocity-active {
+    border-color: color-mix(in srgb, var(--color-accent-400) 55%, #52525b);
+    color: rgba(228, 228, 231, 0.96);
+  }
+
+  .octavizer-relative-velocity-dragging,
+  .octavizer-relative-velocity:focus-visible {
+    border-color: color-mix(in srgb, var(--color-accent-400) 80%, #52525b);
+    color: var(--color-accent-300);
+    box-shadow: var(--shadow-accent-focus);
+  }
+
+  .octavizer-relative-velocity-value {
+    font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+    font-size: 0.62rem;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
   .note-bandpass-slider {
     width: 14.5rem;
     padding-top: 1.35rem;

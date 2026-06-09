@@ -219,6 +219,18 @@ std::pair<int, int> clampNoteBandpassBounds (int lowMidi, int highMidi)
     return { low, high };
 }
 
+int clampOctavizerRelativeVelocity (const int relativeVelocity)
+{
+    return juce::jlimit (PluginProcessor::minOctavizerRelativeVelocity,
+                       PluginProcessor::maxOctavizerRelativeVelocity,
+                       relativeVelocity);
+}
+
+int octavizerOutputVelocity (const int baseVelocity, const int relativeVelocity)
+{
+    return juce::jlimit (1, 127, baseVelocity + clampOctavizerRelativeVelocity (relativeVelocity));
+}
+
 std::uint32_t deterministicEventHash (const int row, const int step, const double ppq)
 {
     auto value = static_cast<std::uint32_t> (row + 1) * 0x9E3779B9u
@@ -661,6 +673,10 @@ void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
     pattern.scaleModeIndex = defaultScaleModeIndex;
     pattern.noteBandpassLowMidi = defaultNoteBandpassLowMidi;
     pattern.noteBandpassHighMidi = defaultNoteBandpassHighMidi;
+    pattern.octavizerDown8vaEnabled = 0;
+    pattern.octavizerUp8vaEnabled = 0;
+    pattern.octavizerDown8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
+    pattern.octavizerUp8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
 
     for (int row = 0; row < phraseRowCount; ++row)
     {
@@ -1067,6 +1083,24 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             break;
         }
 
+        case SequencerCommand::Type::SetPatternOctavizerDown8vaEnabled:
+            pattern.octavizerDown8vaEnabled = command.intValue != 0 ? 1 : 0;
+            break;
+
+        case SequencerCommand::Type::SetPatternOctavizerUp8vaEnabled:
+            pattern.octavizerUp8vaEnabled = command.intValue != 0 ? 1 : 0;
+            break;
+
+        case SequencerCommand::Type::SetPatternOctavizerDown8vaRelativeVelocity:
+            pattern.octavizerDown8vaRelativeVelocity =
+                clampOctavizerRelativeVelocity (command.intValue);
+            break;
+
+        case SequencerCommand::Type::SetPatternOctavizerUp8vaRelativeVelocity:
+            pattern.octavizerUp8vaRelativeVelocity =
+                clampOctavizerRelativeVelocity (command.intValue);
+            break;
+
         case SequencerCommand::Type::ReplacePattern:
             pattern = command.patternState;
             for (auto& patternRow : pattern.sequencer.rows)
@@ -1090,7 +1124,11 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
 
     if (command.type == SequencerCommand::Type::ReplacePattern
         || command.type == SequencerCommand::Type::SetCombinationModeMask
-        || command.type == SequencerCommand::Type::SetPatternNoteBandpass)
+        || command.type == SequencerCommand::Type::SetPatternNoteBandpass
+        || command.type == SequencerCommand::Type::SetPatternOctavizerDown8vaEnabled
+        || command.type == SequencerCommand::Type::SetPatternOctavizerUp8vaEnabled
+        || command.type == SequencerCommand::Type::SetPatternOctavizerDown8vaRelativeVelocity
+        || command.type == SequencerCommand::Type::SetPatternOctavizerUp8vaRelativeVelocity)
     {
         flushAllRows();
     }
@@ -1454,6 +1492,86 @@ int PluginProcessor::getPatternNoteBandpassHigh (const int patternSlot) const
     return clampNoteBandpassBounds (modelPattern (patternSlot).noteBandpassLowMidi,
                                     modelPattern (patternSlot).noteBandpassHighMidi)
         .second;
+}
+
+void PluginProcessor::setPatternOctavizerDown8vaEnabled (const bool enabled)
+{
+    const auto patternSlot = getViewPatternSlot();
+
+    auto& pattern = modelPattern (patternSlot);
+    pattern.octavizerDown8vaEnabled = enabled ? 1 : 0;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternOctavizerDown8vaEnabled;
+    command.patternSlot = patternSlot;
+    command.intValue = enabled ? 1 : 0;
+    publishCommandToAudio (command);
+}
+
+void PluginProcessor::setPatternOctavizerUp8vaEnabled (const bool enabled)
+{
+    const auto patternSlot = getViewPatternSlot();
+
+    auto& pattern = modelPattern (patternSlot);
+    pattern.octavizerUp8vaEnabled = enabled ? 1 : 0;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternOctavizerUp8vaEnabled;
+    command.patternSlot = patternSlot;
+    command.intValue = enabled ? 1 : 0;
+    publishCommandToAudio (command);
+}
+
+void PluginProcessor::setPatternOctavizerDown8vaRelativeVelocity (const int relativeVelocity)
+{
+    const auto patternSlot = getViewPatternSlot();
+    const auto clamped = clampOctavizerRelativeVelocity (relativeVelocity);
+
+    auto& pattern = modelPattern (patternSlot);
+    pattern.octavizerDown8vaRelativeVelocity = clamped;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternOctavizerDown8vaRelativeVelocity;
+    command.patternSlot = patternSlot;
+    command.intValue = clamped;
+    publishCommandToAudio (command);
+}
+
+void PluginProcessor::setPatternOctavizerUp8vaRelativeVelocity (const int relativeVelocity)
+{
+    const auto patternSlot = getViewPatternSlot();
+    const auto clamped = clampOctavizerRelativeVelocity (relativeVelocity);
+
+    auto& pattern = modelPattern (patternSlot);
+    pattern.octavizerUp8vaRelativeVelocity = clamped;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternOctavizerUp8vaRelativeVelocity;
+    command.patternSlot = patternSlot;
+    command.intValue = clamped;
+    publishCommandToAudio (command);
+}
+
+bool PluginProcessor::isPatternOctavizerDown8vaEnabled (const int patternSlot) const
+{
+    return modelPattern (patternSlot).octavizerDown8vaEnabled != 0;
+}
+
+bool PluginProcessor::isPatternOctavizerUp8vaEnabled (const int patternSlot) const
+{
+    return modelPattern (patternSlot).octavizerUp8vaEnabled != 0;
+}
+
+int PluginProcessor::getPatternOctavizerDown8vaRelativeVelocity (const int patternSlot) const
+{
+    return clampOctavizerRelativeVelocity (
+        modelPattern (patternSlot).octavizerDown8vaRelativeVelocity);
+}
+
+int PluginProcessor::getPatternOctavizerUp8vaRelativeVelocity (const int patternSlot) const
+{
+    return clampOctavizerRelativeVelocity (
+        modelPattern (patternSlot).octavizerUp8vaRelativeVelocity);
 }
 
 void PluginProcessor::reverseRowSteps (PhraseRowSteps& steps)
@@ -3768,6 +3886,59 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         copyFilteredEvents (eventCount);
     }
 
+    {
+        const auto downEnabled = activePattern.octavizerDown8vaEnabled != 0;
+        const auto upEnabled = activePattern.octavizerUp8vaEnabled != 0;
+
+        if ((downEnabled || upEnabled) && eventCount > 0)
+        {
+            const auto originalCount = eventCount;
+            auto write = eventCount;
+
+            for (size_t read = 0; read < originalCount; ++read)
+            {
+                const auto& event = combinedEvents[read];
+
+                if (downEnabled)
+                {
+                    const auto shiftedNote = event.note - octavizerSemitoneShift;
+                    const auto shiftedVelocity = octavizerOutputVelocity (
+                        event.velocity,
+                        activePattern.octavizerDown8vaRelativeVelocity);
+
+                    if (shiftedNote >= minMidiNote && shiftedVelocity > 0
+                        && write < combinedWorkingEvents.size())
+                    {
+                        auto copy = event;
+                        copy.note = shiftedNote;
+                        copy.velocity = shiftedVelocity;
+                        combinedWorkingEvents[write++] = copy;
+                    }
+                }
+
+                if (upEnabled)
+                {
+                    const auto shiftedNote = event.note + octavizerSemitoneShift;
+                    const auto shiftedVelocity = octavizerOutputVelocity (
+                        event.velocity,
+                        activePattern.octavizerUp8vaRelativeVelocity);
+
+                    if (shiftedNote <= maxMidiNote && shiftedVelocity > 0
+                        && write < combinedWorkingEvents.size())
+                    {
+                        auto copy = event;
+                        copy.note = shiftedNote;
+                        copy.velocity = shiftedVelocity;
+                        combinedWorkingEvents[write++] = copy;
+                    }
+                }
+            }
+
+            eventCount = write;
+            copyFilteredEvents (eventCount);
+        }
+    }
+
     for (size_t index = 0; index < eventCount; ++index)
     {
         auto event = combinedEvents[index];
@@ -3855,6 +4026,79 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
         audioPatterns[static_cast<size_t> (clampPatternSlot (audioActivePatternSlot))];
     const auto bandpassLow = activePattern.noteBandpassLowMidi;
     const auto bandpassHigh = activePattern.noteBandpassHighMidi;
+    const auto octavizerDownEnabled = activePattern.octavizerDown8vaEnabled != 0;
+    const auto octavizerUpEnabled = activePattern.octavizerUp8vaEnabled != 0;
+    const auto octavizerDownRelativeVelocity = activePattern.octavizerDown8vaRelativeVelocity;
+    const auto octavizerUpRelativeVelocity = activePattern.octavizerUp8vaRelativeVelocity;
+
+    const auto emitOctavizerCopies = [&] (const int row,
+                                          const int midiChannel,
+                                          const int baseNote,
+                                          const int baseVelocity,
+                                          const int sampleOffset,
+                                          const int noteGateSamples) {
+        if (octavizerDownEnabled)
+        {
+            const auto shiftedNote = baseNote - octavizerSemitoneShift;
+            const auto shiftedVelocity =
+                octavizerOutputVelocity (baseVelocity, octavizerDownRelativeVelocity);
+
+            if (shiftedNote >= minMidiNote && shiftedVelocity > 0)
+            {
+                if (sampleOffset < bufferSamples)
+                {
+                    emitScheduledNoteOn (row,
+                                         midiChannel,
+                                         shiftedNote,
+                                         shiftedVelocity,
+                                         juce::jmax (0, sampleOffset),
+                                         noteGateSamples,
+                                         bufferSamples,
+                                         midiMessages);
+                }
+                else
+                {
+                    addPendingNoteOn (PendingNoteOn { row,
+                                                      midiChannel,
+                                                      shiftedNote,
+                                                      shiftedVelocity,
+                                                      sampleOffset - bufferSamples,
+                                                      noteGateSamples });
+                }
+            }
+        }
+
+        if (octavizerUpEnabled)
+        {
+            const auto shiftedNote = baseNote + octavizerSemitoneShift;
+            const auto shiftedVelocity =
+                octavizerOutputVelocity (baseVelocity, octavizerUpRelativeVelocity);
+
+            if (shiftedNote <= maxMidiNote && shiftedVelocity > 0)
+            {
+                if (sampleOffset < bufferSamples)
+                {
+                    emitScheduledNoteOn (row,
+                                         midiChannel,
+                                         shiftedNote,
+                                         shiftedVelocity,
+                                         juce::jmax (0, sampleOffset),
+                                         noteGateSamples,
+                                         bufferSamples,
+                                         midiMessages);
+                }
+                else
+                {
+                    addPendingNoteOn (PendingNoteOn { row,
+                                                      midiChannel,
+                                                      shiftedNote,
+                                                      shiftedVelocity,
+                                                      sampleOffset - bufferSamples,
+                                                      noteGateSamples });
+                }
+            }
+        }
+    };
 
     if (resetRowTriggersAtSegmentStart)
     {
@@ -4097,14 +4341,22 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                 }
                 else
                 {
+                    const auto clampedSampleOffset = juce::jmax (0, sampleOffset);
+
                     emitScheduledNoteOn (row,
                                          midiChannel,
                                          note,
                                          velocity,
-                                         juce::jmax (0, sampleOffset),
+                                         clampedSampleOffset,
                                          noteGateSamples,
                                          bufferSamples,
                                          midiMessages);
+                    emitOctavizerCopies (row,
+                                         midiChannel,
+                                         note,
+                                         velocity,
+                                         clampedSampleOffset,
+                                         noteGateSamples);
                 }
             }
             else
@@ -4115,6 +4367,12 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                                   velocity,
                                                   sampleOffset - bufferSamples,
                                                   noteGateSamples });
+                emitOctavizerCopies (row,
+                                     midiChannel,
+                                     note,
+                                     velocity,
+                                     sampleOffset,
+                                     noteGateSamples);
             }
         }
     }
@@ -4535,6 +4793,18 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
         patternTree.setProperty ("noteBandpassHighMidi",
                                  getPatternNoteBandpassHigh (patternSlot),
                                  nullptr);
+        patternTree.setProperty ("octavizerDown8vaEnabled",
+                                 isPatternOctavizerDown8vaEnabled (patternSlot) ? 1 : 0,
+                                 nullptr);
+        patternTree.setProperty ("octavizerUp8vaEnabled",
+                                 isPatternOctavizerUp8vaEnabled (patternSlot) ? 1 : 0,
+                                 nullptr);
+        patternTree.setProperty ("octavizerDown8vaRelativeVelocity",
+                                 getPatternOctavizerDown8vaRelativeVelocity (patternSlot),
+                                 nullptr);
+        patternTree.setProperty ("octavizerUp8vaRelativeVelocity",
+                                 getPatternOctavizerUp8vaRelativeVelocity (patternSlot),
+                                 nullptr);
 
         for (int row = 0; row < phraseRowCount; ++row)
         {
@@ -4755,6 +5025,16 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                                                        defaultNoteBandpassHighMidi)));
         pattern.noteBandpassLowMidi = bandpassBounds.first;
         pattern.noteBandpassHighMidi = bandpassBounds.second;
+        pattern.octavizerDown8vaEnabled =
+            static_cast<int> (patternTree.getProperty ("octavizerDown8vaEnabled", 0)) != 0 ? 1 : 0;
+        pattern.octavizerUp8vaEnabled =
+            static_cast<int> (patternTree.getProperty ("octavizerUp8vaEnabled", 0)) != 0 ? 1 : 0;
+        pattern.octavizerDown8vaRelativeVelocity = clampOctavizerRelativeVelocity (
+            static_cast<int> (patternTree.getProperty ("octavizerDown8vaRelativeVelocity",
+                                                       defaultOctavizerRelativeVelocity)));
+        pattern.octavizerUp8vaRelativeVelocity = clampOctavizerRelativeVelocity (
+            static_cast<int> (patternTree.getProperty ("octavizerUp8vaRelativeVelocity",
+                                                       defaultOctavizerRelativeVelocity)));
     }
 
     for (int i = 0; i < state.getNumChildren(); ++i)
