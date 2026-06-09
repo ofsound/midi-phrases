@@ -429,7 +429,7 @@
               ></div>
             {/each}
 
-            {#each scheduled as note (`${note.row}-${note.start}-${note.midi}`)}
+            {#each scheduled as note, index (`${index}-${note.row}-${note.start}-${note.midi}-${note.step}-${note.end}`)}
               {@const noteActive =
                 note.velocity > 0 && isScheduledNoteActiveAtBeat(note, playbackBeat)}
               {@const noteAccent = rowAccentFor(note.row, rowColorsEnabled)}

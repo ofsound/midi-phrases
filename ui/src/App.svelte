@@ -110,10 +110,28 @@
   let stepCycleOffset = $state(defaultStepCycleOffsetGrid());
   /** @type {boolean[][]} */
   let activeGates = $state(defaultPhraseGrid().map((row) => row.map(() => false)));
+
+  let nextStepId = 0;
+
+  function createStepId() {
+    const id = `step-${nextStepId}`;
+    nextStepId += 1;
+    return id;
+  }
+
+  function createInitialStepIds() {
+    nextStepId = 0;
+
+    return defaultPhraseGrid().map((row) => row.map(() => createStepId()));
+  }
+
+  /** @param {string[][]} rows */
+  function createStepIdsForGrid(rows) {
+    return rows.map((row) => row.map(() => createStepId()));
+  }
+
   /** @type {string[][]} */
-  let stepIds = $state(defaultPhraseGrid().map((row, rowIndex) =>
-    row.map((_, step) => `step-${rowIndex}-${step}`),
-  ));
+  let stepIds = $state(createInitialStepIds());
 
   let playbackPollFrameId = 0;
   let slotSelectionInFlight = 0;
@@ -143,7 +161,6 @@
   ];
 
 
-  let nextStepId = defaultPhraseGrid().reduce((count, row) => count + row.length, 0);
   let loopBraceEnabled = $state(false);
   let loopBraceStart = $state(0);
   let loopBraceEnd = $state(8);
@@ -339,12 +356,6 @@
   let marqueeRectStyle = $derived(marqueeSelection
     ? `left: ${marqueeLeft}px; top: ${marqueeTop}px; width: ${marqueeWidth}px; height: ${marqueeHeight}px;`
     : "");
-
-  function createStepId() {
-    const id = `step-${nextStepId}`;
-    nextStepId += 1;
-    return id;
-  }
 
   function cloneMatrix(matrix) {
     return matrix.map((row) => [...row]);
@@ -720,9 +731,7 @@
     loopBraceStart = Number.parseFloat(String(state.loopBraceStart ?? 0));
     loopBraceEnd = Number.parseFloat(String(state.loopBraceEnd ?? 8));
     activeGates = grid.map((row) => row.map(() => false));
-    const slotForIds = activePatternSlot >= 0 ? activePatternSlot : viewPatternSlot;
-    stepIds = grid.map((row, rowIndex) => row.map((_, step) => `step-${slotForIds}-${rowIndex}-${step}`));
-    nextStepId = grid.reduce((count, row) => count + row.length, 0);
+    stepIds = createStepIdsForGrid(grid);
     setSelectedStepKeys(new Set());
     bulkTransposeSemitones = 0;
     undoStack = [];
@@ -1007,8 +1016,7 @@
 
     grid = nextGrid;
     activeGates = nextGrid.map((row) => row.map(() => false));
-    stepIds = nextGrid.map((row, rowIndex) => row.map((_, step) => `step-${rowIndex}-${step}`));
-    nextStepId = nextGrid.reduce((count, row) => count + row.length, 0);
+    stepIds = createStepIdsForGrid(nextGrid);
   }
 
   function loadRowMutedFromInitialisation() {
