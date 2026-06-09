@@ -216,6 +216,10 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
                          processor.getPatternCombinationModeMask (patternSlot));
     object->setProperty ("scaleRoot", processor.getPatternScaleRoot (patternSlot));
     object->setProperty ("scaleModeIndex", processor.getPatternScaleModeIndex (patternSlot));
+    object->setProperty ("noteBandpassLowMidi",
+                         processor.getPatternNoteBandpassLow (patternSlot));
+    object->setProperty ("noteBandpassHighMidi",
+                         processor.getPatternNoteBandpassHigh (patternSlot));
 
     return juce::var (object.release());
 }
@@ -365,6 +369,12 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("scaleModeIndex",
                                                 processor.getPatternScaleModeIndex (
                                                     patternSlotForNativeDefault (processor)))
+                       .withInitialisationData ("noteBandpassLowMidi",
+                                                processor.getPatternNoteBandpassLow (
+                                                    patternSlotForNativeDefault (processor)))
+                       .withInitialisationData ("noteBandpassHighMidi",
+                                                processor.getPatternNoteBandpassHigh (
+                                                    patternSlotForNativeDefault (processor)))
                        .withInitialisationData ("loopBraceEnabled",
                                                 processor.isLoopBraceEnabled() ? 1 : 0)
                        .withInitialisationData ("loopBraceStart",
@@ -481,6 +491,20 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                complete (createPatternStateVar (processor,
                                                                 patternSlotForNativeDefault (
                                                                     processor)));
+                           })
+                       .withNativeFunction (
+                           "setPatternNoteBandpass",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 2)
+                                   processor.setPatternNoteBandpass (varToInt (args[0]),
+                                                                     varToInt (args[1]));
+
+                               juce::Array<juce::var> result;
+                               const auto patternSlot = patternSlotForNativeDefault (processor);
+                               result.add (processor.getPatternNoteBandpassLow (patternSlot));
+                               result.add (processor.getPatternNoteBandpassHigh (patternSlot));
+                               complete (result);
                            })
                        .withNativeFunction (
                            "setPhraseRowMuted",

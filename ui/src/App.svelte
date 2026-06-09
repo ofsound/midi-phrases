@@ -39,6 +39,11 @@
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
   import {
+    clampNoteBandpass,
+    defaultNoteBandpassHighMidi,
+    defaultNoteBandpassLowMidi,
+  } from "./noteBandpass.js";
+  import {
     combinationModes,
     isStepActiveAtBeat,
     swingSubdivisionOptions,
@@ -177,6 +182,8 @@
   let combinationModeMask = $state(0);
   let scaleRoot = $state(defaultScaleRoot);
   let scaleModeIndex = $state(defaultScaleModeIndex);
+  let noteBandpassLowMidi = $state(defaultNoteBandpassLowMidi);
+  let noteBandpassHighMidi = $state(defaultNoteBandpassHighMidi);
   let scaleDialogOpen = $state(false);
   let pulseIndex = $state(defaultPulseIndex);
   let swingPercent = $state(0);
@@ -221,6 +228,56 @@
         ? "border-zinc-700 text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
         : "border-zinc-800 text-zinc-700"
     }`;
+  }
+
+  function setNoteBandpassState(lowMidi, highMidi) {
+    const next = clampNoteBandpass(lowMidi, highMidi);
+    noteBandpassLowMidi = next.low;
+    noteBandpassHighMidi = next.high;
+  }
+
+  async function handleNoteBandpassChange(lowMidi, highMidi) {
+    setNoteBandpassState(lowMidi, highMidi);
+
+    if (nativeFunctionAvailable("setPatternNoteBandpass")) {
+      const confirmed = await getNativeFunction("setPatternNoteBandpass")(
+        noteBandpassLowMidi,
+        noteBandpassHighMidi,
+      );
+
+      if (Array.isArray(confirmed) && confirmed.length >= 2) {
+        setNoteBandpassState(
+          Number.parseInt(String(confirmed[0]), 10),
+          Number.parseInt(String(confirmed[1]), 10),
+        );
+      }
+    }
+  }
+
+  async function commitNoteBandpass(lowMidi, highMidi) {
+    const before = createHistorySnapshot();
+    setNoteBandpassState(lowMidi, highMidi);
+
+    if (nativeFunctionAvailable("setPatternNoteBandpass")) {
+      const confirmed = await getNativeFunction("setPatternNoteBandpass")(
+        noteBandpassLowMidi,
+        noteBandpassHighMidi,
+      );
+
+      if (Array.isArray(confirmed) && confirmed.length >= 2) {
+        setNoteBandpassState(
+          Number.parseInt(String(confirmed[0]), 10),
+          Number.parseInt(String(confirmed[1]), 10),
+        );
+      } else if (confirmed && typeof confirmed === "object") {
+        setNoteBandpassState(
+          Number.parseInt(String(confirmed.noteBandpassLowMidi ?? confirmed.lowMidi), 10),
+          Number.parseInt(String(confirmed.noteBandpassHighMidi ?? confirmed.highMidi), 10),
+        );
+      }
+    }
+
+    pushHistoryEntry("Note bandpass", before, createHistorySnapshot());
   }
 
   async function toggleCombinationMode(modeIndex) {
@@ -638,6 +695,8 @@
       combinationModeMask,
       scaleRoot,
       scaleModeIndex,
+      noteBandpassLowMidi,
+      noteBandpassHighMidi,
       loopBraceEnabled,
       loopBraceStart,
       loopBraceEnd,
@@ -695,6 +754,10 @@
     combinationModeMask = next.combinationModeMask ?? 0;
     scaleRoot = clampScaleRoot(next.scaleRoot ?? defaultScaleRoot);
     scaleModeIndex = clampScaleModeIndex(next.scaleModeIndex ?? defaultScaleModeIndex);
+    setNoteBandpassState(
+      next.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
+      next.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
+    );
     loopBraceEnabled = next.loopBraceEnabled;
     loopBraceStart = next.loopBraceStart;
     loopBraceEnd = next.loopBraceEnd;
@@ -727,6 +790,10 @@
     combinationModeMask = Number.parseInt(String(state.combinationModeMask ?? 0), 10) & 0xf;
     scaleRoot = clampScaleRoot(state.scaleRoot ?? defaultScaleRoot);
     scaleModeIndex = clampScaleModeIndex(state.scaleModeIndex ?? defaultScaleModeIndex);
+    setNoteBandpassState(
+      Number.parseInt(String(state.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi), 10),
+      Number.parseInt(String(state.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi), 10),
+    );
     loopBraceEnabled = Boolean(Number.parseInt(String(state.loopBraceEnabled ?? 0), 10));
     loopBraceStart = Number.parseFloat(String(state.loopBraceStart ?? 0));
     loopBraceEnd = Number.parseFloat(String(state.loopBraceEnd ?? 8));
@@ -837,6 +904,13 @@
       await getNativeFunction("setPatternScale")(
         snapshot.scaleRoot ?? defaultScaleRoot,
         snapshot.scaleModeIndex ?? defaultScaleModeIndex,
+      );
+    }
+
+    if (nativeFunctionAvailable("setPatternNoteBandpass")) {
+      await getNativeFunction("setPatternNoteBandpass")(
+        snapshot.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
+        snapshot.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
       );
     }
 
@@ -2269,6 +2343,15 @@
     scaleModeIndex = clampScaleModeIndex(unwrapJuceInit("scaleModeIndex") ?? defaultScaleModeIndex);
   }
 
+  function loadNoteBandpassFromInitialisation() {
+    const lowInit = unwrapJuceInit("noteBandpassLowMidi");
+    const highInit = unwrapJuceInit("noteBandpassHighMidi");
+    setNoteBandpassState(
+      Number.parseInt(String(lowInit ?? defaultNoteBandpassLowMidi), 10),
+      Number.parseInt(String(highInit ?? defaultNoteBandpassHighMidi), 10),
+    );
+  }
+
   async function pushLoopBraceEnabled(enabled) {
     if (!nativeFunctionAvailable("setLoopBraceEnabled")) return;
 
@@ -2554,6 +2637,7 @@
     loadRowColorsFromInitialisation();
     loadCombinationModesFromInitialisation();
     loadPatternScaleFromInitialisation();
+    loadNoteBandpassFromInitialisation();
     loadStandaloneTransportFromInitialisation();
     loadSlotStateFromInitialisation();
   }
@@ -3095,7 +3179,14 @@
       </div>
     </div>
 
-    <CombinationModeRail mask={combinationModeMask} onToggle={toggleCombinationMode} />
+    <CombinationModeRail
+      mask={combinationModeMask}
+      onToggle={toggleCombinationMode}
+      noteBandpassLowMidi={noteBandpassLowMidi}
+      noteBandpassHighMidi={noteBandpassHighMidi}
+      onNoteBandpassChange={handleNoteBandpassChange}
+      onNoteBandpassCommit={commitNoteBandpass}
+    />
 
     {#if recordingRow !== null}
       <RecordPianoKeyboard
@@ -3121,6 +3212,8 @@
         {combinationModeMask}
         {scaleRoot}
         {scaleModeIndex}
+        noteBandpassLowMidi={noteBandpassLowMidi}
+        noteBandpassHighMidi={noteBandpassHighMidi}
         {pulseIndex}
         {swingPercent}
         {swingSubdivisionIndex}

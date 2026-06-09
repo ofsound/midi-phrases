@@ -208,6 +208,17 @@ bool combinationModeEnabled (const int mask, const int modeIndex)
     return bit != 0 && (mask & bit) != 0;
 }
 
+std::pair<int, int> clampNoteBandpassBounds (int lowMidi, int highMidi)
+{
+    auto low = juce::jlimit (PluginProcessor::minMidiNote, PluginProcessor::maxMidiNote, lowMidi);
+    auto high = juce::jlimit (PluginProcessor::minMidiNote, PluginProcessor::maxMidiNote, highMidi);
+
+    if (low > high)
+        std::swap (low, high);
+
+    return { low, high };
+}
+
 std::uint32_t deterministicEventHash (const int row, const int step, const double ppq)
 {
     auto value = static_cast<std::uint32_t> (row + 1) * 0x9E3779B9u
@@ -648,6 +659,8 @@ void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
 {
     pattern.scaleRoot = defaultScaleRoot;
     pattern.scaleModeIndex = defaultScaleModeIndex;
+    pattern.noteBandpassLowMidi = defaultNoteBandpassLowMidi;
+    pattern.noteBandpassHighMidi = defaultNoteBandpassHighMidi;
 
     for (int row = 0; row < phraseRowCount; ++row)
     {
@@ -1046,6 +1059,14 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             pattern.scaleModeIndex = clampScaleModeIndex (command.intValue);
             break;
 
+        case SequencerCommand::Type::SetPatternNoteBandpass:
+        {
+            const auto bounds = clampNoteBandpassBounds (command.step, command.intValue);
+            pattern.noteBandpassLowMidi = bounds.first;
+            pattern.noteBandpassHighMidi = bounds.second;
+            break;
+        }
+
         case SequencerCommand::Type::ReplacePattern:
             pattern = command.patternState;
             for (auto& patternRow : pattern.sequencer.rows)
@@ -1068,7 +1089,8 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
     };
 
     if (command.type == SequencerCommand::Type::ReplacePattern
-        || command.type == SequencerCommand::Type::SetCombinationModeMask)
+        || command.type == SequencerCommand::Type::SetCombinationModeMask
+        || command.type == SequencerCommand::Type::SetPatternNoteBandpass)
     {
         flushAllRows();
     }
@@ -1401,6 +1423,37 @@ int PluginProcessor::getPatternScaleRoot (const int patternSlot) const
 int PluginProcessor::getPatternScaleModeIndex (const int patternSlot) const
 {
     return clampScaleModeIndex (modelPattern (patternSlot).scaleModeIndex);
+}
+
+void PluginProcessor::setPatternNoteBandpass (const int lowMidi, const int highMidi)
+{
+    const auto patternSlot = getViewPatternSlot();
+    const auto bounds = clampNoteBandpassBounds (lowMidi, highMidi);
+
+    auto& pattern = modelPattern (patternSlot);
+    pattern.noteBandpassLowMidi = bounds.first;
+    pattern.noteBandpassHighMidi = bounds.second;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternNoteBandpass;
+    command.patternSlot = patternSlot;
+    command.step = bounds.first;
+    command.intValue = bounds.second;
+    publishCommandToAudio (command);
+}
+
+int PluginProcessor::getPatternNoteBandpassLow (const int patternSlot) const
+{
+    return clampNoteBandpassBounds (modelPattern (patternSlot).noteBandpassLowMidi,
+                                    modelPattern (patternSlot).noteBandpassHighMidi)
+        .first;
+}
+
+int PluginProcessor::getPatternNoteBandpassHigh (const int patternSlot) const
+{
+    return clampNoteBandpassBounds (modelPattern (patternSlot).noteBandpassLowMidi,
+                                    modelPattern (patternSlot).noteBandpassHighMidi)
+        .second;
 }
 
 void PluginProcessor::reverseRowSteps (PhraseRowSteps& steps)
@@ -3695,6 +3748,26 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         copyFilteredEvents (eventCount);
     }
 
+    {
+        const auto bandpassLow = activePattern.noteBandpassLowMidi;
+        const auto bandpassHigh = activePattern.noteBandpassHighMidi;
+        auto write = static_cast<size_t> (0);
+
+        for (size_t read = 0; read < eventCount; ++read)
+        {
+            const auto& event = combinedEvents[read];
+
+            if (event.note < bandpassLow || event.note > bandpassHigh)
+                continue;
+
+            if (write < combinedWorkingEvents.size())
+                combinedWorkingEvents[write++] = event;
+        }
+
+        eventCount = write;
+        copyFilteredEvents (eventCount);
+    }
+
     for (size_t index = 0; index < eventCount; ++index)
     {
         auto event = combinedEvents[index];
@@ -3778,6 +3851,10 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                              const bool resetRowTriggersAtSegmentStart)
 {
     constexpr auto epsilon = 1.0e-9;
+    const auto& activePattern =
+        audioPatterns[static_cast<size_t> (clampPatternSlot (audioActivePatternSlot))];
+    const auto bandpassLow = activePattern.noteBandpassLowMidi;
+    const auto bandpassHigh = activePattern.noteBandpassHighMidi;
 
     if (resetRowTriggersAtSegmentStart)
     {
@@ -3911,6 +3988,9 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
             const auto note = rowSteps.notes[static_cast<size_t> (slot)];
             auto velocity = rowSteps.velocity[static_cast<size_t> (slot)];
+
+            if (note < bandpassLow || note > bandpassHigh)
+                continue;
 
             if (velocity <= 0 || rowSteps.stepMuted[static_cast<size_t> (slot)] != 0)
                 continue;
@@ -4449,6 +4529,12 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
                                  nullptr);
         patternTree.setProperty ("scaleRoot", getPatternScaleRoot (patternSlot), nullptr);
         patternTree.setProperty ("scaleModeIndex", getPatternScaleModeIndex (patternSlot), nullptr);
+        patternTree.setProperty ("noteBandpassLowMidi",
+                                 getPatternNoteBandpassLow (patternSlot),
+                                 nullptr);
+        patternTree.setProperty ("noteBandpassHighMidi",
+                                 getPatternNoteBandpassHigh (patternSlot),
+                                 nullptr);
 
         for (int row = 0; row < phraseRowCount; ++row)
         {
@@ -4662,6 +4748,13 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             static_cast<int> (patternTree.getProperty ("scaleRoot", defaultScaleRoot)));
         pattern.scaleModeIndex = clampScaleModeIndex (
             static_cast<int> (patternTree.getProperty ("scaleModeIndex", defaultScaleModeIndex)));
+        const auto bandpassBounds = clampNoteBandpassBounds (
+            static_cast<int> (patternTree.getProperty ("noteBandpassLowMidi",
+                                                       defaultNoteBandpassLowMidi)),
+            static_cast<int> (patternTree.getProperty ("noteBandpassHighMidi",
+                                                       defaultNoteBandpassHighMidi)));
+        pattern.noteBandpassLowMidi = bandpassBounds.first;
+        pattern.noteBandpassHighMidi = bandpassBounds.second;
     }
 
     for (int i = 0; i < state.getNumChildren(); ++i)

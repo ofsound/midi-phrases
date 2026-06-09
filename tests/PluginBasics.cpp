@@ -197,6 +197,79 @@ TEST_CASE ("Cross-Mod mode follows pattern scale", "[instance]")
     testPlugin.setPlayHead (nullptr);
 }
 
+TEST_CASE ("Pattern note bandpass filters scheduled output", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, true);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 2);
+    testPlugin.setPhraseNote (0, 0, 48); // C3
+    testPlugin.setPhraseNote (0, 1, 60); // C4
+
+    for (int step = 0; step < 2; ++step)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (0,
+                                                    step,
+                                                    PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (0, step, 1.0);
+        testPlugin.setPhraseStepVelocity (0, step, 100);
+    }
+
+    testPlugin.setPatternNoteBandpass (60, 60); // C4 only
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    testPlugin.setPlayHead (&playHead);
+
+    std::array<int, 128> noteOnCounts {};
+
+    for (int block = 0; block < 700; ++block)
+    {
+        midi.clear();
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                      * (120.0 / 60.0) / sampleRate);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+                ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+        }
+
+        if (playHead.info.getPpqPosition() >= 8.0)
+            break;
+    }
+
+    CHECK (noteOnCounts[60] > 0);
+    CHECK (noteOnCounts[48] == 0);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Plugin instance", "[instance]")
 {
     PluginProcessor testPlugin;

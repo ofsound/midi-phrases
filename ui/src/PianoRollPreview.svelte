@@ -33,6 +33,8 @@
    * @property {number} [combinationModeMask]
    * @property {number} [scaleRoot]
    * @property {number} [scaleModeIndex]
+   * @property {number} [noteBandpassLowMidi]
+   * @property {number} [noteBandpassHighMidi]
    * @property {boolean} [rowColorsEnabled]
    * @property {any} [lengthQuarters]
    * @property {boolean} [loopEnabled]
@@ -61,6 +63,8 @@
     combinationModeMask = 0,
     scaleRoot = 0,
     scaleModeIndex = 0,
+    noteBandpassLowMidi = 36,
+    noteBandpassHighMidi = 108,
     rowColorsEnabled = false,
     lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
     loopEnabled = false,
@@ -108,6 +112,8 @@
     lengthQuarters,
     scaleRoot,
     scaleModeIndex,
+    noteBandpassLowMidi,
+    noteBandpassHighMidi,
   }));
 
   let pitchRange = $derived(pitchRangeForSchedule(scheduled));

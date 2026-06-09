@@ -212,6 +212,103 @@
     height: 1px;
     background: rgba(228, 228, 231, 0.5);
   }
+
+  .note-bandpass-slider {
+    width: 14.5rem;
+    padding-top: 1.35rem;
+  }
+
+  .note-bandpass-track-shell {
+    position: relative;
+    height: 2.35rem;
+    touch-action: none;
+    cursor: pointer;
+  }
+
+  .note-bandpass-track {
+    position: absolute;
+    left: 0.45rem;
+    right: 0.45rem;
+    top: 1.35rem;
+    height: 0.32rem;
+    border-radius: 9999px;
+    background: rgba(113, 113, 122, 0.55);
+    overflow: hidden;
+  }
+
+  .note-bandpass-range {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: inherit;
+    background: color-mix(in srgb, var(--color-accent-400) 88%, white);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--color-accent-400) 35%, transparent);
+  }
+
+  .note-bandpass-thumb {
+    position: absolute;
+    top: 0;
+    width: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    transform: translateX(-50%);
+    cursor: grab;
+    outline: none;
+  }
+
+  .note-bandpass-thumb:active {
+    cursor: grabbing;
+  }
+
+  .note-bandpass-thumb:focus-visible .note-bandpass-knob {
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.35),
+      var(--shadow-accent-focus);
+  }
+
+  .note-bandpass-label {
+    position: absolute;
+    left: 50%;
+    bottom: 1.55rem;
+    transform: translateX(-50%);
+    min-width: 2.35rem;
+    padding: 0.18rem 0.42rem;
+    border-radius: 0.3rem 0.3rem 0.15rem 0.15rem;
+    background: color-mix(in srgb, var(--color-accent-400) 92%, #0a0a0a);
+    color: #0a0a0a;
+    font-size: 0.66rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+    pointer-events: none;
+  }
+
+  .note-bandpass-label::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -0.28rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    transform: translateX(-50%) rotate(45deg);
+    background: inherit;
+  }
+
+  .note-bandpass-knob {
+    position: absolute;
+    left: 50%;
+    top: 1.12rem;
+    width: 0.95rem;
+    height: 0.95rem;
+    transform: translate(-50%, -50%);
+    border-radius: 9999px;
+    background: #f4f4f5;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+  }
 }
 
 /* svelte-dnd-action drag ghost — keep visible (shadow placeholder uses hidden styles). */

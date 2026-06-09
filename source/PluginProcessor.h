@@ -78,6 +78,15 @@ public:
     int getPatternScaleRoot (int patternSlot) const;
     int getPatternScaleModeIndex (int patternSlot) const;
 
+    static constexpr int minMidiNote = 0;
+    static constexpr int maxMidiNote = 127;
+    static constexpr int defaultNoteBandpassLowMidi = 36;  // C1
+    static constexpr int defaultNoteBandpassHighMidi = 108; // C7
+
+    void setPatternNoteBandpass (int lowMidi, int highMidi);
+    int getPatternNoteBandpassLow (int patternSlot) const;
+    int getPatternNoteBandpassHigh (int patternSlot) const;
+
     void setPhraseRowMuted (int row, bool muted);
     bool isPhraseRowMuted (int row) const;
 
@@ -312,6 +321,8 @@ private:
         LoopBraceState loopBrace {};
         int scaleRoot = defaultScaleRoot;
         int scaleModeIndex = defaultScaleModeIndex;
+        int noteBandpassLowMidi = defaultNoteBandpassLowMidi;
+        int noteBandpassHighMidi = defaultNoteBandpassHighMidi;
     };
 
     struct LoopSlotState
@@ -348,6 +359,7 @@ private:
             SetLoopBraceEnd,
             SetCombinationModeMask,
             SetPatternScale,
+            SetPatternNoteBandpass,
             ReplacePattern
         };
 

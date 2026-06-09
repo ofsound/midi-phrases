@@ -406,12 +406,24 @@ When a row or mode state changes for the active audio pattern, the processor
 requests a note flush. This prevents old generated notes from continuing after a
 mode chain changes.
 
+## Note Bandpass
+
+After the mode chain (or row-local scheduling when no modes are enabled), each
+pattern applies a per-pattern MIDI note bandpass before preview and audio output.
+
+```text
+bandpassLow <= event.note <= bandpassHigh
+```
+
+Notes outside the inclusive range are dropped. The bandpass does not edit phrase
+data, step cards, or recording input. Default range is C1–C7 per pattern.
+
 ## Preview Parity
 
 The UI preview follows the same mode order:
 
 ```text
-Logic -> Cross-Mod -> Echo -> Weave
+Logic -> Cross-Mod -> Echo -> Weave -> Note Bandpass
 ```
 
 The preview intentionally differs in a few implementation details:

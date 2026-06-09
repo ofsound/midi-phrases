@@ -1,4 +1,9 @@
 import {defaultPulseIndex, pulseQuartersForIndex} from "./pulseLayout.js";
+import {
+  applyNoteBandpass,
+  defaultNoteBandpassHighMidi,
+  defaultNoteBandpassLowMidi,
+} from "./noteBandpass.js";
 import {defaultScaleModeIndex, defaultScaleRoot, echoNoteFromModStep} from "./scaleUtils.js";
 import {timingMultiplierAtIndex, timingOffsetValues} from "./stepCellLayout.js";
 
@@ -148,6 +153,8 @@ export function stepStartInCycleForStep(stepStartQuarters, step) {
  * @param {number} [params.lengthQuarters]
  * @param {number} [params.scaleRoot]
  * @param {number} [params.scaleModeIndex]
+ * @param {number} [params.noteBandpassLowMidi]
+ * @param {number} [params.noteBandpassHighMidi]
  * @returns {ScheduledNote[]}
  */
 export function buildPhraseSchedule({
@@ -169,6 +176,8 @@ export function buildPhraseSchedule({
   lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
   scaleRoot = defaultScaleRoot,
   scaleModeIndex = defaultScaleModeIndex,
+  noteBandpassLowMidi = defaultNoteBandpassLowMidi,
+  noteBandpassHighMidi = defaultNoteBandpassHighMidi,
 }) {
   const ppqStart = 0;
   const ppqEnd = lengthQuarters;
@@ -292,7 +301,7 @@ export function buildPhraseSchedule({
 
   const sorted = scheduled.sort((a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row);
 
-  return applyCombinationModes({
+  const combined = applyCombinationModes({
     scheduled: sorted,
     notes,
     rowMuted,
@@ -307,6 +316,8 @@ export function buildPhraseSchedule({
     scaleRoot,
     scaleModeIndex,
   });
+
+  return applyNoteBandpass(combined, noteBandpassLowMidi, noteBandpassHighMidi);
 }
 
 /** @param {ScheduledNote[]} events */
