@@ -19,28 +19,27 @@
  *   pianoNoteActive: string,
  * }} RowAccent */
 
+/** Default row accent — palette tokens live in app.css @theme. */
 /** @type {RowAccent} */
 export const emeraldRowAccent = {
-  borderActive: "border-emerald-400",
-  borderFocus: "border-emerald-500",
-  borderFocusVisible: "focus-visible:border-emerald-500",
-  cellFocusWithinBorder: "focus-within:has-[:focus-visible]:border-emerald-500",
-  ringFocus: "focus-visible:ring-emerald-400",
-  ringFocusWithWidth: "focus-visible:ring-1 focus-visible:ring-emerald-400",
-  insertZoneFocus: "focus-visible:ring-1 focus-visible:ring-emerald-500",
-  controlFocus: "focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500",
-  textAccent: "text-emerald-400",
-  textAccentLight: "text-emerald-300",
-  textAccentFocus: "focus-visible:text-emerald-300",
-  bgAccent: "bg-emerald-400",
-  bgAccentStrong: "bg-emerald-500",
-  dragBorder: "border-emerald-400",
-  dragShadow: "shadow-[0_0_10px_rgba(52,211,153,0.35)]",
-  playbackGlow: "shadow-[0_0_14px_rgba(52,211,153,0.55)]",
-  pianoNoteIdle:
-    "border-emerald-300/20 bg-emerald-400/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
-  pianoNoteActive:
-    "border-emerald-200/90 bg-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.65)]",
+  borderActive: "border-accent-400",
+  borderFocus: "border-accent-500",
+  borderFocusVisible: "focus-visible:border-accent-500",
+  cellFocusWithinBorder: "focus-within:has-[:focus-visible]:border-accent-500",
+  ringFocus: "focus-visible:ring-accent-400",
+  ringFocusWithWidth: "focus-visible:ring-1 focus-visible:ring-accent-400",
+  insertZoneFocus: "focus-visible:ring-1 focus-visible:ring-accent-500",
+  controlFocus: "focus:border-accent-500 focus:ring-1 focus:ring-accent-500",
+  textAccent: "text-accent-400",
+  textAccentLight: "text-accent-300",
+  textAccentFocus: "focus-visible:text-accent-300",
+  bgAccent: "bg-accent-400",
+  bgAccentStrong: "bg-accent-500",
+  dragBorder: "border-accent-400",
+  dragShadow: "shadow-accent-drag",
+  playbackGlow: "shadow-accent-playback",
+  pianoNoteIdle: "border-accent-300/20 bg-accent-400/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+  pianoNoteActive: "border-accent-200/90 bg-accent-300 shadow-accent-piano-active",
 };
 
 /** Rows 2–4 (1-based): blue, orange, violet when row colors are enabled. */
@@ -63,10 +62,8 @@ export const altRowAccents = [
     dragBorder: "border-blue-400",
     dragShadow: "shadow-[0_0_10px_rgba(59,130,246,0.4)]",
     playbackGlow: "shadow-[0_0_14px_rgba(59,130,246,0.55)]",
-    pianoNoteIdle:
-      "border-blue-300/25 bg-blue-500/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
-    pianoNoteActive:
-      "border-blue-200/90 bg-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.65)]",
+    pianoNoteIdle: "border-blue-300/25 bg-blue-500/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+    pianoNoteActive: "border-blue-200/90 bg-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.65)]",
   },
   {
     borderActive: "border-orange-400",
@@ -85,10 +82,8 @@ export const altRowAccents = [
     dragBorder: "border-orange-400",
     dragShadow: "shadow-[0_0_10px_rgba(249,115,22,0.4)]",
     playbackGlow: "shadow-[0_0_14px_rgba(249,115,22,0.55)]",
-    pianoNoteIdle:
-      "border-orange-300/25 bg-orange-500/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
-    pianoNoteActive:
-      "border-orange-200/90 bg-orange-300 shadow-[0_0_12px_rgba(249,115,22,0.65)]",
+    pianoNoteIdle: "border-orange-300/25 bg-orange-500/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+    pianoNoteActive: "border-orange-200/90 bg-orange-300 shadow-[0_0_12px_rgba(249,115,22,0.65)]",
   },
   {
     borderActive: "border-violet-400",
@@ -107,10 +102,8 @@ export const altRowAccents = [
     dragBorder: "border-violet-400",
     dragShadow: "shadow-[0_0_10px_rgba(139,92,246,0.4)]",
     playbackGlow: "shadow-[0_0_14px_rgba(139,92,246,0.55)]",
-    pianoNoteIdle:
-      "border-violet-300/25 bg-violet-500/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
-    pianoNoteActive:
-      "border-violet-200/90 bg-violet-300 shadow-[0_0_12px_rgba(139,92,246,0.65)]",
+    pianoNoteIdle: "border-violet-300/25 bg-violet-500/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+    pianoNoteActive: "border-violet-200/90 bg-violet-300 shadow-[0_0_12px_rgba(139,92,246,0.65)]",
   },
 ];
 
@@ -124,8 +117,7 @@ export function rowAccentFor(row, rowColorsEnabled) {
 }
 
 /** Dims row transport controls when muted; does not cover step cells. */
-export const rowMutedOverlayClasses =
-  "pointer-events-none absolute inset-0 z-10 rounded-xl bg-zinc-950/50";
+export const rowMutedOverlayClasses = "pointer-events-none absolute inset-0 z-10 rounded-xl bg-zinc-950/50";
 
 /** Icon toggles: off/on gray levels only (no hover; no row accent). */
 export const toggleIconRestClasses = "text-zinc-500";
@@ -135,13 +127,10 @@ export const toggleIconActiveClasses = "text-zinc-300";
 export const rowPowerToggleOffClasses = "text-zinc-600";
 
 /** On/off toggle stays above {@link rowMutedOverlayClasses}. */
-export const rowMuteControlClasses =
-  "relative z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-zinc-500";
+export const rowMuteControlClasses = "relative z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-zinc-500";
 
 /** Bordered control in the global header (e.g. row reverse). */
-export const rowReverseControlClasses =
-  "relative z-20 flex h-9 min-w-[3.75rem] shrink-0 items-center justify-center rounded-lg border bg-zinc-900 px-2 transition-colors outline-none hover:border-zinc-600";
+export const rowReverseControlClasses = "relative z-20 flex h-9 min-w-[3.75rem] shrink-0 items-center justify-center rounded-lg border bg-zinc-900 px-2 transition-colors outline-none hover:border-zinc-600";
 
 /** Row reverse / randomize icon actions — borderless, equal hit target. */
-export const rowActionIconControlClasses =
-  "relative z-20 flex h-9 w-9 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none";
+export const rowActionIconControlClasses = "relative z-20 flex h-9 w-9 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none";

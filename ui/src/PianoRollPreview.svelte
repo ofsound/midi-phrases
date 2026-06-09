@@ -293,8 +293,8 @@
       <button
         type="button"
         data-cursor="pointer"
-        class="rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors outline-none focus-visible:ring-1 focus-visible:ring-emerald-400 {loopEnabled
-          ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
+        class="rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors outline-none focus-visible:ring-1 focus-visible:ring-accent-400 {loopEnabled
+          ? 'border-accent-500/50 bg-accent-500/15 text-accent-300'
           : 'border-zinc-700 bg-zinc-900 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}"
         onclick={toggleLoopEnabled}
       >
@@ -365,7 +365,7 @@
             >
               <div
                 class="absolute inset-x-0 top-0 h-2 rounded-sm border transition-colors {loopEnabled
-                  ? 'border-emerald-400/80 bg-emerald-400/90'
+                  ? 'border-accent-400/80 bg-accent-400/90'
                   : 'border-zinc-500/70 bg-zinc-500/60'}"
               >
                 <button
@@ -406,7 +406,7 @@
 
             {#if loopEnabled}
               <div
-                class="pointer-events-none absolute inset-y-0 z-10 border-x border-emerald-400/35 bg-emerald-400/8"
+                class="pointer-events-none absolute inset-y-0 z-10 border-x border-accent-400/35 bg-accent-400/8"
                 style:left="{loopLeftPx}px"
                 style:width="{loopWidthPx}px"
               ></div>

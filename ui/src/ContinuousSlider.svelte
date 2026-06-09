@@ -86,7 +86,7 @@
     {:else}
       <span></span>
     {/if}
-    <span class="font-mono text-[10px] tabular-nums text-emerald-300">{displayValue}</span>
+    <span class="font-mono text-[10px] tabular-nums text-accent-300">{displayValue}</span>
   </div>
 
   <div
@@ -118,7 +118,7 @@
   >
     <div class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-zinc-700">
       <div
-        class="h-full rounded-full bg-emerald-500 {dragging ? '' : 'transition-[width] duration-75'}"
+        class="h-full rounded-full bg-accent-500 {dragging ? '' : 'transition-[width] duration-75'}"
         style:width="{thumbPercent}%"
       ></div>
     </div>

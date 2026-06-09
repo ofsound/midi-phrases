@@ -87,7 +87,7 @@
     {:else}
       <span></span>
     {/if}
-    <span class="font-mono text-[10px] tabular-nums text-emerald-300">{currentLabel}</span>
+    <span class="font-mono text-[10px] tabular-nums text-accent-300">{currentLabel}</span>
   </div>
 
   <div
@@ -120,7 +120,7 @@
     }}
   >
     <div class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-zinc-700">
-      <div class="h-full rounded-full bg-emerald-500 transition-[width] duration-75" style:width="{thumbPercent}%"></div>
+      <div class="h-full rounded-full bg-accent-500 transition-[width] duration-75" style:width="{thumbPercent}%"></div>
     </div>
 
     <div
@@ -133,7 +133,7 @@
     {#each options as option, optionIndex (option.index)}
       <span
         class="absolute -translate-x-1/2 font-mono text-[9px] leading-none {value === option.index
-          ? 'text-emerald-300'
+          ? 'text-accent-300'
           : 'text-zinc-500'}"
         style:left="{(optionIndex / maxIndex) * 100}%"
       >

@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+/* Brand accent — single source of truth for the UI green (was Tailwind emerald). */
+@theme {
+  --color-accent-200: #a7f3d0;
+  --color-accent-300: #6ee7b7;
+  --color-accent-400: #34d399;
+  --color-accent-500: #10b981;
+
+  --shadow-accent-drag: 0 0 10px color-mix(in srgb, var(--color-accent-400) 35%, transparent);
+  --shadow-accent-playback: 0 0 14px color-mix(in srgb, var(--color-accent-400) 55%, transparent);
+  --shadow-accent-piano-active: 0 0 12px color-mix(in srgb, var(--color-accent-400) 65%, transparent);
+  --shadow-accent-focus: 0 0 0 1px color-mix(in srgb, var(--color-accent-400) 85%, transparent);
+  --shadow-accent-pressed: inset 0 1px 0 rgba(255, 255, 255, 0.38), 0 0 14px color-mix(in srgb, var(--color-accent-400) 58%, transparent), 0 0 28px color-mix(in srgb, var(--color-accent-400) 28%, transparent);
+  --shadow-accent-selection: 0 0 0 1px color-mix(in srgb, var(--color-accent-500) 25%, transparent);
+}
+
 /* Embedded WKWebView in JUCE does not apply :hover until after a click; mirror with data-mp-hover. */
 @variant hover {
   &:hover,
@@ -155,7 +170,7 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.12),
       inset 0 -2px 4px rgba(0, 0, 0, 0.65),
-      0 0 0 1px rgba(52, 211, 153, 0.85);
+      var(--shadow-accent-focus);
   }
 
   .combination-mode-button-face {
@@ -183,12 +198,9 @@
   }
 
   .combination-mode-button[aria-pressed="true"] .combination-mode-button-face {
-    background: rgba(52, 211, 153, 0.94);
+    background: color-mix(in srgb, var(--color-accent-400) 94%, transparent);
     color: #0a0a0a;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.38),
-      0 0 14px rgba(52, 211, 153, 0.58),
-      0 0 28px rgba(52, 211, 153, 0.28);
+    box-shadow: var(--shadow-accent-pressed);
   }
 
   .combination-mode-connector {

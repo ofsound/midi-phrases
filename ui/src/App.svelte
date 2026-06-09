@@ -213,7 +213,7 @@
   const rowGapDoubleClickMaxDistancePx = 16;
   const stepTriggerFlashMs = 110;
   const historyButtonBaseClasses =
-    "flex h-8 w-8 items-center justify-center rounded-md border bg-zinc-900 transition-colors outline-none focus:ring-1 focus:ring-emerald-400 disabled:border-zinc-800 disabled:text-zinc-700";
+    "flex h-8 w-8 items-center justify-center rounded-md border bg-zinc-900 transition-colors outline-none focus:ring-1 focus:ring-accent-400 disabled:border-zinc-800 disabled:text-zinc-700";
 
   function historyButtonClasses(enabled) {
     return `${historyButtonBaseClasses} ${
@@ -244,9 +244,9 @@
   }
 
   function slotButtonClasses(active, assigned = true, copySource = false) {
-    return `flex h-7 w-7 items-center justify-center rounded-sm border text-xs font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+    return `flex h-7 w-7 items-center justify-center rounded-sm border text-xs font-semibold transition-colors outline-none focus:ring-1 focus:ring-accent-400 ${
       active
-        ? "border-emerald-400 bg-emerald-400 text-zinc-950"
+        ? "border-accent-400 bg-accent-400 text-zinc-950"
         : assigned
           ? "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
           : "border-zinc-800 bg-zinc-950 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400"
@@ -254,21 +254,21 @@
   }
 
   function clearPatternButtonClasses(enabled) {
-    return `flex h-7 w-7 items-center justify-center border-0 bg-transparent transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+    return `flex h-7 w-7 items-center justify-center border-0 bg-transparent transition-colors outline-none focus:ring-1 focus:ring-accent-400 ${
       enabled ? "text-red-400 hover:text-red-300" : "text-zinc-700"
     }`;
   }
 
   function outputMuteButtonClasses(active) {
-    return `row-span-2 flex h-[calc(1.75rem*1.33)] w-[calc(1.75rem*1.33)] items-center justify-center self-center rounded-sm border text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+    return `row-span-2 flex h-[calc(1.75rem*1.33)] w-[calc(1.75rem*1.33)] items-center justify-center self-center rounded-sm border text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-accent-400 ${
       active
-        ? "border-emerald-400 bg-emerald-400 text-zinc-950"
+        ? "border-accent-400 bg-accent-400 text-zinc-950"
         : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
     }`;
   }
 
   function bulkActionIconButtonClasses(enabled = true) {
-    return `flex h-8 w-8 items-center justify-center rounded-md border transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+    return `flex h-8 w-8 items-center justify-center rounded-md border transition-colors outline-none focus:ring-1 focus:ring-accent-400 ${
       enabled
         ? "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-100"
         : "border-zinc-800 bg-zinc-950 text-zinc-700"
@@ -276,7 +276,7 @@
   }
 
   function brandIconToggleButtonClasses(active, enabled = true) {
-    return `flex h-3 w-3 shrink-0 items-center justify-center border-0 bg-transparent p-0 transition-colors outline-none focus:ring-1 focus:ring-emerald-400 ${
+    return `flex h-3 w-3 shrink-0 items-center justify-center border-0 bg-transparent p-0 transition-colors outline-none focus:ring-1 focus:ring-accent-400 ${
       !enabled
         ? "text-zinc-700"
         : active
@@ -2596,8 +2596,8 @@
         aria-label={standalonePlaying ? "Stop standalone transport" : "Start standalone transport"}
         aria-pressed={standalonePlaying}
         data-cursor="pointer"
-        class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-emerald-400 {standalonePlaying
-          ? 'border-emerald-500 bg-emerald-500 text-zinc-950'
+        class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-accent-400 {standalonePlaying
+          ? 'border-accent-500 bg-accent-500 text-zinc-950'
           : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-600'}"
         onclick={toggleStandaloneTransport}
       >
@@ -2611,7 +2611,7 @@
           max="300"
           step="1"
           value={Math.round(standaloneTempoBpm)}
-          class="h-8 w-[4.5rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-sm font-semibold text-zinc-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+          class="h-8 w-[4.5rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-sm font-semibold text-zinc-100 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
           onchange={setStandaloneTempoFromInput}
         />
       </label>
@@ -2621,7 +2621,7 @@
     <div class="relative flex shrink-0 -translate-y-3 items-end gap-5">
       <div class="flex flex-col items-start gap-1">
         <div class="flex h-3 items-center gap-1.5">
-          <p class="text-xs font-medium uppercase leading-none tracking-widest text-emerald-400">
+          <p class="text-xs font-medium uppercase leading-none tracking-widest text-accent-400">
             ofsound
           </p>
           <ColorsToggle
@@ -2667,7 +2667,7 @@
         aria-pressed={scaleDialogOpen}
         title={activeScaleName}
         data-cursor="pointer"
-        class="flex flex-col items-start gap-1 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-emerald-400"
+        class="flex flex-col items-start gap-1 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-accent-400"
         onclick={() => {
           scaleDialogOpen = true;
         }}
@@ -2675,7 +2675,7 @@
         <div class="h-3" aria-hidden="true"></div>
         <div class="-translate-y-0.5 flex h-8 flex-col items-start justify-end gap-1">
           <p class="text-base font-semibold leading-none text-zinc-100">{activeKeyCenterLabel}</p>
-          <p class="text-sm font-semibold uppercase leading-none text-emerald-300">{activeScaleModeLabel}</p>
+          <p class="text-sm font-semibold uppercase leading-none text-accent-300">{activeScaleModeLabel}</p>
         </div>
       </button>
     </div>
@@ -3134,7 +3134,7 @@
   </section>
   {#if marqueeSelection}
     <div
-      class="pointer-events-none fixed z-[9999] rounded-sm border border-emerald-300 bg-emerald-300/15 shadow-[0_0_0_1px_rgba(16,185,129,0.25)]"
+      class="pointer-events-none fixed z-[9999] rounded-sm border border-accent-300 bg-accent-300/15 shadow-accent-selection"
       style={marqueeRectStyle}
       aria-hidden="true"
     ></div>

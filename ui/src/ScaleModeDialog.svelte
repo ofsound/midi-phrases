@@ -46,7 +46,7 @@
         type="button"
         aria-label="Close scale mode"
         data-cursor="pointer"
-        class="flex h-8 w-8 shrink-0 items-center justify-center border border-zinc-700 bg-zinc-900 text-zinc-400 outline-none transition-colors hover:border-zinc-500 hover:text-zinc-100 focus:ring-1 focus:ring-emerald-400"
+        class="flex h-8 w-8 shrink-0 items-center justify-center border border-zinc-700 bg-zinc-900 text-zinc-400 outline-none transition-colors hover:border-zinc-500 hover:text-zinc-100 focus:ring-1 focus:ring-accent-400"
         onclick={onClose}
       >
         <svg
@@ -72,7 +72,7 @@
             <p class="text-xs font-semibold uppercase tracking-[0.28em] text-zinc-500">Key center</p>
             <h3 class="mt-1 text-lg font-semibold text-zinc-100">{keyCenters[root]?.label ?? "C"}</h3>
           </div>
-          <div class="text-right text-sm font-semibold text-emerald-300">{selectedName}</div>
+          <div class="text-right text-sm font-semibold text-accent-300">{selectedName}</div>
         </div>
         <div class="grid grid-cols-6 gap-2 sm:grid-cols-12">
           {#each keyCenters as key (key.value)}
@@ -81,8 +81,8 @@
               aria-label={`Set key center to ${key.label}`}
               aria-pressed={root === key.value}
               data-cursor="pointer"
-              class="flex h-11 items-center justify-center border text-sm font-semibold outline-none transition-colors focus:ring-1 focus:ring-emerald-400 {root === key.value
-                ? 'border-emerald-400 bg-emerald-400 text-zinc-950'
+              class="flex h-11 items-center justify-center border text-sm font-semibold outline-none transition-colors focus:ring-1 focus:ring-accent-400 {root === key.value
+                ? 'border-accent-400 bg-accent-400 text-zinc-950'
                 : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500'}"
               onclick={() => onChange(key.value, modeIndex)}
             >
@@ -104,8 +104,8 @@
               aria-label={`Set mode to ${mode.label}`}
               aria-pressed={modeIndex === index}
               data-cursor="pointer"
-              class="flex min-h-14 items-center justify-between gap-3 border px-3 py-2 text-left outline-none transition-colors focus:ring-1 focus:ring-emerald-400 {modeIndex === index
-                ? 'border-emerald-400 bg-emerald-400 text-zinc-950'
+              class="flex min-h-14 items-center justify-between gap-3 border px-3 py-2 text-left outline-none transition-colors focus:ring-1 focus:ring-accent-400 {modeIndex === index
+                ? 'border-accent-400 bg-accent-400 text-zinc-950'
                 : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500'}"
               onclick={() => onChange(root, index)}
             >
