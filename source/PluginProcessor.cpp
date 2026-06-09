@@ -1177,15 +1177,7 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
 
     if (command.type == SequencerCommand::Type::ReplacePattern
         || command.type == SequencerCommand::Type::SetCombinationModeMask
-        || command.type == SequencerCommand::Type::SetPatternNoteBandpass
-        || command.type == SequencerCommand::Type::SetPatternOctavizerDown8vaEnabled
-        || command.type == SequencerCommand::Type::SetPatternOctavizerUp8vaEnabled
-        || command.type == SequencerCommand::Type::SetPatternOctavizerDown8vaRelativeVelocity
-        || command.type == SequencerCommand::Type::SetPatternOctavizerUp8vaRelativeVelocity
-        || command.type == SequencerCommand::Type::SetPatternShimmerEnabled
-        || command.type == SequencerCommand::Type::SetPatternShimmerDelayMultiplierIndex
-        || command.type == SequencerCommand::Type::SetPatternShimmerFeedbackPercent
-        || command.type == SequencerCommand::Type::SetPatternShimmerMixPercent)
+        || command.type == SequencerCommand::Type::SetPatternNoteBandpass)
     {
         flushAllRows();
     }

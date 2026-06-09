@@ -438,6 +438,94 @@ TEST_CASE ("Pattern octavizer keeps original row note sounding", "[instance]")
     testPlugin.setPlayHead (nullptr);
 }
 
+TEST_CASE ("Pattern octavizer velocity tweaks do not flush sounding notes", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, true);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    testPlugin.setPhraseNote (0, 0, 60);
+
+    testPlugin.setPhraseStepTimingMultiplier (0,
+                                                0,
+                                                PluginProcessor::defaultStepTimingMultiplierIndex);
+    testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+    testPlugin.setPhraseStepVelocity (0, 0, 100);
+    testPlugin.setPatternOctavizerDown8vaEnabled (true);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    auto sawOriginalNoteOn = false;
+    auto foundImmediateOriginalCutoff = false;
+
+    for (int block = 0; block < 700; ++block)
+    {
+        if (block == 44)
+            testPlugin.setPatternOctavizerDown8vaRelativeVelocity (-36);
+
+        midi.clear();
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                      * (120.0 / 60.0) / sampleRate);
+        testPlugin.processBlock (buffer, midi);
+
+        auto originalNoteOnSample = -1;
+        auto sawOriginalNoteOnInBlock = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.getNoteNumber() != 60)
+                continue;
+
+            if (message.isNoteOn())
+            {
+                sawOriginalNoteOn = true;
+                sawOriginalNoteOnInBlock = true;
+                originalNoteOnSample = metadata.samplePosition;
+            }
+            else if (sawOriginalNoteOnInBlock
+                     && metadata.samplePosition == originalNoteOnSample)
+            {
+                foundImmediateOriginalCutoff = true;
+                break;
+            }
+        }
+
+        if (foundImmediateOriginalCutoff)
+            break;
+    }
+
+    CHECK (sawOriginalNoteOn);
+    CHECK_FALSE (foundImmediateOriginalCutoff);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Pattern shimmer adds delayed octave-up taps", "[instance]")
 {
     PluginProcessor testPlugin;

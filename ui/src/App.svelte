@@ -426,30 +426,12 @@
     pushHistoryEntry("Octavizer 8va", before, createHistorySnapshot());
   }
 
-  async function handleOctavizerDown8vaRelativeVelocityChange(value) {
+  function handleOctavizerDown8vaRelativeVelocityChange(value) {
     setOctavizerState({ down8vaRelativeVelocity: value });
-
-    if (nativeFunctionAvailable("setPatternOctavizerDown8vaRelativeVelocity")) {
-      const confirmed = await getNativeFunction("setPatternOctavizerDown8vaRelativeVelocity")(value);
-      const parsed = Number.parseInt(String(confirmed), 10);
-
-      if (!Number.isNaN(parsed)) {
-        octavizerDown8vaRelativeVelocity = clampOctavizerRelativeVelocity(parsed);
-      }
-    }
   }
 
-  async function handleOctavizerUp8vaRelativeVelocityChange(value) {
+  function handleOctavizerUp8vaRelativeVelocityChange(value) {
     setOctavizerState({ up8vaRelativeVelocity: value });
-
-    if (nativeFunctionAvailable("setPatternOctavizerUp8vaRelativeVelocity")) {
-      const confirmed = await getNativeFunction("setPatternOctavizerUp8vaRelativeVelocity")(value);
-      const parsed = Number.parseInt(String(confirmed), 10);
-
-      if (!Number.isNaN(parsed)) {
-        octavizerUp8vaRelativeVelocity = clampOctavizerRelativeVelocity(parsed);
-      }
-    }
   }
 
   async function commitOctavizerDown8vaRelativeVelocity(value) {
@@ -473,43 +455,16 @@
     pushHistoryEntry("Shimmer", before, createHistorySnapshot());
   }
 
-  async function handleShimmerDelayChange(value) {
+  function handleShimmerDelayChange(value) {
     setShimmerState({ delayMultiplierIndex: value });
-
-    if (nativeFunctionAvailable("setPatternShimmerDelayMultiplierIndex")) {
-      const confirmed = await getNativeFunction("setPatternShimmerDelayMultiplierIndex")(value);
-      const parsed = Number.parseInt(String(confirmed), 10);
-
-      if (!Number.isNaN(parsed)) {
-        shimmerDelayMultiplierIndex = clampShimmerDelayMultiplierIndex(parsed);
-      }
-    }
   }
 
-  async function handleShimmerFeedbackChange(value) {
+  function handleShimmerFeedbackChange(value) {
     setShimmerState({ feedbackPercent: value });
-
-    if (nativeFunctionAvailable("setPatternShimmerFeedbackPercent")) {
-      const confirmed = await getNativeFunction("setPatternShimmerFeedbackPercent")(value);
-      const parsed = Number.parseInt(String(confirmed), 10);
-
-      if (!Number.isNaN(parsed)) {
-        shimmerFeedbackPercent = clampShimmerFeedbackPercent(parsed);
-      }
-    }
   }
 
-  async function handleShimmerMixChange(value) {
+  function handleShimmerMixChange(value) {
     setShimmerState({ mixPercent: value });
-
-    if (nativeFunctionAvailable("setPatternShimmerMixPercent")) {
-      const confirmed = await getNativeFunction("setPatternShimmerMixPercent")(value);
-      const parsed = Number.parseInt(String(confirmed), 10);
-
-      if (!Number.isNaN(parsed)) {
-        shimmerMixPercent = clampShimmerMixPercent(parsed);
-      }
-    }
   }
 
   async function commitShimmerDelay(value) {
