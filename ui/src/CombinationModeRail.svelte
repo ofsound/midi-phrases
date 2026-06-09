@@ -1,8 +1,9 @@
 <script>
+  import CombinationModeIcon from "./CombinationModeIcon.svelte";
   import { combinationModes } from "./phraseSchedule.js";
 
   /**
-   * Full-width hardware-style rail for W / L / X / E combination modes.
+   * Full-width hardware-style rail for Logic / Cross-Mod / Echo / Weave modes.
    *
    * @typedef {Object} Props
    * @property {number} mask
@@ -33,7 +34,9 @@
           onToggle(mode.index);
         }}
       >
-        <span class="combination-mode-button-face">{mode.label}</span>
+        <span class="combination-mode-button-face">
+          <CombinationModeIcon kind={mode.icon} />
+        </span>
       </button>
     {/each}
   </div>

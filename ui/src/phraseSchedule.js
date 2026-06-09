@@ -6,11 +6,12 @@ export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
 
 const EPSILON = 1e-9;
 const MAX_COMBINED_PREVIEW_NOTES = 4096;
+/** Display order matches processing order: Logic → Cross-Mod → Echo → Weave. */
 export const combinationModes = [
-  {index: 0, bit: 1, label: "W", name: "Weave"},
-  {index: 1, bit: 2, label: "L", name: "Logic"},
-  {index: 2, bit: 4, label: "X", name: "Cross-Mod"},
-  {index: 3, bit: 8, label: "E", name: "Echo"},
+  {index: 1, bit: 2, icon: "logic", name: "Logic"},
+  {index: 2, bit: 4, icon: "crossMod", name: "Cross-Mod"},
+  {index: 3, bit: 8, icon: "echo", name: "Echo"},
+  {index: 0, bit: 1, icon: "weave", name: "Weave"},
 ];
 export const swingSubdivisionValues = [0.25, 0.5, 1];
 
