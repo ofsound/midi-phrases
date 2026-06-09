@@ -925,15 +925,29 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             break;
     }
 
-    if (patternSlot == audioActivePatternSlot
-        && (command.type == SequencerCommand::Type::ReplacePattern
-            || command.type == SequencerCommand::Type::ReplaceRow
-            || command.type == SequencerCommand::Type::SetRowMuted
-            || command.type == SequencerCommand::Type::SetRowMidiChannel
-            || command.type == SequencerCommand::Type::SetCombinationModeMask))
-    {
+    if (patternSlot != audioActivePatternSlot)
+        return;
+
+    const auto flushAllRows = [&] {
         for (auto& flush : phraseRowFlushNoteOff)
             flush.store (1);
+    };
+
+    const auto flushRow = [&] {
+        if (command.row >= 0 && command.row < phraseRowCount)
+            phraseRowFlushNoteOff[static_cast<size_t> (command.row)].store (1);
+    };
+
+    if (command.type == SequencerCommand::Type::ReplacePattern
+        || command.type == SequencerCommand::Type::SetCombinationModeMask)
+    {
+        flushAllRows();
+    }
+    else if (command.type == SequencerCommand::Type::ReplaceRow
+             || command.type == SequencerCommand::Type::SetRowMuted
+             || command.type == SequencerCommand::Type::SetRowMidiChannel)
+    {
+        flushRow();
     }
 }
 
@@ -1234,9 +1248,17 @@ int PluginProcessor::getPatternCombinationModeMask (const int patternSlot) const
 
 void PluginProcessor::setPatternScale (const int root, const int modeIndex)
 {
-    auto& pattern = modelPattern (getViewPatternSlot());
-    pattern.scaleRoot = clampScaleRoot (root);
-    pattern.scaleModeIndex = clampScaleModeIndex (modeIndex);
+    const auto patternSlot = getViewPatternSlot();
+    const auto clampedRoot = clampScaleRoot (root);
+    const auto clampedMode = clampScaleModeIndex (modeIndex);
+
+    auto& pattern = modelPattern (patternSlot);
+    pattern.scaleRoot = clampedRoot;
+    pattern.scaleModeIndex = clampedMode;
+
+    auto& audioPattern = audioPatterns[static_cast<size_t> (clampPatternSlot (patternSlot))];
+    audioPattern.scaleRoot = clampedRoot;
+    audioPattern.scaleModeIndex = clampedMode;
 }
 
 int PluginProcessor::getPatternScaleRoot (const int patternSlot) const

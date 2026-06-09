@@ -1,7 +1,6 @@
 <script>
-  import { onDestroy } from "svelte";
+  import { onDestroy, tick } from "svelte";
   import { SvelteMap, SvelteSet } from "svelte/reactivity";
-  import { flip } from "svelte/animate";
   import { dragHandle, dragHandleZone, TRIGGERS } from "svelte-dnd-action";
   import DurationBar from "./DurationBar.svelte";
   import NoteDragInput from "./NoteDragInput.svelte";
@@ -38,7 +37,6 @@
     minMultiplierCellWidthPx,
     multiplierIndexFromWidth,
     multiplierLabelForIndex,
-    rowCellDisplayWidthsPx,
     rowGridWidthPx,
     insertSlotLeftPxAtGridBoundaryPx,
     rowStepLayoutsPx,
@@ -112,7 +110,8 @@
    * @property {(row: number, step: number) => void | Promise<void>} [onRemoveStep]
    * @property {(row: number, step: number, multiplierIndex?: number) => void | Promise<void>} [onInsertStep]
    * @property {(row: number, step: number) => void | Promise<void>} [onDuplicateStep]
-   * @property {(row: number, step: number, midi: number) => void | Promise<void>} [onNoteChange]
+   * @property {(row: number, step: number, midi: number) => void} [onNotePreview]
+   * @property {(row: number, step: number, midi: number) => void | Promise<void>} [onNoteCommit]
    * @property {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} [onMultiplierChange]
    * @property {(row: number, step: number, fraction: number) => void | Promise<void>} [onDurationChange]
    * @property {(row: number, step: number, value: number) => void | Promise<void>} [onVelocityChange]
@@ -155,7 +154,8 @@
     onRemoveStep = () => {},
     onInsertStep = () => {},
     onDuplicateStep = () => {},
-    onNoteChange = () => {},
+    onNotePreview = () => {},
+    onNoteCommit = () => {},
     onMultiplierChange = () => {},
     onDurationChange = () => {},
     onVelocityChange = () => {},
@@ -186,22 +186,18 @@
   let resizingStep = $state(-1);
   let resizeStartX = 0;
   let resizeStartWidth = 0;
-  let resizeDisplayWidth = 0;
+  /** Preview multipliers while resizing; drives layout until commit completes. */
   /** @type {number[] | null} */
   let resizePreviewMultipliers = $state(null);
   /** @type {HTMLElement | null} */
   let resizeHandleElement = null;
   let resizePointerId = -1;
-  let resizePointerX = 0;
-  let resizeFrameId = 0;
   let resizeEndHandled = false;
   let dragYLockFrameId = 0;
   let lastBulkBackgroundPointerDownTime = 0;
   let lastBulkBackgroundPointerDownX = 0;
   let lastBulkBackgroundPointerDownY = 0;
   const flipOverrides = new SvelteSet();
-  /** @type {Map<number, HTMLElement>} */
-  const cellShellElements = new SvelteMap();
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
   let resizeListenerEntries = [];
   const resizeCapture = { capture: true };
@@ -331,11 +327,20 @@
 
 
   /** @param {number} step */
-  function cellWidthForStep(step) {
+  function shellWidthPx(step) {
+    if (step < 0) {
+      return stepDisplayWidthPx(defaultStepTimingMultiplierIndex);
+    }
+
     return (
       rowDisplayWidths[step]
       ?? stepDisplayWidthPx(stepTimingMultiplier[step] ?? defaultStepTimingMultiplierIndex)
     );
+  }
+
+  /** @param {number} step */
+  function shellStyleForStep(step) {
+    return fixedFlexStyle(shellWidthPx(step));
   }
 
   /** @param {number} step */
@@ -407,6 +412,8 @@
       await onMoveCommitted(row, idsBeforeDrag, afterIds);
       idsBeforeDrag = null;
     }
+
+    await tick();
   }
 
   /** @type {import('svelte-dnd-action').TransformDraggedElementFunction} */
@@ -485,33 +492,6 @@
     onRemoveStep(row, step);
   }
 
-  /** @param {HTMLElement} shell @param {number} widthPx */
-  function applyCellShellWidthPx(shell, widthPx) {
-    shell.style.flexGrow = "0";
-    shell.style.flexShrink = "0";
-    shell.style.flexBasis = `${widthPx}px`;
-    shell.style.width = `${widthPx}px`;
-    shell.style.minWidth = `${widthPx}px`;
-    shell.style.maxWidth = `${widthPx}px`;
-  }
-
-  /** @param {number} step */
-  function resyncCellShellWidth(step) {
-    const shell = cellShellElements.get(step);
-
-    if (!shell || step < 0 || step >= rowDisplayWidths.length) return;
-
-    applyCellShellWidthPx(shell, rowDisplayWidths[step]);
-  }
-
-  function resyncAllCellShellWidths() {
-    if (resizingStep >= 0) return;
-
-    cellShellElements.forEach((_, step) => {
-      resyncCellShellWidth(step);
-    });
-  }
-
   /** @param {number} clientX */
   function resizeWidthFromClientX(clientX) {
     const min = minMultiplierCellWidthPx();
@@ -522,55 +502,18 @@
     );
   }
 
-  function syncActiveResizeVisuals() {
+  /** @param {number} clientX */
+  function syncActiveResizeVisuals(clientX) {
     if (resizingStep < 0) return;
 
-    const previewIndex = multiplierIndexFromWidth(resizeDisplayWidth);
-    const previewMultipliers = stepTimingMultiplier.slice();
+    const previewIndex = multiplierIndexFromWidth(resizeWidthFromClientX(clientX));
+    const current = resizePreviewMultipliers ?? stepTimingMultiplier;
+
+    if (current[resizingStep] === previewIndex) return;
+
+    const previewMultipliers = current.slice();
     previewMultipliers[resizingStep] = previewIndex;
     resizePreviewMultipliers = previewMultipliers;
-    const widths = rowCellDisplayWidthsPx(previewMultipliers);
-
-    cellShellElements.forEach((shell, step) => {
-      if (step < 0 || step >= widths.length) return;
-
-      applyCellShellWidthPx(shell, widths[step]);
-    });
-
-    const shell = cellShellElements.get(resizingStep);
-    const labels = shell?.querySelectorAll("[data-multiplier-label]");
-
-    if (labels?.length) {
-      const previewLabel = multiplierLabelForIndex(previewIndex, timingMultiplierOptions);
-
-      for (const label of labels) {
-        label.textContent = previewLabel;
-      }
-    }
-  }
-
-  function resizeFrameLoop() {
-    if (resizingStep < 0) {
-      resizeFrameId = 0;
-      return;
-    }
-
-    resizeDisplayWidth = resizeWidthFromClientX(resizePointerX);
-    syncActiveResizeVisuals();
-    resizeFrameId = requestAnimationFrame(resizeFrameLoop);
-  }
-
-  function startResizeFrameLoop() {
-    if (resizeFrameId) return;
-
-    resizeFrameId = requestAnimationFrame(resizeFrameLoop);
-  }
-
-  function stopResizeFrameLoop() {
-    if (!resizeFrameId) return;
-
-    cancelAnimationFrame(resizeFrameId);
-    resizeFrameId = 0;
   }
 
   /** @param {string} eventName @param {EventListener} listener @param {AddEventListenerOptions | boolean} options */
@@ -587,23 +530,6 @@
     resizeListenerEntries = [];
   }
 
-  /**
-   * @param {number} step
-   * @returns {import('svelte/attachments').Attachment<HTMLElement> | undefined}
-   */
-  function cellShellAttachment(step) {
-    if (step < 0) return undefined;
-
-    return (node) => {
-      cellShellElements.set(step, node);
-      resyncCellShellWidth(step);
-
-      return () => {
-        cellShellElements.delete(step);
-      };
-    };
-  }
-
   /** @param {Event} event */
   function trackResizeMove(event) {
     if (resizingStep < 0) return;
@@ -613,7 +539,7 @@
       return;
     }
 
-    resizePointerX = /** @type {PointerEvent | MouseEvent} */ (event).clientX;
+    syncActiveResizeVisuals(/** @type {PointerEvent | MouseEvent} */ (event).clientX);
   }
 
   /** @param {Event} event */
@@ -631,7 +557,6 @@
   }
 
   function teardownActiveResize() {
-    stopResizeFrameLoop();
     clearResizeListeners();
     clearActiveCursor("ew-resize");
 
@@ -652,7 +577,6 @@
   onDestroy(() => {
     stopDragYLock();
     teardownActiveResize();
-    cellShellElements.clear();
   });
 
   /** @param {PointerEvent} event @param {number} step */
@@ -678,11 +602,9 @@
     resizePreviewMultipliers = stepTimingMultiplier.slice();
     resizeStartX = event.clientX;
     resizeStartWidth = displayWidth;
-    resizeDisplayWidth = displayWidth;
-    resizePointerX = event.clientX;
     resizeEndHandled = false;
 
-    syncActiveResizeVisuals();
+    syncActiveResizeVisuals(event.clientX);
     setActiveCursor("ew-resize");
 
     addResizeListener("pointermove", trackResizeMove, resizePassiveCapture);
@@ -690,8 +612,6 @@
     addResizeListener("pointerup", trackResizeEnd, resizeCapture);
     addResizeListener("mouseup", trackResizeEnd, resizeCapture);
     addResizeListener("pointercancel", trackResizeCancel, resizeCapture);
-
-    startResizeFrameLoop();
   }
 
   /** @param {PointerEvent} event */
@@ -701,15 +621,13 @@
     resizeEndHandled = true;
 
     const step = resizingStep;
-    const shell = cellShellElements.get(step);
-    const snappedIndex = multiplierIndexFromWidth(resizeDisplayWidth);
-    const previewMultipliers = stepTimingMultiplier.slice();
-    previewMultipliers[step] = snappedIndex;
-    resizePreviewMultipliers = previewMultipliers;
-    const targetWidth = rowCellDisplayWidthsPx(previewMultipliers)[step];
+    syncActiveResizeVisuals(event.clientX);
 
-    resizingStep = -1;
-    stopResizeFrameLoop();
+    const previewMultipliers = (resizePreviewMultipliers ?? stepTimingMultiplier).slice();
+    const snappedIndex = previewMultipliers[step];
+    const committedIndex = stepTimingMultiplier[step];
+    const needsCommit = snappedIndex !== committedIndex;
+
     clearResizeListeners();
     clearActiveCursor("ew-resize");
 
@@ -726,49 +644,24 @@
     resizeHandleElement = null;
     resizePointerId = -1;
 
-    if (shell) {
-      applyCellShellWidthPx(shell, targetWidth);
+    resizePreviewMultipliers = previewMultipliers;
 
-      const labels = shell.querySelectorAll("[data-multiplier-label]");
-      const snappedLabel = multiplierLabelForIndex(snappedIndex, timingMultiplierOptions);
-
-      for (const label of labels) {
-        label.textContent = snappedLabel;
-      }
+    if (needsCommit) {
+      await onMultiplierChange(row, step, snappedIndex);
     }
 
-    const committedWidths = rowCellDisplayWidthsPx(previewMultipliers);
-    cellShellElements.forEach((shell, shellStep) => {
-      if (shellStep < 0 || shellStep >= committedWidths.length) return;
-
-      applyCellShellWidthPx(shell, committedWidths[shellStep]);
-    });
-
-    const committedIndex = stepTimingMultiplier[step];
-
-    if (snappedIndex !== committedIndex) {
-      try {
-        await onMultiplierChange(row, step, snappedIndex);
-      } finally {
-        resizePreviewMultipliers = null;
-        resyncAllCellShellWidths();
-      }
-    } else {
-      resizePreviewMultipliers = null;
-      resyncAllCellShellWidths();
-    }
+    resizePreviewMultipliers = null;
+    resizingStep = -1;
   }
 
   /** @param {PointerEvent} event */
-  function cancelMultiplierResize(event) {
+  async function cancelMultiplierResize(event) {
     if (resizeEndHandled || resizingStep < 0) return;
 
     resizeEndHandled = true;
-    const step = resizingStep;
 
     teardownActiveResize();
     resizePreviewMultipliers = null;
-    resyncCellShellWidth(step);
     resizingStep = -1;
   }
 
@@ -808,21 +701,6 @@
   let globalStepBackFingerprint = $derived(stepIds.join("|"));
   const flipOverrideKey = (step) =>
     `${globalStepBackView ? "back" : "front"}:${globalStepBackFingerprint}:${step}`;
-  let appliedGlobalStepBackViewCommand = -1;
-  let appliedGlobalStepBackFingerprint = "";
-
-  $effect(() => {
-    if (
-      globalStepBackViewCommand === appliedGlobalStepBackViewCommand &&
-      globalStepBackFingerprint === appliedGlobalStepBackFingerprint
-    ) {
-      return;
-    }
-
-    flipOverrides.clear();
-    appliedGlobalStepBackViewCommand = globalStepBackViewCommand;
-    appliedGlobalStepBackFingerprint = globalStepBackFingerprint;
-  });
 
   const isStepFlipped = (step) => {
     const hasOverride = flipOverrides.has(flipOverrideKey(step));
@@ -831,9 +709,6 @@
   };
   let stepFlipInteractionDisabled =
     $derived(isDragging || removeBlocked || resizingStep >= 0);
-  let layoutFingerprint = $derived(
-    `${stepCellQuarterGridWidthPx}:${stepIds.length}:${stepTimingMultiplier.join(",")}`,
-  );
   let orderedStepItems = $derived(stepIds.map((id) => ({ id })));
   let renderedDndItems = $derived(isDragging ? dndItems : orderedStepItems);
   let dndZoneOptions = $derived({
@@ -845,11 +720,9 @@
     dropTargetStyle: { outline: "none" },
     transformDraggedElement,
   });
-  let activeMultipliers = $derived(resizePreviewMultipliers ?? stepTimingMultiplier);
-  let rowStepLayout = $derived(rowStepLayoutsPx(activeMultipliers));
-  let rowGridSpanPx = $derived(
-    rowGridWidthPx(activeMultipliers),
-  );
+  let layoutTimingMultipliers = $derived(resizePreviewMultipliers ?? stepTimingMultiplier);
+  let rowStepLayout = $derived(rowStepLayoutsPx(layoutTimingMultipliers));
+  let rowGridSpanPx = $derived(rowGridWidthPx(layoutTimingMultipliers));
   let rowDisplayWidths = $derived(rowStepLayout.layouts.map((layout) => layout.widthPx));
   let trailingInsertLeftPx = $derived(insertLeftAtBoundary(rowGridSpanPx));
   let trailingAddStepLeftPx = $derived(rowGridSpanPx + phraseRowEndAddStepInsetPx);
@@ -1117,7 +990,9 @@
                     resetValue={defaultStepNote}
                     ariaLabel="Step note"
                     stepValue={stepNoteValue}
-                    onValueChange={(midi) => onNoteChange(row, step, midi)}
+                    deferCommit={true}
+                    onValuePreview={(midi) => onNotePreview(row, step, midi)}
+                    onValueCommit={(midi) => onNoteCommit(row, step, midi)}
                   />
                   <VelocityDragInput
                     {accent}
@@ -1319,18 +1194,14 @@
       {#if reorderDisabled}
         <div class="relative flex w-max shrink-0 items-stretch overflow-visible">
           {#each stepIds as stepId, step (stepId)}
-            {@const cellWidth = cellWidthForStep(step)}
             <div
-              {@attach cellShellAttachment(step)}
               data-bulk-step-cell
               data-step-row={row}
               data-step-id={stepId}
               data-step-index={step}
               data-step-selected={selectedStepIdSet.has(stepId) ? true : undefined}
-              class="relative shrink-0 overflow-visible {resizingStep >= 0
-                ? 'step-cell-resize-tween'
-                : ''}"
-              style={fixedFlexStyle(cellWidth)}
+              class="relative shrink-0 overflow-visible"
+              style={shellStyleForStep(step)}
               style:margin-left={step === 0
                 ? `${stepCellPaddingPx}px`
                 : `${stepInsertZoneWidthPx}px`}
@@ -1348,18 +1219,16 @@
           onfinalize={handleFinalize}
           class="relative flex w-max shrink-0 items-stretch overflow-visible"
         >
-          {#each renderedDndItems as item, index (`${item.id}:${layoutFingerprint}`)}
+          {#each renderedDndItems as item, index (item.id)}
             {@const layout = layoutForItem(item, index)}
             <div
-              {@attach cellShellAttachment(layout.step)}
               data-bulk-step-cell={layout.step >= 0 ? true : undefined}
               data-step-row={layout.step >= 0 ? row : undefined}
               data-step-id={layout.step >= 0 ? stepIds[layout.step] : undefined}
               data-step-index={layout.step >= 0 ? layout.step : undefined}
               data-step-selected={layout.step >= 0 && selectedStepIdSet.has(stepIds[layout.step]) ? true : undefined}
-              animate:flip={resizingStep >= 0 ? undefined : { duration: flipDurationMs }}
               class="relative shrink-0 overflow-visible {isShadowItem(item) ? 'pointer-events-none' : ''}"
-              style={fixedFlexStyle(layout.cellWidth)}
+              style={shellStyleForStep(layout.step)}
               style:margin-left={layout.step === 0
                 ? `${stepCellPaddingPx}px`
                 : layout.step > 0
@@ -1368,7 +1237,7 @@
               aria-hidden={isShadowItem(item) ? true : undefined}
             >
               {#if isShadowItem(item)}
-                <div class="shrink-0" style={fixedFlexStyle(layout.cellWidth)}></div>
+                <div class="shrink-0" style={shellStyleForStep(layout.step)}></div>
               {:else}
                 <div class="pointer-events-auto h-full overflow-visible">
                   {@render stepCell(layout.step, true)}

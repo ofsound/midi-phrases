@@ -72,6 +72,7 @@
     keyCenters,
     scaleModes,
     scaleName,
+    snapMidiToScale,
     transposeMidiByScaleDegrees,
   } from "./scaleUtils.js";
 
@@ -269,6 +270,25 @@
 
   function stepNoteByCurrentScale(value, delta) {
     return transposeMidiByScaleDegrees(value, delta, scaleRoot, scaleModeIndex);
+  }
+
+  function clampPhraseNote(midi) {
+    const clamped = Math.min(127, Math.max(0, Math.round(midi)));
+
+    return snapMidiToScale(clamped, scaleRoot, scaleModeIndex);
+  }
+
+  function previewPhraseNoteValue(row, step, midi) {
+    grid[row][step] = clampPhraseNote(midi);
+  }
+
+  async function commitPhraseNoteValue(row, step, midi) {
+    const note = clampPhraseNote(midi);
+
+    await commitHistory("Change note", async () => {
+      grid[row][step] = note;
+      await pushNote(row, step);
+    });
   }
 
   async function setPatternScale(nextRoot, nextModeIndex) {
@@ -1381,12 +1401,6 @@
     await setPhraseStepCycleOffset(row, step, stepCycleOffset[row][step]);
   }
 
-  async function setPhraseNoteValue(row, step, midi) {
-    await commitHistory("Change note", async () => {
-      grid[row][step] = Math.min(127, Math.max(0, midi));
-      await pushNote(row, step);
-    });
-  }
 
   async function toggleRowMute(row, soloRequested = false) {
     await commitHistory(soloRequested ? "Solo row" : "Toggle row mute", async () => {
@@ -1540,9 +1554,12 @@
 
   async function selectStepTimingMultiplier(row, step, multiplierIndex) {
     await commitHistory("Change step timing", async () => {
-      const next = cloneMatrix(stepTimingMultiplier);
-      next[row][step] = multiplierIndex;
-      stepTimingMultiplier = next;
+      const nextRow = stepTimingMultiplier[row].map((value, stepIndex) =>
+        stepIndex === step ? multiplierIndex : value,
+      );
+      stepTimingMultiplier = stepTimingMultiplier.map((rowSteps, rowIndex) =>
+        rowIndex === row ? nextRow : rowSteps,
+      );
       await pushStepTimingMultiplier(row, step);
     });
   }
@@ -1820,10 +1837,7 @@
 
       const insertPhraseStep = getNativeFunction("insertPhraseStep");
       await insertPhraseStep(row, step);
-
-      if (multiplierIndex !== defaultStepTimingMultiplierIndex) {
-        await pushStepTimingMultiplier(row, step);
-      }
+      await pushCurrentPhraseRow(row);
     });
   }
 
@@ -1850,6 +1864,7 @@
 
       const duplicatePhraseStep = getNativeFunction("duplicatePhraseStep");
       await duplicatePhraseStep(row, step);
+      await pushCurrentPhraseRow(row);
     });
   }
 
@@ -1869,7 +1884,7 @@
   async function commitRecordedNote(midi) {
     if (recordingRow === null) return;
 
-    const note = Math.min(127, Math.max(0, Math.round(midi)));
+    const note = clampPhraseNote(midi);
 
     if (grid[recordingRow].length >= maxPhraseStepsPerRow) {
       return;
@@ -1885,7 +1900,7 @@
 
   function applyRecordedNoteToUiRow(row, midi) {
     const defs = buildDefaultRecordedStep();
-    const note = Math.min(127, Math.max(0, Math.round(midi)));
+    const note = clampPhraseNote(midi);
 
     if (recordingAwaitingFirstNote) {
       recordingAwaitingFirstNote = false;
@@ -3046,7 +3061,8 @@
               onRemoveStep={removeStep}
               onInsertStep={insertStep}
               onDuplicateStep={duplicateStep}
-              onNoteChange={setPhraseNoteValue}
+              onNotePreview={previewPhraseNoteValue}
+              onNoteCommit={commitPhraseNoteValue}
               onMultiplierChange={selectStepTimingMultiplier}
               onDurationChange={selectStepDurationFraction}
               onVelocityChange={setStepVelocity}

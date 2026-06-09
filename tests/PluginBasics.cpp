@@ -58,6 +58,74 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK_FALSE (testPlugin.isPhraseRowMuted (0));
     }
 
+    SECTION ("unmuting another row does not choke active row playback")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setCurrentPatternSlot (0);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setPhraseRowMuted (0, false);
+
+        for (int row = 1; row < PluginProcessor::phraseRowCount; ++row)
+            testPlugin.setPhraseRowMuted (row, true);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.processBlock (buffer, midi);
+
+        auto rowZeroNoteOn = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 60)
+                rowZeroNoteOn = true;
+        }
+
+        CHECK (rowZeroNoteOn);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.25);
+        testPlugin.processBlock (buffer, midi);
+
+        testPlugin.setPhraseRowMuted (1, false);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.3);
+        testPlugin.processBlock (buffer, midi);
+
+        auto rowZeroNoteOff = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOff() && message.getNoteNumber() == 60)
+                rowZeroNoteOff = true;
+        }
+
+        CHECK_FALSE (rowZeroNoteOff);
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("row step order reverse")
     {
         ensurePhraseRowStepCount (testPlugin, 0, 4);
@@ -661,6 +729,103 @@ TEST_CASE ("Plugin instance", "[instance]")
         reloaded.clearPatternSlot (0);
         CHECK (reloaded.getPatternScaleRoot (0) == PluginProcessor::defaultScaleRoot);
         CHECK (reloaded.getPatternScaleModeIndex (0) == PluginProcessor::defaultScaleModeIndex);
+    }
+
+    SECTION ("insert step after scale change outputs key-center pitch")
+    {
+        testPlugin.prepareToPlay (44100.0, 512);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setPatternScale (4, 2); // E natural minor
+        testPlugin.setPhraseRowMuted (0, false);
+
+        for (int row = 1; row < PluginProcessor::phraseRowCount; ++row)
+            testPlugin.setPhraseRowMuted (row, true);
+
+        testPlugin.insertPhraseStep (0, 0);
+
+        CHECK (testPlugin.getPhraseNote (0, 0) == 64);
+
+        juce::AudioBuffer<float> buffer (2, 512);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (120.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+        testPlugin.processBlock (buffer, midi);
+
+        int noteOnPitch = -1;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+                noteOnPitch = message.getNoteNumber();
+        }
+
+        CHECK (noteOnPitch == 64);
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("phrase rows with different notes output different pitches")
+    {
+        testPlugin.prepareToPlay (44100.0, 512);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setPatternScale (4, 2); // E natural minor
+        testPlugin.setPhraseRowMuted (0, false);
+        testPlugin.setPhraseRowMuted (1, false);
+        testPlugin.setPhraseRowMuted (2, true);
+        testPlugin.setPhraseRowMuted (3, true);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+        ensurePhraseRowStepCount (testPlugin, 1, 1);
+        testPlugin.setPhraseNote (0, 0, 64); // E3
+        testPlugin.setPhraseNote (1, 0, 60); // C3
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setPhraseStepDurationFraction (1, 0, 1.0);
+
+        juce::AudioBuffer<float> buffer (2, 512);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (120.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+        testPlugin.processBlock (buffer, midi);
+
+        std::array<int, 128> noteOnCounts {};
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+                ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+        }
+
+        CHECK (noteOnCounts[60] == 1);
+        CHECK (noteOnCounts[64] == 1);
+        testPlugin.setPlayHead (nullptr);
     }
 
     SECTION ("row timing offset")

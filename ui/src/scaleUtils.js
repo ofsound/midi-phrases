@@ -62,6 +62,36 @@ function clampMidi(note) {
   return Math.min(127, Math.max(0, Math.round(note)));
 }
 
+/** Snap to the nearest in-scale MIDI note (chromatic mode is a no-op). */
+export function snapMidiToScale(note, root, modeIndex) {
+  const clamped = clampMidi(note);
+
+  if (pitchClassInScale(clamped, root, modeIndex)) {
+    return clamped;
+  }
+
+  for (let distance = 1; distance <= 6; distance += 1) {
+    const up = clamped + distance;
+    const down = clamped - distance;
+    const upInScale = up <= 127 && pitchClassInScale(up, root, modeIndex);
+    const downInScale = down >= 0 && pitchClassInScale(down, root, modeIndex);
+
+    if (upInScale && downInScale) {
+      return down;
+    }
+
+    if (upInScale) {
+      return up;
+    }
+
+    if (downInScale) {
+      return down;
+    }
+  }
+
+  return clamped;
+}
+
 export function transposeMidiByScaleDegrees(note, degreeDelta, root, modeIndex) {
   const delta = Math.round(degreeDelta);
   let current = clampMidi(note);
