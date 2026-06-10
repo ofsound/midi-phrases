@@ -1,6 +1,7 @@
 <script>
   /**
    * Vertical drag field for shimmer rail parameters.
+   * Keeps a local drag value so parent state (and piano-roll preview) update only on commit.
    *
    * @typedef {Object} Props
    * @property {number} value
@@ -12,7 +13,6 @@
    * @property {boolean} [active]
    * @property {string} [ariaLabel]
    * @property {string} [title]
-   * @property {(value: number) => void | Promise<void>} [onValueChange]
    * @property {(value: number) => void | Promise<void>} [onValueCommit]
    */
 
@@ -27,7 +27,6 @@
     active = false,
     ariaLabel = "Shimmer parameter",
     title = "Drag vertically to adjust · double-click to reset",
-    onValueChange = () => {},
     onValueCommit = () => {},
   } = $props();
 
@@ -36,14 +35,23 @@
   let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
+  let dragValue = $state(0);
 
-  let displayValue = $derived(formatValue(value));
+  let displayedValue = $derived(dragging ? dragValue : value);
+  let displayValue = $derived(formatValue(displayedValue));
 
   /** @param {number} clientY */
   function valueFromDrag(clientY) {
     const steps = Math.round((dragStartY - clientY) / pixelsPerStep);
 
     return clampValue(dragStartValue + steps);
+  }
+
+  /** @param {number} next */
+  function commitValue(next) {
+    const clamped = clampValue(next);
+
+    if (clamped !== value) onValueCommit(clamped);
   }
 
   /** @param {PointerEvent} event */
@@ -53,6 +61,7 @@
     dragging = true;
     dragStartY = event.clientY;
     dragStartValue = value;
+    dragValue = value;
   }
 
   /** @param {PointerEvent} event */
@@ -61,7 +70,7 @@
 
     const next = valueFromDrag(event.clientY);
 
-    if (next !== value) onValueChange(next);
+    if (next !== dragValue) dragValue = next;
   }
 
   /** @param {PointerEvent} event */
@@ -70,7 +79,7 @@
 
     dragging = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
-    onValueCommit(value);
+    commitValue(dragValue);
   }
 
   /** @param {MouseEvent} event */
@@ -80,8 +89,7 @@
     event.preventDefault();
 
     if (value !== defaultValue) {
-      onValueChange(defaultValue);
-      onValueCommit(defaultValue);
+      commitValue(defaultValue);
     }
   }
 </script>
@@ -93,7 +101,7 @@
   aria-label={ariaLabel}
   aria-valuemin={min}
   aria-valuemax={max}
-  aria-valuenow={value}
+  aria-valuenow={displayedValue}
   aria-valuetext={displayValue}
   tabindex="0"
   {title}
@@ -106,11 +114,11 @@
     if (event.key === "ArrowUp") {
       event.preventDefault();
 
-      if (value < max) onValueChange(clampValue(value + 1));
+      if (displayedValue < max) commitValue(clampValue(displayedValue + 1));
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
 
-      if (value > min) onValueChange(clampValue(value - 1));
+      if (displayedValue > min) commitValue(clampValue(displayedValue - 1));
     }
   }}
 >

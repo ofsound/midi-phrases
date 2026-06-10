@@ -9,12 +9,12 @@
 
   /**
    * Bipolar relative-velocity control for the Octavizer rail.
+   * Keeps a local drag value so parent state (and piano-roll preview) update only on commit.
    *
    * @typedef {Object} Props
    * @property {number} value
    * @property {boolean} [active]
    * @property {string} [ariaLabel]
-   * @property {(value: number) => void | Promise<void>} [onValueChange]
    * @property {(value: number) => void | Promise<void>} [onValueCommit]
    */
 
@@ -23,7 +23,6 @@
     value = defaultOctavizerRelativeVelocity,
     active = false,
     ariaLabel = "Relative velocity",
-    onValueChange = () => {},
     onValueCommit = () => {},
   } = $props();
 
@@ -32,14 +31,23 @@
   let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
+  let dragValue = $state(defaultOctavizerRelativeVelocity);
 
-  let displayValue = $derived(formatOctavizerRelativeVelocity(value));
+  let displayedValue = $derived(dragging ? dragValue : value);
+  let displayValue = $derived(formatOctavizerRelativeVelocity(displayedValue));
 
   /** @param {number} clientY */
   function valueFromDrag(clientY) {
     const steps = Math.round((dragStartY - clientY) / pixelsPerStep);
 
     return clampOctavizerRelativeVelocity(dragStartValue + steps);
+  }
+
+  /** @param {number} next */
+  function commitValue(next) {
+    const clamped = clampOctavizerRelativeVelocity(next);
+
+    if (clamped !== value) onValueCommit(clamped);
   }
 
   /** @param {PointerEvent} event */
@@ -49,6 +57,7 @@
     dragging = true;
     dragStartY = event.clientY;
     dragStartValue = value;
+    dragValue = value;
   }
 
   /** @param {PointerEvent} event */
@@ -57,7 +66,7 @@
 
     const next = valueFromDrag(event.clientY);
 
-    if (next !== value) onValueChange(next);
+    if (next !== dragValue) dragValue = next;
   }
 
   /** @param {PointerEvent} event */
@@ -66,7 +75,7 @@
 
     dragging = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
-    onValueCommit(value);
+    commitValue(dragValue);
   }
 
   /** @param {MouseEvent} event */
@@ -76,8 +85,7 @@
     event.preventDefault();
 
     if (value !== defaultOctavizerRelativeVelocity) {
-      onValueChange(defaultOctavizerRelativeVelocity);
-      onValueCommit(defaultOctavizerRelativeVelocity);
+      commitValue(defaultOctavizerRelativeVelocity);
     }
   }
 </script>
@@ -89,7 +97,7 @@
   aria-label={ariaLabel}
   aria-valuemin={minOctavizerRelativeVelocity}
   aria-valuemax={maxOctavizerRelativeVelocity}
-  aria-valuenow={value}
+  aria-valuenow={displayedValue}
   aria-valuetext={displayValue}
   tabindex="0"
   title="Drag vertically to adjust relative velocity · double-click to reset"
@@ -102,11 +110,15 @@
     if (event.key === "ArrowUp") {
       event.preventDefault();
 
-      if (value < maxOctavizerRelativeVelocity) onValueChange(value + 1);
+      if (displayedValue < maxOctavizerRelativeVelocity) {
+        commitValue(displayedValue + 1);
+      }
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
 
-      if (value > minOctavizerRelativeVelocity) onValueChange(value - 1);
+      if (displayedValue > minOctavizerRelativeVelocity) {
+        commitValue(displayedValue - 1);
+      }
     }
   }}
 >

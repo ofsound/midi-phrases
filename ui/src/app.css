@@ -401,6 +401,7 @@
   .note-bandpass-thumb {
     position: absolute;
     top: 0;
+    bottom: 0;
     z-index: 1;
     width: 0;
     padding: 0;
@@ -435,8 +436,8 @@
   .note-bandpass-label {
     position: absolute;
     left: 50%;
-    bottom: 1.55rem;
-    transform: translateX(-50%);
+    top: calc(var(--note-bandpass-track-center) - 0.475rem - 0.35rem);
+    transform: translate(-50%, -100%);
     min-width: 2.35rem;
     padding: 0.18rem 0.42rem;
     border-radius: 0.3rem 0.3rem 0.15rem 0.15rem;

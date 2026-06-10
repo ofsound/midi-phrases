@@ -427,14 +427,6 @@
     pushHistoryEntry("Octavizer 8va", before, createHistorySnapshot());
   }
 
-  function handleOctavizerDown8vaRelativeVelocityChange(value) {
-    setOctavizerState({ down8vaRelativeVelocity: value });
-  }
-
-  function handleOctavizerUp8vaRelativeVelocityChange(value) {
-    setOctavizerState({ up8vaRelativeVelocity: value });
-  }
-
   async function commitOctavizerDown8vaRelativeVelocity(value) {
     const before = createHistorySnapshot();
     setOctavizerState({ down8vaRelativeVelocity: value });
@@ -454,18 +446,6 @@
     setShimmerState({ enabled });
     await syncShimmerToNative();
     pushHistoryEntry("Shimmer", before, createHistorySnapshot());
-  }
-
-  function handleShimmerDelayChange(value) {
-    setShimmerState({ delayMultiplierIndex: value });
-  }
-
-  function handleShimmerFeedbackChange(value) {
-    setShimmerState({ feedbackPercent: value });
-  }
-
-  function handleShimmerMixChange(value) {
-    setShimmerState({ mixPercent: value });
   }
 
   async function commitShimmerDelay(value) {
@@ -3524,8 +3504,6 @@
       octavizerUp8vaRelativeVelocity={octavizerUp8vaRelativeVelocity}
       onOctavizerDown8vaToggle={handleOctavizerDown8vaToggle}
       onOctavizerUp8vaToggle={handleOctavizerUp8vaToggle}
-      onOctavizerDown8vaRelativeVelocityChange={handleOctavizerDown8vaRelativeVelocityChange}
-      onOctavizerUp8vaRelativeVelocityChange={handleOctavizerUp8vaRelativeVelocityChange}
       onOctavizerDown8vaRelativeVelocityCommit={commitOctavizerDown8vaRelativeVelocity}
       onOctavizerUp8vaRelativeVelocityCommit={commitOctavizerUp8vaRelativeVelocity}
       shimmerEnabled={shimmerEnabled}
@@ -3533,9 +3511,6 @@
       shimmerFeedbackPercent={shimmerFeedbackPercent}
       shimmerMixPercent={shimmerMixPercent}
       onShimmerToggle={handleShimmerToggle}
-      onShimmerDelayChange={handleShimmerDelayChange}
-      onShimmerFeedbackChange={handleShimmerFeedbackChange}
-      onShimmerMixChange={handleShimmerMixChange}
       onShimmerDelayCommit={commitShimmerDelay}
       onShimmerFeedbackCommit={commitShimmerFeedback}
       onShimmerMixCommit={commitShimmerMix}

@@ -24,9 +24,6 @@
    * @property {number} feedbackPercent
    * @property {number} mixPercent
    * @property {(enabled: boolean) => void | Promise<void>} [onToggle]
-   * @property {(value: number) => void | Promise<void>} [onDelayChange]
-   * @property {(value: number) => void | Promise<void>} [onFeedbackChange]
-   * @property {(value: number) => void | Promise<void>} [onMixChange]
    * @property {(value: number) => void | Promise<void>} [onDelayCommit]
    * @property {(value: number) => void | Promise<void>} [onFeedbackCommit]
    * @property {(value: number) => void | Promise<void>} [onMixCommit]
@@ -39,9 +36,6 @@
     feedbackPercent = defaultShimmerFeedbackPercent,
     mixPercent = defaultShimmerMixPercent,
     onToggle = () => {},
-    onDelayChange = () => {},
-    onFeedbackChange = () => {},
-    onMixChange = () => {},
     onDelayCommit = () => {},
     onFeedbackCommit = () => {},
     onMixCommit = () => {},
@@ -90,7 +84,6 @@
         active={enabled}
         ariaLabel="Shimmer delay"
         title="Delay in pulse multiples · drag vertically · double-click to reset"
-        onValueChange={onDelayChange}
         onValueCommit={onDelayCommit}
       />
       <ShimmerParamDragInput
@@ -103,7 +96,6 @@
         active={enabled}
         ariaLabel="Shimmer feedback"
         title="Feedback percent · drag vertically · double-click to reset"
-        onValueChange={onFeedbackChange}
         onValueCommit={onFeedbackCommit}
       />
       <ShimmerParamDragInput
@@ -116,7 +108,6 @@
         active={enabled}
         ariaLabel="Shimmer mix"
         title="Tap mix percent · drag vertically · double-click to reset"
-        onValueChange={onMixChange}
         onValueCommit={onMixCommit}
       />
     </div>
