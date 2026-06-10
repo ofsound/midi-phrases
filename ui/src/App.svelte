@@ -3408,7 +3408,7 @@
         ></div>
         {#each grid as _row, row (row)}
           {@const rowAccent = rowAccentFor(row, rowColorsEnabled)}
-          <div class="relative z-10 flex min-w-0 flex-1 items-center gap-1">
+          <div class="relative z-10 flex min-w-0 shrink-0 items-center gap-1">
             <div class="relative flex shrink-0 items-center gap-1">
               {#if rowMuted[row]}
                 <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
