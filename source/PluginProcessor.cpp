@@ -3173,6 +3173,10 @@ void PluginProcessor::emitLayeredGeneratedNote (const int midiChannel,
         pendingCombinedNoteOffs[pendingCombinedNoteOffCount++] =
             PendingCombinedNoteOff { midiChannel, note, samplesUntilOff - bufferSamples };
     }
+    else
+    {
+        emitGeneratedNoteOff (midiChannel, note, bufferSamples - 1, midiMessages);
+    }
 }
 
 void PluginProcessor::emitScheduledNoteOn (const int row,
@@ -4308,30 +4312,18 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                                               event.note,
                                               event.velocity,
                                               sampleOffset - bufferSamples,
-                                              noteGateSamples });
+                                              noteGateSamples,
+                                              1 });
             continue;
         }
 
-        const auto clampedSampleOffset = juce::jmax (0, sampleOffset);
-        emitGeneratedNoteOn (event.channel,
-                             event.note,
-                             event.velocity,
-                             clampedSampleOffset,
-                             midiMessages);
-
-        const auto samplesUntilOff = clampedSampleOffset + noteGateSamples;
-
-        if (samplesUntilOff < bufferSamples)
-        {
-            emitGeneratedNoteOff (event.channel, event.note, samplesUntilOff, midiMessages);
-        }
-        else if (pendingCombinedNoteOffCount < pendingCombinedNoteOffs.size())
-        {
-            pendingCombinedNoteOffs[pendingCombinedNoteOffCount++] =
-                PendingCombinedNoteOff { event.channel,
-                                         event.note,
-                                         samplesUntilOff - bufferSamples };
-        }
+        emitLayeredGeneratedNote (event.channel,
+                                  event.note,
+                                  event.velocity,
+                                  sampleOffset,
+                                  noteGateSamples,
+                                  bufferSamples,
+                                  midiMessages);
     }
 }
 

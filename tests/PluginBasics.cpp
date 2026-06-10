@@ -1172,6 +1172,123 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPlayHead (nullptr);
     }
 
+    SECTION ("combination mode with timing humanize pairs note-offs with note-ons")
+    {
+        constexpr double sampleRate = 44100.0;
+        constexpr int blockSize = 512;
+
+        testPlugin.prepareToPlay (sampleRate, blockSize);
+        testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setTimingHumanizePercent (100);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, true);
+        testPlugin.setPhraseRowMuted (0, false);
+        testPlugin.setPhraseRowMuted (1, false);
+        testPlugin.setPhraseRowMuted (2, true);
+        testPlugin.setPhraseRowMuted (3, true);
+
+        ensurePhraseRowStepCount (testPlugin, 0, 3);
+        ensurePhraseRowStepCount (testPlugin, 1, 4);
+
+        testPlugin.setPhraseNote (0, 0, 38); // D2
+        testPlugin.setPhraseNote (0, 1, 41); // F2
+        testPlugin.setPhraseNote (0, 2, 48); // C3
+        testPlugin.setPhraseNote (1, 0, 53); // F3
+        testPlugin.setPhraseNote (1, 1, 53);
+        testPlugin.setPhraseNote (1, 2, 55); // G3
+        testPlugin.setPhraseNote (1, 3, 50); // D3
+
+        for (int row = 0; row < 2; ++row)
+        {
+            const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+            for (int step = 0; step < stepCount; ++step)
+            {
+                testPlugin.setPhraseStepTimingMultiplier (
+                    row, step, PluginProcessor::defaultStepTimingMultiplierIndex);
+                testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+                testPlugin.setPhraseStepVelocity (row, step, 100);
+                testPlugin.setPhraseStepProbability (row, step, 100);
+            }
+        }
+
+        testPlugin.setPhraseStepTimingMultiplier (1, 0, 1);
+        testPlugin.setPhraseStepTimingMultiplier (1, 1, 1);
+        testPlugin.setPhraseStepTimingMultiplier (1, 2, 2);
+        testPlugin.setPhraseStepTimingMultiplier (1, 3, 3);
+
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (120.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        std::array<int, 128> noteOnCounts {};
+        std::array<int, 128> noteOffCounts {};
+
+        for (int block = 0; block < 1200; ++block)
+        {
+            midi.clear();
+            playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                          * (120.0 / 60.0) / sampleRate);
+            testPlugin.processBlock (buffer, midi);
+
+            for (const auto metadata : midi)
+            {
+                const auto message = metadata.getMessage();
+                const auto note = message.getNoteNumber();
+
+                if (message.isNoteOn())
+                    ++noteOnCounts[static_cast<size_t> (note)];
+
+                if (message.isNoteOff())
+                    ++noteOffCounts[static_cast<size_t> (note)];
+            }
+
+            if (playHead.info.getPpqPosition() >= 12.0)
+                break;
+        }
+
+        playHead.info.setIsPlaying (false);
+        midi.clear();
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+            const auto note = message.getNoteNumber();
+
+            if (message.isNoteOn())
+                ++noteOnCounts[static_cast<size_t> (note)];
+
+            if (message.isNoteOff())
+                ++noteOffCounts[static_cast<size_t> (note)];
+        }
+
+        for (int note = 0; note < 128; ++note)
+        {
+            if (noteOnCounts[static_cast<size_t> (note)] == 0)
+                continue;
+
+            CHECK (noteOffCounts[static_cast<size_t> (note)]
+                   == noteOnCounts[static_cast<size_t> (note)]);
+        }
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("loop brace snaps to eighth notes")
     {
         CHECK (testPlugin.getLoopBraceStartQuarters()
