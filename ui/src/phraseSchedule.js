@@ -313,7 +313,9 @@ export function buildPhraseSchedule({
     flushActive(ppqEnd);
   }
 
-  const sorted = scheduled.sort((a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row);
+  const sorted = scheduled.sort(
+    (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+  );
 
   const combined = applyCombinationModes({
     scheduled: sorted,
@@ -470,7 +472,9 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
 
   if (events.length === 0) return [];
 
-  events = events.sort((a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row);
+  events = events.sort(
+    (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+  );
 
   if (combinationModeEnabled(combinationModeMask, 0)) {
     events = groupByStart(events).map((group) => {
@@ -489,7 +493,9 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
     });
   }
 
-  return events.sort((a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row);
+  return events.sort(
+    (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+  );
 }
 
 /** @param {ScheduledNote[]} scheduled @param {number} [paddingSemitones] */

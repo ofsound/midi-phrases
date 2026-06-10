@@ -3704,6 +3704,20 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
     if (activeRowCount == 0)
         return;
 
+    const auto compareCombinedEventsForWeave = [] (const CombinedNoteEvent& a,
+                                                   const CombinedNoteEvent& b) {
+        if (std::abs (a.ppq - b.ppq) > epsilon)
+            return a.ppq < b.ppq;
+
+        if (a.note != b.note)
+            return a.note < b.note;
+
+        if (a.row != b.row)
+            return a.row < b.row;
+
+        return a.step < b.step;
+    };
+
     auto eventCount = static_cast<size_t> (0);
     const auto appendEvent = [&] (const CombinedNoteEvent& event) {
         if (eventCount >= combinedEvents.size())
@@ -3907,12 +3921,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
     std::sort (combinedEvents.begin(),
                combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
-               [] (const CombinedNoteEvent& a, const CombinedNoteEvent& b) {
-                   if (std::abs (a.ppq - b.ppq) > 1.0e-9)
-                       return a.ppq < b.ppq;
-
-                   return a.row == b.row ? a.step < b.step : a.row < b.row;
-               });
+               compareCombinedEventsForWeave);
 
     const auto copyFilteredEvents = [&] (const size_t count) {
         for (size_t index = 0; index < count; ++index)
@@ -4060,12 +4069,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
         std::sort (combinedEvents.begin(),
                    combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
-                   [] (const CombinedNoteEvent& a, const CombinedNoteEvent& b) {
-                       if (std::abs (a.ppq - b.ppq) > 1.0e-9)
-                           return a.ppq < b.ppq;
-
-                       return a.note == b.note ? a.row < b.row : a.note < b.note;
-                   });
+                   compareCombinedEventsForWeave);
     }
 
     if (combinationModeEnabled (modeMask, combinationModeWeave))

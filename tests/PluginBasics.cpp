@@ -858,6 +858,64 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK_FALSE (testPlugin.isCombinationModeEnabled (PluginProcessor::combinationModeWeave));
     }
 
+    SECTION ("weave mode picks same winner as preview for same-time collisions")
+    {
+        testPlugin.prepareToPlay (44100.0, 512);
+        testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setVelocityHumanizePercent (0);
+        testPlugin.setTimingHumanizePercent (0);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, true);
+
+        for (int row = 0; row < 4; ++row)
+        {
+            testPlugin.setPhraseRowMuted (row, false);
+            ensurePhraseRowStepCount (testPlugin, row, 1);
+            testPlugin.setPhraseNote (row, 0, 60 + row * 2);
+            testPlugin.setPhraseStepTimingMultiplier (
+                row, 0, PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+            testPlugin.setPhraseStepVelocity (row, 0, 100);
+            testPlugin.setPhraseStepProbability (row, 0, 100);
+        }
+
+        juce::AudioBuffer<float> buffer (2, 512);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (120.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+
+        testPlugin.processBlock (buffer, midi);
+
+        std::array<int, 128> noteOnCounts {};
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+                ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+        }
+
+        CHECK (noteOnCounts[66] == 1);
+        CHECK (noteOnCounts[60] == 0);
+        CHECK (noteOnCounts[62] == 0);
+        CHECK (noteOnCounts[64] == 0);
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("multiply echo mode emits interval-shifted echoes")
     {
         testPlugin.prepareToPlay (1000.0, 512);
