@@ -45,6 +45,10 @@ export function clampScaleModeIndex(modeIndex) {
   return Number.isNaN(value) ? defaultScaleModeIndex : Math.min(scaleModes.length - 1, Math.max(0, value));
 }
 
+export function isChromaticScaleMode(modeIndex) {
+  return clampScaleModeIndex(modeIndex) === defaultScaleModeIndex;
+}
+
 export function scaleName(root, modeIndex) {
   const key = keyCenters[clampScaleRoot(root)]?.label ?? "C";
   const mode = scaleModes[clampScaleModeIndex(modeIndex)]?.label ?? "Chromatic";

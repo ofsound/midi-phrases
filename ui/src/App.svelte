@@ -86,6 +86,7 @@
     clampScaleRoot,
     defaultScaleModeIndex,
     defaultScaleRoot,
+    isChromaticScaleMode,
     keyCenters,
     scaleModes,
     scaleName,
@@ -551,7 +552,15 @@
   }
 
   function stepNoteByCurrentScale(value, delta) {
-    return transposeMidiByScaleDegrees(value, delta, scaleRoot, scaleModeIndex);
+    const base = Math.min(127, Math.max(0, Math.round(value)));
+    const steps = Math.round(delta);
+
+    if (isChromaticScaleMode(scaleModeIndex)) {
+      return Math.min(127, Math.max(0, base + steps));
+    }
+
+    const snapped = snapMidiToScale(base, scaleRoot, scaleModeIndex);
+    return transposeMidiByScaleDegrees(snapped, steps, scaleRoot, scaleModeIndex);
   }
 
   function clampPhraseNote(midi) {
@@ -597,6 +606,11 @@
   let activeKeyCenterLabel = $derived(keyCenters[scaleRoot]?.label ?? "C");
   let defaultNewStepNote = $derived(defaultStepNoteForScaleRoot(scaleRoot));
   let activeScaleModeLabel = $derived(scaleModes[scaleModeIndex]?.shortLabel ?? "Chrom");
+  let bulkPitchAriaLabel = $derived(
+    isChromaticScaleMode(scaleModeIndex)
+      ? "Bulk step pitch semitones"
+      : "Bulk step pitch scale degrees",
+  );
   let selectedStepCount = $derived(selectedStepKeysForGrid.size);
   let selectableStepCount = $derived(stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0));
   let selectedStepReverseAvailable = $derived.by(() => {
@@ -2065,7 +2079,7 @@
 
     for (const { row, step, key } of locations) {
       const baseline = bulkTransposeBaselineByKey.get(key) ?? grid[row][step];
-      grid[row][step] = stepNoteByCurrentScale(baseline, clamped);
+      grid[row][step] = clampPhraseNote(stepNoteByCurrentScale(baseline, clamped));
     }
   }
 
@@ -3248,7 +3262,7 @@
               max={48}
               resetValue={0}
               formatValue={formatSemitoneValue}
-              ariaLabel="Bulk step pitch semitones"
+              ariaLabel={bulkPitchAriaLabel}
               disabled={selectedStepCount === 0}
               onGestureStart={beginBulkEditGesture}
               onValuePreview={previewBulkTransposeSemitones}
