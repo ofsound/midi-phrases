@@ -35,7 +35,7 @@
     aria-modal="true"
     aria-labelledby={titleId}
     tabindex="-1"
-    class="relative z-[1] flex max-h-[min(90vh,42rem)] w-full max-w-[min(58rem,calc(100vw-2rem))] flex-col overflow-hidden border border-zinc-700/90 bg-zinc-950/88 shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop-blur-[22px]"
+    class="relative z-[1] flex max-h-[min(94vh,56rem)] w-full max-w-[min(58rem,calc(100vw-2rem))] flex-col overflow-hidden border border-zinc-700/90 bg-zinc-950/88 shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop-blur-[22px]"
   >
     <div class="flex items-start justify-between gap-4 border-b border-zinc-800 px-5 py-4 sm:px-6">
       <div class="min-w-0">
@@ -65,7 +65,7 @@
       </button>
     </div>
 
-    <div class="grid min-h-0 gap-6 overflow-auto p-5 sm:p-6">
+    <div class="grid shrink-0 gap-5 p-5 sm:p-6">
       <div class="grid gap-3">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.28em] text-zinc-500">Key center</p>

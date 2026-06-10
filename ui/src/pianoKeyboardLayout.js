@@ -29,13 +29,18 @@ export function recordPianoMidiRange(octaveOffset) {
 /** Black keys are this fraction of a white key’s width (typical piano ~60–65%). */
 export const recordPianoBlackKeyWidthRatio = 0.62;
 
+/** Narrower blacks for short preview ranges so adjacent accidentals don’t touch. */
+export const scalePreviewBlackKeyWidthRatio = 0.52;
+
 /**
  * White and black keys for a MIDI inclusive range.
  * Black keys are centered on the seam between the white key below and above.
  * @param {number} lowestMidi
  * @param {number} highestMidi
+ * @param {{ blackKeyWidthRatio?: number }} [options]
  */
-export function buildRecordPianoKeys(lowestMidi, highestMidi) {
+export function buildRecordPianoKeys(lowestMidi, highestMidi, options = {}) {
+  const blackKeyWidthRatio = options.blackKeyWidthRatio ?? recordPianoBlackKeyWidthRatio;
   /** @type {{ midi: number }[]} */
   const whites = [];
 
@@ -47,7 +52,7 @@ export function buildRecordPianoKeys(lowestMidi, highestMidi) {
 
   const whiteCount = whites.length;
   const whiteWidthPercent = whiteCount > 0 ? 100 / whiteCount : 0;
-  const blackWidthPercent = whiteWidthPercent * recordPianoBlackKeyWidthRatio;
+  const blackWidthPercent = whiteWidthPercent * blackKeyWidthRatio;
 
   /** @type {Map<number, number>} */
   const whiteIndexByMidi = new Map(whites.map((white, index) => [white.midi, index]));
