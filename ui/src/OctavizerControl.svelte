@@ -29,8 +29,6 @@
 </script>
 
 <div class="octavizer-control" role="group" aria-label="Octavizer">
-  <div class="combination-mode-connector" aria-hidden="true"></div>
-
   <div class="octavizer-slot">
     <button
       type="button"
@@ -56,8 +54,6 @@
       onValueCommit={onDown8vaRelativeVelocityCommit}
     />
   </div>
-
-  <div class="combination-mode-connector" aria-hidden="true"></div>
 
   <div class="octavizer-slot">
     <button

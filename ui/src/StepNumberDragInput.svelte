@@ -2,12 +2,6 @@
   import { onDestroy } from "svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
-  
-  
-  
-  
-  
-  
   /**
    * @typedef {Object} Props
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
@@ -22,9 +16,9 @@
    * @property {boolean} [disabled]
    * @property {boolean} [boxed] - When true, use header control box styling (matches DiscreteDragSelect).
    * @property {boolean} [compact] - Tight boxed width for compact header controls with short values.
-   * @property {boolean} [deferCommit] - Preview while dragging; commit on release.
+   * @property {boolean} [deferCommit] - Keep a local drag value during the gesture; throttled preview while dragging; commit on release.
    * @property {() => void} [onGestureStart] - Called at drag start when {@link deferCommit} is true.
-   * @property {(value: number) => void} [onValuePreview] - Lightweight preview while dragging.
+   * @property {(value: number) => void} [onValuePreview] - Throttled preview while dragging (100ms).
    * @property {(value: number) => void | Promise<void>} [onValueCommit] - Final commit on release.
    * @property {(value: number) => void | Promise<void>} [onValueChange]
    */
@@ -47,77 +41,87 @@
     onGestureStart = undefined,
     onValuePreview = undefined,
     onValueCommit = undefined,
-    onValueChange = () => {}
+    onValueChange = () => {},
   } = $props();
 
   const boxedControlBaseClasses =
     "flex h-8 items-center justify-center rounded-md border bg-gradient-to-b from-zinc-700/50 to-zinc-950 px-2 text-sm font-semibold tabular-nums transition-[border-color,box-shadow] duration-75";
 
   const pixelsPerStep = 4;
+  const previewThrottleMs = 100;
 
   let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
-  let previewFrameId = 0;
+  let dragValue = $state(0);
+  let previewTimerId = 0;
+  let lastPreviewAt = 0;
   /** @type {number | null} */
   let pendingPreviewValue = null;
 
-  let displayValue =
-    $derived(formatValue !== undefined
-      ? formatValue(value)
-      : String(Math.round(value + displayAdd)));
+  let displayedValue = $derived(dragging ? dragValue : value);
+  let displayValue = $derived(
+    formatValue !== undefined
+      ? formatValue(displayedValue)
+      : String(Math.round(displayedValue + displayAdd)),
+  );
   let ariaValueMin = $derived(min + displayAdd);
   let ariaValueMax = $derived(max + displayAdd);
-  let ariaValueNow = $derived(value + displayAdd);
+  let ariaValueNow = $derived(displayedValue + displayAdd);
 
+  /** @param {number} next */
   function clampValue(next) {
     return Math.min(max, Math.max(min, Math.round(next)));
   }
 
+  /** @param {number} clientY */
   function valueFromDrag(clientY) {
     const steps = Math.round((dragStartY - clientY) / pixelsPerStep);
 
     return clampValue(dragStartValue + steps);
   }
 
-  function cancelPreviewFrame() {
-    if (!previewFrameId) return;
+  function cancelPreviewThrottle() {
+    if (!previewTimerId) return;
 
-    cancelAnimationFrame(previewFrameId);
-    previewFrameId = 0;
-  }
-
-  function flushPreviewFrame() {
-    previewFrameId = 0;
-
-    const next = pendingPreviewValue;
-    pendingPreviewValue = null;
-
-    if (next !== null) {
-      onValuePreview?.(next);
-    }
+    clearTimeout(previewTimerId);
+    previewTimerId = 0;
   }
 
   /** @param {number} next */
-  function schedulePreview(next) {
-    if (next === value) return;
+  function flushPreview(next) {
+    cancelPreviewThrottle();
+    pendingPreviewValue = null;
+    lastPreviewAt = Date.now();
+    onValuePreview?.(next);
+  }
 
-    if (!deferCommit || !onValuePreview) {
-      onValueChange(next);
-      return;
-    }
+  /** @param {number} next */
+  function scheduleThrottledPreview(next) {
+    if (!onValuePreview) return;
 
     pendingPreviewValue = next;
 
-    if (previewFrameId) return;
+    const elapsed = Date.now() - lastPreviewAt;
 
-    previewFrameId = requestAnimationFrame(flushPreviewFrame);
+    if (elapsed >= previewThrottleMs) {
+      flushPreview(next);
+      return;
+    }
+
+    if (previewTimerId) return;
+
+    previewTimerId = window.setTimeout(() => {
+      previewTimerId = 0;
+      const pending = pendingPreviewValue;
+
+      if (pending !== null) flushPreview(pending);
+    }, previewThrottleMs - elapsed);
   }
 
   /** @param {number} next */
   function commitDeferredValue(next) {
     onGestureStart?.();
-    onValuePreview?.(next);
     onValueCommit?.(next);
   }
 
@@ -139,6 +143,9 @@
     dragging = true;
     dragStartY = event.clientY;
     dragStartValue = value;
+    dragValue = value;
+    pendingPreviewValue = null;
+    lastPreviewAt = 0;
 
     if (deferCommit) {
       onGestureStart?.();
@@ -149,26 +156,32 @@
   function onPointerMove(event) {
     if (!dragging || disabled) return;
 
-    schedulePreview(valueFromDrag(event.clientY));
+    const next = valueFromDrag(event.clientY);
+
+    if (deferCommit && onValueCommit) {
+      if (next !== dragValue) {
+        dragValue = next;
+        scheduleThrottledPreview(next);
+      }
+
+      return;
+    }
+
+    if (next !== value) onValueChange(next);
   }
 
   /** @param {PointerEvent} event */
   function onPointerUp(event) {
+    if (!dragging) return;
+
     dragging = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
-
-    if (!deferCommit || !onValueCommit) {
-      cancelPreviewFrame();
-      pendingPreviewValue = null;
-      return;
-    }
-
-    const finalValue =
-      pendingPreviewValue ?? clampValue(valueFromDrag(event.clientY));
-
-    cancelPreviewFrame();
+    cancelPreviewThrottle();
     pendingPreviewValue = null;
-    onValueCommit(finalValue);
+
+    if (deferCommit && onValueCommit) {
+      onValueCommit(dragValue);
+    }
   }
 
   /** @param {MouseEvent} event */
@@ -181,7 +194,7 @@
   }
 
   onDestroy(() => {
-    cancelPreviewFrame();
+    cancelPreviewThrottle();
   });
 </script>
 
@@ -224,11 +237,11 @@
     if (event.key === "ArrowUp") {
       event.preventDefault();
 
-      if (value < max) applyValue(value + 1);
+      if (displayedValue < max) applyValue(displayedValue + 1);
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
 
-      if (value > min) applyValue(value - 1);
+      if (displayedValue > min) applyValue(displayedValue - 1);
     }
   }}
 >

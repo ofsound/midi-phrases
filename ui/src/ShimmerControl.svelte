@@ -53,8 +53,6 @@
 </script>
 
 <div class="shimmer-control" role="group" aria-label="Shimmer">
-  <div class="combination-mode-connector" aria-hidden="true"></div>
-
   <div class="shimmer-slot">
     <button
       type="button"

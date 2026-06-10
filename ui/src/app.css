@@ -217,6 +217,8 @@
     display: flex;
     align-items: center;
     flex-shrink: 0;
+    gap: 1.25rem;
+    margin-left: 2.75rem;
   }
 
   .octavizer-slot {
@@ -280,6 +282,7 @@
     display: flex;
     align-items: center;
     flex-shrink: 0;
+    margin-left: 2.75rem;
   }
 
   .shimmer-slot {
