@@ -98,6 +98,9 @@
 
   /** @type {HTMLElement | null} */
   let scrollElement = $state(null);
+  /** @type {HTMLElement | null} */
+  let gridScrollElement = $state(null);
+  let syncingHorizontalScroll = false;
   /** @type {"move" | "start" | "end" | null} */
   let dragMode = $state(null);
   let dragPointerId = -1;
@@ -159,6 +162,39 @@
         scrollElement = null;
       }
     };
+  }
+
+  /** @param {HTMLElement} node */
+  function gridScrollElementAttachment(node) {
+    gridScrollElement = node;
+
+    if (scrollElement) {
+      node.scrollLeft = scrollElement.scrollLeft;
+    }
+
+    return () => {
+      if (gridScrollElement === node) {
+        gridScrollElement = null;
+      }
+    };
+  }
+
+  /** @param {Event} event */
+  function syncGridHorizontalScroll(event) {
+    if (syncingHorizontalScroll || !gridScrollElement || !scrollElement) return;
+
+    syncingHorizontalScroll = true;
+    gridScrollElement.scrollLeft = /** @type {HTMLElement} */ (event.currentTarget).scrollLeft;
+    syncingHorizontalScroll = false;
+  }
+
+  /** @param {Event} event */
+  function syncRulerHorizontalScroll(event) {
+    if (syncingHorizontalScroll || !gridScrollElement || !scrollElement) return;
+
+    syncingHorizontalScroll = true;
+    scrollElement.scrollLeft = /** @type {HTMLElement} */ (event.currentTarget).scrollLeft;
+    syncingHorizontalScroll = false;
   }
 
   /** @param {number} midi */
@@ -339,94 +375,105 @@
   <div
     class="flex h-0 min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/80"
   >
+    <div class="flex shrink-0">
+      <div
+        class="shrink-0 border-r border-b border-zinc-800 bg-zinc-900/90"
+        style:width="{keyboardWidthPx}px"
+        style:height="{rulerHeightPx}px"
+      ></div>
+
+      <div
+        {@attach scrollElementAttachment}
+        class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden border-b border-zinc-800"
+        onscroll={syncGridHorizontalScroll}
+      >
+        <div class="relative bg-zinc-900/95" style:width="{rollWidthPx}px" style:height="{rulerHeightPx}px">
+          {#each barLines as bar (bar)}
+            <div
+              class="pointer-events-none absolute top-0 bottom-0 border-l border-zinc-700/80"
+              style:left="{bar * pxPerQuarter}px"
+            >
+              <span class="absolute top-1 left-1 text-[9px] font-medium text-zinc-500">{bar}</span>
+            </div>
+          {/each}
+
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+          <div
+            tabindex="0"
+            role="group"
+            aria-label="Loop brace"
+            class="absolute inset-y-1 z-20 touch-none select-none outline-none"
+            style:left="{loopLeftPx}px"
+            style:width="{loopWidthPx}px"
+            onkeydown={handleLoopKeydown}
+            onpointermove={moveLoopDrag}
+            onpointerup={endLoopDrag}
+            onpointercancel={endLoopDrag}
+          >
+            <div
+              class="absolute inset-x-0 top-0 h-2 rounded-sm border transition-colors {loopEnabled
+                ? 'border-accent-400/80 bg-accent-400/90'
+                : 'border-zinc-500/70 bg-zinc-500/60'}"
+            >
+              <button
+                type="button"
+                aria-label="Loop start"
+                data-cursor="ew-resize"
+                class="absolute top-1/2 left-0 z-30 h-4 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-zinc-900/40 bg-zinc-200 shadow-sm"
+                onpointerdown={(event) => beginLoopDrag(event, "start")}
+              ></button>
+
+              <button
+                type="button"
+                aria-label="Move loop brace"
+                data-cursor="grab"
+                class="absolute inset-x-2 inset-y-0"
+                onpointerdown={(event) => beginLoopDrag(event, "move")}
+                ondblclick={toggleLoopEnabled}
+              ></button>
+
+              <button
+                type="button"
+                aria-label="Loop end"
+                data-cursor="ew-resize"
+                class="absolute top-1/2 right-0 z-30 h-4 w-2.5 translate-x-1/2 -translate-y-1/2 rounded-sm border border-zinc-900/40 bg-zinc-200 shadow-sm"
+                onpointerdown={(event) => beginLoopDrag(event, "end")}
+              ></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="h-0 min-h-0 flex-1 overflow-y-auto overscroll-contain">
       <div class="flex">
         <div
           class="shrink-0 border-r border-zinc-800 bg-zinc-900/90"
           style:width="{keyboardWidthPx}px"
         >
-        <div style:height="{rulerHeightPx}px" class="border-b border-zinc-800"></div>
-        <div class="relative" style:height="{rollHeightPx}px">
-          {#each pitchRows as midi (midi)}
-            <div
-              class="absolute right-0 left-0 flex items-center justify-end pr-1.5 {keyboardRowClass(midi)}"
-              style:top="{pitchTopPx(midi)}px"
-              style:height="{rowHeightPx}px"
-            >
-              {#if midi % 12 === 0}
-                <span class="text-[9px] font-medium text-zinc-500">{midiToNoteName(midi)}</span>
-              {/if}
-            </div>
-          {/each}
-        </div>
+          <div class="relative" style:height="{rollHeightPx}px">
+            {#each pitchRows as midi (midi)}
+              <div
+                class="absolute right-0 left-0 flex items-center justify-end pr-1.5 {keyboardRowClass(midi)}"
+                style:top="{pitchTopPx(midi)}px"
+                style:height="{rowHeightPx}px"
+              >
+                {#if midi % 12 === 0}
+                  <span class="text-[9px] font-medium text-zinc-500">{midiToNoteName(midi)}</span>
+                {/if}
+              </div>
+            {/each}
+          </div>
         </div>
 
         <div
-          {@attach scrollElementAttachment}
+          {@attach gridScrollElementAttachment}
           class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
+          onscroll={syncRulerHorizontalScroll}
         >
-        <div class="relative" style:width="{rollWidthPx}px">
-          <div
-            class="relative border-b border-zinc-800 bg-zinc-900/95"
-            style:height="{rulerHeightPx}px"
-          >
-            {#each barLines as bar (bar)}
-              <div
-                class="pointer-events-none absolute top-0 bottom-0 border-l border-zinc-700/80"
-                style:left="{bar * pxPerQuarter}px"
-              >
-                <span class="absolute top-1 left-1 text-[9px] font-medium text-zinc-500">{bar}</span>
-              </div>
-            {/each}
-
-            <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-            <div
-              tabindex="0"
-              role="group"
-              aria-label="Loop brace"
-              class="absolute inset-y-1 z-20 touch-none select-none outline-none"
-              style:left="{loopLeftPx}px"
-              style:width="{loopWidthPx}px"
-              onkeydown={handleLoopKeydown}
-              onpointermove={moveLoopDrag}
-              onpointerup={endLoopDrag}
-              onpointercancel={endLoopDrag}
-            >
-              <div
-                class="absolute inset-x-0 top-0 h-2 rounded-sm border transition-colors {loopEnabled
-                  ? 'border-accent-400/80 bg-accent-400/90'
-                  : 'border-zinc-500/70 bg-zinc-500/60'}"
-              >
-                <button
-                  type="button"
-                  aria-label="Loop start"
-                  data-cursor="ew-resize"
-                  class="absolute top-1/2 left-0 z-30 h-4 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-zinc-900/40 bg-zinc-200 shadow-sm"
-                  onpointerdown={(event) => beginLoopDrag(event, "start")}
-                ></button>
-
-                <button
-                  type="button"
-                  aria-label="Move loop brace"
-                  data-cursor="grab"
-                  class="absolute inset-x-2 inset-y-0"
-                  onpointerdown={(event) => beginLoopDrag(event, "move")}
-                  ondblclick={toggleLoopEnabled}
-                ></button>
-
-                <button
-                  type="button"
-                  aria-label="Loop end"
-                  data-cursor="ew-resize"
-                  class="absolute top-1/2 right-0 z-30 h-4 w-2.5 translate-x-1/2 -translate-y-1/2 rounded-sm border border-zinc-900/40 bg-zinc-200 shadow-sm"
-                  onpointerdown={(event) => beginLoopDrag(event, "end")}
-                ></button>
-              </div>
-            </div>
-          </div>
-
-          <div class="relative" style:height="{rollHeightPx}px">
+          <div class="relative" style:width="{rollWidthPx}px">
+            <div class="relative" style:height="{rollHeightPx}px">
             {#if showPlaybackPlayhead}
               <div
                 class="pointer-events-none absolute top-0 bottom-0 z-40 w-px bg-zinc-100/90 shadow-[0_0_6px_rgba(255,255,255,0.35)]"
@@ -475,8 +522,8 @@
                 title="{midiToNoteName(note.midi)} · vel {note.velocity}"
               ></div>
             {/each}
+            </div>
           </div>
-        </div>
         </div>
       </div>
     </div>
