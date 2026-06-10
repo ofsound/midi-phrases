@@ -1,0 +1,15 @@
+---
+description: Skip GitHub Actions when CI is disabled for local debugging
+alwaysApply: true
+---
+
+# CI enabled flag
+
+Before creating any git commit, read `.github/ci-enabled`.
+
+- If the file contents are `false` (case-insensitive, trim whitespace), append `[skip ci]` to the commit message subject when it is not already present.
+- If the file is `true` or missing, do not add `[skip ci]`.
+
+To pause CI repo-wide (including pushes from outside Cursor), set GitHub repository variable **`CI_ENABLED`** to `false` under **Settings → Secrets and variables → Actions → Variables**. Manual runs from the Actions tab still work via **workflow_dispatch**.
+
+To re-enable automatic CI, set `.github/ci-enabled` to `true` and remove or set `CI_ENABLED` on GitHub.

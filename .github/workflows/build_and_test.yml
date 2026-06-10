@@ -1,3 +1,6 @@
+# Automatic runs honor repository variable CI_ENABLED (Settings → Actions → Variables).
+# Set CI_ENABLED=false to skip push/PR builds while debugging locally. workflow_dispatch still runs.
+# Commits may also include [skip ci] in the message (see .github/ci-enabled for agent behavior).
 name: MidiPhrases
 
 on:
@@ -28,8 +31,10 @@ defaults:
 # all steps run in series
 jobs:
   build_and_test:
-    # don't double run on PRs
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
+    # don't double run on PRs; skip automatic runs when CI_ENABLED=false (manual dispatch still runs)
+    if: >-
+      (github.event_name == 'workflow_dispatch' || vars.CI_ENABLED != 'false') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name)
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
