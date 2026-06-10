@@ -1,5 +1,4 @@
 <script>
-  import { midiToNoteName } from "./midiNoteNames.js";
   import {
     buildRecordPianoKeys,
     scalePreviewBlackKeyWidthRatio,
@@ -20,7 +19,7 @@
   } = $props();
 
   const scaleToneMarkerClass =
-    "pointer-events-none absolute bottom-1.5 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-accent-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]";
+    "pointer-events-none h-2 w-2 shrink-0 rounded-full bg-accent-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]";
 
   let range = $derived(scalePreviewMidiRange(root));
   let layout = $derived(
@@ -43,15 +42,8 @@
     <div class="relative z-0 flex h-full min-h-[10rem] w-full">
       {#each layout.whites as { midi } (midi)}
         <div
-          class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end border-r border-b border-zinc-300/70 bg-gradient-to-b from-white to-zinc-200 last:border-r-0"
+          class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end border-r border-b border-zinc-300/70 bg-gradient-to-b from-white to-zinc-200 pb-1.5 last:border-r-0"
         >
-          {#if midi % 12 === root}
-            <span
-              class="pointer-events-none mb-1 text-[11px] font-bold leading-none text-black tabular-nums"
-            >
-              {midiToNoteName(midi)}
-            </span>
-          {/if}
           {#if inScale(midi)}
             <span class={scaleToneMarkerClass}></span>
           {/if}
@@ -62,7 +54,7 @@
     <div class="pointer-events-none absolute inset-0 z-10">
       {#each layout.blacks as { midi, centerPercent, widthPercent } (midi)}
         <div
-          class="absolute top-0 z-10 h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 rounded-b-md border border-zinc-900/80 bg-gradient-to-b from-zinc-700 to-zinc-950 shadow-md relative"
+          class="absolute top-0 z-10 flex h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md border border-zinc-900/80 bg-gradient-to-b from-zinc-700 to-zinc-950 pb-1.5 shadow-md"
           style:left="{centerPercent}%"
           style:width="{widthPercent}%"
         >
