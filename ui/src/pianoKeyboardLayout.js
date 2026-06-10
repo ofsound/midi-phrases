@@ -1,5 +1,9 @@
+import { defaultStepNoteForScaleRoot, midiToNoteName } from "./midiNoteNames.js";
 import { isBlackKey } from "./phraseSchedule.js";
-import { midiToNoteName } from "./midiNoteNames.js";
+
+export const scalePreviewPianoOctaves = 2;
+
+export const scalePreviewPianoSemitones = scalePreviewPianoOctaves * 12;
 
 /** Octaves visible in the record keyboard (5 × 12 = 60 semitones). */
 export const recordPianoVisibleOctaves = 5;
@@ -83,4 +87,12 @@ export function buildRecordPianoKeys(lowestMidi, highestMidi) {
 /** @param {number} lowestMidi @param {number} highestMidi */
 export function recordPianoRangeLabel(lowestMidi, highestMidi) {
   return `${midiToNoteName(lowestMidi)} – ${midiToNoteName(highestMidi)}`;
+}
+
+/** Two octaves from the pattern key center at the default step octave. */
+export function scalePreviewMidiRange(scaleRoot) {
+  const lowest = defaultStepNoteForScaleRoot(scaleRoot);
+  const highest = Math.min(127, lowest + scalePreviewPianoSemitones - 1);
+
+  return { lowest, highest };
 }

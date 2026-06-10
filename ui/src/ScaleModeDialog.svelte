@@ -1,5 +1,6 @@
 <script>
-  import { keyCenters, scaleModes, scaleName } from "./scaleUtils.js";
+  import ScalePreviewKeyboard from "./ScalePreviewKeyboard.svelte";
+  import { keyCenters, scaleModes } from "./scaleUtils.js";
 
   let {
     root = 0,
@@ -10,7 +11,6 @@
   } = $props();
 
   let titleId = "scale-mode-title";
-  let selectedName = $derived(scaleName(root, modeIndex));
 
   function closeOnEscape(event) {
     if (event.key !== "Escape") return;
@@ -67,12 +67,9 @@
 
     <div class="grid min-h-0 gap-6 overflow-auto p-5 sm:p-6">
       <div class="grid gap-3">
-        <div class="flex items-end justify-between gap-4">
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-zinc-500">Key center</p>
-            <h3 class="mt-1 text-lg font-semibold text-zinc-100">{keyCenters[root]?.label ?? "C"}</h3>
-          </div>
-          <div class="text-right text-sm font-semibold text-accent-300">{selectedName}</div>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.28em] text-zinc-500">Key center</p>
+          <h3 class="mt-1 text-lg font-semibold text-zinc-100">{keyCenters[root]?.label ?? "C"}</h3>
         </div>
         <div class="grid grid-cols-6 gap-2 sm:grid-cols-12">
           {#each keyCenters as key (key.value)}
@@ -115,6 +112,8 @@
           {/each}
         </div>
       </div>
+
+      <ScalePreviewKeyboard {root} {modeIndex} />
     </div>
   </div>
 </div>

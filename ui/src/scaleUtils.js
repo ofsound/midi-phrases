@@ -62,6 +62,10 @@ function pitchClassInScale(midi, root, modeIndex) {
   return mode.intervals.includes(relative);
 }
 
+export function isMidiInScale(midi, root, modeIndex) {
+  return pitchClassInScale(midi, root, modeIndex);
+}
+
 function clampMidi(note) {
   return Math.min(127, Math.max(0, Math.round(note)));
 }
