@@ -606,6 +606,81 @@ TEST_CASE ("Pattern shimmer adds delayed octave-up taps", "[instance]")
     testPlugin.setPlayHead (nullptr);
 }
 
+TEST_CASE ("Pattern note bandpass filters shimmer taps", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, true);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    testPlugin.setPhraseNote (0, 0, 48); // C3
+
+    testPlugin.setPhraseStepTimingMultiplier (0,
+                                                0,
+                                                PluginProcessor::defaultStepTimingMultiplierIndex);
+    testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+    testPlugin.setPhraseStepVelocity (0, 0, 100);
+
+    testPlugin.setPatternNoteBandpass (36, 57); // A#0..A3
+    testPlugin.setPatternShimmerEnabled (true);
+    testPlugin.setPatternShimmerDelayMultiplierIndex (
+        PluginProcessor::defaultStepTimingMultiplierIndex);
+    testPlugin.setPatternShimmerFeedbackPercent (80);
+    testPlugin.setPatternShimmerMixPercent (100);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    testPlugin.setPlayHead (&playHead);
+
+    std::array<int, 128> noteOnCounts {};
+
+    for (int block = 0; block < 700; ++block)
+    {
+        midi.clear();
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                      * (120.0 / 60.0) / sampleRate);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+                ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+        }
+
+        if (playHead.info.getPpqPosition() >= 8.0)
+            break;
+    }
+
+    CHECK (noteOnCounts[48] > 0);
+    CHECK (noteOnCounts[60] == 0);
+    CHECK (noteOnCounts[72] == 0);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Plugin instance", "[instance]")
 {
     PluginProcessor testPlugin;

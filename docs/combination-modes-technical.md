@@ -408,8 +408,8 @@ mode chain changes.
 
 ## Note Bandpass
 
-After the mode chain (or row-local scheduling when no modes are enabled), each
-pattern applies a per-pattern MIDI note bandpass before preview and audio output.
+After the mode chain, octavizer, and shimmer, each pattern applies a per-pattern
+MIDI note bandpass before preview and audio output.
 
 ```text
 bandpassLow <= event.note <= bandpassHigh
@@ -423,7 +423,7 @@ data, step cards, or recording input. Default range is C1–C7 per pattern.
 The UI preview follows the same mode order:
 
 ```text
-Logic -> Cross-Mod -> Echo -> Weave -> Note Bandpass
+Logic -> Cross-Mod -> Echo -> Weave -> Octavizer -> Shimmer -> Note Bandpass
 ```
 
 The preview intentionally differs in a few implementation details:

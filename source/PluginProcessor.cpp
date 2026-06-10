@@ -4132,26 +4132,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
     }
 
     {
-        const auto bandpassLow = activePattern.noteBandpassLowMidi;
-        const auto bandpassHigh = activePattern.noteBandpassHighMidi;
-        auto write = static_cast<size_t> (0);
-
-        for (size_t read = 0; read < eventCount; ++read)
-        {
-            const auto& event = combinedEvents[read];
-
-            if (event.note < bandpassLow || event.note > bandpassHigh)
-                continue;
-
-            if (write < combinedWorkingEvents.size())
-                combinedWorkingEvents[write++] = event;
-        }
-
-        eventCount = write;
-        copyFilteredEvents (eventCount);
-    }
-
-    {
         const auto downEnabled = activePattern.octavizerDown8vaEnabled != 0;
         const auto upEnabled = activePattern.octavizerUp8vaEnabled != 0;
 
@@ -4265,6 +4245,26 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         }
     }
 
+    {
+        const auto bandpassLow = activePattern.noteBandpassLowMidi;
+        const auto bandpassHigh = activePattern.noteBandpassHighMidi;
+        auto write = static_cast<size_t> (0);
+
+        for (size_t read = 0; read < eventCount; ++read)
+        {
+            const auto& event = combinedEvents[read];
+
+            if (event.note < bandpassLow || event.note > bandpassHigh)
+                continue;
+
+            if (write < combinedWorkingEvents.size())
+                combinedWorkingEvents[write++] = event;
+        }
+
+        eventCount = write;
+        copyFilteredEvents (eventCount);
+    }
+
     for (size_t index = 0; index < eventCount; ++index)
     {
         auto event = combinedEvents[index];
@@ -4341,6 +4341,9 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
         audioPatterns[static_cast<size_t> (clampPatternSlot (audioActivePatternSlot))];
     const auto bandpassLow = activePattern.noteBandpassLowMidi;
     const auto bandpassHigh = activePattern.noteBandpassHighMidi;
+    const auto notePassesBandpass = [&] (const int midiNote) {
+        return midiNote >= bandpassLow && midiNote <= bandpassHigh;
+    };
     const auto octavizerDownEnabled = activePattern.octavizerDown8vaEnabled != 0;
     const auto octavizerUpEnabled = activePattern.octavizerUp8vaEnabled != 0;
     const auto octavizerDownRelativeVelocity = activePattern.octavizerDown8vaRelativeVelocity;
@@ -4378,6 +4381,9 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
             if (shiftedNote > maxMidiNote)
                 break;
+
+            if (! notePassesBandpass (shiftedNote))
+                continue;
 
             const auto tapOffset = sampleOffset + tap * shimmerDelaySamples;
 
@@ -4417,7 +4423,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             const auto shiftedVelocity =
                 octavizerOutputVelocity (baseVelocity, octavizerDownRelativeVelocity);
 
-            if (shiftedNote >= minMidiNote && shiftedVelocity > 0)
+            if (shiftedNote >= minMidiNote && shiftedVelocity > 0 && notePassesBandpass (shiftedNote))
             {
                 if (sampleOffset < bufferSamples)
                 {
@@ -4456,7 +4462,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             const auto shiftedVelocity =
                 octavizerOutputVelocity (baseVelocity, octavizerUpRelativeVelocity);
 
-            if (shiftedNote <= maxMidiNote && shiftedVelocity > 0)
+            if (shiftedNote <= maxMidiNote && shiftedVelocity > 0 && notePassesBandpass (shiftedNote))
             {
                 if (sampleOffset < bufferSamples)
                 {
@@ -4623,9 +4629,6 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             const auto note = rowSteps.notes[static_cast<size_t> (slot)];
             auto velocity = rowSteps.velocity[static_cast<size_t> (slot)];
 
-            if (note < bandpassLow || note > bandpassHigh)
-                continue;
-
             if (velocity <= 0 || rowSteps.stepMuted[static_cast<size_t> (slot)] != 0)
                 continue;
 
@@ -4733,15 +4736,19 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                 {
                     const auto clampedSampleOffset = juce::jmax (0, sampleOffset);
 
-                    emitScheduledNoteOn (row,
-                                         midiChannel,
-                                         note,
-                                         velocity,
-                                         slot,
-                                         clampedSampleOffset,
-                                         noteGateSamples,
-                                         bufferSamples,
-                                         midiMessages);
+                    if (notePassesBandpass (note))
+                    {
+                        emitScheduledNoteOn (row,
+                                             midiChannel,
+                                             note,
+                                             velocity,
+                                             slot,
+                                             clampedSampleOffset,
+                                             noteGateSamples,
+                                             bufferSamples,
+                                             midiMessages);
+                    }
+
                     emitShimmerTapsForNote (row,
                                             midiChannel,
                                             note,
@@ -4758,13 +4765,17 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             }
             else
             {
-                addPendingNoteOn (PendingNoteOn { row,
-                                                  slot,
-                                                  midiChannel,
-                                                  note,
-                                                  velocity,
-                                                  sampleOffset - bufferSamples,
-                                                  noteGateSamples });
+                if (notePassesBandpass (note))
+                {
+                    addPendingNoteOn (PendingNoteOn { row,
+                                                      slot,
+                                                      midiChannel,
+                                                      note,
+                                                      velocity,
+                                                      sampleOffset - bufferSamples,
+                                                      noteGateSamples });
+                }
+
                 emitShimmerTapsForNote (row,
                                         midiChannel,
                                         note,

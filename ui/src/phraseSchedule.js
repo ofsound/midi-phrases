@@ -333,22 +333,22 @@ export function buildPhraseSchedule({
     scaleModeIndex,
   });
 
-  const bandpassed = applyNoteBandpass(combined, noteBandpassLowMidi, noteBandpassHighMidi);
-
-  const octavized = applyOctavizer(bandpassed, {
+  const octavized = applyOctavizer(combined, {
     down8vaEnabled: octavizerDown8vaEnabled,
     up8vaEnabled: octavizerUp8vaEnabled,
     down8vaRelativeVelocity: octavizerDown8vaRelativeVelocity,
     up8vaRelativeVelocity: octavizerUp8vaRelativeVelocity,
   });
 
-  return applyShimmer(octavized, {
+  const shimmered = applyShimmer(octavized, {
     enabled: shimmerEnabled,
     delayMultiplierIndex: shimmerDelayMultiplierIndex,
     feedbackPercent: shimmerFeedbackPercent,
     mixPercent: shimmerMixPercent,
     pulseIndex,
   });
+
+  return applyNoteBandpass(shimmered, noteBandpassLowMidi, noteBandpassHighMidi);
 }
 
 /** @param {ScheduledNote[]} events */

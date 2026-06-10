@@ -367,6 +367,12 @@
   }
 
   .note-bandpass-track-shell {
+    --note-bandpass-track-top: 1.35rem;
+    --note-bandpass-track-height: 0.32rem;
+    --note-bandpass-track-center: calc(
+      var(--note-bandpass-track-top) + var(--note-bandpass-track-height) / 2
+    );
+
     position: relative;
     height: 2.35rem;
     touch-action: none;
@@ -377,8 +383,8 @@
     position: absolute;
     left: 0.45rem;
     right: 0.45rem;
-    top: 1.35rem;
-    height: 0.32rem;
+    top: var(--note-bandpass-track-top);
+    height: var(--note-bandpass-track-height);
     border-radius: 9999px;
     background: rgba(113, 113, 122, 0.55);
     overflow: hidden;
@@ -395,13 +401,25 @@
   .note-bandpass-thumb {
     position: absolute;
     top: 0;
+    z-index: 1;
     width: 0;
     padding: 0;
     border: none;
     background: transparent;
     transform: translateX(-50%);
+    touch-action: none;
     cursor: grab;
     outline: none;
+  }
+
+  .note-bandpass-thumb::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: var(--note-bandpass-track-center);
+    width: 1.5rem;
+    height: 1.75rem;
+    transform: translate(-50%, -50%);
   }
 
   .note-bandpass-thumb:active {
@@ -447,7 +465,7 @@
   .note-bandpass-knob {
     position: absolute;
     left: 50%;
-    top: 1.12rem;
+    top: var(--note-bandpass-track-center);
     width: 0.95rem;
     height: 0.95rem;
     transform: translate(-50%, -50%);
@@ -455,7 +473,7 @@
     background: #f4f4f5;
     border: 2px solid rgba(255, 255, 255, 0.85);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-    pointer-events: none;
+    pointer-events: auto;
   }
 }
 
