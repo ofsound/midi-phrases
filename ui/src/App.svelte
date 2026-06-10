@@ -3431,11 +3431,11 @@
                 aria-label={recordingRow === row ? "Stop row recording" : "Record row from MIDI"}
                 aria-pressed={recordingRow === row}
                 data-cursor="pointer"
-                class="{rowActionIconControlClasses} {rowMuted[row]
-                  ? 'text-red-950'
+                class="{rowActionIconControlClasses} transition-colors {rowMuted[row]
+                  ? 'text-zinc-600 hover:text-red-500'
                   : recordingRow === row
                     ? 'text-red-400'
-                    : 'text-red-500 hover:text-red-400'}"
+                    : 'text-zinc-600 hover:text-red-500'}"
                 onclick={() => toggleRowRecording(row)}
                 title={recordingRow === row
                   ? "Stop recording (notes fill this row as 1× steps)"
