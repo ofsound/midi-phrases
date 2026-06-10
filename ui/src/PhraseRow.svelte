@@ -31,6 +31,12 @@
     phraseRowMinHeightPx,
   } from "./phraseRowLayout.js";
   import {
+    applyStepFlipChange,
+    closeAllStepFlips as closeAllStepFlipsInSet,
+    isStepFlipped as readStepFlipped,
+    syncFlipOverridesForGlobalView,
+  } from "./stepFlipState.js";
+  import {
     defaultStepTimingMultiplierIndex,
     insertStepTimingMultiplierOptions,
     maxMultiplierCellWidthPx,
@@ -230,21 +236,14 @@
 
   /** @param {number} step @param {boolean} flipped */
   function setStepFlipped(step, flipped) {
-    if (step < 0 || step >= stepIds.length) return;
-
-    const key = flipOverrideKey(step);
-
-    if (globalStepBackView) {
-      if (flipped) {
-        flipOverrides.delete(key);
-      } else {
-        flipOverrides.add(key);
-      }
-    } else if (flipped) {
-      flipOverrides.add(key);
-    } else {
-      flipOverrides.delete(key);
-    }
+    applyStepFlipChange(
+      flipOverrides,
+      globalStepBackView,
+      globalStepBackFingerprint,
+      step,
+      flipped,
+      stepIds.length,
+    );
   }
 
   /** @param {number} step @param {boolean} flipped */
@@ -253,13 +252,12 @@
   }
 
   function closeAllStepFlips() {
-    if (globalStepBackView) {
-      for (let step = 0; step < stepIds.length; step += 1) {
-        flipOverrides.add(flipOverrideKey(step));
-      }
-    } else {
-      flipOverrides.clear();
-    }
+    closeAllStepFlipsInSet(
+      flipOverrides,
+      globalStepBackView,
+      globalStepBackFingerprint,
+      stepIds.length,
+    );
   }
 
   function blockRemoveTemporarily() {
@@ -699,14 +697,27 @@
   let selectedStepIdSet = $derived(new Set(selectedStepIds));
   let insertMultiplierOptions = $derived(insertStepTimingMultiplierOptions(timingMultiplierOptions));
   let globalStepBackFingerprint = $derived(stepIds.join("|"));
-  const flipOverrideKey = (step) =>
-    `${globalStepBackView ? "back" : "front"}:${globalStepBackFingerprint}:${step}`;
+  let appliedGlobalStepBackViewCommand = -1;
+  let appliedGlobalStepBackFingerprint = "";
 
-  const isStepFlipped = (step) => {
-    const hasOverride = flipOverrides.has(flipOverrideKey(step));
+  $effect.pre(() => {
+    const command = globalStepBackViewCommand;
+    const fingerprint = globalStepBackFingerprint;
 
-    return globalStepBackView ? !hasOverride : hasOverride;
-  };
+    syncFlipOverridesForGlobalView(
+      flipOverrides,
+      command,
+      fingerprint,
+      appliedGlobalStepBackViewCommand,
+      appliedGlobalStepBackFingerprint,
+    );
+    appliedGlobalStepBackViewCommand = command;
+    appliedGlobalStepBackFingerprint = fingerprint;
+  });
+
+  /** @param {number} step */
+  const isStepFlipped = (step) =>
+    readStepFlipped(globalStepBackView, flipOverrides, globalStepBackFingerprint, step);
   let stepFlipInteractionDisabled =
     $derived(isDragging || removeBlocked || resizingStep >= 0);
   let orderedStepItems = $derived(stepIds.map((id) => ({ id })));

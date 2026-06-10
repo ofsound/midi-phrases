@@ -8,6 +8,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [svelte(), tailwindcss()],
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.js"],
+  },
   resolve: {
     alias: {
       "@juce": path.resolve(__dirname, "../JUCE/modules/juce_gui_extra/native/javascript"),
