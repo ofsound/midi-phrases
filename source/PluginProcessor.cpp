@@ -4299,6 +4299,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         if (sampleOffset >= bufferSamples)
         {
             addPendingNoteOn (PendingNoteOn { event.row,
+                                              event.step,
                                               event.channel,
                                               event.note,
                                               event.velocity,
@@ -4397,6 +4398,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             else
             {
                 addPendingNoteOn (PendingNoteOn { row,
+                                                  -1,
                                                   midiChannel,
                                                   shiftedNote,
                                                   tapVelocity,
@@ -4434,6 +4436,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                 else
                 {
                     addPendingNoteOn (PendingNoteOn { row,
+                                                      -1,
                                                       midiChannel,
                                                       shiftedNote,
                                                       shiftedVelocity,
@@ -4472,6 +4475,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                 else
                 {
                     addPendingNoteOn (PendingNoteOn { row,
+                                                      -1,
                                                       midiChannel,
                                                       shiftedNote,
                                                       shiftedVelocity,
