@@ -173,7 +173,6 @@
     onBulkSelectPointerDown = () => {},
     onBulkSelectBackgroundDoubleClick = () => {}
   } = $props();
-  const flipDurationMs = 200;
   const removeBlockMs = 500;
   const backgroundDoubleClickIntervalMs = 400;
   const backgroundDoubleClickMaxDistancePx = 16;
@@ -315,6 +314,7 @@
     isDragging = false;
     draggedStepId = null;
     stopDragYLock();
+    clearDndZoneTransforms();
     blockRemoveTemporarily();
   }
 
@@ -323,22 +323,40 @@
     return stepIds.indexOf(stepId);
   }
 
-
-  /** @param {number} step */
-  function shellWidthPx(step) {
-    if (step < 0) {
-      return stepDisplayWidthPx(defaultStepTimingMultiplierIndex);
-    }
+  /** @param {number} dataStep */
+  function multiplierIndexForDataStep(dataStep) {
+    if (dataStep < 0) return defaultStepTimingMultiplierIndex;
 
     return (
-      rowDisplayWidths[step]
-      ?? stepDisplayWidthPx(stepTimingMultiplier[step] ?? defaultStepTimingMultiplierIndex)
+      (resizePreviewMultipliers ?? stepTimingMultiplier)[dataStep]
+      ?? defaultStepTimingMultiplierIndex
     );
   }
 
-  /** @param {number} step */
-  function shellStyleForStep(step) {
-    return fixedFlexStyle(shellWidthPx(step));
+  /** Shell width follows the step's multiplier, not its visual slot in the row grid. */
+  /** @param {number} dataStep */
+  function shellWidthPx(dataStep) {
+    if (dataStep < 0) {
+      return stepDisplayWidthPx(defaultStepTimingMultiplierIndex);
+    }
+
+    return stepDisplayWidthPx(multiplierIndexForDataStep(dataStep));
+  }
+
+  /** @param {number} dataStep */
+  function shellStyleForStep(dataStep) {
+    return fixedFlexStyle(shellWidthPx(dataStep));
+  }
+
+  /** @type {HTMLDivElement | null} */
+  let dndZoneElement = $state(null);
+
+  function clearDndZoneTransforms() {
+    dndZoneElement?.querySelectorAll("[data-bulk-step-cell]").forEach((element) => {
+      if (element instanceof HTMLElement) {
+        element.style.removeProperty("transform");
+      }
+    });
   }
 
   /** @param {number} step */
@@ -371,6 +389,10 @@
       beginDragSession();
       idsBeforeDrag = stepIds.slice();
       draggedStepId = event.detail.info.id;
+
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
     }
 
     dndItems = event.detail.items;
@@ -381,14 +403,12 @@
     if (reorderDisabled) return;
 
     const trigger = event.detail.info.trigger;
-
-    endDragSession();
-
     const filtered = withoutShadowItems(event.detail.items);
 
     if (trigger === TRIGGERS.DROPPED_OUTSIDE_OF_ANY && idsBeforeDrag) {
       dndItems = idsBeforeDrag.map((id) => ({ id }));
       idsBeforeDrag = null;
+      endDragSession();
       return;
     }
 
@@ -398,6 +418,7 @@
       }
 
       idsBeforeDrag = null;
+      endDragSession();
       return;
     }
 
@@ -412,6 +433,7 @@
     }
 
     await tick();
+    endDragSession();
   }
 
   /** @type {import('svelte-dnd-action').TransformDraggedElementFunction} */
@@ -420,9 +442,19 @@
 
     element.style.setProperty("opacity", "1", "important");
     element.style.setProperty("visibility", "visible", "important");
+    element.style.setProperty("outline", "none", "important");
+    element.style.setProperty("box-shadow", "none", "important");
     element.querySelector("[data-remove-button]")?.style.setProperty("display", "none");
     element.querySelector("[data-insert-slot]")?.style.setProperty("display", "none");
     element.querySelector("[data-multiplier-resize]")?.style.setProperty("display", "none");
+
+    element.querySelectorAll(".border-2").forEach((node) => {
+      if (node instanceof HTMLElement) {
+        node.style.setProperty("outline", "none");
+        node.style.setProperty("--tw-ring-shadow", "0 0 #0000");
+        node.style.setProperty("--tw-ring-width", "0px");
+      }
+    });
   }
 
   /** @param {PointerEvent} event */
@@ -594,7 +626,7 @@
       handle.setPointerCapture(event.pointerId);
     }
 
-    const displayWidth = rowDisplayWidths[step];
+    const displayWidth = shellWidthPx(step);
 
     resizingStep = step;
     resizePreviewMultipliers = stepTimingMultiplier.slice();
@@ -724,28 +756,36 @@
   let renderedDndItems = $derived(isDragging ? dndItems : orderedStepItems);
   let dndZoneOptions = $derived({
     items: renderedDndItems,
-    flipDurationMs,
+    flipDurationMs: 0,
     type: `phrase-row-${row}`,
     dropFromOthersDisabled: true,
     morphDisabled: true,
     dropTargetStyle: { outline: "none" },
     transformDraggedElement,
   });
-  let layoutTimingMultipliers = $derived(resizePreviewMultipliers ?? stepTimingMultiplier);
+  let dndPreviewMultiplierIndices = $derived.by(() => {
+    if (!isDragging) return null;
+
+    return withoutShadowItems(dndItems).map((item) =>
+      multiplierIndexForDataStep(stepIndexFromId(item.id)),
+    );
+  });
+  let layoutTimingMultipliers = $derived(
+    resizePreviewMultipliers ?? dndPreviewMultiplierIndices ?? stepTimingMultiplier,
+  );
   let rowStepLayout = $derived(rowStepLayoutsPx(layoutTimingMultipliers));
   let rowGridSpanPx = $derived(rowGridWidthPx(layoutTimingMultipliers));
-  let rowDisplayWidths = $derived(rowStepLayout.layouts.map((layout) => layout.widthPx));
   let trailingInsertLeftPx = $derived(insertLeftAtBoundary(rowGridSpanPx));
   let trailingAddStepLeftPx = $derived(rowGridSpanPx + phraseRowEndAddStepInsetPx);
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
   let rowCellLayouts = $derived(renderedDndItems.map((item, index) => {
-    const step = isShadowItem(item) ? stepIndexFromId(draggedStepId) : stepIndexFromId(item.id);
-    const cellWidth =
-      step >= 0 ? rowDisplayWidths[step] : stepDisplayWidthPx(2);
+    const dataStep = isShadowItem(item)
+      ? stepIndexFromId(draggedStepId ?? "")
+      : stepIndexFromId(item.id);
 
     return {
-      cellWidth,
-      step: isShadowItem(item) ? -1 : step,
+      cellWidth: shellWidthPx(dataStep),
+      step: isShadowItem(item) ? -1 : dataStep,
       gapBefore: index > 0,
     };
   }));
@@ -888,7 +928,7 @@
     class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[box-shadow] duration-75 {stepCellPlaybackGlowClass(
       activeGates[step],
       stepDimmed,
-    )} {isStepSelected ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.28)]' : ''}"
+    )} {isStepSelected && !isDragging ? accent.selectionShell : ''}"
   >
     <div class="relative z-0 h-full min-h-0 w-full min-w-0">
     <StepCardFlip
@@ -907,8 +947,8 @@
             class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-75 {stepCellSurfaceClass(
               stepDimmed,
             )} {isStepSelected
-              ? `${accent.borderActive} ring-2 ring-white/30`
-              : stepCellPlaybackClass(activeGates[step], stepDimmed)} {stepDimmed
+              ? `${accent.borderActive} ${isDragging ? '' : accent.selectionRing}`
+              : stepCellPlaybackClass(activeGates[step], stepDimmed)} {stepDimmed || isDragging
               ? ''
               : accent.cellFocusWithinBorder}"
           >
@@ -1225,10 +1265,12 @@
         </div>
       {:else}
         <div
+          bind:this={dndZoneElement}
           use:dragHandleZone={dndZoneOptions}
           onconsider={handleConsider}
           onfinalize={handleFinalize}
-          class="relative flex w-max shrink-0 items-stretch overflow-visible"
+          data-phrase-row-dragging={isDragging ? true : undefined}
+          class="relative flex w-max shrink-0 items-stretch overflow-visible outline-none"
         >
           {#each renderedDndItems as item, index (item.id)}
             {@const layout = layoutForItem(item, index)}
@@ -1239,16 +1281,14 @@
               data-step-index={layout.step >= 0 ? layout.step : undefined}
               data-step-selected={layout.step >= 0 && selectedStepIdSet.has(stepIds[layout.step]) ? true : undefined}
               class="relative shrink-0 overflow-visible {isShadowItem(item) ? 'pointer-events-none' : ''}"
-              style={shellStyleForStep(layout.step)}
-              style:margin-left={layout.step === 0
+              style={fixedFlexStyle(layout.cellWidth)}
+              style:margin-left={index === 0
                 ? `${stepCellPaddingPx}px`
-                : layout.step > 0
-                  ? `${stepInsertZoneWidthPx}px`
-                  : undefined}
+                : `${stepInsertZoneWidthPx}px`}
               aria-hidden={isShadowItem(item) ? true : undefined}
             >
               {#if isShadowItem(item)}
-                <div class="shrink-0" style={shellStyleForStep(layout.step)}></div>
+                <div class="shrink-0" style={fixedFlexStyle(layout.cellWidth)}></div>
               {:else}
                 <div class="pointer-events-auto h-full overflow-visible">
                   {@render stepCell(layout.step, true)}

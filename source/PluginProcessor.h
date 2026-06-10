@@ -538,13 +538,9 @@ private:
                                           double gateQuarters,
                                           double mappedScheduleEnd) const;
     bool shouldPreservePendingNoteAcrossLoopWrap (int row, int midiNote) const;
-    void extendScheduledRowGate (int row,
-                                 int midiChannel,
-                                 int note,
-                                 int sampleOffset,
-                                 int gateSamples,
-                                 int bufferSamples,
-                                 juce::MidiBuffer& midiMessages);
+    void flushPendingCombinedNoteOffsForChannel (int midiChannel,
+                                                 int sampleOffset,
+                                                 juce::MidiBuffer& midiMessages);
 
     void processScheduledRange (double schedulePpqStart,
                                 double schedulePpqEnd,

@@ -9,39 +9,12 @@
   viewBox="0 0 24 24"
   class={className}
   aria-hidden="true"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2.5"
+  stroke-linecap="round"
+  stroke-linejoin="round"
 >
-  <path
-    d="M12 6v9"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2.25"
-    stroke-linecap="round"
-  />
-  <ellipse
-    cx="9"
-    cy="16"
-    rx="3"
-    ry="2.4"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2.25"
-  />
-  <path
-    d="M6.5 8.5 4 6l2.5-2.5M4 6h4"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2.25"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
-  <path
-    d="m17.5 15.5 2.5 2.5-2.5 2.5M20 18h-4"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2.25"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
-  <circle cx="17.5" cy="6" r="1.3" fill="currentColor" />
-  <circle cx="20.5" cy="6" r="1.3" fill="currentColor" />
+  <path d="M7 11 V5.5 M4 7.5 7 4.5 10 7.5" />
+  <path d="M17 13 V18.5 M14 16 17 19 20 16" />
 </svg>

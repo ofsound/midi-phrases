@@ -489,6 +489,24 @@ void PluginProcessor::flushPendingGeneratedNoteOffs (const int sampleOffset,
     resetPendingCombinedNoteOffs();
 }
 
+void PluginProcessor::flushPendingCombinedNoteOffsForChannel (const int midiChannel,
+                                                              const int sampleOffset,
+                                                              juce::MidiBuffer& midiMessages)
+{
+    const auto offset = juce::jmax (0, sampleOffset);
+
+    for (size_t i = 0; i < pendingCombinedNoteOffCount; ++i)
+    {
+        auto& pending = pendingCombinedNoteOffs[i];
+
+        if (pending.note < 0 || pending.channel != midiChannel)
+            continue;
+
+        emitGeneratedNoteOff (pending.channel, pending.note, offset, midiMessages);
+        pending.note = -1;
+    }
+}
+
 void PluginProcessor::flushPendingCombinedNoteOffs (const int bufferSamples,
                                                     juce::MidiBuffer& midiMessages)
 {
@@ -1204,8 +1222,11 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
         flushAllRows();
     }
     else if (command.type == SequencerCommand::Type::ReplaceRow
-             || command.type == SequencerCommand::Type::SetRowMuted
              || command.type == SequencerCommand::Type::SetRowMidiChannel)
+    {
+        flushRow();
+    }
+    else if (command.type == SequencerCommand::Type::SetRowMuted && command.intValue != 0)
     {
         flushRow();
     }
@@ -2950,36 +2971,6 @@ bool PluginProcessor::shouldPreservePendingNoteAcrossLoopWrap (const int row,
     return hit.midiNote == midiNote;
 }
 
-void PluginProcessor::extendScheduledRowGate (const int row,
-                                              const int midiChannel,
-                                              const int note,
-                                              const int sampleOffset,
-                                              const int gateSamples,
-                                              const int bufferSamples,
-                                              juce::MidiBuffer& midiMessages)
-{
-    if (row < 0 || row >= phraseRowCount || sampleOffset < 0 || sampleOffset >= bufferSamples)
-        return;
-
-    auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
-
-    if (pending.note < 0 || pending.note != note || pending.channel != midiChannel)
-        return;
-
-    const auto samplesUntilOff = sampleOffset + gateSamples;
-
-    if (samplesUntilOff < bufferSamples)
-    {
-        emitGeneratedNoteOff (midiChannel, note, samplesUntilOff, midiMessages);
-        pending.note = -1;
-        pending.samplesRemaining = 0;
-    }
-    else
-    {
-        pending.samplesRemaining = samplesUntilOff - bufferSamples;
-    }
-}
-
 double PluginProcessor::loopDownbeatTransportForSlot (const int loopSlot,
                                                     const double transportPpq) const
 {
@@ -4138,6 +4129,10 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         if ((downEnabled || upEnabled) && eventCount > 0)
         {
             const auto originalCount = eventCount;
+
+            for (size_t index = 0; index < originalCount; ++index)
+                combinedWorkingEvents[index] = combinedEvents[index];
+
             auto write = eventCount;
 
             for (size_t read = 0; read < originalCount; ++read)
@@ -4195,6 +4190,10 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             if (shimmerDelayQuarters > epsilon)
             {
                 const auto originalCount = eventCount;
+
+                for (size_t index = 0; index < originalCount; ++index)
+                    combinedWorkingEvents[index] = combinedEvents[index];
+
                 auto write = eventCount;
 
                 for (size_t read = 0; read < originalCount; ++read)
@@ -4289,8 +4288,14 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             bufferTransportStartPpq + static_cast<double> (bufferSamples) * ppqPerSample;
         const auto scheduleEndsBeforeBuffer =
             segmentTransportEndPpq < bufferTransportEndPpq - epsilon;
+        const auto sustainAcrossLoop =
+            shouldSustainGateAcrossLoopWrap (event.row,
+                                             event.note,
+                                             event.ppq,
+                                             event.gateQuarters,
+                                             schedulePpqEnd);
         const auto gateEndTransportPpq =
-            scheduleEndsBeforeBuffer
+            scheduleEndsBeforeBuffer && ! sustainAcrossLoop
                 ? juce::jmin (transportPpqAtNoteOn + event.gateQuarters, segmentTransportEndPpq)
                 : transportPpqAtNoteOn + event.gateQuarters;
         const auto effectiveGateQuarters = gateEndTransportPpq - transportPpqAtNoteOn;
@@ -4298,11 +4303,15 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         if (effectiveGateQuarters <= epsilon)
             continue;
 
-        const auto noteGateSamples = juce::jmax (
-            1,
-            static_cast<int> (std::lround (
-                (scheduleEndsBeforeBuffer ? effectiveGateQuarters : event.gateQuarters)
-                / ppqPerSample)));
+        const auto noteGateSamples = scheduleEndsBeforeBuffer && ! sustainAcrossLoop
+                                         ? juce::jmax (
+                                               1,
+                                               static_cast<int> (std::lround (
+                                                   effectiveGateQuarters / ppqPerSample)))
+                                         : juce::jmax (
+                                               1,
+                                               static_cast<int> (std::lround (
+                                                   event.gateQuarters / ppqPerSample)));
 
         if (sampleOffset >= bufferSamples)
         {
@@ -4336,166 +4345,6 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                              juce::MidiBuffer& midiMessages,
                                              const bool resetRowTriggersAtSegmentStart)
 {
-    constexpr auto epsilon = 1.0e-9;
-    const auto& activePattern =
-        audioPatterns[static_cast<size_t> (clampPatternSlot (audioActivePatternSlot))];
-    const auto bandpassLow = activePattern.noteBandpassLowMidi;
-    const auto bandpassHigh = activePattern.noteBandpassHighMidi;
-    const auto notePassesBandpass = [&] (const int midiNote) {
-        return midiNote >= bandpassLow && midiNote <= bandpassHigh;
-    };
-    const auto octavizerDownEnabled = activePattern.octavizerDown8vaEnabled != 0;
-    const auto octavizerUpEnabled = activePattern.octavizerUp8vaEnabled != 0;
-    const auto octavizerDownRelativeVelocity = activePattern.octavizerDown8vaRelativeVelocity;
-    const auto octavizerUpRelativeVelocity = activePattern.octavizerUp8vaRelativeVelocity;
-    const auto shimmerEnabled = activePattern.shimmerEnabled != 0;
-    const auto shimmerFeedbackPercent = activePattern.shimmerFeedbackPercent;
-    const auto shimmerMixPercent = activePattern.shimmerMixPercent;
-    const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
-    const auto shimmerDelayQuarters =
-        stepTimingMultiplierForIndex (activePattern.shimmerDelayMultiplierIndex) * pulse;
-    const auto shimmerDelaySamples =
-        shimmerDelayQuarters > epsilon
-            ? juce::jmax (1,
-                          static_cast<int> (std::lround (shimmerDelayQuarters / ppqPerSample)))
-            : 0;
-
-    const auto emitShimmerTapsForNote = [&] (const int row,
-                                             const int midiChannel,
-                                             const int baseNote,
-                                             const int baseVelocity,
-                                             const int sampleOffset,
-                                             const int noteGateSamples) {
-        if (! shimmerEnabled || shimmerDelaySamples <= 0 || baseVelocity <= 0)
-            return;
-
-        for (int tap = 1;; ++tap)
-        {
-            const auto tapVelocity =
-                shimmerTapVelocity (baseVelocity, tap, shimmerFeedbackPercent, shimmerMixPercent);
-
-            if (tapVelocity <= 0)
-                break;
-
-            const auto shiftedNote = baseNote + tap * octavizerSemitoneShift;
-
-            if (shiftedNote > maxMidiNote)
-                break;
-
-            if (! notePassesBandpass (shiftedNote))
-                continue;
-
-            const auto tapOffset = sampleOffset + tap * shimmerDelaySamples;
-
-            if (tapOffset < bufferSamples)
-            {
-                emitLayeredGeneratedNote (midiChannel,
-                                          shiftedNote,
-                                          tapVelocity,
-                                          juce::jmax (0, tapOffset),
-                                          noteGateSamples,
-                                          bufferSamples,
-                                          midiMessages);
-            }
-            else
-            {
-                addPendingNoteOn (PendingNoteOn { row,
-                                                  -1,
-                                                  midiChannel,
-                                                  shiftedNote,
-                                                  tapVelocity,
-                                                  tapOffset - bufferSamples,
-                                                  noteGateSamples,
-                                                  1 });
-            }
-        }
-    };
-
-    const auto emitOctavizerCopies = [&] (const int row,
-                                          const int midiChannel,
-                                          const int baseNote,
-                                          const int baseVelocity,
-                                          const int sampleOffset,
-                                          const int noteGateSamples) {
-        if (octavizerDownEnabled)
-        {
-            const auto shiftedNote = baseNote - octavizerSemitoneShift;
-            const auto shiftedVelocity =
-                octavizerOutputVelocity (baseVelocity, octavizerDownRelativeVelocity);
-
-            if (shiftedNote >= minMidiNote && shiftedVelocity > 0 && notePassesBandpass (shiftedNote))
-            {
-                if (sampleOffset < bufferSamples)
-                {
-                    emitLayeredGeneratedNote (midiChannel,
-                                              shiftedNote,
-                                              shiftedVelocity,
-                                              juce::jmax (0, sampleOffset),
-                                              noteGateSamples,
-                                              bufferSamples,
-                                              midiMessages);
-                }
-                else
-                {
-                    addPendingNoteOn (PendingNoteOn { row,
-                                                      -1,
-                                                      midiChannel,
-                                                      shiftedNote,
-                                                      shiftedVelocity,
-                                                      sampleOffset - bufferSamples,
-                                                      noteGateSamples,
-                                                      1 });
-                }
-
-                emitShimmerTapsForNote (row,
-                                        midiChannel,
-                                        shiftedNote,
-                                        shiftedVelocity,
-                                        sampleOffset,
-                                        noteGateSamples);
-            }
-        }
-
-        if (octavizerUpEnabled)
-        {
-            const auto shiftedNote = baseNote + octavizerSemitoneShift;
-            const auto shiftedVelocity =
-                octavizerOutputVelocity (baseVelocity, octavizerUpRelativeVelocity);
-
-            if (shiftedNote <= maxMidiNote && shiftedVelocity > 0 && notePassesBandpass (shiftedNote))
-            {
-                if (sampleOffset < bufferSamples)
-                {
-                    emitLayeredGeneratedNote (midiChannel,
-                                              shiftedNote,
-                                              shiftedVelocity,
-                                              juce::jmax (0, sampleOffset),
-                                              noteGateSamples,
-                                              bufferSamples,
-                                              midiMessages);
-                }
-                else
-                {
-                    addPendingNoteOn (PendingNoteOn { row,
-                                                      -1,
-                                                      midiChannel,
-                                                      shiftedNote,
-                                                      shiftedVelocity,
-                                                      sampleOffset - bufferSamples,
-                                                      noteGateSamples,
-                                                      1 });
-                }
-
-                emitShimmerTapsForNote (row,
-                                        midiChannel,
-                                        shiftedNote,
-                                        shiftedVelocity,
-                                        sampleOffset,
-                                        noteGateSamples);
-            }
-        }
-    };
-
     if (resetRowTriggersAtSegmentStart)
     {
         resetLastEmittedTriggers();
@@ -4521,276 +4370,50 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             pending.activeStep = -1;
             pending.samplesRemaining = 0;
         }
-    }
 
-    if (audioSequencer().combinationModeMask != 0)
-    {
-        processCombinedScheduledRange (schedulePpqStart,
-                                       schedulePpqEnd,
-                                       segmentTransportStartPpq,
-                                       bufferTransportStartPpq,
-                                       bufferSamples,
-                                       ppqPerSample,
-                                       midiMessages,
-                                       resetRowTriggersAtSegmentStart);
-        return;
-    }
+        auto combinedWrite = static_cast<size_t> (0);
 
-    for (int row = 0; row < phraseRowCount; ++row)
-    {
-        const auto& state = audioSequencer();
-
-        if (state.muted[static_cast<size_t> (row)] != 0)
-            continue;
-
-        const auto midiChannel = state.midiChannel[static_cast<size_t> (row)];
-        const auto swing = swingPercent.load (std::memory_order_relaxed);
-        const auto velocityHumanize = velocityHumanizePercent.load (std::memory_order_relaxed);
-        const auto timingHumanize = timingHumanizePercent.load (std::memory_order_relaxed);
-        const auto swingSubdivision = swingSubdivisionIndex.load (std::memory_order_relaxed);
-        const auto offset = rowTimingOffsetForIndex (state.timingOffset[static_cast<size_t> (row)])
-                            * pulse;
-
-        const auto stepCount = state.rows[static_cast<size_t> (row)].stepCount;
-
-        if (stepCount <= 0)
-            continue;
-
-        const auto& rowSteps = state.rows[static_cast<size_t> (row)];
-        auto& scratch = processScratch[static_cast<size_t> (row)];
-
-        const auto cycleLengthQuarters = rowSteps.cycleLengthQuarters;
-
-        if (cycleLengthQuarters <= 0.0)
-            continue;
-
-        auto triggerCount = 0;
-
-        for (int step = 0; step < stepCount; ++step)
+        for (size_t i = 0; i < pendingCombinedNoteOffCount; ++i)
         {
-            if (rowSteps.stepSkipped[static_cast<size_t> (step)] != 0)
+            auto pending = pendingCombinedNoteOffs[i];
+
+            if (pending.note < 0)
                 continue;
 
-            const auto stepStartInCycle = rowSteps.stepStartQuarters[static_cast<size_t> (step)];
-            const auto nMin = static_cast<int> (std::ceil (
-                (schedulePpqStart - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
-            const auto nMax = static_cast<int> (std::floor (
-                (schedulePpqEnd - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+            auto preserve = false;
 
-            for (int cycle = nMin; cycle <= nMax; ++cycle)
+            for (int row = 0; row < phraseRowCount; ++row)
             {
-                const auto triggerPpq = static_cast<double> (cycle) * cycleLengthQuarters
-                                        + stepStartInCycle + offset;
-
-                if (triggerPpq < schedulePpqStart - epsilon || triggerPpq >= schedulePpqEnd - epsilon)
+                if (audioSequencer().midiChannel[static_cast<size_t> (row)] != pending.channel)
                     continue;
 
-                if (triggerCount >= static_cast<int> (scratch.triggers.size()))
+                if (shouldPreservePendingNoteAcrossLoopWrap (row, pending.note))
+                {
+                    preserve = true;
                     break;
-
-                scratch.triggers[static_cast<size_t> (triggerCount)] = { triggerPpq, step };
-                ++triggerCount;
-            }
-        }
-
-        if (triggerCount == 0)
-            continue;
-
-        std::sort (scratch.triggers.begin(),
-                   scratch.triggers.begin() + triggerCount,
-                   [] (const ProcessScratch::StepTrigger& a, const ProcessScratch::StepTrigger& b) {
-                       return a.ppq < b.ppq;
-                   });
-
-        auto& lastTrigger = lastEmittedTriggerPpq[static_cast<size_t> (row)];
-
-        if (resetRowTriggersAtSegmentStart)
-        {
-            lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
-        }
-        else if (schedulePpqStart + epsilon < lastTrigger)
-        {
-            // Loop wrap (or transport seek) moved schedule time backward; allow
-            // triggers at the new range start even when cycle length >= loop length.
-            lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
-        }
-
-        for (int triggerIndex = 0; triggerIndex < triggerCount; ++triggerIndex)
-        {
-            const auto triggerPpq = scratch.triggers[static_cast<size_t> (triggerIndex)].ppq;
-
-            if (triggerPpq <= lastTrigger + epsilon)
-                continue;
-
-            lastTrigger = triggerPpq;
-
-            const auto slot = scratch.triggers[static_cast<size_t> (triggerIndex)].step;
-
-            const auto note = rowSteps.notes[static_cast<size_t> (slot)];
-            auto velocity = rowSteps.velocity[static_cast<size_t> (slot)];
-
-            if (velocity <= 0 || rowSteps.stepMuted[static_cast<size_t> (slot)] != 0)
-                continue;
-
-            const auto cycle = clampStepCycle (rowSteps.cycle[static_cast<size_t> (slot)]);
-            const auto cycleOffset =
-                clampStepCycleOffset (rowSteps.cycleOffset[static_cast<size_t> (slot)], cycle);
-
-            if (cycle > 1)
-            {
-                auto& counter = stepCycleCounters[static_cast<size_t> (row)][static_cast<size_t> (slot)];
-                const auto count = static_cast<int> (counter++);
-
-                if (! cycleGateMatches (count, cycle, cycleOffset))
-                    continue;
-            }
-
-            const auto probability =
-                clampStepProbability (rowSteps.probability[static_cast<size_t> (slot)]);
-
-            if (probability <= 0)
-                continue;
-
-            if (probability < 100
-                && nextRandomUnit (playbackRandomState) * 100.0f
-                       >= static_cast<float> (probability))
-                continue;
-
-            const auto stepLength = rowSteps.stepLengthQuarters[static_cast<size_t> (slot)];
-            const auto durationFraction =
-                rowSteps.durationFraction[static_cast<size_t> (slot)];
-
-            if (durationFraction <= 0.0)
-                continue;
-
-            const auto gateQuarters = stepLength * durationFraction;
-
-            if (gateQuarters <= epsilon)
-                continue;
-
-            velocity = humanizeVelocityValue (velocity, velocityHumanize, playbackRandomState);
-
-            const auto swingDelay =
-                swingDelayQuartersForPpq (triggerPpq, pulse, swing, swingSubdivision);
-            const auto timingRange = stepLength * timingHumanizeScale
-                                     * (static_cast<double> (clampPercent (timingHumanize)) / 100.0);
-            const auto timingOffset =
-                timingRange > 0.0 ? (nextRandomUnitDouble (playbackRandomState) * 2.0 - 1.0) * timingRange
-                                  : 0.0;
-            const auto delayQuarters = juce::jmax (0.0, swingDelay + timingOffset);
-            const auto transportPpqAtNoteOn =
-                segmentTransportStartPpq + (triggerPpq + delayQuarters - schedulePpqStart);
-            const auto sampleOffset = static_cast<int> (std::lround (
-                (transportPpqAtNoteOn - bufferTransportStartPpq) / ppqPerSample));
-            const auto segmentTransportEndPpq =
-                segmentTransportStartPpq + (schedulePpqEnd - schedulePpqStart);
-            const auto bufferTransportEndPpq =
-                bufferTransportStartPpq + static_cast<double> (bufferSamples) * ppqPerSample;
-            const auto scheduleEndsBeforeBuffer =
-                segmentTransportEndPpq < bufferTransportEndPpq - epsilon;
-            const auto sustainAcrossLoop =
-                shouldSustainGateAcrossLoopWrap (row,
-                                                 note,
-                                                 triggerPpq,
-                                                 gateQuarters,
-                                                 schedulePpqEnd);
-
-            const auto gateEndTransportPpq =
-                scheduleEndsBeforeBuffer && ! sustainAcrossLoop
-                    ? juce::jmin (transportPpqAtNoteOn + gateQuarters, segmentTransportEndPpq)
-                    : transportPpqAtNoteOn + gateQuarters;
-            const auto effectiveGateQuarters = gateEndTransportPpq - transportPpqAtNoteOn;
-
-            if (effectiveGateQuarters <= epsilon)
-                continue;
-
-            const auto noteGateSamples = scheduleEndsBeforeBuffer && ! sustainAcrossLoop
-                                             ? juce::jmax (
-                                                   1,
-                                                   static_cast<int> (std::lround (
-                                                       effectiveGateQuarters / ppqPerSample)))
-                                             : juce::jmax (
-                                                   1,
-                                                   static_cast<int> (std::lround (
-                                                       gateQuarters / ppqPerSample)));
-
-            if (sampleOffset < bufferSamples)
-            {
-                const auto& loopBrace = audioLoopBrace();
-                const auto atLoopStart =
-                    loopBrace.enabled != 0
-                    && std::abs (triggerPpq - loopBrace.startQuarters) <= epsilon;
-                auto& rowPending = pendingNoteOffs[static_cast<size_t> (row)];
-
-                if (atLoopStart && rowPending.note == note && rowPending.channel == midiChannel)
-                {
-                    extendScheduledRowGate (row,
-                                            midiChannel,
-                                            note,
-                                            juce::jmax (0, sampleOffset),
-                                            noteGateSamples,
-                                            bufferSamples,
-                                            midiMessages);
-                }
-                else
-                {
-                    const auto clampedSampleOffset = juce::jmax (0, sampleOffset);
-
-                    if (notePassesBandpass (note))
-                    {
-                        emitScheduledNoteOn (row,
-                                             midiChannel,
-                                             note,
-                                             velocity,
-                                             slot,
-                                             clampedSampleOffset,
-                                             noteGateSamples,
-                                             bufferSamples,
-                                             midiMessages);
-                    }
-
-                    emitShimmerTapsForNote (row,
-                                            midiChannel,
-                                            note,
-                                            velocity,
-                                            clampedSampleOffset,
-                                            noteGateSamples);
-                    emitOctavizerCopies (row,
-                                         midiChannel,
-                                         note,
-                                         velocity,
-                                         clampedSampleOffset,
-                                         noteGateSamples);
                 }
             }
-            else
-            {
-                if (notePassesBandpass (note))
-                {
-                    addPendingNoteOn (PendingNoteOn { row,
-                                                      slot,
-                                                      midiChannel,
-                                                      note,
-                                                      velocity,
-                                                      sampleOffset - bufferSamples,
-                                                      noteGateSamples });
-                }
 
-                emitShimmerTapsForNote (row,
-                                        midiChannel,
-                                        note,
-                                        velocity,
-                                        sampleOffset,
-                                        noteGateSamples);
-                emitOctavizerCopies (row,
-                                     midiChannel,
-                                     note,
-                                     velocity,
-                                     sampleOffset,
-                                     noteGateSamples);
+            if (preserve)
+            {
+                pendingCombinedNoteOffs[combinedWrite++] = pending;
+                continue;
             }
+
+            emitGeneratedNoteOff (pending.channel, pending.note, segmentSampleOffset, midiMessages);
         }
+
+        pendingCombinedNoteOffCount = combinedWrite;
     }
+
+    processCombinedScheduledRange (schedulePpqStart,
+                                   schedulePpqEnd,
+                                   segmentTransportStartPpq,
+                                   bufferTransportStartPpq,
+                                   bufferSamples,
+                                   ppqPerSample,
+                                   midiMessages,
+                                   resetRowTriggersAtSegmentStart);
 }
 
 void PluginProcessor::releaseResources()
@@ -4938,14 +4561,10 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     const auto bufferSamples = buffer.getNumSamples();
 
-    auto rowFlushRequested = false;
-
     for (int row = 0; row < phraseRowCount; ++row)
     {
         if (phraseRowFlushNoteOff[static_cast<size_t> (row)].exchange (0) == 0)
             continue;
-
-        rowFlushRequested = true;
 
         auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
 
@@ -4955,6 +4574,14 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             pending.note = -1;
             pending.activeStep = -1;
             pending.samplesRemaining = 0;
+        }
+
+        if (pendingCombinedNoteOffCount > 0)
+        {
+            flushPendingCombinedNoteOffsForChannel (
+                audioSequencer().midiChannel[static_cast<size_t> (row)],
+                0,
+                midiMessages);
         }
 
         size_t writeIndex = 0;
@@ -4967,9 +4594,6 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
         pendingNoteOnCount = writeIndex;
     }
-
-    if (rowFlushRequested && pendingCombinedNoteOffCount > 0)
-        flushPendingGeneratedNoteOffs (0, midiMessages);
 
     processPhraseRowNoteAuditions (bufferSamples, midiMessages);
     flushPendingNoteOns (bufferSamples, midiMessages);

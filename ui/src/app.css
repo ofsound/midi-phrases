@@ -12,7 +12,7 @@
   --shadow-accent-piano-active: 0 0 12px color-mix(in srgb, var(--color-accent-400) 65%, transparent);
   --shadow-accent-focus: 0 0 0 1px color-mix(in srgb, var(--color-accent-400) 85%, transparent);
   --shadow-accent-pressed: inset 0 1px 0 rgba(255, 255, 255, 0.38), 0 0 14px color-mix(in srgb, var(--color-accent-400) 58%, transparent), 0 0 28px color-mix(in srgb, var(--color-accent-400) 28%, transparent);
-  --shadow-accent-selection: 0 0 0 1px color-mix(in srgb, var(--color-accent-500) 25%, transparent);
+  --shadow-accent-selection: 0 0 0 1px color-mix(in srgb, var(--color-accent-400) 85%, transparent), 0 0 14px color-mix(in srgb, var(--color-accent-400) 32%, transparent);
 }
 
 /* Embedded WKWebView in JUCE does not apply :hover until after a click; mirror with data-mp-hover. */
@@ -372,9 +372,7 @@
   .note-bandpass-track-shell {
     --note-bandpass-track-top: 1.35rem;
     --note-bandpass-track-height: 0.32rem;
-    --note-bandpass-track-center: calc(
-      var(--note-bandpass-track-top) + var(--note-bandpass-track-height) / 2
-    );
+    --note-bandpass-track-center: calc(var(--note-bandpass-track-top) + var(--note-bandpass-track-height) / 2);
 
     position: relative;
     height: 2.35rem;
@@ -487,4 +485,24 @@
   visibility: visible !important;
   pointer-events: none;
   z-index: 99999 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-width: 0px !important;
+}
+
+#dnd-action-dragged-el:focus,
+#dnd-action-dragged-el:focus-visible,
+#dnd-action-dragged-el *:focus,
+#dnd-action-dragged-el *:focus-visible {
+  outline: none !important;
+}
+
+#dnd-action-dragged-el .border-2 {
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-width: 0px !important;
+}
+
+[data-phrase-row-dragging] {
+  outline: none !important;
 }

@@ -31,8 +31,9 @@ The mask is pattern state, not global UI state. Copying a pattern copies its
 mode mask, and selecting a different pattern selects that pattern's mode
 combination. The mask is serialized in plugin state as `combinationModeMask`.
 
-When the mask is `0`, the processor uses the existing row-local scheduler. When
-any bit is enabled, the processor uses the combined scheduler.
+When the mask is `0`, the processor still uses the combined scheduler but skips
+the mode transforms. Octavizer, shimmer, and note bandpass always run through the
+same combined pipeline as the piano-roll preview.
 
 ## Normalized Event Model
 
