@@ -561,7 +561,9 @@
   }
 
   function previewPhraseNoteValue(row, step, midi) {
-    grid[row][step] = clampPhraseNote(midi);
+    const note = clampPhraseNote(midi);
+    grid[row][step] = note;
+    void pushNote(row, step);
   }
 
   async function commitPhraseNoteValue(row, step, midi) {

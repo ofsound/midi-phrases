@@ -452,10 +452,12 @@ private:
                               int midiChannel,
                               int note,
                               int velocity,
+                              int step,
                               int sampleOffset,
                               int gateSamples,
                               int bufferSamples,
                               juce::MidiBuffer& midiMessages);
+    void processPhraseRowNoteAuditions (int bufferSamples, juce::MidiBuffer& midiMessages);
     void emitLayeredGeneratedNote (int midiChannel,
                                    int note,
                                    int velocity,
@@ -565,12 +567,21 @@ private:
     {
         int channel = 1;
         int note = -1;
+        int activeStep = -1;
         int samplesRemaining = 0;
+    };
+
+    struct PhraseRowNoteAudition
+    {
+        std::atomic<int> pending { 0 };
+        int step = -1;
+        int note = 60;
     };
 
     struct PendingNoteOn
     {
         int row = 0;
+        int step = -1;
         int channel = 1;
         int note = -1;
         int velocity = 0;
@@ -609,6 +620,7 @@ private:
     std::atomic<size_t> sequencerCommandWriteIndex { 0 };
     std::atomic<size_t> sequencerCommandReadIndex { 0 };
     std::array<std::atomic<int>, phraseRowCount> phraseRowFlushNoteOff {};
+    std::array<PhraseRowNoteAudition, phraseRowCount> phraseRowNoteAuditions {};
     std::array<PendingNoteOff, phraseRowCount> pendingNoteOffs {};
     std::array<PendingNoteOn, pendingNoteOnCapacity> pendingNoteOns {};
     std::array<PendingCombinedNoteOff, pendingCombinedNoteOffCapacity> pendingCombinedNoteOffs {};

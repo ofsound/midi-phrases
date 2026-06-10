@@ -386,8 +386,12 @@ void PluginProcessor::resetPendingNoteOffs()
     for (auto& pending : pendingNoteOffs)
     {
         pending.note = -1;
+        pending.activeStep = -1;
         pending.samplesRemaining = 0;
     }
+
+    for (auto& audition : phraseRowNoteAuditions)
+        audition.pending.store (0, std::memory_order_relaxed);
 }
 
 void PluginProcessor::resetPendingNoteOns()
@@ -838,7 +842,25 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
     {
         case SequencerCommand::Type::SetNote:
             if (isValidAudioStep (state, command.row, step))
+            {
+                const auto oldNote = row.notes[index];
                 row.notes[index] = command.intValue;
+
+                if (patternSlot == audioActivePatternSlot
+                    && oldNote != command.intValue)
+                {
+                    auto& rowPending = pendingNoteOffs[static_cast<size_t> (command.row)];
+
+                    if (rowPending.note >= 0 && rowPending.activeStep == step)
+                    {
+                        auto& audition =
+                            phraseRowNoteAuditions[static_cast<size_t> (command.row)];
+                        audition.step = step;
+                        audition.note = command.intValue;
+                        audition.pending.store (1, std::memory_order_release);
+                    }
+                }
+            }
             break;
 
         case SequencerCommand::Type::SetRowMuted:
@@ -3157,6 +3179,7 @@ void PluginProcessor::emitScheduledNoteOn (const int row,
                                            const int midiChannel,
                                            const int note,
                                            const int velocity,
+                                           const int step,
                                            const int sampleOffset,
                                            const int gateSamples,
                                            const int bufferSamples,
@@ -3175,6 +3198,7 @@ void PluginProcessor::emitScheduledNoteOn (const int row,
             juce::jlimit (0, bufferSamples - 1, juce::jmin (pending.samplesRemaining, sampleOffset)),
             midiMessages);
         pending.note = -1;
+        pending.activeStep = -1;
         pending.samplesRemaining = 0;
     }
 
@@ -3190,7 +3214,70 @@ void PluginProcessor::emitScheduledNoteOn (const int row,
     {
         pending.channel = midiChannel;
         pending.note = note;
+        pending.activeStep = step;
         pending.samplesRemaining = samplesUntilOff - bufferSamples;
+    }
+}
+
+void PluginProcessor::processPhraseRowNoteAuditions (const int bufferSamples,
+                                                     juce::MidiBuffer& midiMessages)
+{
+    const auto& activePattern =
+        audioPatterns[static_cast<size_t> (clampPatternSlot (audioActivePatternSlot))];
+
+    for (int row = 0; row < phraseRowCount; ++row)
+    {
+        auto& audition = phraseRowNoteAuditions[static_cast<size_t> (row)];
+
+        if (audition.pending.exchange (0, std::memory_order_acq_rel) == 0)
+            continue;
+
+        auto& pending = pendingNoteOffs[static_cast<size_t> (row)];
+
+        if (pending.note < 0 || pending.activeStep != audition.step)
+            continue;
+
+        const auto& audioRow = activePattern.sequencer.rows[static_cast<size_t> (row)];
+        const auto stepIndex =
+            static_cast<size_t> (juce::jlimit (0, maxPhraseStepsPerRow - 1, audition.step));
+
+        if (stepIndex >= static_cast<size_t> (audioRow.stepCount))
+            continue;
+
+        const auto newNote = audition.note;
+        const auto bandpassLow = activePattern.noteBandpassLowMidi;
+        const auto bandpassHigh = activePattern.noteBandpassHighMidi;
+        auto velocity = audioRow.velocity[stepIndex];
+
+        const auto remainingGateSamples =
+            pending.samplesRemaining < bufferSamples
+                ? pending.samplesRemaining
+                : pending.samplesRemaining + bufferSamples;
+
+        if (newNote < bandpassLow || newNote > bandpassHigh || velocity <= 0
+            || audioRow.stepMuted[stepIndex] != 0 || remainingGateSamples <= 0)
+        {
+            emitGeneratedNoteOff (pending.channel, pending.note, 0, midiMessages);
+            pending.note = -1;
+            pending.activeStep = -1;
+            pending.samplesRemaining = 0;
+            continue;
+        }
+
+        velocity = humanizeVelocityValue (
+            velocity,
+            velocityHumanizePercent.load (std::memory_order_relaxed),
+            playbackRandomState);
+
+        emitScheduledNoteOn (row,
+                             pending.channel,
+                             newNote,
+                             velocity,
+                             audition.step,
+                             0,
+                             remainingGateSamples,
+                             bufferSamples,
+                             midiMessages);
     }
 }
 
@@ -3223,6 +3310,7 @@ void PluginProcessor::flushPendingNoteOns (const int bufferSamples, juce::MidiBu
                                      pending.channel,
                                      pending.note,
                                      pending.velocity,
+                                     pending.step,
                                      pending.samplesRemaining,
                                      pending.gateSamples,
                                      bufferSamples,
@@ -4424,6 +4512,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
             emitGeneratedNoteOff (pending.channel, pending.note, segmentSampleOffset, midiMessages);
             pending.note = -1;
+            pending.activeStep = -1;
             pending.samplesRemaining = 0;
         }
     }
@@ -4648,6 +4737,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
                                          midiChannel,
                                          note,
                                          velocity,
+                                         slot,
                                          clampedSampleOffset,
                                          noteGateSamples,
                                          bufferSamples,
@@ -4669,6 +4759,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
             else
             {
                 addPendingNoteOn (PendingNoteOn { row,
+                                                  slot,
                                                   midiChannel,
                                                   note,
                                                   velocity,
@@ -4851,6 +4942,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         {
             emitGeneratedNoteOff (pending.channel, pending.note, 0, midiMessages);
             pending.note = -1;
+            pending.activeStep = -1;
             pending.samplesRemaining = 0;
         }
 
@@ -4868,6 +4960,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     if (rowFlushRequested && pendingCombinedNoteOffCount > 0)
         flushPendingGeneratedNoteOffs (0, midiMessages);
 
+    processPhraseRowNoteAuditions (bufferSamples, midiMessages);
     flushPendingNoteOns (bufferSamples, midiMessages);
     flushPendingCombinedNoteOffs (bufferSamples, midiMessages);
 
@@ -4883,6 +4976,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                                   pending.samplesRemaining,
                                   midiMessages);
             pending.note = -1;
+            pending.activeStep = -1;
             pending.samplesRemaining = 0;
         }
         else
