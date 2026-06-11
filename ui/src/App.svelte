@@ -2958,6 +2958,16 @@
 
   onMount(() => {
     const handleKeydown = (event) => {
+      if (event.key === " ") {
+        const active = document.activeElement;
+
+        if (active instanceof HTMLElement && active.getAttribute("role") === "slider") {
+          event.preventDefault();
+          active.blur();
+          return;
+        }
+      }
+
       if (!event.metaKey || event.altKey || event.ctrlKey) return;
       if (event.key.toLowerCase() !== "z") return;
 

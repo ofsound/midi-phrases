@@ -1,4 +1,5 @@
 <script>
+  import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
   
@@ -57,6 +58,7 @@
 
   /** @param {PointerEvent} event */
   function onPointerDown(event) {
+    absorbPointerDragFocus(event);
     event.currentTarget.setPointerCapture(event.pointerId);
     dragging = true;
     dragStartY = event.clientY;
@@ -76,6 +78,7 @@
   function onPointerUp(event) {
     dragging = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
+    releasePointerDragFocus(event);
   }
 
   /** @param {MouseEvent} event */
@@ -103,7 +106,7 @@
   aria-valuemax={options[options.length - 1]?.index}
   aria-valuenow={value}
   aria-valuetext={currentLabel}
-  tabindex="0"
+  tabindex="-1"
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}

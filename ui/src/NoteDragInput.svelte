@@ -1,6 +1,7 @@
 <script>
   import { onDestroy } from "svelte";
   import { midiToNoteName } from "./midiNoteNames.js";
+  import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
   /**
@@ -107,6 +108,7 @@
 
   /** @param {PointerEvent} event */
   function onPointerDown(event) {
+    absorbPointerDragFocus(event);
     event.currentTarget.setPointerCapture(event.pointerId);
     dragging = true;
     dragStartY = event.clientY;
@@ -132,6 +134,7 @@
     if (!deferCommit || !onValueCommit) {
       cancelPreviewFrame();
       pendingPreviewValue = null;
+      releasePointerDragFocus(event);
       return;
     }
 
@@ -141,6 +144,7 @@
     cancelPreviewFrame();
     pendingPreviewValue = null;
     onValueCommit(finalValue);
+    releasePointerDragFocus(event);
   }
 
   /** @param {MouseEvent} event */
@@ -170,7 +174,7 @@
   aria-valuemax={127}
   aria-valuenow={value}
   aria-valuetext={displayName}
-  tabindex="0"
+  tabindex="-1"
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}

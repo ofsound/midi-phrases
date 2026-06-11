@@ -1,4 +1,5 @@
 <script>
+  import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import StepMutedOverlay from "./StepMutedOverlay.svelte";
 
@@ -103,6 +104,7 @@
   function onTrackPointerDown(event) {
     if (event.target !== trackEl && !trackEl?.contains(event.target)) return;
 
+    absorbPointerDragFocus(event);
     trackEl?.setPointerCapture(event.pointerId);
     dragging = true;
     updateFromClientX(event.clientX, event.shiftKey);
@@ -119,6 +121,7 @@
   function onTrackPointerUp(event) {
     dragging = false;
     trackEl?.releasePointerCapture(event.pointerId);
+    releasePointerDragFocus(event);
   }
 
   /** @param {MouseEvent} event */
@@ -143,7 +146,7 @@
     aria-valuemin={0}
     aria-valuemax={1}
     aria-valuenow={value}
-    tabindex="0"
+    tabindex="-1"
     onpointerdown={onTrackPointerDown}
     onpointermove={onTrackPointerMove}
     onpointerup={onTrackPointerUp}

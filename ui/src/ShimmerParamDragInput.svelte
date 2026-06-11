@@ -1,4 +1,6 @@
 <script>
+  import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
+
   /**
    * Vertical drag field for shimmer rail parameters.
    * Keeps a local drag value so parent state (and piano-roll preview) update only on commit.
@@ -56,6 +58,7 @@
 
   /** @param {PointerEvent} event */
   function onPointerDown(event) {
+    absorbPointerDragFocus(event);
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     dragging = true;
@@ -80,6 +83,7 @@
     dragging = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
     commitValue(dragValue);
+    releasePointerDragFocus(event);
   }
 
   /** @param {MouseEvent} event */
@@ -103,7 +107,7 @@
   aria-valuemax={max}
   aria-valuenow={displayedValue}
   aria-valuetext={displayValue}
-  tabindex="0"
+  tabindex="-1"
   {title}
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}

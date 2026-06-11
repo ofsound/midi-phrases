@@ -1,5 +1,6 @@
 <script>
-  
+  import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
+
   /**
    * @typedef {Object} Props
    * @property {any} value
@@ -60,6 +61,7 @@
 
   /** @param {PointerEvent} event */
   function onPointerDown(event) {
+    absorbPointerDragFocus(event);
     trackEl?.setPointerCapture(event.pointerId);
     dragging = true;
     updateFromClientX(event.clientX);
@@ -76,6 +78,7 @@
   function onPointerUp(event) {
     dragging = false;
     trackEl?.releasePointerCapture(event.pointerId);
+    releasePointerDragFocus(event);
   }
 </script>
 
@@ -99,7 +102,7 @@
     aria-valuemax={max}
     aria-valuenow={value}
     aria-valuetext={displayValue}
-    tabindex="0"
+    tabindex="-1"
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}

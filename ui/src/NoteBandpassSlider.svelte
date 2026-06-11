@@ -1,4 +1,6 @@
 <script>
+  import { releasePointerDragFocus } from "./pointerDragFocus.js";
+
   import { midiToNoteName } from "./midiNoteNames.js";
   import {
     clampNoteBandpass,
@@ -124,6 +126,7 @@
     activeThumb = null;
     dragPointerId = -1;
     dragMoved = false;
+    releasePointerDragFocus(event);
   }
 
   /** @param {PointerEvent} event */
@@ -159,7 +162,7 @@
     <div
       class="note-bandpass-thumb"
       role="slider"
-      tabindex="0"
+      tabindex="-1"
       data-thumb="low"
       style={`left: ${lowPercent}%;`}
       aria-label={`Low note ${midiToNoteName(bounds.low)}`}
@@ -179,7 +182,7 @@
     <div
       class="note-bandpass-thumb"
       role="slider"
-      tabindex="0"
+      tabindex="-1"
       data-thumb="high"
       style={`left: ${highPercent}%;`}
       aria-label={`High note ${midiToNoteName(bounds.high)}`}

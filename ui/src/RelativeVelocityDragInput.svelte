@@ -1,4 +1,5 @@
 <script>
+  import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
   import {
     clampOctavizerRelativeVelocity,
     defaultOctavizerRelativeVelocity,
@@ -52,6 +53,7 @@
 
   /** @param {PointerEvent} event */
   function onPointerDown(event) {
+    absorbPointerDragFocus(event);
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     dragging = true;
@@ -76,6 +78,7 @@
     dragging = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
     commitValue(dragValue);
+    releasePointerDragFocus(event);
   }
 
   /** @param {MouseEvent} event */
@@ -99,7 +102,7 @@
   aria-valuemax={maxOctavizerRelativeVelocity}
   aria-valuenow={displayedValue}
   aria-valuetext={displayValue}
-  tabindex="0"
+  tabindex="-1"
   title="Drag vertically to adjust relative velocity · double-click to reset"
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}

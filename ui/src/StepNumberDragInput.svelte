@@ -1,5 +1,6 @@
 <script>
   import { onDestroy } from "svelte";
+  import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
   /**
@@ -139,6 +140,7 @@
   function onPointerDown(event) {
     if (disabled) return;
 
+    absorbPointerDragFocus(event);
     event.currentTarget.setPointerCapture(event.pointerId);
     dragging = true;
     dragStartY = event.clientY;
@@ -158,12 +160,12 @@
 
     const next = valueFromDrag(event.clientY);
 
-    if (deferCommit && onValueCommit) {
-      if (next !== dragValue) {
-        dragValue = next;
-        scheduleThrottledPreview(next);
-      }
+    if (next === dragValue) return;
 
+    dragValue = next;
+
+    if (deferCommit && onValueCommit) {
+      scheduleThrottledPreview(next);
       return;
     }
 
@@ -182,6 +184,8 @@
     if (deferCommit && onValueCommit) {
       onValueCommit(dragValue);
     }
+
+    releasePointerDragFocus(event);
   }
 
   /** @param {MouseEvent} event */
@@ -222,7 +226,7 @@
   aria-valuenow={ariaValueNow}
   aria-valuetext={displayValue}
   aria-disabled={disabled}
-  tabindex={disabled ? -1 : 0}
+  tabindex="-1"
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
