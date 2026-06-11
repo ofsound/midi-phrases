@@ -163,7 +163,7 @@ export function stepStartInCycleForStep(stepStartQuarters, step) {
  * @param {number} [params.shimmerMixPercent]
  * @returns {ScheduledNote[]}
  */
-export function buildPhraseSchedule({
+function buildPhraseScheduleCore({
   notes,
   rowMuted,
   rowTimingOffset,
@@ -182,8 +182,6 @@ export function buildPhraseSchedule({
   lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
   scaleRoot = defaultScaleRoot,
   scaleModeIndex = defaultScaleModeIndex,
-  noteBandpassLowMidi = defaultNoteBandpassLowMidi,
-  noteBandpassHighMidi = defaultNoteBandpassHighMidi,
   octavizerDown8vaEnabled = false,
   octavizerUp8vaEnabled = false,
   octavizerDown8vaRelativeVelocity = defaultOctavizerRelativeVelocity,
@@ -340,15 +338,42 @@ export function buildPhraseSchedule({
     up8vaRelativeVelocity: octavizerUp8vaRelativeVelocity,
   });
 
-  const shimmered = applyShimmer(octavized, {
+  return applyShimmer(octavized, {
     enabled: shimmerEnabled,
     delayMultiplierIndex: shimmerDelayMultiplierIndex,
     feedbackPercent: shimmerFeedbackPercent,
     mixPercent: shimmerMixPercent,
     pulseIndex,
   });
+}
 
-  return applyNoteBandpass(shimmered, noteBandpassLowMidi, noteBandpassHighMidi);
+/**
+ * Full preview schedule including note bandpass.
+ * @param {Parameters<typeof buildPhraseScheduleBeforeBandpass>[0]} params
+ * @returns {ScheduledNote[]}
+ */
+export function buildPhraseSchedule(params) {
+  return applyNoteBandpass(
+    buildPhraseScheduleBeforeBandpass(params),
+    params.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
+    params.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
+  );
+}
+
+/**
+ * Preview schedule through shimmer/octavizer but before note bandpass.
+ * Bandpass-only updates can filter this result instead of rebuilding from scratch.
+ * @param {Parameters<typeof buildPhraseSchedule>[0]} params
+ * @returns {ScheduledNote[]}
+ */
+export function buildPhraseScheduleBeforeBandpass(params) {
+  const {
+    noteBandpassLowMidi: _noteBandpassLowMidi,
+    noteBandpassHighMidi: _noteBandpassHighMidi,
+    ...scheduleParams
+  } = params;
+
+  return buildPhraseScheduleCore(scheduleParams);
 }
 
 /** @param {ScheduledNote[]} events */

@@ -257,22 +257,8 @@
     noteBandpassHighMidi = next.high;
   }
 
-  async function handleNoteBandpassChange(lowMidi, highMidi) {
+  function handleNoteBandpassChange(lowMidi, highMidi) {
     setNoteBandpassState(lowMidi, highMidi);
-
-    if (nativeFunctionAvailable("setPatternNoteBandpass")) {
-      const confirmed = await getNativeFunction("setPatternNoteBandpass")(
-        noteBandpassLowMidi,
-        noteBandpassHighMidi,
-      );
-
-      if (Array.isArray(confirmed) && confirmed.length >= 2) {
-        setNoteBandpassState(
-          Number.parseInt(String(confirmed[0]), 10),
-          Number.parseInt(String(confirmed[1]), 10),
-        );
-      }
-    }
   }
 
   async function commitNoteBandpass(lowMidi, highMidi) {

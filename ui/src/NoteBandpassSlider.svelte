@@ -38,8 +38,12 @@
   let dragStartHigh = 0;
   let dragFine = false;
   let dragMoved = false;
+  /** @type {{ low: number, high: number } | null} */
+  let dragPreviewBounds = $state(null);
 
-  let bounds = $derived(clampNoteBandpass(lowMidi, highMidi));
+  let bounds = $derived(
+    dragPreviewBounds ?? clampNoteBandpass(lowMidi, highMidi),
+  );
   let lowPercent = $derived(((bounds.low - minMidiNote) / (maxMidiNote - minMidiNote)) * 100);
   let highPercent = $derived(((bounds.high - minMidiNote) / (maxMidiNote - minMidiNote)) * 100);
 
@@ -87,6 +91,7 @@
     dragStartHigh = bounds.high;
     dragFine = event.shiftKey;
     dragMoved = false;
+    dragPreviewBounds = clampNoteBandpass(lowMidi, highMidi);
   }
 
   /** @param {PointerEvent} event */
@@ -102,11 +107,13 @@
 
     if (activeThumb === "low") {
       const next = clampNoteBandpass(dragStartLow + delta, dragStartHigh);
+      dragPreviewBounds = next;
       onChange(next.low, next.high);
       return;
     }
 
     const next = clampNoteBandpass(dragStartLow, dragStartHigh + delta);
+    dragPreviewBounds = next;
     onChange(next.low, next.high);
   }
 
@@ -126,6 +133,7 @@
     activeThumb = null;
     dragPointerId = -1;
     dragMoved = false;
+    dragPreviewBounds = null;
     releasePointerDragFocus(event);
   }
 

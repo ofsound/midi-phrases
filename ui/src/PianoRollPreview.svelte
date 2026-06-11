@@ -5,8 +5,9 @@
   import { beatFromClientX, clampLoopBrace, loopBraceSnapQuarters } from "./loopBraceLayout.js";
   import { defaultPulseIndex } from "./pulseLayout.js";
   import { rowAccentFor } from "./rowAccentTheme.js";
+  import { applyNoteBandpass } from "./noteBandpass.js";
   import {
-    buildPhraseSchedule,
+    buildPhraseScheduleBeforeBandpass,
     DEFAULT_PREVIEW_LENGTH_QUARTERS,
     isBlackKey,
     isScheduledNoteActiveAtBeat,
@@ -112,36 +113,40 @@
   let displayStart = $derived(dragMode === null ? loopStart : dragDisplayStart);
   let displayEnd = $derived(dragMode === null ? loopEnd : dragDisplayEnd);
 
-  let scheduled = $derived(buildPhraseSchedule({
-    notes,
-    rowMuted,
-    rowTimingOffset,
-    stepDurationFraction,
-    stepTimingMultiplier,
-    stepVelocity,
-    stepMuted,
-    stepSkipped,
-    stepProbability,
-    stepCycle,
-    stepCycleOffset,
-    pulseIndex,
-    swingPercent,
-    swingSubdivisionIndex,
-    combinationModeMask,
-    lengthQuarters,
-    scaleRoot,
-    scaleModeIndex,
-    noteBandpassLowMidi,
-    noteBandpassHighMidi,
-    octavizerDown8vaEnabled,
-    octavizerUp8vaEnabled,
-    octavizerDown8vaRelativeVelocity,
-    octavizerUp8vaRelativeVelocity,
-    shimmerEnabled,
-    shimmerDelayMultiplierIndex,
-    shimmerFeedbackPercent,
-    shimmerMixPercent,
-  }));
+  let scheduledBeforeBandpass = $derived(
+    buildPhraseScheduleBeforeBandpass({
+      notes,
+      rowMuted,
+      rowTimingOffset,
+      stepDurationFraction,
+      stepTimingMultiplier,
+      stepVelocity,
+      stepMuted,
+      stepSkipped,
+      stepProbability,
+      stepCycle,
+      stepCycleOffset,
+      pulseIndex,
+      swingPercent,
+      swingSubdivisionIndex,
+      combinationModeMask,
+      lengthQuarters,
+      scaleRoot,
+      scaleModeIndex,
+      octavizerDown8vaEnabled,
+      octavizerUp8vaEnabled,
+      octavizerDown8vaRelativeVelocity,
+      octavizerUp8vaRelativeVelocity,
+      shimmerEnabled,
+      shimmerDelayMultiplierIndex,
+      shimmerFeedbackPercent,
+      shimmerMixPercent,
+    }),
+  );
+
+  let scheduled = $derived(
+    applyNoteBandpass(scheduledBeforeBandpass, noteBandpassLowMidi, noteBandpassHighMidi),
+  );
 
   let pitchRange = $derived(pitchRangeForSchedule(scheduled));
   let pitchSpan = $derived(pitchRange.maxMidi - pitchRange.minMidi + 1);
