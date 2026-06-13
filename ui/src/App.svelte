@@ -262,7 +262,8 @@
   }
 
   async function commitNoteBandpass(lowMidi, highMidi) {
-    const before = createHistorySnapshot();
+    const previousLow = noteBandpassLowMidi;
+    const previousHigh = noteBandpassHighMidi;
     setNoteBandpassState(lowMidi, highMidi);
 
     if (nativeFunctionAvailable("setPatternNoteBandpass")) {
@@ -284,7 +285,15 @@
       }
     }
 
-    pushHistoryEntry("Note bandpass", before, createHistorySnapshot());
+    const after = createHistorySnapshot();
+    if (after.noteBandpassLowMidi === previousLow && after.noteBandpassHighMidi === previousHigh) {
+      return;
+    }
+
+    const before = cloneSnapshot(after);
+    before.noteBandpassLowMidi = previousLow;
+    before.noteBandpassHighMidi = previousHigh;
+    pushHistoryEntry("Note bandpass", before, after);
   }
 
   function setOctavizerState({

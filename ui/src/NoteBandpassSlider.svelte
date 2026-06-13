@@ -1,4 +1,8 @@
 <script>
+  import {
+    clearNoteBandpassPreview,
+    scheduleNoteBandpassPreview,
+  } from "./noteBandpassPreview.svelte.js";
   import { releasePointerDragFocus } from "./pointerDragFocus.js";
 
   import { midiToNoteName } from "./midiNoteNames.js";
@@ -108,13 +112,13 @@
     if (activeThumb === "low") {
       const next = clampNoteBandpass(dragStartLow + delta, dragStartHigh);
       dragPreviewBounds = next;
-      onChange(next.low, next.high);
+      scheduleNoteBandpassPreview(next.low, next.high);
       return;
     }
 
     const next = clampNoteBandpass(dragStartLow, dragStartHigh + delta);
     dragPreviewBounds = next;
-    onChange(next.low, next.high);
+    scheduleNoteBandpassPreview(next.low, next.high);
   }
 
   /** @param {PointerEvent} event */
@@ -126,7 +130,10 @@
 
     const committed = clampNoteBandpass(bounds.low, bounds.high);
 
+    clearNoteBandpassPreview();
+
     if (dragMoved) {
+      onChange(committed.low, committed.high);
       onCommit(committed.low, committed.high);
     }
 

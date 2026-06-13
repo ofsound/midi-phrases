@@ -6,6 +6,7 @@
   import { defaultPulseIndex } from "./pulseLayout.js";
   import { rowAccentFor } from "./rowAccentTheme.js";
   import { applyNoteBandpass } from "./noteBandpass.js";
+  import { noteBandpassPreview } from "./noteBandpassPreview.svelte.js";
   import {
     buildPhraseScheduleBeforeBandpass,
     DEFAULT_PREVIEW_LENGTH_QUARTERS,
@@ -113,6 +114,9 @@
   let displayStart = $derived(dragMode === null ? loopStart : dragDisplayStart);
   let displayEnd = $derived(dragMode === null ? loopEnd : dragDisplayEnd);
 
+  let displayBandpassLow = $derived(noteBandpassPreview.low ?? noteBandpassLowMidi);
+  let displayBandpassHigh = $derived(noteBandpassPreview.high ?? noteBandpassHighMidi);
+
   let scheduledBeforeBandpass = $derived(
     buildPhraseScheduleBeforeBandpass({
       notes,
@@ -145,7 +149,7 @@
   );
 
   let scheduled = $derived(
-    applyNoteBandpass(scheduledBeforeBandpass, noteBandpassLowMidi, noteBandpassHighMidi),
+    applyNoteBandpass(scheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
   );
 
   let pitchRange = $derived(pitchRangeForSchedule(scheduled));
