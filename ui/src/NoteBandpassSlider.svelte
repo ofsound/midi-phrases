@@ -154,6 +154,8 @@
 </script>
 
 <div class={`note-bandpass-slider ${className}`.trim()} role="group" aria-label="MIDI note bandpass">
+  <span class="note-bandpass-display" aria-hidden="true">{midiToNoteName(bounds.low)}</span>
+
   <div
     class="note-bandpass-track-shell"
     role="presentation"
@@ -183,7 +185,6 @@
       onpointerup={handleThumbPointerUp}
       onpointercancel={handleThumbPointerUp}
     >
-      <span class="note-bandpass-label">{midiToNoteName(bounds.low)}</span>
       <span class="note-bandpass-knob" aria-hidden="true"></span>
     </div>
 
@@ -203,8 +204,9 @@
       onpointerup={handleThumbPointerUp}
       onpointercancel={handleThumbPointerUp}
     >
-      <span class="note-bandpass-label">{midiToNoteName(bounds.high)}</span>
       <span class="note-bandpass-knob" aria-hidden="true"></span>
     </div>
   </div>
+
+  <span class="note-bandpass-display" aria-hidden="true">{midiToNoteName(bounds.high)}</span>
 </div>
