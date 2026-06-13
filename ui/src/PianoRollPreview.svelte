@@ -6,12 +6,13 @@
   import { defaultPulseIndex } from "./pulseLayout.js";
   import { applyNoteBandpass } from "./noteBandpass.js";
   import { noteBandpassPreview } from "./noteBandpassPreview.svelte.js";
+  import { fittedPitchRangeForSchedule } from "./pianoRollViewport.js";
   import {
+    buildPhraseScheduleBeforeBandpass,
     buildPhraseScheduleWindowBeforeBandpass,
     DEFAULT_PREVIEW_LENGTH_QUARTERS,
     isBlackKey,
     isScheduledNoteActiveAtBeat,
-    pitchRangeForSchedule,
   } from "./phraseSchedule.js";
 
   
@@ -92,7 +93,8 @@
   } = $props();
 
   const pxPerQuarter = 28;
-  const rowHeightPx = 11;
+  const fallbackRowHeightPx = 11;
+  const maxRowHeightPx = 16;
   const keyboardWidthPx = 44;
   const rulerHeightPx = 28;
   const handleWidthPx = 10;
@@ -109,6 +111,8 @@
   let scrollElement = $state(null);
   /** @type {HTMLElement | null} */
   let gridScrollElement = $state(null);
+  /** @type {HTMLElement | null} */
+  let verticalScrollElement = $state(null);
   /** @type {HTMLCanvasElement | null} */
   let staticCanvas = $state(null);
   /** @type {HTMLCanvasElement | null} */
@@ -116,6 +120,7 @@
   let syncingHorizontalScroll = false;
   let viewportWidthPx = $state(0);
   let viewportScrollLeftPx = $state(0);
+  let verticalViewportHeightPx = $state(0);
   /** @type {"move" | "start" | "end" | null} */
   let dragMode = $state(null);
   let dragPointerId = -1;
@@ -183,10 +188,54 @@
     applyNoteBandpass(scheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
   );
 
-  let pitchRange = $derived(pitchRangeForSchedule(scheduled));
+  let fullScheduledBeforeBandpass = $derived(
+    buildPhraseScheduleBeforeBandpass({
+      notes,
+      rowMuted,
+      rowTimingOffset,
+      stepDurationFraction,
+      stepTimingMultiplier,
+      stepVelocity,
+      stepMuted,
+      stepSkipped,
+      stepProbability,
+      stepCycle,
+      stepCycleOffset,
+      pulseIndex,
+      swingPercent,
+      swingSubdivisionIndex,
+      combinationModeMask,
+      lengthQuarters,
+      scaleRoot,
+      scaleModeIndex,
+      octavizerDown8vaEnabled,
+      octavizerUp8vaEnabled,
+      octavizerDown8vaRelativeVelocity,
+      octavizerUp8vaRelativeVelocity,
+      shimmerEnabled,
+      shimmerDelayMultiplierIndex,
+      shimmerFeedbackPercent,
+      shimmerMixPercent,
+    }),
+  );
+
+  let fullScheduled = $derived(
+    applyNoteBandpass(fullScheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
+  );
+
+  let pitchRange = $derived(fittedPitchRangeForSchedule(fullScheduled));
   let pitchSpan = $derived(pitchRange.maxMidi - pitchRange.minMidi + 1);
+  let rowHeightPx = $derived(
+    verticalViewportHeightPx > 0
+      ? Math.min(maxRowHeightPx, verticalViewportHeightPx / pitchSpan)
+      : fallbackRowHeightPx,
+  );
   let rollWidthPx = $derived(lengthQuarters * pxPerQuarter);
   let rollHeightPx = $derived(pitchSpan * rowHeightPx);
+  let noteVerticalInsetPx = $derived(Math.min(1, Math.max(0, (rowHeightPx - 1) / 2)));
+  let noteHeightPx = $derived(Math.max(1, rowHeightPx - noteVerticalInsetPx * 2));
+  let noteCornerRadiusPx = $derived(Math.min(2, noteHeightPx / 2));
+  let showKeyboardLabels = $derived(rowHeightPx >= 8);
   let loopSpan = $derived(Math.max(loopBraceSnapQuarters, displayEnd - displayStart));
   let loopLeftPx = $derived(displayStart * pxPerQuarter);
   let loopWidthPx = $derived(loopSpan * pxPerQuarter);
@@ -224,6 +273,25 @@
 
       if (gridScrollElement === node) {
         gridScrollElement = null;
+      }
+    };
+  }
+
+  /** @param {HTMLElement} node */
+  function verticalScrollElementAttachment(node) {
+    verticalScrollElement = node;
+    updateVerticalViewportMetrics(node);
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateVerticalViewportMetrics(node);
+    });
+    resizeObserver.observe(node);
+
+    return () => {
+      resizeObserver.disconnect();
+
+      if (verticalScrollElement === node) {
+        verticalScrollElement = null;
       }
     };
   }
@@ -365,6 +433,12 @@
     await commitLoopBrace({ enabled: !loopEnabled });
   }
 
+  function fitPitchRange() {
+    if (verticalScrollElement) {
+      verticalScrollElement.scrollTop = 0;
+    }
+  }
+
   /** @param {KeyboardEvent} event */
   async function handleLoopKeydown(event) {
     if (!loopEnabled) return;
@@ -424,6 +498,11 @@
   function updateViewportMetrics(node) {
     viewportWidthPx = node.clientWidth;
     viewportScrollLeftPx = node.scrollLeft;
+  }
+
+  /** @param {HTMLElement} node */
+  function updateVerticalViewportMetrics(node) {
+    verticalViewportHeightPx = node.clientHeight;
   }
 
   /**
@@ -529,13 +608,13 @@
       const palette = notePaletteForRow(note.row);
       const opacity = Math.max(0.2, note.velocity / 127);
       const x = note.start * pxPerQuarter - windowLeftPx;
-      const y = pitchTopPx(note.midi) + 1;
+      const y = pitchTopPx(note.midi) + noteVerticalInsetPx;
       const width = noteWidthPx(note.start, note.end);
-      const height = rowHeightPx - 2;
+      const height = noteHeightPx;
 
       context.globalAlpha = opacity;
       context.fillStyle = palette.fill;
-      roundedRect(context, x, y, width, height, 2);
+      roundedRect(context, x, y, width, height, noteCornerRadiusPx);
       context.fill();
       context.globalAlpha = Math.min(1, opacity + 0.15);
       context.strokeStyle = palette.border;
@@ -559,14 +638,14 @@
 
       const palette = notePaletteForRow(note.row);
       const x = note.start * pxPerQuarter - windowLeftPx;
-      const y = pitchTopPx(note.midi) + 1;
+      const y = pitchTopPx(note.midi) + noteVerticalInsetPx;
       const width = noteWidthPx(note.start, note.end);
-      const height = rowHeightPx - 2;
+      const height = noteHeightPx;
 
       context.shadowColor = palette.glow;
       context.shadowBlur = 8;
       context.fillStyle = palette.activeFill;
-      roundedRect(context, x, y, width, height, 2);
+      roundedRect(context, x, y, width, height, noteCornerRadiusPx);
       context.fill();
       context.shadowBlur = 0;
       context.strokeStyle = palette.activeBorder;
@@ -581,6 +660,11 @@
 
   $effect(() => {
     drawActiveCanvas();
+  });
+
+  $effect(() => {
+    pitchRange;
+    fitPitchRange();
   });
 
   $effect(() => {
@@ -618,6 +702,15 @@
         onclick={toggleLoopEnabled}
       >
         Loop {loopEnabled ? "on" : "off"}
+      </button>
+      <button
+        type="button"
+        data-cursor="pointer"
+        title="Fit notes"
+        class="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 transition-colors outline-none hover:border-zinc-600 hover:text-zinc-300 focus-visible:ring-1 focus-visible:ring-accent-400"
+        onclick={fitPitchRange}
+      >
+        Fit
       </button>
     </div>
     <p class="text-xs text-zinc-600">
@@ -699,7 +792,10 @@
       </div>
     </div>
 
-    <div class="h-0 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <div
+      {@attach verticalScrollElementAttachment}
+      class="h-0 min-h-0 flex-1 overflow-y-auto overscroll-contain"
+    >
       <div class="flex">
         <div
           class="shrink-0 border-r border-zinc-800 bg-zinc-900/90"
@@ -712,7 +808,7 @@
                 style:top="{pitchTopPx(midi)}px"
                 style:height="{rowHeightPx}px"
               >
-                {#if midi % 12 === 0}
+                {#if showKeyboardLabels && midi % 12 === 0}
                   <span class="text-[9px] font-medium text-zinc-500">{midiToNoteName(midi)}</span>
                 {/if}
               </div>
