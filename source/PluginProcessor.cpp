@@ -52,6 +52,31 @@ double nextRandomUnitDouble (std::uint32_t& state)
     return static_cast<double> (state) / static_cast<double> (UINT32_MAX);
 }
 
+bool isBloomGestureAnchor (const double ppq,
+                           const double gateQuarters,
+                           const double gesturePulseQuarters)
+{
+    constexpr auto epsilon = 1.0e-9;
+
+    if (gesturePulseQuarters <= epsilon)
+        return true;
+
+    auto phase = ppq - std::floor ((ppq + epsilon) / gesturePulseQuarters)
+                           * gesturePulseQuarters;
+
+    if (phase < 0.0)
+        phase += gesturePulseQuarters;
+
+    if (phase >= gesturePulseQuarters - epsilon)
+        phase = 0.0;
+
+    const auto anchorWindow = juce::jmin (
+        gesturePulseQuarters * 0.125,
+        juce::jmax (gateQuarters * 0.25, gesturePulseQuarters * 0.0625));
+
+    return phase <= anchorWindow + epsilon;
+}
+
 int clampPercent (const int percent)
 {
     return juce::jlimit (0, 100, percent);
@@ -4042,18 +4067,22 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                 scaleRoot,
                 scaleModeIndex);
             const auto direction = movement < 0 ? -1 : 1;
+            const auto sourceSupportsReturnBloom =
+                source.gateQuarters >= combinationGesturePulse - epsilon;
+
+            if (! isBloomGestureAnchor (source.ppq,
+                                        source.gateQuarters,
+                                        combinationGesturePulse))
+                continue;
+
             const auto ornamentGate =
-                juce::jmin (source.gateQuarters * 0.5, combinationGesturePulse * 0.25);
+                juce::jmin (source.gateQuarters * 0.375, combinationGesturePulse * 0.25);
 
             if (ornamentGate <= epsilon)
                 continue;
 
-            const auto firstDelay = juce::jmax (combinationGesturePulse * 0.0625,
-                                                juce::jmin (source.gateQuarters * 0.25,
-                                                            combinationGesturePulse * 0.125));
-            const auto secondDelay = juce::jmax (combinationGesturePulse * 0.125,
-                                                 juce::jmin (source.gateQuarters * 0.5,
-                                                             combinationGesturePulse * 0.25));
+            const auto firstDelay = combinationGesturePulse * 0.25;
+            const auto secondDelay = combinationGesturePulse * 0.5;
 
             const auto appendBloom = [&] (const int degreeDelta,
                                           const double delay,
@@ -4082,7 +4111,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
             appendBloom (direction, firstDelay, 0.65);
 
-            if (std::abs (movement) >= 2)
+            if (sourceSupportsReturnBloom && std::abs (movement) >= 2)
                 appendBloom (-direction, secondDelay, 0.5);
         }
 

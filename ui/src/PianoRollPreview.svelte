@@ -4,11 +4,10 @@
   import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { beatFromClientX, clampLoopBrace, loopBraceSnapQuarters } from "./loopBraceLayout.js";
   import { defaultPulseIndex } from "./pulseLayout.js";
-  import { rowAccentFor } from "./rowAccentTheme.js";
   import { applyNoteBandpass } from "./noteBandpass.js";
   import { noteBandpassPreview } from "./noteBandpassPreview.svelte.js";
   import {
-    buildPhraseScheduleBeforeBandpass,
+    buildPhraseScheduleWindowBeforeBandpass,
     DEFAULT_PREVIEW_LENGTH_QUARTERS,
     isBlackKey,
     isScheduledNoteActiveAtBeat,
@@ -97,12 +96,26 @@
   const keyboardWidthPx = 44;
   const rulerHeightPx = 28;
   const handleWidthPx = 10;
+  const renderOverscanQuarters = 8;
+
+  const notePalettes = [
+    { fill: "#34d399", border: "rgba(167,243,208,0.55)", activeFill: "#6ee7b7", activeBorder: "rgba(167,243,208,0.95)", glow: "rgba(52,211,153,0.65)" },
+    { fill: "#3b82f6", border: "rgba(147,197,253,0.55)", activeFill: "#93c5fd", activeBorder: "rgba(191,219,254,0.95)", glow: "rgba(59,130,246,0.65)" },
+    { fill: "#f97316", border: "rgba(253,186,116,0.55)", activeFill: "#fdba74", activeBorder: "rgba(254,215,170,0.95)", glow: "rgba(249,115,22,0.65)" },
+    { fill: "#8b5cf6", border: "rgba(196,181,253,0.55)", activeFill: "#c4b5fd", activeBorder: "rgba(221,214,254,0.95)", glow: "rgba(139,92,246,0.65)" },
+  ];
 
   /** @type {HTMLElement | null} */
   let scrollElement = $state(null);
   /** @type {HTMLElement | null} */
   let gridScrollElement = $state(null);
+  /** @type {HTMLCanvasElement | null} */
+  let staticCanvas = $state(null);
+  /** @type {HTMLCanvasElement | null} */
+  let activeCanvas = $state(null);
   let syncingHorizontalScroll = false;
+  let viewportWidthPx = $state(0);
+  let viewportScrollLeftPx = $state(0);
   /** @type {"move" | "start" | "end" | null} */
   let dragMode = $state(null);
   let dragPointerId = -1;
@@ -116,9 +129,25 @@
 
   let displayBandpassLow = $derived(noteBandpassPreview.low ?? noteBandpassLowMidi);
   let displayBandpassHigh = $derived(noteBandpassPreview.high ?? noteBandpassHighMidi);
+  let visibleStartQuarter = $derived(viewportScrollLeftPx / pxPerQuarter);
+  let visibleEndQuarter = $derived(
+    viewportWidthPx > 0
+      ? (viewportScrollLeftPx + viewportWidthPx) / pxPerQuarter
+      : Math.min(lengthQuarters, 32),
+  );
+  let renderWindowStart = $derived(
+    Math.max(0, Math.floor(visibleStartQuarter - renderOverscanQuarters)),
+  );
+  let renderWindowEnd = $derived(
+    Math.min(lengthQuarters, Math.ceil(visibleEndQuarter + renderOverscanQuarters)),
+  );
+  let renderWindowLeftPx = $derived(renderWindowStart * pxPerQuarter);
+  let renderWindowWidthPx = $derived(
+    Math.max(1, (renderWindowEnd - renderWindowStart) * pxPerQuarter),
+  );
 
   let scheduledBeforeBandpass = $derived(
-    buildPhraseScheduleBeforeBandpass({
+    buildPhraseScheduleWindowBeforeBandpass({
       notes,
       rowMuted,
       rowTimingOffset,
@@ -145,6 +174,8 @@
       shimmerDelayMultiplierIndex,
       shimmerFeedbackPercent,
       shimmerMixPercent,
+      windowStartQuarters: renderWindowStart,
+      windowEndQuarters: renderWindowEnd,
     }),
   );
 
@@ -181,7 +212,16 @@
       node.scrollLeft = scrollElement.scrollLeft;
     }
 
+    updateViewportMetrics(node);
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateViewportMetrics(node);
+    });
+    resizeObserver.observe(node);
+
     return () => {
+      resizeObserver.disconnect();
+
       if (gridScrollElement === node) {
         gridScrollElement = null;
       }
@@ -194,6 +234,7 @@
 
     syncingHorizontalScroll = true;
     gridScrollElement.scrollLeft = /** @type {HTMLElement} */ (event.currentTarget).scrollLeft;
+    updateViewportMetrics(gridScrollElement);
     syncingHorizontalScroll = false;
   }
 
@@ -202,7 +243,9 @@
     if (syncingHorizontalScroll || !gridScrollElement || !scrollElement) return;
 
     syncingHorizontalScroll = true;
-    scrollElement.scrollLeft = /** @type {HTMLElement} */ (event.currentTarget).scrollLeft;
+    const currentTarget = /** @type {HTMLElement} */ (event.currentTarget);
+    scrollElement.scrollLeft = currentTarget.scrollLeft;
+    updateViewportMetrics(currentTarget);
     syncingHorizontalScroll = false;
   }
 
@@ -353,8 +396,209 @@
   }
 
   let pitchRows = $derived(Array.from({ length: pitchSpan }, (_, index) => pitchRange.maxMidi - index));
-  let quarterLines = $derived(Array.from({ length: lengthQuarters + 1 }, (_, quarter) => quarter));
   let barLines = $derived(Array.from({ length: Math.floor(lengthQuarters / 4) + 1 }, (_, bar) => bar * 4));
+
+  /** @param {HTMLCanvasElement} node */
+  function staticCanvasAttachment(node) {
+    staticCanvas = node;
+
+    return () => {
+      if (staticCanvas === node) {
+        staticCanvas = null;
+      }
+    };
+  }
+
+  /** @param {HTMLCanvasElement} node */
+  function activeCanvasAttachment(node) {
+    activeCanvas = node;
+
+    return () => {
+      if (activeCanvas === node) {
+        activeCanvas = null;
+      }
+    };
+  }
+
+  /** @param {HTMLElement} node */
+  function updateViewportMetrics(node) {
+    viewportWidthPx = node.clientWidth;
+    viewportScrollLeftPx = node.scrollLeft;
+  }
+
+  /**
+   * @param {HTMLCanvasElement} canvas
+   * @param {number} widthPx
+   * @param {number} heightPx
+   */
+  function prepareCanvas(canvas, widthPx, heightPx) {
+    const dpr = window.devicePixelRatio || 1;
+    const deviceWidth = Math.max(1, Math.round(widthPx * dpr));
+    const deviceHeight = Math.max(1, Math.round(heightPx * dpr));
+
+    if (canvas.width !== deviceWidth) canvas.width = deviceWidth;
+    if (canvas.height !== deviceHeight) canvas.height = deviceHeight;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) return null;
+
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    context.clearRect(0, 0, widthPx, heightPx);
+
+    return context;
+  }
+
+  /** @param {CanvasRenderingContext2D} context */
+  function roundedRect(context, x, y, width, height, radius) {
+    const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+
+    context.beginPath();
+    context.moveTo(x + r, y);
+    context.lineTo(x + width - r, y);
+    context.quadraticCurveTo(x + width, y, x + width, y + r);
+    context.lineTo(x + width, y + height - r);
+    context.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    context.lineTo(x + r, y + height);
+    context.quadraticCurveTo(x, y + height, x, y + height - r);
+    context.lineTo(x, y + r);
+    context.quadraticCurveTo(x, y, x + r, y);
+    context.closePath();
+  }
+
+  /** @param {number} row */
+  function notePaletteForRow(row) {
+    if (!rowColorsEnabled || row <= 0) return notePalettes[0];
+
+    return notePalettes[row] ?? notePalettes[0];
+  }
+
+  function drawStaticCanvas() {
+    if (!staticCanvas) return;
+
+    const context = prepareCanvas(staticCanvas, renderWindowWidthPx, rollHeightPx);
+
+    if (!context) return;
+
+    const windowLeftPx = renderWindowStart * pxPerQuarter;
+
+    context.fillStyle = "rgba(9,9,11,0.78)";
+    context.fillRect(0, 0, renderWindowWidthPx, rollHeightPx);
+
+    for (const midi of pitchRows) {
+      context.fillStyle = isBlackKey(midi) ? "rgba(9,9,11,0.9)" : "rgba(39,39,42,0.68)";
+      context.fillRect(0, pitchTopPx(midi), renderWindowWidthPx, rowHeightPx);
+      context.strokeStyle = isBlackKey(midi) ? "rgba(39,39,42,0.78)" : "rgba(63,63,70,0.5)";
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(0, pitchTopPx(midi) + rowHeightPx - 0.5);
+      context.lineTo(renderWindowWidthPx, pitchTopPx(midi) + rowHeightPx - 0.5);
+      context.stroke();
+    }
+
+    if (loopEnabled) {
+      const left = displayStart * pxPerQuarter - windowLeftPx;
+      const width = loopSpan * pxPerQuarter;
+
+      if (left < renderWindowWidthPx && left + width > 0) {
+        context.fillStyle = "rgba(52,211,153,0.08)";
+        context.strokeStyle = "rgba(52,211,153,0.35)";
+        context.lineWidth = 1;
+        context.fillRect(left, 0, width, rollHeightPx);
+        context.strokeRect(left + 0.5, 0.5, Math.max(0, width - 1), Math.max(0, rollHeightPx - 1));
+      }
+    }
+
+    const firstQuarter = Math.ceil(renderWindowStart);
+    const lastQuarter = Math.floor(renderWindowEnd);
+
+    for (let quarter = firstQuarter; quarter <= lastQuarter; quarter += 1) {
+      const x = quarter * pxPerQuarter - windowLeftPx + 0.5;
+
+      context.strokeStyle = quarter % 4 === 0 ? "rgba(113,113,122,0.7)" : "rgba(39,39,42,0.9)";
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(x, 0);
+      context.lineTo(x, rollHeightPx);
+      context.stroke();
+    }
+
+    for (const note of scheduled) {
+      if (note.velocity <= 0) continue;
+
+      const palette = notePaletteForRow(note.row);
+      const opacity = Math.max(0.2, note.velocity / 127);
+      const x = note.start * pxPerQuarter - windowLeftPx;
+      const y = pitchTopPx(note.midi) + 1;
+      const width = noteWidthPx(note.start, note.end);
+      const height = rowHeightPx - 2;
+
+      context.globalAlpha = opacity;
+      context.fillStyle = palette.fill;
+      roundedRect(context, x, y, width, height, 2);
+      context.fill();
+      context.globalAlpha = Math.min(1, opacity + 0.15);
+      context.strokeStyle = palette.border;
+      context.lineWidth = 1;
+      context.stroke();
+      context.globalAlpha = 1;
+    }
+  }
+
+  function drawActiveCanvas() {
+    if (!activeCanvas) return;
+
+    const context = prepareCanvas(activeCanvas, renderWindowWidthPx, rollHeightPx);
+
+    if (!context || !showPlaybackPlayhead) return;
+
+    const windowLeftPx = renderWindowStart * pxPerQuarter;
+
+    for (const note of scheduled) {
+      if (note.velocity <= 0 || !isScheduledNoteActiveAtBeat(note, playbackBeat)) continue;
+
+      const palette = notePaletteForRow(note.row);
+      const x = note.start * pxPerQuarter - windowLeftPx;
+      const y = pitchTopPx(note.midi) + 1;
+      const width = noteWidthPx(note.start, note.end);
+      const height = rowHeightPx - 2;
+
+      context.shadowColor = palette.glow;
+      context.shadowBlur = 8;
+      context.fillStyle = palette.activeFill;
+      roundedRect(context, x, y, width, height, 2);
+      context.fill();
+      context.shadowBlur = 0;
+      context.strokeStyle = palette.activeBorder;
+      context.lineWidth = 1;
+      context.stroke();
+    }
+  }
+
+  $effect(() => {
+    drawStaticCanvas();
+  });
+
+  $effect(() => {
+    drawActiveCanvas();
+  });
+
+  $effect(() => {
+    if (!gridScrollElement || viewportWidthPx <= 0 || dragMode !== null) return;
+
+    const viewportStart = gridScrollElement.scrollLeft / pxPerQuarter;
+    const viewportEnd = (gridScrollElement.scrollLeft + viewportWidthPx) / pxPerQuarter;
+
+    if (displayStart >= viewportStart && displayStart <= viewportEnd) return;
+
+    gridScrollElement.scrollLeft = Math.max(0, (displayStart - 2) * pxPerQuarter);
+
+    if (scrollElement) {
+      scrollElement.scrollLeft = gridScrollElement.scrollLeft;
+    }
+
+    updateViewportMetrics(gridScrollElement);
+  });
 
   onDestroy(() => {
     clearActiveCursor();
@@ -483,54 +727,30 @@
         >
           <div class="relative" style:width="{rollWidthPx}px">
             <div class="relative" style:height="{rollHeightPx}px">
-            {#if showPlaybackPlayhead}
-              <div
-                class="pointer-events-none absolute top-0 bottom-0 z-40 w-px bg-zinc-100/90 shadow-[0_0_6px_rgba(255,255,255,0.35)]"
-                style:left="{playbackPlayheadLeftPx}px"
-              ></div>
-            {/if}
+              <canvas
+                {@attach staticCanvasAttachment}
+                class="pointer-events-none absolute top-0"
+                aria-hidden="true"
+                style:left="{renderWindowLeftPx}px"
+                style:width="{renderWindowWidthPx}px"
+                style:height="{rollHeightPx}px"
+              ></canvas>
 
-            {#if loopEnabled}
-              <div
-                class="pointer-events-none absolute inset-y-0 z-10 border-x border-accent-400/35 bg-accent-400/8"
-                style:left="{loopLeftPx}px"
-                style:width="{loopWidthPx}px"
-              ></div>
-            {/if}
+              <canvas
+                {@attach activeCanvasAttachment}
+                class="pointer-events-none absolute top-0 z-20"
+                aria-hidden="true"
+                style:left="{renderWindowLeftPx}px"
+                style:width="{renderWindowWidthPx}px"
+                style:height="{rollHeightPx}px"
+              ></canvas>
 
-            {#each pitchRows as midi (midi)}
-              <div
-                class="pointer-events-none absolute right-0 left-0 {keyboardRowClass(midi)}"
-                style:top="{pitchTopPx(midi)}px"
-                style:height="{rowHeightPx}px"
-              ></div>
-            {/each}
-
-            {#each quarterLines as quarter (quarter)}
-              <div
-                class="pointer-events-none absolute top-0 bottom-0 border-l {quarter % 4 === 0
-                  ? 'border-zinc-600/70'
-                  : 'border-zinc-800/90'}"
-                style:left="{quarter * pxPerQuarter}px"
-              ></div>
-            {/each}
-
-            {#each scheduled as note, index (`${index}-${note.row}-${note.start}-${note.midi}-${note.step}-${note.end}`)}
-              {@const noteActive =
-                note.velocity > 0 && isScheduledNoteActiveAtBeat(note, playbackBeat)}
-              {@const noteAccent = rowAccentFor(note.row, rowColorsEnabled)}
-              <div
-                class="absolute rounded-[2px] border transition-[box-shadow,border-color,filter] duration-150 {noteActive
-                  ? noteAccent.pianoNoteActive
-                  : noteAccent.pianoNoteIdle}"
-                style:left="{note.start * pxPerQuarter}px"
-                style:top="{pitchTopPx(note.midi) + 1}px"
-                style:width="{noteWidthPx(note.start, note.end)}px"
-                style:height="{rowHeightPx - 2}px"
-                style:opacity="{noteActive ? 1 : Math.max(0.2, note.velocity / 127)}"
-                title="{midiToNoteName(note.midi)} · vel {note.velocity}"
-              ></div>
-            {/each}
+              {#if showPlaybackPlayhead}
+                <div
+                  class="pointer-events-none absolute top-0 bottom-0 z-40 w-px bg-zinc-100/90 shadow-[0_0_6px_rgba(255,255,255,0.35)]"
+                  style:left="{playbackPlayheadLeftPx}px"
+                ></div>
+              {/if}
             </div>
           </div>
         </div>

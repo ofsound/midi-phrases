@@ -287,6 +287,7 @@ TEST_CASE ("Bloom mode adds scale-neighbor ornaments", "[instance]")
 
     CHECK (noteOnCounts[60] > 0); // source C4 stays
     CHECK (noteOnCounts[59] > 0); // lower scale-neighbor bloom
+    CHECK (noteOnCounts[59] == 1); // short-pulse bloom stays sparse within the half-note gesture
     CHECK (noteOnCounts[62] > 0); // upper scale-neighbor bloom / row source
 }
 

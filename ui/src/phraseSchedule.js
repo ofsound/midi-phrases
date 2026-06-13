@@ -16,6 +16,7 @@ export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
 const EPSILON = 1e-9;
 const MAX_COMBINED_PREVIEW_NOTES = 4096;
 const COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR = 2;
+const DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS = 64;
 export const combinationModeMaskBits = 0x3f;
 /** Display order matches processing order: Logic → Cross-Mod → Bloom → Counter → Echo → Weave. */
 export const combinationModes = [
@@ -71,6 +72,27 @@ function deterministicEventHash(row, step, ppq) {
   value ^= value >>> 16;
 
   return value >>> 0;
+}
+
+/**
+ * @param {number} ppq
+ * @param {number} duration
+ * @param {number} gesturePulse
+ */
+function isBloomGestureAnchor(ppq, duration, gesturePulse) {
+  if (gesturePulse <= EPSILON) return true;
+
+  let phase = ppq - Math.floor((ppq + EPSILON) / gesturePulse) * gesturePulse;
+
+  if (phase < 0) phase += gesturePulse;
+  if (phase >= gesturePulse - EPSILON) phase = 0;
+
+  const anchorWindow = Math.min(
+    gesturePulse * 0.125,
+    Math.max(duration * 0.25, gesturePulse * 0.0625),
+  );
+
+  return phase <= anchorWindow + EPSILON;
 }
 
 /**
@@ -200,8 +222,9 @@ function buildPhraseScheduleCore({
   shimmerDelayMultiplierIndex = defaultShimmerDelayMultiplierIndex,
   shimmerFeedbackPercent = defaultShimmerFeedbackPercent,
   shimmerMixPercent = defaultShimmerMixPercent,
+  scheduleStartQuarters = 0,
 }) {
-  const ppqStart = 0;
+  const ppqStart = Math.max(0, scheduleStartQuarters);
   const ppqEnd = lengthQuarters;
   /** @type {ScheduledNote[]} */
   const scheduled = [];
@@ -234,6 +257,10 @@ function buildPhraseScheduleCore({
       const stepStartInCycle = stepStartInCycleForStep(stepStartQuarters, step);
       const nMin = Math.ceil((ppqStart - stepStartInCycle - offset - EPSILON) / cycleLengthQuarters);
       const nMax = Math.floor((ppqEnd - stepStartInCycle - offset - EPSILON) / cycleLengthQuarters);
+      const firstGlobalTrigger = Math.ceil((0 - stepStartInCycle - offset - EPSILON) / cycleLengthQuarters);
+      const previousTrigger = Math.floor((ppqStart - stepStartInCycle - offset - EPSILON) / cycleLengthQuarters);
+
+      stepTriggerCounts[step] = Math.max(0, previousTrigger - firstGlobalTrigger + 1);
 
       for (let cycleIndex = nMin; cycleIndex <= nMax; cycleIndex += 1) {
         const triggerPpq = cycleIndex * cycleLengthQuarters + stepStartInCycle + offset;
@@ -386,6 +413,48 @@ export function buildPhraseScheduleBeforeBandpass(params) {
   return buildPhraseScheduleCore(scheduleParams);
 }
 
+/**
+ * Preview schedule through shimmer/octavizer before note bandpass for a beat window.
+ * Output is clipped to the requested window while step-cycle and deterministic
+ * probability phases are seeded as if the full schedule began at beat zero.
+ *
+ * @param {Parameters<typeof buildPhraseSchedule>[0] & {
+ *   windowStartQuarters?: number,
+ *   windowEndQuarters?: number,
+ *   windowLookbackQuarters?: number,
+ * }} params
+ * @returns {ScheduledNote[]}
+ */
+export function buildPhraseScheduleWindowBeforeBandpass(params) {
+  const {
+    noteBandpassLowMidi: _noteBandpassLowMidi,
+    noteBandpassHighMidi: _noteBandpassHighMidi,
+    windowStartQuarters = 0,
+    windowEndQuarters = params.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS,
+    windowLookbackQuarters = DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS,
+    ...scheduleParams
+  } = params;
+  const timelineEnd = Math.max(0, scheduleParams.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS);
+  const windowStart = Math.min(timelineEnd, Math.max(0, windowStartQuarters));
+  const windowEnd = Math.min(timelineEnd, Math.max(windowStart, windowEndQuarters));
+  const scheduleStart = Math.max(0, windowStart - Math.max(0, windowLookbackQuarters));
+
+  if (windowEnd <= windowStart) return [];
+
+  return buildPhraseScheduleCore({
+    ...scheduleParams,
+    lengthQuarters: windowEnd,
+    scheduleStartQuarters: scheduleStart,
+  })
+    .filter((note) => note.end > windowStart + EPSILON && note.start < windowEnd - EPSILON)
+    .map((note) => ({
+      ...note,
+      start: Math.max(windowStart, note.start),
+      end: Math.min(windowEnd, note.end),
+    }))
+    .filter((note) => note.end > note.start + EPSILON);
+}
+
 /** @param {ScheduledNote[]} events */
 function groupByStart(events) {
   /** @type {ScheduledNote[][]} */
@@ -492,18 +561,17 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
       const previousModStep = (modStep + modNotes.length - 1) % modNotes.length;
       const movement = scaleDegreeDelta(modNotes[previousModStep], modNotes[modStep], scaleRoot, scaleModeIndex);
       const direction = movement < 0 ? -1 : 1;
-      const ornamentGate = Math.min((event.end - event.start) * 0.5, combinationGesturePulse * 0.25);
+      const duration = event.end - event.start;
+      const sourceSupportsReturnBloom = duration >= combinationGesturePulse - EPSILON;
+
+      if (!isBloomGestureAnchor(event.start, duration, combinationGesturePulse)) continue;
+
+      const ornamentGate = Math.min(duration * 0.375, combinationGesturePulse * 0.25);
 
       if (ornamentGate <= EPSILON) continue;
 
-      const firstDelay = Math.max(
-        combinationGesturePulse * 0.0625,
-        Math.min((event.end - event.start) * 0.25, combinationGesturePulse * 0.125),
-      );
-      const secondDelay = Math.max(
-        combinationGesturePulse * 0.125,
-        Math.min((event.end - event.start) * 0.5, combinationGesturePulse * 0.25),
-      );
+      const firstDelay = combinationGesturePulse * 0.25;
+      const secondDelay = combinationGesturePulse * 0.5;
 
       const appendBloom = (degreeDelta, delay, velocityScale) => {
         if (bloomed.length >= MAX_COMBINED_PREVIEW_NOTES) return;
@@ -527,7 +595,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
 
       appendBloom(direction, firstDelay, 0.65);
 
-      if (Math.abs(movement) >= 2) {
+      if (sourceSupportsReturnBloom && Math.abs(movement) >= 2) {
         appendBloom(-direction, secondDelay, 0.5);
       }
     }
