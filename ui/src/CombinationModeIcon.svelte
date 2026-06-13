@@ -1,8 +1,8 @@
 <script>
   /**
-   * Combination-mode glyphs (Logic, Cross-Mod, Bloom, Counter, Echo, Weave).
+   * Combination-mode glyphs (Cross-Mod, Bloom, Counter, Echo, Weave).
    *
-   * @typedef {'logic' | 'crossMod' | 'bloom' | 'counter' | 'echo' | 'weave'} CombinationModeIconKind
+   * @typedef {'crossMod' | 'bloom' | 'counter' | 'echo' | 'weave'} CombinationModeIconKind
    * @typedef {Object} Props
    * @property {CombinationModeIconKind} kind
    * @property {string} [class]
@@ -19,15 +19,7 @@
   xmlns="http://www.w3.org/2000/svg"
   aria-hidden="true"
 >
-  {#if kind === "logic"}
-    <!-- Lone onset passes; same-time collisions are dropped. -->
-    <path d="M3 19 H21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-    <path d="M7 11 V19" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
-    <path d="M16 13 V19" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.4" />
-    <path d="M19 13 V19" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.4" />
-    <path d="M14.5 8.5 L20.5 12.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" />
-    <path d="M20.5 8.5 L14.5 12.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" />
-  {:else if kind === "crossMod"}
+  {#if kind === "crossMod"}
     <!-- Attributes cross-routed between phrase rows. -->
     <path d="M7 4 V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.55" />
     <path d="M17 4 V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.55" />

@@ -4,7 +4,6 @@
 
 ## Host notes
 
-- **Logic** — load the **AU** in the top **MIDI FX** slot (before the instrument).
 - **Ableton Live** — use **VST3** only (no AU MIDI-out). Load on the **instrument** track, route MIDI to a second track with your synth ([Ableton guide](https://help.ableton.com/hc/en-us/articles/209070189-Accessing-the-MIDI-output-of-a-VST-plug-in)).
 
 ## Quick start

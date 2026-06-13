@@ -1,6 +1,6 @@
 # Combination Modes Technical Notes
 
-This document describes the implemented behavior of the four header combination
+This document describes the implemented behavior of the five header combination
 modes in MIDI Phrases. It focuses on how phrase rows are converted into
 normalized MIDI events, how each mode transforms those events, and what MIDI
 output is produced.
@@ -18,14 +18,15 @@ the C++ processor.
 
 ## Mode Identity
 
-The four modes are stored as a bit mask on each pattern slot.
+The five modes are stored as a bit mask on each pattern slot.
 
 | Bit      | Header | Name      | Processor constant               |
 | -------- | ------ | --------- | -------------------------------- |
-| `1 << 0` | `W`    | Weave     | `combinationModeWeave`           |
-| `1 << 1` | `L`    | Logic     | `combinationModeLogic`           |
-| `1 << 2` | `X`    | Cross-Mod | `combinationModeCrossModulation` |
+| `1 << 0` | `X`    | Cross-Mod | `combinationModeCrossModulation` |
+| `1 << 1` | `B`    | Bloom     | `combinationModeBloom`           |
+| `1 << 2` | `C`    | Counter   | `combinationModeCounter`         |
 | `1 << 3` | `E`    | Echo      | `combinationModeMultiplyEcho`    |
+| `1 << 4` | `W`    | Weave     | `combinationModeWeave`           |
 
 The mask is pattern state, not global UI state. Copying a pattern copies its
 mode mask, and selecting a different pattern selects that pattern's mode
@@ -105,44 +106,16 @@ This sorted list is the input to the mode chain.
 Modes can be enabled in any combination, but they always execute in this fixed
 order:
 
-1. Logic
-2. Cross-Mod
-3. Echo
-4. Weave
+1. Cross-Mod
+2. Bloom
+3. Counter
+4. Echo
+5. Weave
 
-The fixed order is important because some modes remove events, some transform
-attributes, and Echo can expand one event into many events. A stable order keeps
-combinations repeatable and makes pattern state deterministic.
-
-## Logic Mode
-
-Logic is currently an "exactly one" onset gate.
-
-Events are grouped by identical PPQ start time within a small epsilon. For each
-group:
-
-- If the group contains exactly one event, that event passes.
-- If the group contains two or more events, every event in that group is removed.
-
-In pseudocode:
-
-```text
-for each ppq group:
-    if group.size == 1:
-        keep group[0]
-    else:
-        drop all events in group
-```
-
-This is intentionally different from parity XOR for four inputs. A four-input
-XOR would pass groups with one or three active rows. The implemented behavior is
-the more collision-removing musical rule: only lone onsets survive.
-
-Output effect:
-
-- Sparse interlocking rhythms.
-- Same-time collisions are carved out.
-- Pitch, velocity, duration, and channel are unchanged for surviving events.
+The fixed order is important because some modes transform attributes, some append
+new events, Echo can expand one event into many events, and Weave can thin
+same-time collisions. A stable order keeps combinations repeatable and makes
+pattern state deterministic.
 
 ## Cross-Mod Mode
 
@@ -221,6 +194,61 @@ Output effect:
 - Pitch can be shifted by another row's interval contour.
 - Velocity and gate length can come from different rows.
 - With fewer than two active rows, Cross-Mod is a no-op.
+
+## Bloom Mode
+
+Bloom appends scale-neighbor ornaments after source events. It reads the next
+active row as a motion source and uses that row's previous-to-current step motion
+to choose the ornament direction.
+
+For each source event:
+
+```text
+modRow = activeRows[(sourceActiveRowPosition + 1) % activeRowCount]
+modStep = source.step % modRow.stepCount
+movement = scaleDegreeDelta(modRow.notes[previousModStep], modRow.notes[modStep], scaleRoot, scaleModeIndex)
+direction = movement < 0 ? -1 : 1
+```
+
+Bloom only opens on gesture anchors. The gesture pulse is the larger of the
+current pulse and the combination gesture floor, so short-pulse patterns do not
+spray ornaments on every subdivision.
+
+The first ornament starts one quarter of the gesture pulse after the source. If
+the source event is long enough and the modulator moves by at least two scale
+degrees, Bloom adds a return ornament halfway through the gesture pulse.
+
+Output effect:
+
+- Adds scale-aware neighbor tones around source events.
+- Keeps source timing and MIDI channel.
+- Uses reduced ornament velocities (`65%` for the first ornament, `50%` for the
+  return ornament).
+- With fewer than two active rows, Bloom is a no-op.
+
+## Counter Mode
+
+Counter appends an offbeat response note after each source event. It reads the
+next active row and uses the following step as the response source:
+
+```text
+modRow = activeRows[(sourceActiveRowPosition + 1) % activeRowCount]
+modStep = (source.step + 1) % modRow.stepCount
+```
+
+Skipped, muted, or zero-velocity modulator steps do not create responses.
+
+The response starts halfway through the combination gesture pulse. If that start
+time collides with an existing event, Counter nudges it later by one eighth of
+the gesture pulse; if it still collides, the response is skipped.
+
+Output effect:
+
+- Adds offbeat call-and-response notes.
+- Uses the next row's scale-degree motion for response pitch.
+- Uses a short response gate: the smaller of half the source gate and `37.5%` of
+  the gesture pulse.
+- With fewer than two active rows, Counter is a no-op.
 
 ## Echo Mode
 
@@ -351,16 +379,16 @@ Output effect:
 ## Combining Modes
 
 Because all modes consume and return the same normalized event structure, any
-combination of the four mode bits can run together.
+combination of the five mode bits can run together.
 
 Examples:
 
-### Logic + Cross-Mod
+### Cross-Mod + Bloom
 
-1. Logic removes every same-time collision.
-2. Cross-Mod transforms pitch, velocity, and duration of surviving lone events.
+1. Cross-Mod transforms pitch, velocity, and duration of carrier events.
+2. Bloom appends scale-neighbor ornaments around the transformed events.
 
-Result: sparse rhythm with cross-routed musical attributes.
+Result: cross-routed phrase material with ornamental motion.
 
 ### Cross-Mod + Echo
 
@@ -370,13 +398,13 @@ Result: sparse rhythm with cross-routed musical attributes.
 Result: echoed/arpeggiated material based on the transformed phrase, not the raw
 phrase.
 
-### Logic + Echo + Weave
+### Counter + Echo + Weave
 
-1. Logic removes original same-time collisions.
-2. Echo expands surviving events.
-3. Weave thins any generated same-time Echo collisions to one winner.
+1. Counter appends offbeat responses.
+2. Echo expands the source and response events.
+3. Weave thins any generated same-time collisions to one winner.
 
-Result: sparse source material expanded into echoes while avoiding dense
+Result: call-and-response material expanded into echoes while avoiding dense
 same-time stacks.
 
 ## MIDI Output Rules
@@ -424,7 +452,7 @@ data, step cards, or recording input. Default range is C1–C7 per pattern.
 The UI preview follows the same mode order:
 
 ```text
-Logic -> Cross-Mod -> Echo -> Weave -> Octavizer -> Shimmer -> Note Bandpass
+Cross-Mod -> Bloom -> Counter -> Echo -> Weave -> Octavizer -> Shimmer -> Note Bandpass
 ```
 
 The preview intentionally differs in a few implementation details:
@@ -435,6 +463,6 @@ The preview intentionally differs in a few implementation details:
 - It caps visual Echo output at `4096` notes.
 - It does not emit MIDI or manage pending note-offs.
 
-The important musical outputs of the mode chain - which events survive, how
-pitch is transformed, how Echo expands events, and how Weave chooses collision
-winners - are mirrored.
+The important musical outputs of the mode chain - how pitch is transformed, how
+Bloom and Counter append events, how Echo expands events, and how Weave chooses
+collision winners - are mirrored.

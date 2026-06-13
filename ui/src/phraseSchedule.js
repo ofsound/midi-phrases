@@ -17,15 +17,14 @@ const EPSILON = 1e-9;
 const MAX_COMBINED_PREVIEW_NOTES = 4096;
 const COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR = 2;
 const DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS = 64;
-export const combinationModeMaskBits = 0x3f;
-/** Display order matches processing order: Logic → Cross-Mod → Bloom → Counter → Echo → Weave. */
+export const combinationModeMaskBits = 0x1f;
+/** Display order matches processing order: Cross-Mod → Bloom → Counter → Echo → Weave. */
 export const combinationModes = [
-  {index: 1, bit: 2, icon: "logic", name: "Logic"},
-  {index: 2, bit: 4, icon: "crossMod", name: "Cross-Mod"},
-  {index: 4, bit: 16, icon: "bloom", name: "Bloom"},
-  {index: 5, bit: 32, icon: "counter", name: "Counter"},
+  {index: 0, bit: 1, icon: "crossMod", name: "Cross-Mod"},
+  {index: 1, bit: 2, icon: "bloom", name: "Bloom"},
+  {index: 2, bit: 4, icon: "counter", name: "Counter"},
   {index: 3, bit: 8, icon: "echo", name: "Echo"},
-  {index: 0, bit: 1, icon: "weave", name: "Weave"},
+  {index: 4, bit: 16, icon: "weave", name: "Weave"},
 ];
 export const swingSubdivisionValues = [0.25, 0.5, 1];
 
@@ -510,15 +509,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
 
   if (activeRows.length === 0) return [];
 
-  if (combinationModeEnabled(combinationModeMask, 1)) {
-    events = groupByStart(events)
-      .filter((group) => group.length === 1)
-      .map((group) => group[0]);
-  }
-
-  if (events.length === 0) return [];
-
-  if (combinationModeEnabled(combinationModeMask, 2) && activeRows.length > 1) {
+  if (combinationModeEnabled(combinationModeMask, 0) && activeRows.length > 1) {
     events = events.map((event) => {
       const activeIndex = Math.max(0, activeRows.indexOf(event.row));
       const pitchRow = activeRows[(activeIndex + 1) % activeRows.length];
@@ -540,7 +531,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
     });
   }
 
-  if (combinationModeEnabled(combinationModeMask, 4) && activeRows.length > 1) {
+  if (combinationModeEnabled(combinationModeMask, 1) && activeRows.length > 1) {
     /** @type {ScheduledNote[]} */
     const bloomed = [];
     const pulseQuarters = pulseQuartersForIndex(pulseIndex);
@@ -607,7 +598,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
 
   if (events.length === 0) return [];
 
-  if (combinationModeEnabled(combinationModeMask, 5) && activeRows.length > 1) {
+  if (combinationModeEnabled(combinationModeMask, 2) && activeRows.length > 1) {
     /** @type {ScheduledNote[]} */
     const countered = [];
     const pulseQuarters = pulseQuartersForIndex(pulseIndex);
@@ -707,7 +698,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
     (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
   );
 
-  if (combinationModeEnabled(combinationModeMask, 0)) {
+  if (combinationModeEnabled(combinationModeMask, 4)) {
     events = groupByStart(events).map((group) => {
       if (group.length === 1) return group[0];
 

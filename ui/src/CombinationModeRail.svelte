@@ -7,7 +7,7 @@
   import { combinationModes } from "./phraseSchedule.js";
 
   /**
-   * Full-width hardware-style rail for Logic / Cross-Mod / Bloom / Counter / Echo / Weave modes.
+   * Full-width hardware-style rail for Cross-Mod / Bloom / Counter / Echo / Weave modes.
    *
    * @typedef {Object} Props
    * @property {number} mask

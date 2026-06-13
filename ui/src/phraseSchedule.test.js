@@ -40,16 +40,16 @@ function generatedStarts(schedule, midi) {
 
 describe("combination mode pulse-aware timing", () => {
   it("keeps Bloom ornaments on sparse half-note anchors at quarter pulse", () => {
-    const quarterPulseStarts = generatedStarts(combinationSchedule(1, 1 << 4), 59);
-    const halfPulseStart = firstGeneratedStart(combinationSchedule(2, 1 << 4), 59);
+    const quarterPulseStarts = generatedStarts(combinationSchedule(1, 1 << 1), 59);
+    const halfPulseStart = firstGeneratedStart(combinationSchedule(2, 1 << 1), 59);
 
     expect(quarterPulseStarts).toEqual([0.5, 2.5]);
     expect(halfPulseStart).toBeCloseTo(0.5, 9);
   });
 
   it("keeps Counter responses on a half-note gesture clock at quarter pulse", () => {
-    const quarterPulseStart = firstGeneratedStart(combinationSchedule(1, 1 << 5), 65);
-    const halfPulseStart = firstGeneratedStart(combinationSchedule(2, 1 << 5), 65);
+    const quarterPulseStart = firstGeneratedStart(combinationSchedule(1, 1 << 2), 65);
+    const halfPulseStart = firstGeneratedStart(combinationSchedule(2, 1 << 2), 65);
 
     expect(halfPulseStart).toBeCloseTo(1, 9);
     expect(quarterPulseStart).toBeGreaterThanOrEqual(1);

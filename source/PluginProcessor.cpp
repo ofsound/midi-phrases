@@ -12,7 +12,7 @@ constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 15;
+constexpr int phraseStateVersion = 16;
 
 int clampStepProbability (const int probability)
 {
@@ -3981,33 +3981,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
         return false;
     };
-
-    if (combinationModeEnabled (modeMask, combinationModeLogic))
-    {
-        auto write = static_cast<size_t> (0);
-
-        for (size_t read = 0; read < eventCount;)
-        {
-            auto groupEnd = read + 1;
-
-            while (groupEnd < eventCount
-                   && std::abs (combinedEvents[groupEnd].ppq - combinedEvents[read].ppq) <= epsilon)
-            {
-                ++groupEnd;
-            }
-
-            if (groupEnd - read == 1 && write < combinedWorkingEvents.size())
-                combinedWorkingEvents[write++] = combinedEvents[read];
-
-            read = groupEnd;
-        }
-
-        eventCount = write;
-        copyFilteredEvents (eventCount);
-
-        if (eventCount == 0)
-            return;
-    }
 
     if (combinationModeEnabled (modeMask, combinationModeCrossModulation) && activeRowCount > 1)
     {
