@@ -1,9 +1,10 @@
 <script>
+  import { onDestroy } from "svelte";
   import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
 
   /**
    * Vertical drag field for shimmer rail parameters.
-   * Keeps a local drag value so parent state (and piano-roll preview) update only on commit.
+   * Updates parent preview state while dragging; commits on release.
    *
    * @typedef {Object} Props
    * @property {number} value
@@ -15,6 +16,8 @@
    * @property {boolean} [active]
    * @property {string} [ariaLabel]
    * @property {string} [title]
+   * @property {() => void} [onGestureStart]
+   * @property {(value: number) => void} [onValuePreview]
    * @property {(value: number) => void | Promise<void>} [onValueCommit]
    */
 
@@ -29,18 +32,26 @@
     active = false,
     ariaLabel = "Shimmer parameter",
     title = "Drag vertically to adjust · double-click to reset",
+    onGestureStart = undefined,
+    onValuePreview = undefined,
     onValueCommit = () => {},
   } = $props();
 
   const pixelsPerStep = 4;
+  const previewThrottleMs = 100;
 
   let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
   let dragValue = $state(0);
+  let previewTimerId = 0;
+  let lastPreviewAt = 0;
+  /** @type {number | null} */
+  let pendingPreviewValue = null;
 
   let displayedValue = $derived(dragging ? dragValue : value);
   let displayValue = $derived(formatValue(displayedValue));
+  let deferCommit = $derived(Boolean(onValuePreview));
 
   /** @param {number} clientY */
   function valueFromDrag(clientY) {
@@ -49,9 +60,52 @@
     return clampValue(dragStartValue + steps);
   }
 
+  function cancelPreviewThrottle() {
+    if (!previewTimerId) return;
+
+    clearTimeout(previewTimerId);
+    previewTimerId = 0;
+  }
+
+  /** @param {number} next */
+  function flushPreview(next) {
+    cancelPreviewThrottle();
+    pendingPreviewValue = null;
+    lastPreviewAt = Date.now();
+    onValuePreview?.(next);
+  }
+
+  /** @param {number} next */
+  function scheduleThrottledPreview(next) {
+    if (!onValuePreview) return;
+
+    pendingPreviewValue = next;
+
+    const elapsed = Date.now() - lastPreviewAt;
+
+    if (elapsed >= previewThrottleMs) {
+      flushPreview(next);
+      return;
+    }
+
+    if (previewTimerId) return;
+
+    previewTimerId = window.setTimeout(() => {
+      previewTimerId = 0;
+      const pending = pendingPreviewValue;
+
+      if (pending !== null) flushPreview(pending);
+    }, previewThrottleMs - elapsed);
+  }
+
   /** @param {number} next */
   function commitValue(next) {
     const clamped = clampValue(next);
+
+    if (deferCommit) {
+      onValueCommit(clamped);
+      return;
+    }
 
     if (clamped !== value) onValueCommit(clamped);
   }
@@ -65,6 +119,12 @@
     dragStartY = event.clientY;
     dragStartValue = value;
     dragValue = value;
+    pendingPreviewValue = null;
+    lastPreviewAt = 0;
+
+    if (deferCommit) {
+      onGestureStart?.();
+    }
   }
 
   /** @param {PointerEvent} event */
@@ -73,7 +133,13 @@
 
     const next = valueFromDrag(event.clientY);
 
-    if (next !== dragValue) dragValue = next;
+    if (next === dragValue) return;
+
+    dragValue = next;
+
+    if (deferCommit) {
+      scheduleThrottledPreview(next);
+    }
   }
 
   /** @param {PointerEvent} event */
@@ -82,6 +148,8 @@
 
     dragging = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
+    cancelPreviewThrottle();
+    pendingPreviewValue = null;
     commitValue(dragValue);
     releasePointerDragFocus(event);
   }
@@ -96,6 +164,10 @@
       commitValue(defaultValue);
     }
   }
+
+  onDestroy(() => {
+    cancelPreviewThrottle();
+  });
 </script>
 
 <div

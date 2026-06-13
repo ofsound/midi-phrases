@@ -26,8 +26,12 @@
    * @property {number} feedbackPercent
    * @property {number} mixPercent
    * @property {(enabled: boolean) => void | Promise<void>} [onToggle]
+   * @property {() => void} [onParamGestureStart]
+   * @property {(value: number) => void} [onDelayPreview]
    * @property {(value: number) => void | Promise<void>} [onDelayCommit]
+   * @property {(value: number) => void} [onFeedbackPreview]
    * @property {(value: number) => void | Promise<void>} [onFeedbackCommit]
+   * @property {(value: number) => void} [onMixPreview]
    * @property {(value: number) => void | Promise<void>} [onMixCommit]
    */
 
@@ -38,8 +42,12 @@
     feedbackPercent = defaultShimmerFeedbackPercent,
     mixPercent = defaultShimmerMixPercent,
     onToggle = () => {},
+    onParamGestureStart = () => {},
+    onDelayPreview = () => {},
     onDelayCommit = () => {},
+    onFeedbackPreview = () => {},
     onFeedbackCommit = () => {},
+    onMixPreview = () => {},
     onMixCommit = () => {},
   } = $props();
 
@@ -79,6 +87,8 @@
           active={enabled}
           ariaLabel="Shimmer delay"
           title="Delay in pulse multiples · drag vertically · double-click to reset"
+          onGestureStart={onParamGestureStart}
+          onValuePreview={onDelayPreview}
           onValueCommit={onDelayCommit}
         />
         <span class="processing-param-label" aria-hidden="true">Del</span>
@@ -94,6 +104,8 @@
           active={enabled}
           ariaLabel="Shimmer feedback"
           title="Feedback percent · drag vertically · double-click to reset"
+          onGestureStart={onParamGestureStart}
+          onValuePreview={onFeedbackPreview}
           onValueCommit={onFeedbackCommit}
         />
         <span class="processing-param-label" aria-hidden="true">Fbk</span>
@@ -109,6 +121,8 @@
           active={enabled}
           ariaLabel="Shimmer mix"
           title="Tap mix percent · drag vertically · double-click to reset"
+          onGestureStart={onParamGestureStart}
+          onValuePreview={onMixPreview}
           onValueCommit={onMixCommit}
         />
         <span class="processing-param-label" aria-hidden="true">Mix</span>

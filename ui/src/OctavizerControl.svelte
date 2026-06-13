@@ -12,7 +12,10 @@
    * @property {number} up8vaRelativeVelocity
    * @property {(enabled: boolean) => void | Promise<void>} [onDown8vaToggle]
    * @property {(enabled: boolean) => void | Promise<void>} [onUp8vaToggle]
+   * @property {() => void} [onRelativeVelocityGestureStart]
+   * @property {(value: number) => void} [onDown8vaRelativeVelocityPreview]
    * @property {(value: number) => void | Promise<void>} [onDown8vaRelativeVelocityCommit]
+   * @property {(value: number) => void} [onUp8vaRelativeVelocityPreview]
    * @property {(value: number) => void | Promise<void>} [onUp8vaRelativeVelocityCommit]
    */
 
@@ -24,7 +27,10 @@
     up8vaRelativeVelocity = 0,
     onDown8vaToggle = () => {},
     onUp8vaToggle = () => {},
+    onRelativeVelocityGestureStart = () => {},
+    onDown8vaRelativeVelocityPreview = () => {},
     onDown8vaRelativeVelocityCommit = () => {},
+    onUp8vaRelativeVelocityPreview = () => {},
     onUp8vaRelativeVelocityCommit = () => {},
   } = $props();
 </script>
@@ -47,6 +53,8 @@
         value={down8vaRelativeVelocity}
         active={down8vaEnabled}
         ariaLabel="-8va relative velocity"
+        onGestureStart={onRelativeVelocityGestureStart}
+        onValuePreview={onDown8vaRelativeVelocityPreview}
         onValueCommit={onDown8vaRelativeVelocityCommit}
       />
       <span class="processing-param-label" aria-hidden="true">Vel</span>
@@ -70,6 +78,8 @@
         value={up8vaRelativeVelocity}
         active={up8vaEnabled}
         ariaLabel="8va relative velocity"
+        onGestureStart={onRelativeVelocityGestureStart}
+        onValuePreview={onUp8vaRelativeVelocityPreview}
         onValueCommit={onUp8vaRelativeVelocityCommit}
       />
       <span class="processing-param-label" aria-hidden="true">Vel</span>

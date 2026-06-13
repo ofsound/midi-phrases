@@ -229,6 +229,8 @@
   let bulkTransposeSemitones = $state(0);
   /** @type {ReturnType<typeof createHistorySnapshot> | null} */
   let bulkEditGestureBefore = null;
+  /** @type {ReturnType<typeof createHistorySnapshot> | null} */
+  let processingParamGestureBefore = null;
   /** @type {Map<string, number> | null} */
   let bulkTransposeBaselineByKey = null;
   /** @type {{ startX: number, startY: number, currentX: number, currentY: number, addToSelection: boolean, baseKeys: Set<string> } | null} */
@@ -435,18 +437,68 @@
     pushHistoryEntry("Octavizer 8va", before, after);
   }
 
-  async function commitOctavizerDown8vaRelativeVelocity(value) {
-    const before = createHistorySnapshot();
+  function beginProcessingParamGesture() {
+    if (!processingParamGestureBefore) {
+      processingParamGestureBefore = createHistorySnapshot();
+    }
+  }
+
+  function resetProcessingParamGesture() {
+    processingParamGestureBefore = null;
+  }
+
+  function previewOctavizerDown8vaRelativeVelocity(value) {
     setOctavizerState({ down8vaRelativeVelocity: value });
-    await syncOctavizerToNative();
-    pushHistoryEntry("Octavizer -8va velocity", before, createHistorySnapshot());
+  }
+
+  function previewOctavizerUp8vaRelativeVelocity(value) {
+    setOctavizerState({ up8vaRelativeVelocity: value });
+  }
+
+  function previewShimmerDelay(value) {
+    setShimmerState({ delayMultiplierIndex: value });
+  }
+
+  function previewShimmerFeedback(value) {
+    setShimmerState({ feedbackPercent: value });
+  }
+
+  function previewShimmerMix(value) {
+    setShimmerState({ mixPercent: value });
+  }
+
+  async function commitProcessingParam(label, applyState, syncFn, changed) {
+    const before = processingParamGestureBefore ?? createHistorySnapshot();
+    resetProcessingParamGesture();
+
+    applyState();
+    await syncFn();
+
+    const after = createHistorySnapshot();
+
+    if (!changed(before, after)) return;
+
+    pushHistoryEntry(label, before, after);
+  }
+
+  async function commitOctavizerDown8vaRelativeVelocity(value) {
+    await commitProcessingParam(
+      "Octavizer -8va velocity",
+      () => setOctavizerState({ down8vaRelativeVelocity: value }),
+      syncOctavizerToNative,
+      (before, after) =>
+        after.octavizerDown8vaRelativeVelocity !== before.octavizerDown8vaRelativeVelocity,
+    );
   }
 
   async function commitOctavizerUp8vaRelativeVelocity(value) {
-    const before = createHistorySnapshot();
-    setOctavizerState({ up8vaRelativeVelocity: value });
-    await syncOctavizerToNative();
-    pushHistoryEntry("Octavizer 8va velocity", before, createHistorySnapshot());
+    await commitProcessingParam(
+      "Octavizer 8va velocity",
+      () => setOctavizerState({ up8vaRelativeVelocity: value }),
+      syncOctavizerToNative,
+      (before, after) =>
+        after.octavizerUp8vaRelativeVelocity !== before.octavizerUp8vaRelativeVelocity,
+    );
   }
 
   async function handleShimmerToggle(enabled) {
@@ -463,24 +515,31 @@
   }
 
   async function commitShimmerDelay(value) {
-    const before = createHistorySnapshot();
-    setShimmerState({ delayMultiplierIndex: value });
-    await syncShimmerToNative();
-    pushHistoryEntry("Shimmer delay", before, createHistorySnapshot());
+    await commitProcessingParam(
+      "Shimmer delay",
+      () => setShimmerState({ delayMultiplierIndex: value }),
+      syncShimmerToNative,
+      (before, after) =>
+        after.shimmerDelayMultiplierIndex !== before.shimmerDelayMultiplierIndex,
+    );
   }
 
   async function commitShimmerFeedback(value) {
-    const before = createHistorySnapshot();
-    setShimmerState({ feedbackPercent: value });
-    await syncShimmerToNative();
-    pushHistoryEntry("Shimmer feedback", before, createHistorySnapshot());
+    await commitProcessingParam(
+      "Shimmer feedback",
+      () => setShimmerState({ feedbackPercent: value }),
+      syncShimmerToNative,
+      (before, after) => after.shimmerFeedbackPercent !== before.shimmerFeedbackPercent,
+    );
   }
 
   async function commitShimmerMix(value) {
-    const before = createHistorySnapshot();
-    setShimmerState({ mixPercent: value });
-    await syncShimmerToNative();
-    pushHistoryEntry("Shimmer mix", before, createHistorySnapshot());
+    await commitProcessingParam(
+      "Shimmer mix",
+      () => setShimmerState({ mixPercent: value }),
+      syncShimmerToNative,
+      (before, after) => after.shimmerMixPercent !== before.shimmerMixPercent,
+    );
   }
 
   async function toggleCombinationMode(modeIndex) {
@@ -3529,15 +3588,21 @@
       octavizerUp8vaRelativeVelocity={octavizerUp8vaRelativeVelocity}
       onOctavizerDown8vaToggle={handleOctavizerDown8vaToggle}
       onOctavizerUp8vaToggle={handleOctavizerUp8vaToggle}
+      onProcessingParamGestureStart={beginProcessingParamGesture}
+      onOctavizerDown8vaRelativeVelocityPreview={previewOctavizerDown8vaRelativeVelocity}
       onOctavizerDown8vaRelativeVelocityCommit={commitOctavizerDown8vaRelativeVelocity}
+      onOctavizerUp8vaRelativeVelocityPreview={previewOctavizerUp8vaRelativeVelocity}
       onOctavizerUp8vaRelativeVelocityCommit={commitOctavizerUp8vaRelativeVelocity}
       shimmerEnabled={shimmerEnabled}
       shimmerDelayMultiplierIndex={shimmerDelayMultiplierIndex}
       shimmerFeedbackPercent={shimmerFeedbackPercent}
       shimmerMixPercent={shimmerMixPercent}
       onShimmerToggle={handleShimmerToggle}
+      onShimmerDelayPreview={previewShimmerDelay}
       onShimmerDelayCommit={commitShimmerDelay}
+      onShimmerFeedbackPreview={previewShimmerFeedback}
       onShimmerFeedbackCommit={commitShimmerFeedback}
+      onShimmerMixPreview={previewShimmerMix}
       onShimmerMixCommit={commitShimmerMix}
     />
     </div>
