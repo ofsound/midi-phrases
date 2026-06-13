@@ -3923,6 +3923,37 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             combinedEvents[index] = combinedWorkingEvents[index];
     };
 
+    const auto sortCombinedEvents = [&] {
+        std::sort (combinedEvents.begin(),
+                   combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
+                   compareCombinedEventsForWeave);
+    };
+
+    const auto activeRowPosition = [&] (const int row) {
+        for (int index = 0; index < activeRowCount; ++index)
+        {
+            if (activeRows[static_cast<size_t> (index)] == row)
+                return index;
+        }
+
+        return 0;
+    };
+
+    const auto firstNoteForRow = [&] (const int row) {
+        const auto& rowSteps = state.rows[static_cast<size_t> (row)];
+        return rowSteps.stepCount > 0 ? rowSteps.notes[0] : emptyRowDefaultNote;
+    };
+
+    const auto eventStartCollides = [&] (const double ppq) {
+        for (size_t index = 0; index < eventCount; ++index)
+        {
+            if (std::abs (combinedEvents[index].ppq - ppq) <= epsilon)
+                return true;
+        }
+
+        return false;
+    };
+
     if (combinationModeEnabled (modeMask, combinationModeLogic))
     {
         auto write = static_cast<size_t> (0);
@@ -3952,21 +3983,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
     if (combinationModeEnabled (modeMask, combinationModeCrossModulation) && activeRowCount > 1)
     {
-        const auto activeRowPosition = [&] (const int row) {
-            for (int index = 0; index < activeRowCount; ++index)
-            {
-                if (activeRows[static_cast<size_t> (index)] == row)
-                    return index;
-            }
-
-            return 0;
-        };
-
-        const auto firstNoteForRow = [&] (const int row) {
-            const auto& rowSteps = state.rows[static_cast<size_t> (row)];
-            return rowSteps.stepCount > 0 ? rowSteps.notes[0] : emptyRowDefaultNote;
-        };
-
         for (size_t index = 0; index < eventCount; ++index)
         {
             auto& event = combinedEvents[index];
@@ -3999,18 +4015,153 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         }
     }
 
-    if (combinationModeEnabled (modeMask, combinationModeMultiplyEcho) && activeRowCount > 1)
+    if (combinationModeEnabled (modeMask, combinationModeBloom) && activeRowCount > 1)
     {
-        const auto activeRowPosition = [&] (const int row) {
-            for (int index = 0; index < activeRowCount; ++index)
+        auto write = static_cast<size_t> (0);
+
+        for (size_t read = 0; read < eventCount && write < combinedWorkingEvents.size(); ++read)
+        {
+            const auto& source = combinedEvents[read];
+            combinedWorkingEvents[write++] = source;
+
+            const auto position = activeRowPosition (source.row);
+            const auto modRow = activeRows[static_cast<size_t> ((position + 1) % activeRowCount)];
+            const auto& modSteps = state.rows[static_cast<size_t> (modRow)];
+
+            if (modSteps.stepCount <= 0)
+                continue;
+
+            const auto modStep = source.step % juce::jmax (1, modSteps.stepCount);
+            const auto previousModStep = (modStep + modSteps.stepCount - 1) % modSteps.stepCount;
+            const auto movement = scaleDegreeDelta (
+                modSteps.notes[static_cast<size_t> (previousModStep)],
+                modSteps.notes[static_cast<size_t> (modStep)],
+                scaleRoot,
+                scaleModeIndex);
+            const auto direction = movement < 0 ? -1 : 1;
+            const auto ornamentGate = juce::jmin (source.gateQuarters * 0.5, pulse * 0.25);
+
+            if (ornamentGate <= epsilon)
+                continue;
+
+            const auto firstDelay = juce::jmax (pulse * 0.0625,
+                                                juce::jmin (source.gateQuarters * 0.25,
+                                                            pulse * 0.125));
+            const auto secondDelay = juce::jmax (pulse * 0.125,
+                                                 juce::jmin (source.gateQuarters * 0.5,
+                                                             pulse * 0.25));
+
+            const auto appendBloom = [&] (const int degreeDelta,
+                                          const double delay,
+                                          const double velocityScale) {
+                if (write >= combinedWorkingEvents.size())
+                    return;
+
+                auto copy = source;
+                copy.ppq = source.ppq + delay;
+
+                copy.note = transposeMidiByScaleDegrees (source.note,
+                                                         degreeDelta,
+                                                         scaleRoot,
+                                                         scaleModeIndex);
+
+                if (copy.note == source.note)
+                    return;
+
+                copy.gateQuarters = ornamentGate;
+                copy.velocity = juce::jlimit (
+                    1,
+                    127,
+                    static_cast<int> (std::lround (static_cast<double> (source.velocity) * velocityScale)));
+                combinedWorkingEvents[write++] = copy;
+            };
+
+            appendBloom (direction, firstDelay, 0.65);
+
+            if (std::abs (movement) >= 2)
+                appendBloom (-direction, secondDelay, 0.5);
+        }
+
+        eventCount = write;
+        copyFilteredEvents (eventCount);
+
+        if (eventCount == 0)
+            return;
+
+        sortCombinedEvents();
+    }
+
+    if (combinationModeEnabled (modeMask, combinationModeCounter) && activeRowCount > 1)
+    {
+        auto write = static_cast<size_t> (0);
+
+        for (size_t read = 0; read < eventCount && write < combinedWorkingEvents.size(); ++read)
+        {
+            const auto& source = combinedEvents[read];
+            combinedWorkingEvents[write++] = source;
+
+            const auto position = activeRowPosition (source.row);
+            const auto modRow = activeRows[static_cast<size_t> ((position + 1) % activeRowCount)];
+            const auto& modSteps = state.rows[static_cast<size_t> (modRow)];
+
+            if (modSteps.stepCount <= 0)
+                continue;
+
+            const auto modStep = (source.step + 1) % modSteps.stepCount;
+            const auto modIndex = static_cast<size_t> (modStep);
+
+            if (modSteps.stepSkipped[modIndex] != 0
+                || modSteps.stepMuted[modIndex] != 0
+                || modSteps.velocity[modIndex] <= 0)
+                continue;
+
+            auto counterDelay =
+                juce::jmax (pulse * 0.125,
+                            juce::jmin (pulse * 0.5, source.gateQuarters * 0.5));
+            auto counterStart = source.ppq + counterDelay;
+
+            if (eventStartCollides (counterStart))
             {
-                if (activeRows[static_cast<size_t> (index)] == row)
-                    return index;
+                counterDelay += pulse * 0.125;
+                counterStart = source.ppq + counterDelay;
+
+                if (eventStartCollides (counterStart))
+                    continue;
             }
 
-            return 0;
-        };
+            const auto counterGate = juce::jmin (source.gateQuarters * 0.5, pulse * 0.375);
 
+            if (counterGate <= epsilon)
+                continue;
+
+            auto copy = source;
+            copy.ppq = counterStart;
+            copy.gateQuarters = counterGate;
+            copy.note = echoNoteFromModStep (source.note,
+                                             firstNoteForRow (modRow),
+                                             modSteps.notes[modIndex],
+                                             scaleRoot,
+                                             scaleModeIndex);
+            copy.velocity = juce::jlimit (
+                1,
+                127,
+                static_cast<int> (std::lround (
+                    static_cast<double> (source.velocity + modSteps.velocity[modIndex]) * 0.31)));
+            copy.step = modStep;
+            combinedWorkingEvents[write++] = copy;
+        }
+
+        eventCount = write;
+        copyFilteredEvents (eventCount);
+
+        if (eventCount == 0)
+            return;
+
+        sortCombinedEvents();
+    }
+
+    if (combinationModeEnabled (modeMask, combinationModeMultiplyEcho) && activeRowCount > 1)
+    {
         auto write = static_cast<size_t> (0);
 
         for (size_t read = 0; read < eventCount && write < combinedWorkingEvents.size(); ++read)

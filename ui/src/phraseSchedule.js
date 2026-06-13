@@ -2,17 +2,26 @@ import {defaultPulseIndex, pulseQuartersForIndex} from "./pulseLayout.js";
 import {applyNoteBandpass, defaultNoteBandpassHighMidi, defaultNoteBandpassLowMidi} from "./noteBandpass.js";
 import {applyOctavizer, defaultOctavizerRelativeVelocity} from "./octavizer.js";
 import {applyShimmer, defaultShimmerDelayMultiplierIndex, defaultShimmerFeedbackPercent, defaultShimmerMixPercent} from "./shimmer.js";
-import {defaultScaleModeIndex, defaultScaleRoot, echoNoteFromModStep} from "./scaleUtils.js";
+import {
+  defaultScaleModeIndex,
+  defaultScaleRoot,
+  echoNoteFromModStep,
+  scaleDegreeDelta,
+  transposeMidiByScaleDegrees,
+} from "./scaleUtils.js";
 import {timingMultiplierAtIndex, timingOffsetValues} from "./stepCellLayout.js";
 
 export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
 
 const EPSILON = 1e-9;
 const MAX_COMBINED_PREVIEW_NOTES = 4096;
-/** Display order matches processing order: Logic → Cross-Mod → Echo → Weave. */
+export const combinationModeMaskBits = 0x3f;
+/** Display order matches processing order: Logic → Cross-Mod → Bloom → Counter → Echo → Weave. */
 export const combinationModes = [
   {index: 1, bit: 2, icon: "logic", name: "Logic"},
   {index: 2, bit: 4, icon: "crossMod", name: "Cross-Mod"},
+  {index: 4, bit: 16, icon: "bloom", name: "Bloom"},
+  {index: 5, bit: 32, icon: "counter", name: "Counter"},
   {index: 3, bit: 8, icon: "echo", name: "Echo"},
   {index: 0, bit: 1, icon: "weave", name: "Weave"},
 ];
@@ -394,6 +403,11 @@ function groupByStart(events) {
   return groups;
 }
 
+/** @param {ScheduledNote[]} events @param {number} start */
+function eventStartCollides(events, start) {
+  return events.some((event) => Math.abs(event.start - start) <= EPSILON);
+}
+
 /**
  * @param {object} params
  * @param {ScheduledNote[]} params.scheduled
@@ -412,7 +426,7 @@ function groupByStart(events) {
  * @returns {ScheduledNote[]}
  */
 function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier, stepVelocity, stepDurationFraction, stepMuted, stepSkipped, pulseIndex, combinationModeMask, lengthQuarters, scaleRoot, scaleModeIndex}) {
-  if ((combinationModeMask & 0xf) === 0 || scheduled.length === 0) return scheduled;
+  if ((combinationModeMask & combinationModeMaskBits) === 0 || scheduled.length === 0) return scheduled;
 
   let events = scheduled.map((event) => ({...event}));
   const activeRows = notes
@@ -455,6 +469,126 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
       };
     });
   }
+
+  if (combinationModeEnabled(combinationModeMask, 4) && activeRows.length > 1) {
+    /** @type {ScheduledNote[]} */
+    const bloomed = [];
+
+    for (const event of events) {
+      if (bloomed.length >= MAX_COMBINED_PREVIEW_NOTES) break;
+
+      bloomed.push(event);
+
+      const activeIndex = Math.max(0, activeRows.indexOf(event.row));
+      const modRow = activeRows[(activeIndex + 1) % activeRows.length];
+      const modNotes = notes[modRow] ?? [];
+
+      if (modNotes.length <= 0) continue;
+
+      const modStep = event.step % Math.max(1, modNotes.length);
+      const previousModStep = (modStep + modNotes.length - 1) % modNotes.length;
+      const movement = scaleDegreeDelta(modNotes[previousModStep], modNotes[modStep], scaleRoot, scaleModeIndex);
+      const direction = movement < 0 ? -1 : 1;
+      const ornamentGate = Math.min((event.end - event.start) * 0.5, pulseQuartersForIndex(pulseIndex) * 0.25);
+
+      if (ornamentGate <= EPSILON) continue;
+
+      const firstDelay = Math.max(
+        pulseQuartersForIndex(pulseIndex) * 0.0625,
+        Math.min((event.end - event.start) * 0.25, pulseQuartersForIndex(pulseIndex) * 0.125),
+      );
+      const secondDelay = Math.max(
+        pulseQuartersForIndex(pulseIndex) * 0.125,
+        Math.min((event.end - event.start) * 0.5, pulseQuartersForIndex(pulseIndex) * 0.25),
+      );
+
+      const appendBloom = (degreeDelta, delay, velocityScale) => {
+        if (bloomed.length >= MAX_COMBINED_PREVIEW_NOTES) return;
+
+        const start = event.start + delay;
+
+        if (start >= lengthQuarters - EPSILON) return;
+
+        const midi = transposeMidiByScaleDegrees(event.midi, degreeDelta, scaleRoot, scaleModeIndex);
+
+        if (midi === event.midi) return;
+
+        bloomed.push({
+          ...event,
+          start,
+          end: start + ornamentGate,
+          midi,
+          velocity: Math.min(127, Math.max(1, Math.round(event.velocity * velocityScale))),
+        });
+      };
+
+      appendBloom(direction, firstDelay, 0.65);
+
+      if (Math.abs(movement) >= 2) {
+        appendBloom(-direction, secondDelay, 0.5);
+      }
+    }
+
+    events = bloomed.sort(
+      (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+    );
+  }
+
+  if (events.length === 0) return [];
+
+  if (combinationModeEnabled(combinationModeMask, 5) && activeRows.length > 1) {
+    /** @type {ScheduledNote[]} */
+    const countered = [];
+    const pulseQuarters = pulseQuartersForIndex(pulseIndex);
+
+    for (const event of events) {
+      if (countered.length >= MAX_COMBINED_PREVIEW_NOTES) break;
+
+      countered.push(event);
+
+      const activeIndex = Math.max(0, activeRows.indexOf(event.row));
+      const modRow = activeRows[(activeIndex + 1) % activeRows.length];
+      const modNotes = notes[modRow] ?? [];
+
+      if (modNotes.length <= 0) continue;
+
+      const modStep = (event.step + 1) % modNotes.length;
+
+      if (stepSkipped[modRow]?.[modStep] || stepMuted[modRow]?.[modStep]) continue;
+      if ((stepVelocity[modRow]?.[modStep] ?? 0) <= 0) continue;
+
+      let counterDelay = Math.max(pulseQuarters * 0.125, Math.min(pulseQuarters * 0.5, (event.end - event.start) * 0.5));
+      let start = event.start + counterDelay;
+
+      if (eventStartCollides(events, start)) {
+        counterDelay += pulseQuarters * 0.125;
+        start = event.start + counterDelay;
+
+        if (eventStartCollides(events, start)) continue;
+      }
+
+      if (start >= lengthQuarters - EPSILON) continue;
+
+      const duration = Math.min((event.end - event.start) * 0.5, pulseQuarters * 0.375);
+
+      if (duration <= EPSILON) continue;
+
+      countered.push({
+        ...event,
+        start,
+        end: start + duration,
+        midi: echoNoteFromModStep(event.midi, modNotes[0] ?? 60, modNotes[modStep] ?? modNotes[0] ?? 60, scaleRoot, scaleModeIndex),
+        velocity: Math.min(127, Math.max(1, Math.round((event.velocity + (stepVelocity[modRow]?.[modStep] ?? event.velocity)) * 0.31))),
+        step: modStep,
+      });
+    }
+
+    events = countered.sort(
+      (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+    );
+  }
+
+  if (events.length === 0) return [];
 
   if (combinationModeEnabled(combinationModeMask, 3) && activeRows.length > 1) {
     /** @type {ScheduledNote[]} */

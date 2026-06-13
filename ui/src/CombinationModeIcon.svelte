@@ -1,8 +1,8 @@
 <script>
   /**
-   * Combination-mode glyphs (Logic, Cross-Mod, Echo, Weave).
+   * Combination-mode glyphs (Logic, Cross-Mod, Bloom, Counter, Echo, Weave).
    *
-   * @typedef {'logic' | 'crossMod' | 'echo' | 'weave'} CombinationModeIconKind
+   * @typedef {'logic' | 'crossMod' | 'bloom' | 'counter' | 'echo' | 'weave'} CombinationModeIconKind
    * @typedef {Object} Props
    * @property {CombinationModeIconKind} kind
    * @property {string} [class]
@@ -43,6 +43,42 @@
     <path d="M14.2 10.6 L15.2 11.2 L14.6 12.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
     <path d="M14.2 14.8 L15.2 15.4 L14.6 16.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
     <path d="M14.2 7.2 L15.2 7.8 L14.6 6.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+  {:else if kind === "bloom"}
+    <!-- A source onset opens into scale-neighbor ornaments. -->
+    <path d="M12 17 V7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" opacity="0.65" />
+    <circle cx="12" cy="17" r="2.1" fill="currentColor" />
+    <path
+      d="M12 11 C9.5 9.5 7.5 7.5 6.5 5"
+      stroke="currentColor"
+      stroke-width="1.6"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M12 11 C14.5 9.5 16.5 7.5 17.5 5"
+      stroke="currentColor"
+      stroke-width="1.6"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <circle cx="6.5" cy="5" r="1.8" fill="currentColor" opacity="0.72" />
+    <circle cx="17.5" cy="5" r="1.8" fill="currentColor" opacity="0.72" />
+  {:else if kind === "counter"}
+    <!-- A main phrase answered by an offset counterline. -->
+    <path d="M4 8 H9.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+    <path d="M14.5 8 H20" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+    <circle cx="4" cy="8" r="1.55" fill="currentColor" />
+    <circle cx="14.5" cy="8" r="1.55" fill="currentColor" />
+    <path
+      d="M8 16 C10.5 12.5 13.5 12.5 16 16"
+      stroke="currentColor"
+      stroke-width="1.7"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.72"
+    />
+    <circle cx="8" cy="16" r="1.55" fill="currentColor" opacity="0.72" />
+    <circle cx="16" cy="16" r="1.55" fill="currentColor" opacity="0.72" />
   {:else if kind === "echo"}
     <!-- One carrier event multiplied into staggered repeats. -->
     <path d="M4 18 H20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.35" />

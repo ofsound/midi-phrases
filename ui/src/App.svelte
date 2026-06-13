@@ -56,6 +56,7 @@
     defaultShimmerMixPercent,
   } from "./shimmer.js";
   import {
+    combinationModeMaskBits,
     combinationModes,
     isStepActiveAtBeat,
     swingSubdivisionOptions,
@@ -498,7 +499,7 @@
     const parsed = Number.parseInt(String(confirmed), 10);
 
     if (!Number.isNaN(parsed)) {
-      combinationModeMask = parsed & 0xf;
+      combinationModeMask = parsed & combinationModeMaskBits;
     }
   }
 
@@ -976,7 +977,7 @@
     velocityHumanizePercent = next.velocityHumanizePercent;
     timingHumanizePercent = next.timingHumanizePercent;
     swingSubdivisionIndex = next.swingSubdivisionIndex;
-    combinationModeMask = next.combinationModeMask ?? 0;
+    combinationModeMask = (next.combinationModeMask ?? 0) & combinationModeMaskBits;
     scaleRoot = clampScaleRoot(next.scaleRoot ?? defaultScaleRoot);
     scaleModeIndex = clampScaleModeIndex(next.scaleModeIndex ?? defaultScaleModeIndex);
     setNoteBandpassState(
@@ -1027,7 +1028,7 @@
     stepProbability = cloneMatrix(state.phraseStepProbability ?? stepProbability);
     stepCycle = cloneMatrix(state.phraseStepCycle ?? stepCycle);
     stepCycleOffset = cloneMatrix(state.phraseStepCycleOffset ?? stepCycleOffset);
-    combinationModeMask = Number.parseInt(String(state.combinationModeMask ?? 0), 10) & 0xf;
+    combinationModeMask = Number.parseInt(String(state.combinationModeMask ?? 0), 10) & combinationModeMaskBits;
     scaleRoot = clampScaleRoot(state.scaleRoot ?? defaultScaleRoot);
     scaleModeIndex = clampScaleModeIndex(state.scaleModeIndex ?? defaultScaleModeIndex);
     setNoteBandpassState(
@@ -2621,7 +2622,7 @@
     const raw = Array.isArray(init) ? init[0] : init;
     const value = Number.parseInt(String(raw ?? 0), 10);
 
-    combinationModeMask = Number.isNaN(value) ? 0 : value & 0xf;
+    combinationModeMask = Number.isNaN(value) ? 0 : value & combinationModeMaskBits;
   }
 
   function loadPatternScaleFromInitialisation() {

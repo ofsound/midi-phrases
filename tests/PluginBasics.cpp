@@ -20,6 +20,53 @@ void ensurePhraseRowStepCount (PluginProcessor& plugin, const int row, const int
     while (plugin.getPhraseRowStepCount (row) > stepCount)
         plugin.removePhraseStep (row, plugin.getPhraseRowStepCount (row) - 1);
 }
+
+std::array<int, 128> collectNoteOnsOverQuarters (PluginProcessor& plugin,
+                                                 const double sampleRate,
+                                                 const int blockSize,
+                                                 const double quarters)
+{
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    plugin.setPlayHead (&playHead);
+
+    std::array<int, 128> noteOnCounts {};
+
+    for (int block = 0; block < 700; ++block)
+    {
+        midi.clear();
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                      * (120.0 / 60.0) / sampleRate);
+        plugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+                ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+        }
+
+        if (playHead.info.getPpqPosition() >= quarters)
+            break;
+    }
+
+    plugin.setPlayHead (nullptr);
+    return noteOnCounts;
+}
 }
 
 TEST_CASE ("Echo mode follows pattern scale", "[instance]")
@@ -195,6 +242,97 @@ TEST_CASE ("Cross-Mod mode follows pattern scale", "[instance]")
     CHECK (noteOnCounts[50] > 0); // D3 scale-degree shift from C3 + (E4 -> F4)
     CHECK (noteOnCounts[49] == 0); // C#3 would be chromatic, not in C major
     testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Bloom mode adds scale-neighbor ornaments", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 2);
+
+    testPlugin.setPhraseNote (0, 0, 60); // C4
+    testPlugin.setPhraseNote (1, 0, 62); // D4
+    testPlugin.setPhraseNote (1, 1, 67); // G4
+
+    for (int row = 0; row < 2; ++row)
+    {
+        const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            testPlugin.setPhraseStepTimingMultiplier (row,
+                                                        step,
+                                                        PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (row, step, 100);
+        }
+    }
+
+    testPlugin.setPatternScale (0, 1); // C major
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeBloom, true);
+
+    const auto noteOnCounts = collectNoteOnsOverQuarters (testPlugin, sampleRate, blockSize, 2.0);
+
+    CHECK (noteOnCounts[60] > 0); // source C4 stays
+    CHECK (noteOnCounts[59] > 0); // lower scale-neighbor bloom
+    CHECK (noteOnCounts[62] > 0); // upper scale-neighbor bloom / row source
+}
+
+TEST_CASE ("Counter mode adds offbeat response notes", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 2);
+
+    testPlugin.setPhraseNote (0, 0, 60); // C4
+    testPlugin.setPhraseNote (1, 0, 62); // D4
+    testPlugin.setPhraseNote (1, 1, 67); // G4
+
+    for (int row = 0; row < 2; ++row)
+    {
+        const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            testPlugin.setPhraseStepTimingMultiplier (row,
+                                                        step,
+                                                        PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (row, step, 100);
+        }
+    }
+
+    testPlugin.setPatternScale (0, 1); // C major
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeCounter, true);
+
+    const auto noteOnCounts = collectNoteOnsOverQuarters (testPlugin, sampleRate, blockSize, 2.0);
+
+    CHECK (noteOnCounts[60] > 0); // source C4 stays
+    CHECK (noteOnCounts[65] > 0); // F4 answer from row 1's D -> G contour
 }
 
 TEST_CASE ("Pattern note bandpass filters scheduled output", "[instance]")
