@@ -595,7 +595,7 @@
   }
 
   function brandIconToggleButtonClasses(active, enabled = true) {
-    return `flex h-3 w-3 shrink-0 items-center justify-center border-0 bg-transparent p-0 transition-colors outline-none focus:ring-1 focus:ring-accent-400 ${
+    return `flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 transition-colors outline-none focus:ring-1 focus:ring-accent-400 ${
       !enabled
         ? "text-zinc-700"
         : active
@@ -3098,9 +3098,9 @@
   {/if}
   <header class="flex items-end gap-3 px-6 pb-3">
     <div class="relative flex shrink-0 -translate-y-3 items-end gap-5">
-      <div class="flex flex-col items-start gap-1">
-        <div class="flex h-3 items-center gap-1.5">
-          <p class="text-xs font-medium uppercase leading-none tracking-widest text-accent-400">
+      <div class="flex flex-col items-start gap-0">
+        <div class="flex items-start gap-1.5">
+          <p class="text-base font-semibold uppercase leading-none tracking-widest text-accent-400">
             ofsound
           </p>
           <ColorsToggle
@@ -3128,12 +3128,12 @@
             )}
             onclick={toggleGlobalStepBackView}
           >
-            <StepGearIcon class="pointer-events-none h-3 w-3" />
+            <StepGearIcon class="pointer-events-none h-5 w-5" />
           </button>
         </div>
         <div class="flex h-8 items-end">
           <h1
-            class="whitespace-nowrap text-3xl font-semibold leading-none tracking-tight text-zinc-100 translate-y-0.5"
+            class="whitespace-nowrap text-3xl font-semibold leading-none tracking-normal text-zinc-100 translate-y-0.5"
           >
             {pluginName}
           </h1>
@@ -3151,7 +3151,7 @@
           scaleDialogOpen = true;
         }}
       >
-        <div class="h-3" aria-hidden="true"></div>
+        <div class="h-5" aria-hidden="true"></div>
         <div class="-translate-y-0.5 flex h-8 flex-col items-start justify-end gap-1">
           <p class="text-base font-semibold leading-none text-zinc-100">{activeKeyCenterLabel}</p>
           <p class="text-sm font-semibold uppercase leading-none text-accent-300">{activeScaleModeLabel}</p>
