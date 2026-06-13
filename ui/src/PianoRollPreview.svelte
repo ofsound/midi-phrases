@@ -6,6 +6,7 @@
   import { defaultPulseIndex } from "./pulseLayout.js";
   import { applyNoteBandpass } from "./noteBandpass.js";
   import { noteBandpassPreview } from "./noteBandpassPreview.svelte.js";
+  import { pagedPlaybackScrollLeft } from "./pianoRollAutoScroll.js";
   import { fittedPitchRangeForSchedule } from "./pianoRollViewport.js";
   import {
     buildPhraseScheduleBeforeBandpass,
@@ -505,6 +506,26 @@
     verticalViewportHeightPx = node.clientHeight;
   }
 
+  /** @param {number} scrollLeft */
+  function setHorizontalScrollLeft(scrollLeft) {
+    if (!gridScrollElement) return;
+
+    const nextScrollLeft = Math.min(
+      Math.max(0, scrollLeft),
+      Math.max(0, gridScrollElement.scrollWidth - gridScrollElement.clientWidth),
+    );
+
+    syncingHorizontalScroll = true;
+    gridScrollElement.scrollLeft = nextScrollLeft;
+
+    if (scrollElement) {
+      scrollElement.scrollLeft = nextScrollLeft;
+    }
+
+    updateViewportMetrics(gridScrollElement);
+    syncingHorizontalScroll = false;
+  }
+
   /**
    * @param {HTMLCanvasElement} canvas
    * @param {number} widthPx
@@ -675,13 +696,24 @@
 
     if (displayStart >= viewportStart && displayStart <= viewportEnd) return;
 
-    gridScrollElement.scrollLeft = Math.max(0, (displayStart - 2) * pxPerQuarter);
+    setHorizontalScrollLeft((displayStart - 2) * pxPerQuarter);
+  });
 
-    if (scrollElement) {
-      scrollElement.scrollLeft = gridScrollElement.scrollLeft;
+  $effect(() => {
+    if (!gridScrollElement || viewportWidthPx <= 0 || !showPlaybackPlayhead || dragMode !== null) {
+      return;
     }
 
-    updateViewportMetrics(gridScrollElement);
+    const nextScrollLeft = pagedPlaybackScrollLeft(
+      playbackPlayheadLeftPx,
+      gridScrollElement.scrollLeft,
+      viewportWidthPx,
+      gridScrollElement.scrollWidth - gridScrollElement.clientWidth,
+    );
+
+    if (nextScrollLeft === gridScrollElement.scrollLeft) return;
+
+    setHorizontalScrollLeft(nextScrollLeft);
   });
 
   onDestroy(() => {
