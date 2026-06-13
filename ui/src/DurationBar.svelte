@@ -138,7 +138,7 @@
   <div
     {@attach trackAttachment}
     data-cursor="pointer"
-    class="relative h-3.5 touch-none select-none outline-none {accent.ringFocusWithWidth} {muted
+    class="duration-track relative h-3.5 touch-none select-none overflow-hidden outline-none {accent.ringFocusWithWidth} {muted
       ? 'bg-zinc-800'
       : 'bg-zinc-600'}"
     role="slider"
@@ -172,7 +172,7 @@
     {/if}
     {#if displayFillPercent > 0}
       <div
-        class="absolute inset-y-0 left-0 {muted ? 'bg-zinc-600' : accent.bgAccent} {dragging
+        class="duration-fill absolute inset-y-0 left-0 {muted ? 'bg-zinc-600' : accent.bgAccent} {dragging
           ? ''
           : 'transition-[width,opacity] duration-75'}"
         style:width="{displayFillPercent}%"
@@ -181,3 +181,19 @@
     {/if}
   </div>
 </div>
+
+<style>
+  .duration-track {
+    background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 42%, rgba(0, 0, 0, 0.2));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  }
+
+  .duration-fill {
+    background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.04) 48%, rgba(0, 0, 0, 0.18));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+  }
+</style>
