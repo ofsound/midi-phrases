@@ -2,6 +2,9 @@
 
 /* Brand accent — single source of truth for the UI green (was Tailwind emerald). */
 @theme {
+  /* UI font experiment point: update this token and the Google Fonts link in ui/index.html. */
+  --font-sans: "Familjen Grotesk", ui-sans-serif, system-ui, sans-serif;
+
   --color-accent-200: #a7f3d0;
   --color-accent-300: #6ee7b7;
   --color-accent-400: #34d399;
