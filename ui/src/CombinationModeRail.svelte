@@ -31,13 +31,11 @@
    * @property {(value: number) => void | Promise<void>} [onShimmerDelayCommit]
    * @property {(value: number) => void | Promise<void>} [onShimmerFeedbackCommit]
    * @property {(value: number) => void | Promise<void>} [onShimmerMixCommit]
-   * @property {number} [modesLeftPx] Aligns first mode button with the phrase beat-one guide.
    */
 
   /** @type {Props} */
   let {
     mask = 0,
-    modesLeftPx = 0,
     onToggle = () => {},
     noteBandpassLowMidi = 36,
     noteBandpassHighMidi = 108,
@@ -63,13 +61,8 @@
 </script>
 
 <div class="combination-mode-rail relative z-20 my-4">
-  <div class="relative flex min-h-[4.75rem] items-center px-6 py-2.5">
-    <div
-      class="flex shrink-0 items-center"
-      role="group"
-      aria-label="Combination modes"
-      style:margin-left="{modesLeftPx}px"
-    >
+  <div class="combination-mode-rail-layout">
+    <div class="combination-mode-group" role="group" aria-label="Combination modes">
       {#each combinationModes as mode, index (mode.index)}
         {#if index > 0}
           <div class="combination-mode-connector" aria-hidden="true"></div>
@@ -120,7 +113,7 @@
     </div>
 
     <NoteBandpassSlider
-      class="shrink-0"
+      class="note-bandpass-filter"
       lowMidi={noteBandpassLowMidi}
       highMidi={noteBandpassHighMidi}
       onChange={onNoteBandpassChange}

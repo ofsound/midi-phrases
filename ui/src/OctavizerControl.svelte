@@ -47,12 +47,15 @@
       </span>
     </button>
 
-    <RelativeVelocityDragInput
-      value={down8vaRelativeVelocity}
-      active={down8vaEnabled}
-      ariaLabel="-8va relative velocity"
-      onValueCommit={onDown8vaRelativeVelocityCommit}
-    />
+    <div class="processing-param-labeled">
+      <RelativeVelocityDragInput
+        value={down8vaRelativeVelocity}
+        active={down8vaEnabled}
+        ariaLabel="-8va relative velocity"
+        onValueCommit={onDown8vaRelativeVelocityCommit}
+      />
+      <span class="processing-param-label" aria-hidden="true">Vel</span>
+    </div>
   </div>
 
   <div class="octavizer-slot">
@@ -73,11 +76,14 @@
       </span>
     </button>
 
-    <RelativeVelocityDragInput
-      value={up8vaRelativeVelocity}
-      active={up8vaEnabled}
-      ariaLabel="8va relative velocity"
-      onValueCommit={onUp8vaRelativeVelocityCommit}
-    />
+    <div class="processing-param-labeled">
+      <RelativeVelocityDragInput
+        value={up8vaRelativeVelocity}
+        active={up8vaEnabled}
+        ariaLabel="8va relative velocity"
+        onValueCommit={onUp8vaRelativeVelocityCommit}
+      />
+      <span class="processing-param-label" aria-hidden="true">Vel</span>
+    </div>
   </div>
 </div>

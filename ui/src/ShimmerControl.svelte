@@ -73,42 +73,51 @@
     </button>
 
     <div class="shimmer-params" aria-hidden={!enabled}>
-      <ShimmerParamDragInput
-        value={delayMultiplierIndex}
-        min={0}
-        max={stepTimingMultiplierCount - 1}
-        defaultValue={defaultShimmerDelayMultiplierIndex}
-        formatValue={formatDelay}
-        clampValue={clampShimmerDelayMultiplierIndex}
-        active={enabled}
-        ariaLabel="Shimmer delay"
-        title="Delay in pulse multiples · drag vertically · double-click to reset"
-        onValueCommit={onDelayCommit}
-      />
-      <ShimmerParamDragInput
-        value={feedbackPercent}
-        min={minShimmerFeedbackPercent}
-        max={maxShimmerFeedbackPercent}
-        defaultValue={defaultShimmerFeedbackPercent}
-        formatValue={formatPercent}
-        clampValue={clampShimmerFeedbackPercent}
-        active={enabled}
-        ariaLabel="Shimmer feedback"
-        title="Feedback percent · drag vertically · double-click to reset"
-        onValueCommit={onFeedbackCommit}
-      />
-      <ShimmerParamDragInput
-        value={mixPercent}
-        min={minShimmerMixPercent}
-        max={maxShimmerMixPercent}
-        defaultValue={defaultShimmerMixPercent}
-        formatValue={formatPercent}
-        clampValue={clampShimmerMixPercent}
-        active={enabled}
-        ariaLabel="Shimmer mix"
-        title="Tap mix percent · drag vertically · double-click to reset"
-        onValueCommit={onMixCommit}
-      />
+      <div class="processing-param-labeled">
+        <ShimmerParamDragInput
+          value={delayMultiplierIndex}
+          min={0}
+          max={stepTimingMultiplierCount - 1}
+          defaultValue={defaultShimmerDelayMultiplierIndex}
+          formatValue={formatDelay}
+          clampValue={clampShimmerDelayMultiplierIndex}
+          active={enabled}
+          ariaLabel="Shimmer delay"
+          title="Delay in pulse multiples · drag vertically · double-click to reset"
+          onValueCommit={onDelayCommit}
+        />
+        <span class="processing-param-label" aria-hidden="true">Del</span>
+      </div>
+      <div class="processing-param-labeled">
+        <ShimmerParamDragInput
+          value={feedbackPercent}
+          min={minShimmerFeedbackPercent}
+          max={maxShimmerFeedbackPercent}
+          defaultValue={defaultShimmerFeedbackPercent}
+          formatValue={formatPercent}
+          clampValue={clampShimmerFeedbackPercent}
+          active={enabled}
+          ariaLabel="Shimmer feedback"
+          title="Feedback percent · drag vertically · double-click to reset"
+          onValueCommit={onFeedbackCommit}
+        />
+        <span class="processing-param-label" aria-hidden="true">Fbk</span>
+      </div>
+      <div class="processing-param-labeled">
+        <ShimmerParamDragInput
+          value={mixPercent}
+          min={minShimmerMixPercent}
+          max={maxShimmerMixPercent}
+          defaultValue={defaultShimmerMixPercent}
+          formatValue={formatPercent}
+          clampValue={clampShimmerMixPercent}
+          active={enabled}
+          ariaLabel="Shimmer mix"
+          title="Tap mix percent · drag vertically · double-click to reset"
+          onValueCommit={onMixCommit}
+        />
+        <span class="processing-param-label" aria-hidden="true">Mix</span>
+      </div>
     </div>
   </div>
 </div>

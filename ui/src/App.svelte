@@ -3490,7 +3490,6 @@
     <div class="-mx-6 shrink-0">
     <CombinationModeRail
       mask={combinationModeMask}
-      modesLeftPx={phraseBeatGuideGlobalLeftPx(phraseVisualOffsetCompensationPx)}
       onToggle={toggleCombinationMode}
       noteBandpassLowMidi={noteBandpassLowMidi}
       noteBandpassHighMidi={noteBandpassHighMidi}
