@@ -400,17 +400,29 @@
   }
 
   async function handleOctavizerDown8vaToggle(enabled) {
-    const before = createHistorySnapshot();
+    const previousEnabled = octavizerDown8vaEnabled;
     setOctavizerState({ down8vaEnabled: enabled });
     await syncOctavizerToNative();
-    pushHistoryEntry("Octavizer -8va", before, createHistorySnapshot());
+
+    const after = createHistorySnapshot();
+    if (after.octavizerDown8vaEnabled === previousEnabled) return;
+
+    const before = cloneSnapshot(after);
+    before.octavizerDown8vaEnabled = previousEnabled;
+    pushHistoryEntry("Octavizer -8va", before, after);
   }
 
   async function handleOctavizerUp8vaToggle(enabled) {
-    const before = createHistorySnapshot();
+    const previousEnabled = octavizerUp8vaEnabled;
     setOctavizerState({ up8vaEnabled: enabled });
     await syncOctavizerToNative();
-    pushHistoryEntry("Octavizer 8va", before, createHistorySnapshot());
+
+    const after = createHistorySnapshot();
+    if (after.octavizerUp8vaEnabled === previousEnabled) return;
+
+    const before = cloneSnapshot(after);
+    before.octavizerUp8vaEnabled = previousEnabled;
+    pushHistoryEntry("Octavizer 8va", before, after);
   }
 
   async function commitOctavizerDown8vaRelativeVelocity(value) {
@@ -428,10 +440,16 @@
   }
 
   async function handleShimmerToggle(enabled) {
-    const before = createHistorySnapshot();
+    const previousEnabled = shimmerEnabled;
     setShimmerState({ enabled });
     await syncShimmerToNative();
-    pushHistoryEntry("Shimmer", before, createHistorySnapshot());
+
+    const after = createHistorySnapshot();
+    if (after.shimmerEnabled === previousEnabled) return;
+
+    const before = cloneSnapshot(after);
+    before.shimmerEnabled = previousEnabled;
+    pushHistoryEntry("Shimmer", before, after);
   }
 
   async function commitShimmerDelay(value) {

@@ -1,4 +1,5 @@
 <script>
+  import CombinationModeButton from "./CombinationModeButton.svelte";
   import RelativeVelocityDragInput from "./RelativeVelocityDragInput.svelte";
 
   /**
@@ -30,22 +31,16 @@
 
 <div class="octavizer-control" role="group" aria-label="Octavizer">
   <div class="octavizer-slot">
-    <button
-      type="button"
-      class="combination-mode-button octavizer-toggle"
-      aria-label="Toggle down one octave"
-      aria-pressed={down8vaEnabled}
+    <CombinationModeButton
+      class="octavizer-toggle"
+      faceClass="octavizer-toggle-face"
+      pressed={down8vaEnabled}
+      ariaLabel="Toggle down one octave"
       title="-8va"
-      data-cursor="pointer"
-      onpointerdown={(event) => {
-        event.preventDefault();
-        onDown8vaToggle(!down8vaEnabled);
-      }}
+      onToggle={() => onDown8vaToggle(!down8vaEnabled)}
     >
-      <span class="combination-mode-button-face octavizer-toggle-face">
-        <span class="octavizer-toggle-label">-8va</span>
-      </span>
-    </button>
+      <span class="octavizer-toggle-label">-8va</span>
+    </CombinationModeButton>
 
     <div class="processing-param-labeled">
       <RelativeVelocityDragInput
@@ -59,22 +54,16 @@
   </div>
 
   <div class="octavizer-slot">
-    <button
-      type="button"
-      class="combination-mode-button octavizer-toggle"
-      aria-label="Toggle up one octave"
-      aria-pressed={up8vaEnabled}
+    <CombinationModeButton
+      class="octavizer-toggle"
+      faceClass="octavizer-toggle-face"
+      pressed={up8vaEnabled}
+      ariaLabel="Toggle up one octave"
       title="8va"
-      data-cursor="pointer"
-      onpointerdown={(event) => {
-        event.preventDefault();
-        onUp8vaToggle(!up8vaEnabled);
-      }}
+      onToggle={() => onUp8vaToggle(!up8vaEnabled)}
     >
-      <span class="combination-mode-button-face octavizer-toggle-face">
-        <span class="octavizer-toggle-label">8va</span>
-      </span>
-    </button>
+      <span class="octavizer-toggle-label">8va</span>
+    </CombinationModeButton>
 
     <div class="processing-param-labeled">
       <RelativeVelocityDragInput

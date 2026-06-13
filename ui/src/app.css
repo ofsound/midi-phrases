@@ -206,7 +206,6 @@
     justify-content: center;
     border-radius: 1px;
     transition:
-      background-color 120ms ease,
       box-shadow 120ms ease,
       color 120ms ease;
     background: rgba(88, 88, 88, 0.58);
@@ -224,7 +223,9 @@
     background: rgba(110, 110, 110, 0.62);
   }
 
+  .combination-mode-button:active .combination-mode-button-face,
   .combination-mode-button[aria-pressed="true"] .combination-mode-button-face {
+    transition: none;
     background: color-mix(in srgb, var(--color-accent-400) 94%, transparent);
     color: #0a0a0a;
     box-shadow: var(--shadow-accent-pressed);

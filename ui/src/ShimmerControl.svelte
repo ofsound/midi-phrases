@@ -1,4 +1,5 @@
 <script>
+  import CombinationModeButton from "./CombinationModeButton.svelte";
   import ShimmerIcon from "./ShimmerIcon.svelte";
   import ShimmerParamDragInput from "./ShimmerParamDragInput.svelte";
   import {formatTimingMultiplierLabel} from "./stepCellLayout.js";
@@ -55,22 +56,16 @@
 
 <div class="shimmer-control" role="group" aria-label="Shimmer">
   <div class="shimmer-slot">
-    <button
-      type="button"
-      class="combination-mode-button shimmer-toggle"
-      aria-label="Toggle shimmer"
-      aria-pressed={enabled}
+    <CombinationModeButton
+      class="shimmer-toggle"
+      faceClass="shimmer-toggle-face"
+      pressed={enabled}
+      ariaLabel="Toggle shimmer"
       title="Shimmer"
-      data-cursor="pointer"
-      onpointerdown={(event) => {
-        event.preventDefault();
-        onToggle(!enabled);
-      }}
+      onToggle={() => onToggle(!enabled)}
     >
-      <span class="combination-mode-button-face shimmer-toggle-face">
-        <ShimmerIcon />
-      </span>
-    </button>
+      <ShimmerIcon />
+    </CombinationModeButton>
 
     <div class="shimmer-params" aria-hidden={!enabled}>
       <div class="processing-param-labeled">

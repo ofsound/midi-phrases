@@ -1,4 +1,5 @@
 <script>
+  import CombinationModeButton from "./CombinationModeButton.svelte";
   import CombinationModeIcon from "./CombinationModeIcon.svelte";
   import NoteBandpassSlider from "./NoteBandpassSlider.svelte";
   import OctavizerControl from "./OctavizerControl.svelte";
@@ -67,22 +68,14 @@
         {#if index > 0}
           <div class="combination-mode-connector" aria-hidden="true"></div>
         {/if}
-        <button
-          type="button"
-          class="combination-mode-button"
-          aria-label={`Toggle ${mode.name} mode`}
-          aria-pressed={(mask & mode.bit) !== 0}
+        <CombinationModeButton
+          pressed={(mask & mode.bit) !== 0}
+          ariaLabel={`Toggle ${mode.name} mode`}
           title={mode.name}
-          data-cursor="pointer"
-          onpointerdown={(event) => {
-            event.preventDefault();
-            onToggle(mode.index);
-          }}
+          onToggle={() => onToggle(mode.index)}
         >
-          <span class="combination-mode-button-face">
-            <CombinationModeIcon kind={mode.icon} />
-          </span>
-        </button>
+          <CombinationModeIcon kind={mode.icon} />
+        </CombinationModeButton>
       {/each}
     </div>
 
