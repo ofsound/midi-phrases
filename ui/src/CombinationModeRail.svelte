@@ -93,30 +93,34 @@
       {/each}
     </div>
 
-    <OctavizerControl
-      down8vaEnabled={octavizerDown8vaEnabled}
-      up8vaEnabled={octavizerUp8vaEnabled}
-      down8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}
-      up8vaRelativeVelocity={octavizerUp8vaRelativeVelocity}
-      onDown8vaToggle={onOctavizerDown8vaToggle}
-      onUp8vaToggle={onOctavizerUp8vaToggle}
-      onDown8vaRelativeVelocityCommit={onOctavizerDown8vaRelativeVelocityCommit}
-      onUp8vaRelativeVelocityCommit={onOctavizerUp8vaRelativeVelocityCommit}
-    />
+    <div class="processing-rail-center">
+      <div class="processing-rail-controls">
+        <OctavizerControl
+          down8vaEnabled={octavizerDown8vaEnabled}
+          up8vaEnabled={octavizerUp8vaEnabled}
+          down8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}
+          up8vaRelativeVelocity={octavizerUp8vaRelativeVelocity}
+          onDown8vaToggle={onOctavizerDown8vaToggle}
+          onUp8vaToggle={onOctavizerUp8vaToggle}
+          onDown8vaRelativeVelocityCommit={onOctavizerDown8vaRelativeVelocityCommit}
+          onUp8vaRelativeVelocityCommit={onOctavizerUp8vaRelativeVelocityCommit}
+        />
 
-    <ShimmerControl
-      enabled={shimmerEnabled}
-      delayMultiplierIndex={shimmerDelayMultiplierIndex}
-      feedbackPercent={shimmerFeedbackPercent}
-      mixPercent={shimmerMixPercent}
-      onToggle={onShimmerToggle}
-      onDelayCommit={onShimmerDelayCommit}
-      onFeedbackCommit={onShimmerFeedbackCommit}
-      onMixCommit={onShimmerMixCommit}
-    />
+        <ShimmerControl
+          enabled={shimmerEnabled}
+          delayMultiplierIndex={shimmerDelayMultiplierIndex}
+          feedbackPercent={shimmerFeedbackPercent}
+          mixPercent={shimmerMixPercent}
+          onToggle={onShimmerToggle}
+          onDelayCommit={onShimmerDelayCommit}
+          onFeedbackCommit={onShimmerFeedbackCommit}
+          onMixCommit={onShimmerMixCommit}
+        />
+      </div>
+    </div>
 
     <NoteBandpassSlider
-      class="ml-auto shrink-0"
+      class="shrink-0"
       lowMidi={noteBandpassLowMidi}
       highMidi={noteBandpassHighMidi}
       onChange={onNoteBandpassChange}

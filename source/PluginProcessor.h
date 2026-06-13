@@ -101,7 +101,7 @@ public:
     int getPatternOctavizerDown8vaRelativeVelocity (int patternSlot) const;
     int getPatternOctavizerUp8vaRelativeVelocity (int patternSlot) const;
 
-    static constexpr int defaultShimmerFeedbackPercent = 70;
+    static constexpr int defaultShimmerFeedbackPercent = 20;
     static constexpr int defaultShimmerMixPercent = 100;
     static constexpr int minShimmerFeedbackPercent = 0;
     static constexpr int maxShimmerFeedbackPercent = 100;

@@ -222,17 +222,31 @@
     background: rgba(228, 228, 231, 0.5);
   }
 
+  .processing-rail-center {
+    display: flex;
+    flex: 1 1 0%;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .processing-rail-controls {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 1.25rem;
+  }
+
   .octavizer-control {
     display: flex;
     align-items: center;
     flex-shrink: 0;
     gap: 1.25rem;
-    margin-left: 2.75rem;
   }
 
   .octavizer-slot {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     gap: 0.35rem;
     flex-shrink: 0;
@@ -291,12 +305,11 @@
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    margin-left: 2.75rem;
   }
 
   .shimmer-slot {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     gap: 0.35rem;
     flex-shrink: 0;
