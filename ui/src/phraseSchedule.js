@@ -15,6 +15,7 @@ export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
 
 const EPSILON = 1e-9;
 const MAX_COMBINED_PREVIEW_NOTES = 4096;
+const COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR = 2;
 export const combinationModeMaskBits = 0x3f;
 /** Display order matches processing order: Logic → Cross-Mod → Bloom → Counter → Echo → Weave. */
 export const combinationModes = [
@@ -473,6 +474,8 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
   if (combinationModeEnabled(combinationModeMask, 4) && activeRows.length > 1) {
     /** @type {ScheduledNote[]} */
     const bloomed = [];
+    const pulseQuarters = pulseQuartersForIndex(pulseIndex);
+    const combinationGesturePulse = Math.max(pulseQuarters, COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR);
 
     for (const event of events) {
       if (bloomed.length >= MAX_COMBINED_PREVIEW_NOTES) break;
@@ -489,17 +492,17 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
       const previousModStep = (modStep + modNotes.length - 1) % modNotes.length;
       const movement = scaleDegreeDelta(modNotes[previousModStep], modNotes[modStep], scaleRoot, scaleModeIndex);
       const direction = movement < 0 ? -1 : 1;
-      const ornamentGate = Math.min((event.end - event.start) * 0.5, pulseQuartersForIndex(pulseIndex) * 0.25);
+      const ornamentGate = Math.min((event.end - event.start) * 0.5, combinationGesturePulse * 0.25);
 
       if (ornamentGate <= EPSILON) continue;
 
       const firstDelay = Math.max(
-        pulseQuartersForIndex(pulseIndex) * 0.0625,
-        Math.min((event.end - event.start) * 0.25, pulseQuartersForIndex(pulseIndex) * 0.125),
+        combinationGesturePulse * 0.0625,
+        Math.min((event.end - event.start) * 0.25, combinationGesturePulse * 0.125),
       );
       const secondDelay = Math.max(
-        pulseQuartersForIndex(pulseIndex) * 0.125,
-        Math.min((event.end - event.start) * 0.5, pulseQuartersForIndex(pulseIndex) * 0.25),
+        combinationGesturePulse * 0.125,
+        Math.min((event.end - event.start) * 0.5, combinationGesturePulse * 0.25),
       );
 
       const appendBloom = (degreeDelta, delay, velocityScale) => {
@@ -540,6 +543,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
     /** @type {ScheduledNote[]} */
     const countered = [];
     const pulseQuarters = pulseQuartersForIndex(pulseIndex);
+    const combinationGesturePulse = Math.max(pulseQuarters, COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR);
 
     for (const event of events) {
       if (countered.length >= MAX_COMBINED_PREVIEW_NOTES) break;
@@ -557,11 +561,11 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
       if (stepSkipped[modRow]?.[modStep] || stepMuted[modRow]?.[modStep]) continue;
       if ((stepVelocity[modRow]?.[modStep] ?? 0) <= 0) continue;
 
-      let counterDelay = Math.max(pulseQuarters * 0.125, Math.min(pulseQuarters * 0.5, (event.end - event.start) * 0.5));
+      let counterDelay = combinationGesturePulse * 0.5;
       let start = event.start + counterDelay;
 
       if (eventStartCollides(events, start)) {
-        counterDelay += pulseQuarters * 0.125;
+        counterDelay += combinationGesturePulse * 0.125;
         start = event.start + counterDelay;
 
         if (eventStartCollides(events, start)) continue;
@@ -569,7 +573,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
 
       if (start >= lengthQuarters - EPSILON) continue;
 
-      const duration = Math.min((event.end - event.start) * 0.5, pulseQuarters * 0.375);
+      const duration = Math.min((event.end - event.start) * 0.5, combinationGesturePulse * 0.375);
 
       if (duration <= EPSILON) continue;
 

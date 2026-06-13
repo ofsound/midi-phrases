@@ -9,6 +9,7 @@ namespace
 {
 constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
+constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
 constexpr int phraseStateVersion = 15;
@@ -3678,6 +3679,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
     const auto emptyRowDefaultNote = defaultStepNoteForScaleRoot (scaleRoot);
     const auto modeMask = clampCombinationModeMask (state.combinationModeMask);
     const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
+    const auto combinationGesturePulse =
+        juce::jmax (pulse, combinationGesturePulseQuartersFloor);
     const auto swing = swingPercent.load (std::memory_order_relaxed);
     const auto velocityHumanize = velocityHumanizePercent.load (std::memory_order_relaxed);
     const auto timingHumanize = timingHumanizePercent.load (std::memory_order_relaxed);
@@ -4039,17 +4042,18 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                 scaleRoot,
                 scaleModeIndex);
             const auto direction = movement < 0 ? -1 : 1;
-            const auto ornamentGate = juce::jmin (source.gateQuarters * 0.5, pulse * 0.25);
+            const auto ornamentGate =
+                juce::jmin (source.gateQuarters * 0.5, combinationGesturePulse * 0.25);
 
             if (ornamentGate <= epsilon)
                 continue;
 
-            const auto firstDelay = juce::jmax (pulse * 0.0625,
+            const auto firstDelay = juce::jmax (combinationGesturePulse * 0.0625,
                                                 juce::jmin (source.gateQuarters * 0.25,
-                                                            pulse * 0.125));
-            const auto secondDelay = juce::jmax (pulse * 0.125,
+                                                            combinationGesturePulse * 0.125));
+            const auto secondDelay = juce::jmax (combinationGesturePulse * 0.125,
                                                  juce::jmin (source.gateQuarters * 0.5,
-                                                             pulse * 0.25));
+                                                             combinationGesturePulse * 0.25));
 
             const auto appendBloom = [&] (const int degreeDelta,
                                           const double delay,
@@ -4115,21 +4119,20 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                 || modSteps.velocity[modIndex] <= 0)
                 continue;
 
-            auto counterDelay =
-                juce::jmax (pulse * 0.125,
-                            juce::jmin (pulse * 0.5, source.gateQuarters * 0.5));
+            auto counterDelay = combinationGesturePulse * 0.5;
             auto counterStart = source.ppq + counterDelay;
 
             if (eventStartCollides (counterStart))
             {
-                counterDelay += pulse * 0.125;
+                counterDelay += combinationGesturePulse * 0.125;
                 counterStart = source.ppq + counterDelay;
 
                 if (eventStartCollides (counterStart))
                     continue;
             }
 
-            const auto counterGate = juce::jmin (source.gateQuarters * 0.5, pulse * 0.375);
+            const auto counterGate =
+                juce::jmin (source.gateQuarters * 0.5, combinationGesturePulse * 0.375);
 
             if (counterGate <= epsilon)
                 continue;
