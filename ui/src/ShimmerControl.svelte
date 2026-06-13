@@ -1,4 +1,5 @@
 <script>
+  import ShimmerIcon from "./ShimmerIcon.svelte";
   import ShimmerParamDragInput from "./ShimmerParamDragInput.svelte";
   import {formatTimingMultiplierLabel} from "./stepCellLayout.js";
   import {
@@ -67,7 +68,7 @@
       }}
     >
       <span class="combination-mode-button-face shimmer-toggle-face">
-        <span class="shimmer-toggle-label">Shimmer</span>
+        <ShimmerIcon />
       </span>
     </button>
 

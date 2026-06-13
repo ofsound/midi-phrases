@@ -11,10 +11,10 @@
   aria-hidden="true"
   fill="none"
   stroke="currentColor"
-  stroke-width="2.25"
+  stroke-width="2.5"
   stroke-linecap="round"
   stroke-linejoin="round"
 >
-  <path d="M4 8.5h11M11 5.5 15 8.5 11 11.5" />
-  <path d="M20 15.5H9M13 12.5 9 15.5 13 18.5" />
+  <path d="M5 6.5 H10.5 M7.5 4 10.5 6.5 7.5 9" />
+  <path d="M19 17.5 H13.5 M16.5 15 13.5 17.5 16.5 20" />
 </svg>

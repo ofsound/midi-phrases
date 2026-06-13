@@ -3366,7 +3366,7 @@
   </header>
   </div>
 
-  <section class="flex min-h-0 flex-1 flex-col overflow-hidden">
+  <section class="flex min-h-0 flex-1 flex-col">
     <div class="w-full shrink-0">
       <div class="relative flex flex-col">
         <div
@@ -3487,8 +3487,10 @@
       </div>
     </div>
 
+    <div class="-mx-6 shrink-0">
     <CombinationModeRail
       mask={combinationModeMask}
+      modesLeftPx={phraseBeatGuideGlobalLeftPx(phraseVisualOffsetCompensationPx)}
       onToggle={toggleCombinationMode}
       noteBandpassLowMidi={noteBandpassLowMidi}
       noteBandpassHighMidi={noteBandpassHighMidi}
@@ -3511,7 +3513,9 @@
       onShimmerFeedbackCommit={commitShimmerFeedback}
       onShimmerMixCommit={commitShimmerMix}
     />
+    </div>
 
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
     {#if recordingRow !== null}
       <RecordPianoKeyboard
         row={recordingRow}
@@ -3556,6 +3560,7 @@
         onLoopBraceChange={updateLoopBrace}
       />
     {/if}
+    </div>
   </section>
   {#if marqueeSelection}
     <div
