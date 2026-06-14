@@ -244,13 +244,13 @@
   const rowGapDoubleClickMaxDistancePx = 16;
   const stepTriggerFlashMs = 110;
   const historyButtonBaseClasses =
-    "flex h-8 w-8 items-center justify-center rounded-md border bg-zinc-900 transition-colors outline-none focus:ring-1 focus:ring-accent-400 disabled:border-zinc-800 disabled:text-zinc-700";
+    "flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-accent-400 disabled:border-zinc-800 disabled:text-zinc-700";
 
   function historyButtonClasses(enabled) {
     return `${historyButtonBaseClasses} ${
       enabled
-        ? "border-zinc-700 text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
-        : "border-zinc-800 text-zinc-700"
+        ? "mp-control-gradient border-zinc-700 text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
+        : "mp-control-gradient-muted border-zinc-800 text-zinc-700"
     }`;
   }
 
@@ -563,12 +563,12 @@
   }
 
   function slotButtonClasses(active, assigned = true, copySource = false) {
-    return `flex h-7 w-7 items-center justify-center rounded-sm border text-xs font-semibold transition-colors outline-none focus:ring-1 focus:ring-accent-400 ${
+    return `flex h-7 w-7 items-center justify-center rounded-sm border text-xs font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-accent-400 ${
       active
         ? "border-accent-400 bg-accent-400 text-zinc-950"
         : assigned
-          ? "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
-          : "border-zinc-800 bg-zinc-950 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400"
+          ? "mp-control-gradient border-zinc-700 text-zinc-200 hover:border-zinc-500"
+          : "mp-control-gradient-muted border-zinc-800 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400"
     } ${copySource ? "ring-1 ring-amber-300" : ""}`;
   }
 
@@ -579,18 +579,18 @@
   }
 
   function outputMuteButtonClasses(active) {
-    return `row-span-2 flex h-[calc(1.75rem*1.33)] w-[calc(1.75rem*1.33)] items-center justify-center self-center rounded-sm border text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-accent-400 ${
+    return `row-span-2 flex h-[calc(1.75rem*1.33)] w-[calc(1.75rem*1.33)] items-center justify-center self-center rounded-sm border text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-accent-400 ${
       active
         ? "border-accent-400 bg-accent-400 text-zinc-950"
-        : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
+        : "mp-control-gradient border-zinc-700 text-zinc-200 hover:border-zinc-500"
     }`;
   }
 
   function bulkActionIconButtonClasses(enabled = true) {
-    return `flex h-8 w-8 items-center justify-center rounded-md border transition-colors outline-none focus:ring-1 focus:ring-accent-400 ${
+    return `flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-accent-400 ${
       enabled
-        ? "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-100"
-        : "border-zinc-800 bg-zinc-950 text-zinc-700"
+        ? "mp-control-gradient border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-100"
+        : "mp-control-gradient-muted border-zinc-800 text-zinc-700"
     }`;
   }
 
@@ -3075,9 +3075,9 @@
         aria-label={standalonePlaying ? "Stop standalone transport" : "Start standalone transport"}
         aria-pressed={standalonePlaying}
         data-cursor="pointer"
-        class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-colors outline-none focus:ring-1 focus:ring-accent-400 {standalonePlaying
+        class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-accent-400 {standalonePlaying
           ? 'border-accent-500 bg-accent-500 text-zinc-950'
-          : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-600'}"
+          : 'mp-control-gradient border-zinc-700 text-zinc-200 hover:border-zinc-600'}"
         onclick={toggleStandaloneTransport}
       >
         {standalonePlaying ? "Stop" : "Play"}
@@ -3090,7 +3090,7 @@
           max="300"
           step="1"
           value={Math.round(standaloneTempoBpm)}
-          class="h-8 w-[4.5rem] rounded-md border border-zinc-700 bg-zinc-950 px-2 text-sm font-semibold text-zinc-100 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+          class="mp-control-gradient h-8 w-[4.5rem] rounded-md border border-zinc-700 px-2 text-sm font-semibold text-zinc-100 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
           onchange={setStandaloneTempoFromInput}
         />
       </label>

@@ -46,7 +46,7 @@
   } = $props();
 
   const boxedControlBaseClasses =
-    "flex h-8 items-center justify-center rounded-md border bg-gradient-to-b from-zinc-700/50 to-zinc-950 px-2 text-sm font-semibold tabular-nums transition-[border-color,box-shadow] duration-75";
+    "mp-control-gradient flex h-8 items-center justify-center rounded-md border px-2 text-sm font-semibold tabular-nums transition-[border-color,box-shadow,filter] duration-75";
 
   const pixelsPerStep = 4;
   const previewThrottleMs = 100;
