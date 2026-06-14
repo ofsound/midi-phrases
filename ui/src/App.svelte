@@ -65,6 +65,7 @@
   import DiscreteDragSelect from "./DiscreteDragSelect.svelte";
   import PulseNoteButtonGroup from "./PulseNoteButtonGroup.svelte";
   import ColorsToggle from "./ColorsToggle.svelte";
+  import ThemeModeToggle from "./ThemeModeToggle.svelte";
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
@@ -94,6 +95,7 @@
     snapMidiToScale,
     transposeMidiByScaleDegrees,
   } from "./scaleUtils.js";
+  import { applyThemeMode, defaultThemeMode, storedThemeMode } from "./themeMode.js";
 
   let pluginName = $state("MIDI Phrases");
   let grid = $state(defaultPhraseGrid());
@@ -213,6 +215,7 @@
   let timingHumanizePercent = $state(0);
   let swingSubdivisionIndex = $state(1);
   let rowColorsEnabled = $state(false);
+  let themeMode = $state(defaultThemeMode);
   let undoStack = $state([]);
   let redoStack = $state([]);
   const selectedStepKeys = new SvelteSet();
@@ -244,14 +247,19 @@
   const rowGapDoubleClickMaxDistancePx = 16;
   const stepTriggerFlashMs = 110;
   const historyButtonBaseClasses =
-    "flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-accent-400 disabled:border-zinc-800 disabled:text-zinc-700";
+    "flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring disabled:border-border-subtle disabled:text-text-faint";
 
   function historyButtonClasses(enabled) {
     return `${historyButtonBaseClasses} ${
       enabled
-        ? "mp-control-gradient border-zinc-700 text-zinc-300 hover:border-zinc-600 hover:text-zinc-100"
-        : "mp-control-gradient-muted border-zinc-800 text-zinc-700"
+        ? "mp-control-gradient border-border text-text-secondary hover:border-border-strong hover:text-text"
+        : "mp-control-gradient-muted border-border-subtle text-text-faint"
     }`;
+  }
+
+  /** @param {string} next */
+  function setThemeMode(next) {
+    themeMode = applyThemeMode(next);
   }
 
   function setNoteBandpassState(lowMidi, highMidi) {
@@ -563,44 +571,44 @@
   }
 
   function slotButtonClasses(active, assigned = true, copySource = false) {
-    return `flex h-7 w-7 items-center justify-center rounded-sm border text-xs font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-accent-400 ${
+    return `flex h-7 w-7 items-center justify-center rounded-sm border text-xs font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       active
-        ? "border-accent-400 bg-accent-400 text-zinc-950"
+        ? "border-accent bg-accent text-control-primary-text"
         : assigned
-          ? "mp-control-gradient border-zinc-700 text-zinc-200 hover:border-zinc-500"
-          : "mp-control-gradient-muted border-zinc-800 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400"
-    } ${copySource ? "ring-1 ring-amber-300" : ""}`;
+          ? "mp-control-gradient border-border text-text hover:border-border-strong"
+          : "mp-control-gradient-muted border-border-subtle text-text-faint hover:border-border hover:text-text-secondary"
+    } ${copySource ? "ring-1 ring-warning" : ""}`;
   }
 
   function clearPatternButtonClasses(enabled) {
-    return `flex h-7 w-7 items-center justify-center border-0 bg-transparent transition-colors outline-none focus:ring-1 focus:ring-accent-400 ${
-      enabled ? "text-red-400 hover:text-red-300" : "text-zinc-700"
+    return `flex h-7 w-7 items-center justify-center border-0 bg-transparent transition-colors outline-none focus:ring-1 focus:ring-focus-ring ${
+      enabled ? "text-danger hover:text-danger" : "text-text-faint"
     }`;
   }
 
   function outputMuteButtonClasses(active) {
-    return `row-span-2 flex h-[calc(1.75rem*1.33)] w-[calc(1.75rem*1.33)] items-center justify-center self-center rounded-sm border text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-accent-400 ${
+    return `row-span-2 flex h-[calc(1.75rem*1.33)] w-[calc(1.75rem*1.33)] items-center justify-center self-center rounded-sm border text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       active
-        ? "border-accent-400 bg-accent-400 text-zinc-950"
-        : "mp-control-gradient border-zinc-700 text-zinc-200 hover:border-zinc-500"
+        ? "border-accent bg-accent text-control-primary-text"
+        : "mp-control-gradient border-border text-text hover:border-border-strong"
     }`;
   }
 
   function bulkActionIconButtonClasses(enabled = true) {
-    return `flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-accent-400 ${
+    return `flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
-        ? "mp-control-gradient border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-100"
-        : "mp-control-gradient-muted border-zinc-800 text-zinc-700"
+        ? "mp-control-gradient border-border text-text-secondary hover:border-border-strong hover:text-text"
+        : "mp-control-gradient-muted border-border-subtle text-text-faint"
     }`;
   }
 
   function brandIconToggleButtonClasses(active, enabled = true) {
-    return `flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 transition-colors outline-none focus:ring-1 focus:ring-accent-400 ${
+    return `flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 transition-colors outline-none focus:ring-1 focus:ring-focus-ring ${
       !enabled
-        ? "text-zinc-700"
+        ? "text-text-faint"
         : active
-          ? "text-white"
-          : "text-zinc-500 hover:text-zinc-300"
+          ? "text-text"
+          : "text-text-muted hover:text-text-secondary"
     }`;
   }
 
@@ -3030,6 +3038,8 @@
   loadInitialStateFromJuce();
 
   onMount(() => {
+    themeMode = applyThemeMode(storedThemeMode(), { persist: false });
+
     const handleKeydown = (event) => {
       if (event.key === " ") {
         const active = document.activeElement;
@@ -3075,14 +3085,14 @@
         aria-label={standalonePlaying ? "Stop standalone transport" : "Start standalone transport"}
         aria-pressed={standalonePlaying}
         data-cursor="pointer"
-        class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-accent-400 {standalonePlaying
-          ? 'border-accent-500 bg-accent-500 text-zinc-950'
-          : 'mp-control-gradient border-zinc-700 text-zinc-200 hover:border-zinc-600'}"
+        class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring {standalonePlaying
+          ? 'border-accent-strong bg-accent-strong text-control-primary-text'
+          : 'mp-control-gradient border-border text-text hover:border-border-strong'}"
         onclick={toggleStandaloneTransport}
       >
         {standalonePlaying ? "Stop" : "Play"}
       </button>
-      <label class="flex items-center gap-1.5 text-xs font-medium uppercase text-zinc-500">
+      <label class="flex items-center gap-1.5 text-xs font-medium uppercase text-text-muted">
         BPM
         <input
           type="number"
@@ -3090,17 +3100,17 @@
           max="300"
           step="1"
           value={Math.round(standaloneTempoBpm)}
-          class="mp-control-gradient h-8 w-[4.5rem] rounded-md border border-zinc-700 px-2 text-sm font-semibold text-zinc-100 outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+          class="mp-control-gradient h-8 w-[4.5rem] rounded-md border border-border px-2 text-sm font-semibold text-text outline-none focus:border-focus-ring focus:ring-1 focus:ring-focus-ring"
           onchange={setStandaloneTempoFromInput}
         />
       </label>
     </div>
   {/if}
   <header class="flex items-end gap-3 px-6 pb-3">
-    <div class="relative flex shrink-0 -translate-y-3 items-end gap-5">
+    <div class="relative z-30 flex shrink-0 -translate-y-3 items-end gap-5">
       <div class="flex flex-col items-start gap-0">
         <div class="flex items-start gap-1.5">
-          <p class="text-base font-semibold uppercase leading-none tracking-widest text-accent-400">
+          <p class="text-base font-semibold uppercase leading-none tracking-widest text-accent">
             ofsound
           </p>
           <ColorsToggle
@@ -3111,6 +3121,7 @@
               await pushRowColorsEnabled();
             }}
           />
+          <ThemeModeToggle value={themeMode} onValueChange={setThemeMode} />
           <button
             type="button"
             aria-label={globalStepBackView
@@ -3133,7 +3144,7 @@
         </div>
         <div class="flex h-8 items-end">
           <h1
-            class="whitespace-nowrap text-3xl font-semibold leading-none tracking-normal text-zinc-100 translate-y-0.5"
+            class="whitespace-nowrap text-3xl font-semibold leading-none tracking-normal text-text translate-y-0.5"
           >
             {pluginName}
           </h1>
@@ -3146,22 +3157,22 @@
         aria-pressed={scaleDialogOpen}
         title={activeScaleName}
         data-cursor="pointer"
-        class="flex flex-col items-start gap-1 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-accent-400"
+        class="flex flex-col items-start gap-1 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
         onclick={() => {
           scaleDialogOpen = true;
         }}
       >
         <div class="h-5" aria-hidden="true"></div>
         <div class="-translate-y-0.5 flex h-8 flex-col items-start justify-end gap-1">
-          <p class="text-base font-semibold leading-none text-zinc-100">{activeKeyCenterLabel}</p>
-          <p class="text-sm font-semibold uppercase leading-none text-accent-300">{activeScaleModeLabel}</p>
+          <p class="text-base font-semibold leading-none text-text">{activeKeyCenterLabel}</p>
+          <p class="text-sm font-semibold uppercase leading-none text-accent">{activeScaleModeLabel}</p>
         </div>
       </button>
     </div>
 
     <div class="relative flex min-w-0 flex-1 -translate-y-3 flex-nowrap items-end justify-end gap-x-3">
         <div class="flex flex-col items-start gap-1">
-          <span class="text-xs font-semibold leading-none text-zinc-500">Pulse</span>
+          <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
           <PulseNoteButtonGroup
             accent={emeraldRowAccent}
             value={pulseIndex}
@@ -3171,7 +3182,7 @@
         <div class="flex items-end">
           <div class="flex items-end gap-2">
             <div class="flex flex-col items-start gap-1">
-              <span class="text-xs font-semibold leading-none text-zinc-500">Swing</span>
+              <span class="text-xs font-semibold leading-none text-text-muted">Swing</span>
               <StepNumberDragInput
                 boxed
                 compact
@@ -3188,7 +3199,7 @@
               />
             </div>
             <div class="flex flex-col items-start gap-1">
-              <span class="text-xs font-semibold leading-none text-zinc-500">Sub</span>
+              <span class="text-xs font-semibold leading-none text-text-muted">Sub</span>
               <DiscreteDragSelect
                 compact
                 accent={emeraldRowAccent}
@@ -3203,7 +3214,7 @@
           <div class="w-2 shrink-0" aria-hidden="true"></div>
           <div class="flex items-end gap-2">
             <div class="flex flex-col items-start gap-1">
-              <span class="text-xs font-semibold leading-none text-zinc-500">Vel %</span>
+              <span class="text-xs font-semibold leading-none text-text-muted">Vel %</span>
             <StepNumberDragInput
               boxed
               compact
@@ -3220,7 +3231,7 @@
             />
           </div>
           <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-zinc-500">Time %</span>
+            <span class="text-xs font-semibold leading-none text-text-muted">Time %</span>
             <StepNumberDragInput
               boxed
               compact
@@ -3238,9 +3249,9 @@
           </div>
           </div>
         </div>
-        <div class="flex items-end gap-2 border-l border-zinc-800 pl-3">
+        <div class="flex items-end gap-2 border-l border-border-subtle pl-3">
           <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-zinc-500">Operation</span>
+            <span class="text-xs font-semibold leading-none text-text-muted">Operation</span>
             <div class="flex items-center gap-1">
               <button
                 type="button"
@@ -3278,7 +3289,7 @@
             </div>
           </div>
           <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-zinc-500">Dur %</span>
+            <span class="text-xs font-semibold leading-none text-text-muted">Dur %</span>
             <StepNumberDragInput
               boxed
               compact
@@ -3296,7 +3307,7 @@
             />
           </div>
           <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-zinc-500">Vel %</span>
+            <span class="text-xs font-semibold leading-none text-text-muted">Vel %</span>
             <StepNumberDragInput
               boxed
               compact
@@ -3314,7 +3325,7 @@
             />
           </div>
           <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-zinc-500">Pitch</span>
+            <span class="text-xs font-semibold leading-none text-text-muted">Pitch</span>
             <StepNumberDragInput
               boxed
               compact
@@ -3333,7 +3344,7 @@
             />
           </div>
         </div>
-        <div class="flex shrink-0 items-end gap-1 border-l border-r border-zinc-800 px-3">
+        <div class="flex shrink-0 items-end gap-1 border-l border-r border-border-subtle px-3">
           <button
             type="button"
             aria-label="Undo"
@@ -3385,7 +3396,7 @@
 
     <div class="flex shrink-0 items-end gap-2">
       <div class="grid grid-cols-[3rem_auto_auto] items-center gap-x-1 gap-y-1">
-        <span class="text-right text-xs font-semibold leading-none text-zinc-500">Patterns</span>
+        <span class="text-right text-xs font-semibold leading-none text-text-muted">Patterns</span>
         <div class="flex items-center gap-0.5 pl-1.5">
           <div class="flex items-center gap-1">
             {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
@@ -3429,7 +3440,7 @@
           M
         </button>
 
-        <span class="text-right text-xs font-semibold leading-none text-zinc-500">Loops</span>
+        <span class="text-right text-xs font-semibold leading-none text-text-muted">Loops</span>
         <div class="flex items-center gap-1 pl-1.5">
           {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
             <button
@@ -3457,7 +3468,7 @@
     <div class="w-full shrink-0">
       <div class="relative flex flex-col">
         <div
-          class="pointer-events-none absolute bottom-0 z-0 w-px bg-zinc-600/70"
+          class="pointer-events-none absolute bottom-0 z-0 w-px bg-surface-subtle/70"
           style:left="{phraseBeatGuideGlobalLeftPx(phraseVisualOffsetCompensationPx)}px"
           style:top="{phraseBeatGuideTopPx}px"
           aria-hidden="true"
@@ -3495,10 +3506,10 @@
                 aria-pressed={recordingRow === row}
                 data-cursor="pointer"
                 class="{rowActionIconControlClasses} transition-colors {rowMuted[row]
-                  ? 'text-zinc-600 hover:text-red-500'
+                  ? 'text-text-faint hover:text-danger'
                   : recordingRow === row
-                    ? 'text-red-400'
-                    : 'text-zinc-600 hover:text-red-500'}"
+                    ? 'text-danger'
+                    : 'text-text-faint hover:text-danger'}"
                 onclick={() => toggleRowRecording(row)}
                 title={recordingRow === row
                   ? "Stop recording (notes fill this row as 1× steps)"
@@ -3656,7 +3667,7 @@
   </section>
   {#if marqueeSelection}
     <div
-      class="pointer-events-none fixed z-[9999] rounded-sm border border-accent-300 bg-accent-300/15 shadow-accent-selection"
+      class="pointer-events-none fixed z-[9999] rounded-sm border border-accent bg-link-hover/15 shadow-accent-selection"
       style={marqueeRectStyle}
       aria-hidden="true"
     ></div>

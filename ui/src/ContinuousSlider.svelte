@@ -85,11 +85,11 @@
 <div class="flex flex-col gap-1 {fullWidth ? 'min-w-0 w-full' : 'w-[10.5rem]'}">
   <div class="flex items-center justify-between gap-2">
     {#if label}
-      <span class="text-[9px] font-medium uppercase tracking-wide text-zinc-500">{label}</span>
+      <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">{label}</span>
     {:else}
       <span></span>
     {/if}
-    <span class="font-mono text-[10px] tabular-nums text-accent-300">{displayValue}</span>
+    <span class="font-mono text-[10px] tabular-nums text-accent">{displayValue}</span>
   </div>
 
   <div
@@ -119,15 +119,15 @@
       }
     }}
   >
-    <div class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-zinc-700">
+    <div class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-surface-subtle">
       <div
-        class="h-full rounded-full bg-accent-500 {dragging ? '' : 'transition-[width] duration-75'}"
+        class="h-full rounded-full bg-accent-strong {dragging ? '' : 'transition-[width] duration-75'}"
         style:width="{thumbPercent}%"
       ></div>
     </div>
 
     <div
-      class="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-zinc-500 bg-zinc-100 shadow-sm {dragging
+      class="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border-strong bg-text shadow-sm {dragging
         ? ''
         : 'transition-[left] duration-75'}"
       style:left="{thumbPercent}%"

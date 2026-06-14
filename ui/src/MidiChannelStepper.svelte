@@ -85,10 +85,10 @@
 <div
   data-cursor="vertical-drag"
   class="inline-flex touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {muted
-    ? 'text-zinc-500'
+    ? 'text-text-muted'
     : dragging
       ? accent.textAccentLight
-      : 'text-zinc-100'}"
+      : 'text-text'}"
   role="slider"
   aria-label={ariaLabel}
   aria-valuemin={min}

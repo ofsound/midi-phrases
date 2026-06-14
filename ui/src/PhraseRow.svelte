@@ -706,24 +706,24 @@
 
   /** Row muted or step skipped — same grayed-out step chrome. */
   const stepCellPlaybackClass = (active, dimmed) => {
-    if (dimmed) return "border-zinc-800/90";
+    if (dimmed) return "border-border-subtle/90";
 
-    return active ? accent.borderActive : "border-zinc-700";
+    return active ? accent.borderActive : "border-border";
   };
 
   const stepCellPlaybackGlowClass = (active, dimmed) =>
     dimmed || !active ? "" : accent.playbackGlow;
 
   const stepCellSurfaceClass = (dimmed) =>
-    dimmed ? "bg-zinc-950/95" : "bg-zinc-900";
+    dimmed ? "bg-app/95" : "bg-surface";
 
   const stepHeaderClass = (dimmed) =>
     dimmed
-      ? "border-b border-zinc-800/90 bg-zinc-900/70"
-      : "border-b border-zinc-800 bg-zinc-800/60";
+      ? "border-b border-border-subtle/90 bg-surface/70"
+      : "border-b border-border-subtle bg-surface-muted/60";
 
   const stepHeaderLabelClass = (dimmed) =>
-    dimmed ? "text-zinc-500" : "text-zinc-300";
+    dimmed ? "text-text-muted" : "text-text-secondary";
   let isEmptyRow = $derived(stepIds.length === 0);
   let reorderDisabled = $derived(stepIds.length <= 1);
   let selectedStepIdSet = $derived(new Set(selectedStepIds));
@@ -799,8 +799,8 @@
     aria-label="Remove step"
     disabled={removeBlocked}
     class="relative z-30 flex h-5 w-5 shrink-0 items-center justify-center p-0 transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 {dimmed
-      ? 'text-zinc-600 hover:text-zinc-500'
-      : `text-zinc-400 hover:text-zinc-200 ${accent.textAccentFocus}`}"
+      ? 'text-text-faint hover:text-text-muted'
+      : `text-text-secondary hover:text-text ${accent.textAccentFocus}`}"
     onpointerdown={(event) => event.stopPropagation()}
     onmousedown={(event) => event.stopPropagation()}
     onclick={(event) => handleRemoveClick(event, step)}
@@ -830,13 +830,13 @@
   {@const multiplierIndex = stepTimingMultiplier[step] ?? defaultStepTimingMultiplierIndex}
   {@const isQuarterStep = multiplierIndex === 0}
   {@const footerShellClass = footerDimmed
-    ? "border-t border-zinc-800/90 bg-zinc-900/70"
-    : "border-t border-zinc-800 bg-zinc-800/60"}
-  {@const footerButtonClass = `flex h-full shrink-0 items-center justify-center border-0 bg-zinc-800/30 p-0 outline-none ${accent.ringFocusWithWidth}`}
+    ? "border-t border-border-subtle/90 bg-surface/70"
+    : "border-t border-border-subtle bg-surface-muted/60"}
+  {@const footerButtonClass = `flex h-full shrink-0 items-center justify-center border-0 bg-surface-muted/30 p-0 outline-none ${accent.ringFocusWithWidth}`}
   {@const footerSlotStyle = `width: ${stepFooterActionSlotWidthPx}px`}
   <div
     class="flex h-5 w-full shrink-0 {isQuarterStep
-      ? 'divide-x divide-zinc-800'
+      ? 'divide-x divide-border-subtle'
       : 'justify-between'} {footerShellClass}"
     data-no-long-press
   >
@@ -875,7 +875,7 @@
         <StepGearIcon class="pointer-events-none h-3 w-3" />
       </button>
     {:else}
-      <div class="flex shrink-0 divide-x divide-zinc-800">
+      <div class="flex shrink-0 divide-x divide-border-subtle">
         <StepSkipToggle
           {accent}
           {muted}
@@ -1121,7 +1121,7 @@
                 onValueChange={(value) => onStepCycleChange(row, step, value)}
               />
               <span
-                class="pointer-events-none font-sans text-xs leading-none font-bold text-zinc-400 select-none"
+                class="pointer-events-none font-sans text-xs leading-none font-bold text-text-secondary select-none"
                 aria-hidden="true">/</span
               >
               <StepNumberDragInput
@@ -1150,7 +1150,7 @@
 
     {#if isStepSelected}
       <div
-        class="pointer-events-none absolute inset-0 z-[70] rounded-lg border border-white/40 bg-white/8"
+        class="pointer-events-none absolute inset-0 z-[70] rounded-lg border border-text/40 bg-text/8"
         aria-hidden="true"
       ></div>
     {/if}

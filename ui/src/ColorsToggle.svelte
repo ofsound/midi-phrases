@@ -26,8 +26,8 @@
   aria-pressed={visualOn}
   data-cursor="pointer"
   class="flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors {accent.controlFocus} {visualOn
-    ? 'text-white'
-    : 'text-zinc-500'}"
+    ? 'text-text'
+    : 'text-text-muted'}"
   onclick={handleClick}
 >
   <ColorsPaletteIcon class="pointer-events-none h-5 w-5" />

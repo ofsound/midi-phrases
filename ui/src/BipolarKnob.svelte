@@ -95,11 +95,11 @@
 <div class="transition-opacity duration-200 {muted ? 'opacity-75' : ''}">
   <div
     data-cursor="vertical-drag"
-    class="relative h-9 w-9 touch-none select-none rounded-full border-2 bg-zinc-900 outline-none transition-[border-color,box-shadow] duration-75 {dragging && !muted
+    class="relative h-9 w-9 touch-none select-none rounded-full border-2 bg-surface outline-none transition-[border-color,box-shadow] duration-75 {dragging && !muted
       ? `${accent.dragBorder} ${accent.dragShadow}`
       : muted
-        ? 'border-zinc-800'
-        : 'border-zinc-600'}"
+        ? 'border-border-subtle'
+        : 'border-border-strong'}"
     role="slider"
     aria-label={ariaLabel}
     aria-valuemin={options[0]?.index}
@@ -132,17 +132,17 @@
     >
       <span
         class="absolute left-1/2 top-[2px] h-[3px] w-[3px] -translate-x-1/2 rounded-[1px] {muted
-          ? 'bg-zinc-600'
+          ? 'bg-surface-subtle'
           : accent.bgAccent}"
       ></span>
     </div>
 
     <span
       class="pointer-events-none absolute inset-0 flex items-center justify-center font-mono text-[10px] leading-none font-semibold tabular-nums {muted
-        ? 'text-zinc-500'
+        ? 'text-text-muted'
         : dragging
           ? accent.textAccentLight
-          : 'text-zinc-100'}"
+          : 'text-text'}"
       aria-hidden="true"
     >
       {currentLabel}

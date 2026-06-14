@@ -1,5 +1,5 @@
 <script>
-  import { onDestroy } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { midiToNoteName } from "./midiNoteNames.js";
   import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { beatFromClientX, clampLoopBrace, loopBraceSnapQuarters } from "./loopBraceLayout.js";
@@ -102,10 +102,10 @@
   const renderOverscanQuarters = 8;
 
   const notePalettes = [
-    { fill: "#34d399", border: "rgba(167,243,208,0.55)", activeFill: "#6ee7b7", activeBorder: "rgba(167,243,208,0.95)", glow: "rgba(52,211,153,0.65)" },
-    { fill: "#3b82f6", border: "rgba(147,197,253,0.55)", activeFill: "#93c5fd", activeBorder: "rgba(191,219,254,0.95)", glow: "rgba(59,130,246,0.65)" },
-    { fill: "#f97316", border: "rgba(253,186,116,0.55)", activeFill: "#fdba74", activeBorder: "rgba(254,215,170,0.95)", glow: "rgba(249,115,22,0.65)" },
-    { fill: "#8b5cf6", border: "rgba(196,181,253,0.55)", activeFill: "#c4b5fd", activeBorder: "rgba(221,214,254,0.95)", glow: "rgba(139,92,246,0.65)" },
+    { fill: "--theme-note-row-1-fill", border: "--theme-note-row-1-border", activeFill: "--theme-note-row-1-active-fill", activeBorder: "--theme-note-row-1-active-border", glow: "--theme-note-row-1-glow" },
+    { fill: "--theme-note-row-2-fill", border: "--theme-note-row-2-border", activeFill: "--theme-note-row-2-active-fill", activeBorder: "--theme-note-row-2-active-border", glow: "--theme-note-row-2-glow" },
+    { fill: "--theme-note-row-3-fill", border: "--theme-note-row-3-border", activeFill: "--theme-note-row-3-active-fill", activeBorder: "--theme-note-row-3-active-border", glow: "--theme-note-row-3-glow" },
+    { fill: "--theme-note-row-4-fill", border: "--theme-note-row-4-border", activeFill: "--theme-note-row-4-active-fill", activeBorder: "--theme-note-row-4-active-border", glow: "--theme-note-row-4-glow" },
   ];
 
   /** @type {HTMLElement | null} */
@@ -130,6 +130,7 @@
   let dragAnchorEnd = 0;
   let dragDisplayStart = $state(0);
   let dragDisplayEnd = $state(8);
+  let themeRevision = $state(0);
   let displayStart = $derived(dragMode === null ? loopStart : dragDisplayStart);
   let displayEnd = $derived(dragMode === null ? loopEnd : dragDisplayEnd);
 
@@ -336,8 +337,8 @@
   /** @param {number} midi */
   function keyboardRowClass(midi) {
     return isBlackKey(midi)
-      ? "bg-zinc-950/90 border-b border-zinc-800/80"
-      : "bg-zinc-800/70 border-b border-zinc-700/50";
+      ? "bg-app/90 border-b border-border-subtle/80"
+      : "bg-surface-muted/70 border-b border-border/50";
   }
 
   /** @param {{ enabled?: boolean, start?: number, end?: number }} next */
@@ -573,7 +574,25 @@
     return notePalettes[row] ?? notePalettes[0];
   }
 
+  /** @param {string} name */
+  function themeColor(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "CanvasText";
+  }
+
+  /** @param {{ fill: string, border: string, activeFill: string, activeBorder: string, glow: string }} palette */
+  function resolvedNotePalette(palette) {
+    return {
+      fill: themeColor(palette.fill),
+      border: themeColor(palette.border),
+      activeFill: themeColor(palette.activeFill),
+      activeBorder: themeColor(palette.activeBorder),
+      glow: themeColor(palette.glow),
+    };
+  }
+
   function drawStaticCanvas() {
+    themeRevision;
+
     if (!staticCanvas) return;
 
     const context = prepareCanvas(staticCanvas, renderWindowWidthPx, rollHeightPx);
@@ -582,13 +601,17 @@
 
     const windowLeftPx = renderWindowStart * pxPerQuarter;
 
-    context.fillStyle = "rgba(9,9,11,0.78)";
+    context.fillStyle = themeColor("--theme-piano-roll-bg");
     context.fillRect(0, 0, renderWindowWidthPx, rollHeightPx);
 
     for (const midi of pitchRows) {
-      context.fillStyle = isBlackKey(midi) ? "rgba(9,9,11,0.9)" : "rgba(39,39,42,0.68)";
+      context.fillStyle = isBlackKey(midi)
+        ? themeColor("--theme-piano-roll-black-key")
+        : themeColor("--theme-piano-roll-white-key");
       context.fillRect(0, pitchTopPx(midi), renderWindowWidthPx, rowHeightPx);
-      context.strokeStyle = isBlackKey(midi) ? "rgba(39,39,42,0.78)" : "rgba(63,63,70,0.5)";
+      context.strokeStyle = isBlackKey(midi)
+        ? themeColor("--theme-piano-roll-black-key-line")
+        : themeColor("--theme-piano-roll-white-key-line");
       context.lineWidth = 1;
       context.beginPath();
       context.moveTo(0, pitchTopPx(midi) + rowHeightPx - 0.5);
@@ -601,8 +624,8 @@
       const width = loopSpan * pxPerQuarter;
 
       if (left < renderWindowWidthPx && left + width > 0) {
-        context.fillStyle = "rgba(52,211,153,0.08)";
-        context.strokeStyle = "rgba(52,211,153,0.35)";
+        context.fillStyle = themeColor("--theme-piano-roll-loop-fill");
+        context.strokeStyle = themeColor("--theme-piano-roll-loop-border");
         context.lineWidth = 1;
         context.fillRect(left, 0, width, rollHeightPx);
         context.strokeRect(left + 0.5, 0.5, Math.max(0, width - 1), Math.max(0, rollHeightPx - 1));
@@ -615,7 +638,9 @@
     for (let quarter = firstQuarter; quarter <= lastQuarter; quarter += 1) {
       const x = quarter * pxPerQuarter - windowLeftPx + 0.5;
 
-      context.strokeStyle = quarter % 4 === 0 ? "rgba(113,113,122,0.7)" : "rgba(39,39,42,0.9)";
+      context.strokeStyle = quarter % 4 === 0
+        ? themeColor("--theme-piano-roll-bar-line")
+        : themeColor("--theme-piano-roll-beat-line");
       context.lineWidth = 1;
       context.beginPath();
       context.moveTo(x, 0);
@@ -626,7 +651,7 @@
     for (const note of scheduled) {
       if (note.velocity <= 0) continue;
 
-      const palette = notePaletteForRow(note.row);
+      const palette = resolvedNotePalette(notePaletteForRow(note.row));
       const opacity = Math.max(0.2, note.velocity / 127);
       const x = note.start * pxPerQuarter - windowLeftPx;
       const y = pitchTopPx(note.midi) + noteVerticalInsetPx;
@@ -646,6 +671,8 @@
   }
 
   function drawActiveCanvas() {
+    themeRevision;
+
     if (!activeCanvas) return;
 
     const context = prepareCanvas(activeCanvas, renderWindowWidthPx, rollHeightPx);
@@ -657,7 +684,7 @@
     for (const note of scheduled) {
       if (note.velocity <= 0 || !isScheduledNoteActiveAtBeat(note, playbackBeat)) continue;
 
-      const palette = notePaletteForRow(note.row);
+      const palette = resolvedNotePalette(notePaletteForRow(note.row));
       const x = note.start * pxPerQuarter - windowLeftPx;
       const y = pitchTopPx(note.midi) + noteVerticalInsetPx;
       const width = noteWidthPx(note.start, note.end);
@@ -716,6 +743,23 @@
     setHorizontalScrollLeft(nextScrollLeft);
   });
 
+  onMount(() => {
+    const observer = new MutationObserver((mutations) => {
+      if (mutations.some((mutation) => mutation.attributeName === "data-theme")) {
+        themeRevision += 1;
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  });
+
   onDestroy(() => {
     clearActiveCursor();
   });
@@ -724,13 +768,13 @@
 <section class="flex min-h-0 w-full flex-1 flex-col">
   <div class="mb-2 flex shrink-0 items-baseline justify-between gap-3">
     <div class="flex items-center gap-3">
-      <p class="text-xs font-medium uppercase tracking-widest text-zinc-500">Output preview</p>
+      <p class="text-xs font-medium uppercase tracking-widest text-text-muted">Output preview</p>
       <button
         type="button"
         data-cursor="pointer"
-        class="rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors outline-none focus-visible:ring-1 focus-visible:ring-accent-400 {loopEnabled
-          ? 'border-accent-500/50 bg-accent-500/15 text-accent-300'
-          : 'border-zinc-700 bg-zinc-900 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}"
+        class="rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors outline-none focus-visible:ring-1 focus-visible:ring-focus-ring {loopEnabled
+          ? 'border-accent-strong/50 bg-accent-strong/15 text-accent'
+          : 'border-border bg-surface text-text-muted hover:border-border-strong hover:text-text-secondary'}"
         onclick={toggleLoopEnabled}
       >
         Loop {loopEnabled ? "on" : "off"}
@@ -739,39 +783,39 @@
         type="button"
         data-cursor="pointer"
         title="Fit notes"
-        class="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 transition-colors outline-none hover:border-zinc-600 hover:text-zinc-300 focus-visible:ring-1 focus-visible:ring-accent-400"
+        class="rounded-md border border-border bg-surface px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted transition-colors outline-none hover:border-border-strong hover:text-text-secondary focus-visible:ring-1 focus-visible:ring-focus-ring"
         onclick={fitPitchRange}
       >
         Fit
       </button>
     </div>
-    <p class="text-xs text-zinc-600">
+    <p class="text-xs text-text-faint">
       {lengthQuarters} quarter notes · loop {formatBeat(displayStart)}–{formatBeat(displayEnd)} ({formatBeat(loopSpan)} beats)
     </p>
   </div>
 
   <div
-    class="flex h-0 min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/80"
+    class="flex h-0 min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-subtle bg-app/80"
   >
     <div class="flex shrink-0">
       <div
-        class="shrink-0 border-r border-b border-zinc-800 bg-zinc-900/90"
+        class="shrink-0 border-r border-b border-border-subtle bg-surface/90"
         style:width="{keyboardWidthPx}px"
         style:height="{rulerHeightPx}px"
       ></div>
 
       <div
         {@attach scrollElementAttachment}
-        class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden border-b border-zinc-800"
+        class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden border-b border-border-subtle"
         onscroll={syncGridHorizontalScroll}
       >
-        <div class="relative bg-zinc-900/95" style:width="{rollWidthPx}px" style:height="{rulerHeightPx}px">
+        <div class="relative bg-surface/95" style:width="{rollWidthPx}px" style:height="{rulerHeightPx}px">
           {#each barLines as bar (bar)}
             <div
-              class="pointer-events-none absolute top-0 bottom-0 border-l border-zinc-700/80"
+              class="pointer-events-none absolute top-0 bottom-0 border-l border-border/80"
               style:left="{bar * pxPerQuarter}px"
             >
-              <span class="absolute top-1 left-1 text-[9px] font-medium text-zinc-500">{bar}</span>
+              <span class="absolute top-1 left-1 text-[9px] font-medium text-text-muted">{bar}</span>
             </div>
           {/each}
 
@@ -791,14 +835,14 @@
           >
             <div
               class="absolute inset-x-0 top-0 h-2 rounded-sm border transition-colors {loopEnabled
-                ? 'border-accent-400/80 bg-accent-400/90'
-                : 'border-zinc-500/70 bg-zinc-500/60'}"
+                ? 'border-accent/80 bg-accent/90'
+                : 'border-border-strong/70 bg-surface-subtle/60'}"
             >
               <button
                 type="button"
                 aria-label="Loop start"
                 data-cursor="ew-resize"
-                class="absolute top-1/2 left-0 z-30 h-4 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-zinc-900/40 bg-zinc-200 shadow-sm"
+                class="absolute top-1/2 left-0 z-30 h-4 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-border-subtle/40 bg-text-secondary shadow-sm"
                 onpointerdown={(event) => beginLoopDrag(event, "start")}
               ></button>
 
@@ -815,7 +859,7 @@
                 type="button"
                 aria-label="Loop end"
                 data-cursor="ew-resize"
-                class="absolute top-1/2 right-0 z-30 h-4 w-2.5 translate-x-1/2 -translate-y-1/2 rounded-sm border border-zinc-900/40 bg-zinc-200 shadow-sm"
+                class="absolute top-1/2 right-0 z-30 h-4 w-2.5 translate-x-1/2 -translate-y-1/2 rounded-sm border border-border-subtle/40 bg-text-secondary shadow-sm"
                 onpointerdown={(event) => beginLoopDrag(event, "end")}
               ></button>
             </div>
@@ -830,7 +874,7 @@
     >
       <div class="flex">
         <div
-          class="shrink-0 border-r border-zinc-800 bg-zinc-900/90"
+          class="shrink-0 border-r border-border-subtle bg-surface/90"
           style:width="{keyboardWidthPx}px"
         >
           <div class="relative" style:height="{rollHeightPx}px">
@@ -841,7 +885,7 @@
                 style:height="{rowHeightPx}px"
               >
                 {#if showKeyboardLabels && midi % 12 === 0}
-                  <span class="text-[9px] font-medium text-zinc-500">{midiToNoteName(midi)}</span>
+                  <span class="text-[9px] font-medium text-text-muted">{midiToNoteName(midi)}</span>
                 {/if}
               </div>
             {/each}
@@ -875,7 +919,7 @@
 
               {#if showPlaybackPlayhead}
                 <div
-                  class="pointer-events-none absolute top-0 bottom-0 z-40 w-px bg-zinc-100/90 shadow-[0_0_6px_rgba(255,255,255,0.35)]"
+                  class="pointer-events-none absolute top-0 bottom-0 z-40 w-px bg-text/90 shadow-[0_0_6px_color-mix(in_srgb,var(--color-text)_35%,transparent)]"
                   style:left="{playbackPlayheadLeftPx}px"
                 ></div>
               {/if}

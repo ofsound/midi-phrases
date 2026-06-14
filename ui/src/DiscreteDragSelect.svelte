@@ -98,8 +98,8 @@
     : 'w-[4.5rem]'} {accent.borderFocusVisible} {accent.ringFocusWithWidth} {dragging && !muted
     ? `${accent.dragBorder} ${accent.dragShadow}`
     : muted
-      ? 'border-zinc-800 text-zinc-500'
-      : 'border-zinc-700 text-zinc-100'}"
+      ? 'border-border-subtle text-text-muted'
+      : 'border-border text-text'}"
   role="slider"
   aria-label={ariaLabel}
   aria-valuemin={options[0]?.index}

@@ -51,7 +51,7 @@
         aria-label="Duplicate step to the left"
         data-cursor="pointer"
         class="flex h-4 w-4 shrink-0 items-center justify-center border-0 bg-transparent p-0 opacity-0 outline-none transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 {muted
-          ? 'text-zinc-500'
+          ? 'text-text-muted'
           : accent.textAccent} {accent.insertZoneFocus}"
         onclick={onDuplicate}
       >

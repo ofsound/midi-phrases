@@ -81,27 +81,27 @@
 
 <section class="flex min-h-0 w-full flex-1 flex-col">
   <div class="mb-2 flex shrink-0 items-center justify-between gap-3">
-    <p class="text-xs font-medium uppercase tracking-widest text-zinc-500">
+    <p class="text-xs font-medium uppercase tracking-widest text-text-muted">
       Record keyboard · row {row + 1}
     </p>
     <div class="flex items-center gap-2">
       <button
         type="button"
         data-cursor="pointer"
-        class="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-700 bg-zinc-900 text-lg font-semibold text-zinc-200 transition-colors hover:border-zinc-500 hover:bg-zinc-800 outline-none focus-visible:ring-1 {accent.ringFocus}"
+        class="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-lg font-semibold text-text transition-colors hover:border-border-strong hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
         aria-label="Shift keyboard down one octave"
         title="Octave down"
         onclick={shiftOctaveDown}
       >
         −
       </button>
-      <span class="min-w-[7.5rem] text-center text-xs font-medium tabular-nums text-zinc-400">
+      <span class="min-w-[7.5rem] text-center text-xs font-medium tabular-nums text-text-secondary">
         {rangeLabel}
       </span>
       <button
         type="button"
         data-cursor="pointer"
-        class="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-700 bg-zinc-900 text-lg font-semibold text-zinc-200 transition-colors hover:border-zinc-500 hover:bg-zinc-800 outline-none focus-visible:ring-1 {accent.ringFocus}"
+        class="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-lg font-semibold text-text transition-colors hover:border-border-strong hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
         aria-label="Shift keyboard up one octave"
         title="Octave up"
         onclick={shiftOctaveUp}
@@ -112,7 +112,7 @@
   </div>
 
   <div
-    class="flex h-0 min-h-[12rem] flex-1 flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/80"
+    class="flex h-0 min-h-[12rem] flex-1 flex-col overflow-hidden rounded-xl border border-border-subtle bg-app/80"
   >
     <div class="relative flex min-h-0 flex-1 touch-none select-none">
       <div class="relative z-0 flex h-full min-h-[10rem] w-full">
@@ -120,11 +120,11 @@
           <button
             type="button"
             data-cursor="pointer"
-            class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end border-r border-b border-zinc-700/80 transition-[filter,background-color] duration-75 last:border-r-0 hover:brightness-105 active:brightness-95 {isKeyHeld(
+            class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end border-r border-b border-border/80 transition-[filter,background-color] duration-75 last:border-r-0 hover:brightness-105 active:brightness-95 {isKeyHeld(
               midi,
             )
               ? accent.pianoNoteActive
-              : 'bg-gradient-to-b from-zinc-200 to-zinc-400 hover:from-zinc-100 hover:to-zinc-300'}"
+              : 'bg-gradient-to-b from-input to-surface-muted hover:from-surface hover:to-surface-subtle'}"
             aria-label={midiToNoteName(midi)}
             onpointerdown={(event) => onWhitePointerDown(event, midi)}
             onpointerup={(event) => onWhitePointerUp(event, midi)}
@@ -132,7 +132,7 @@
           >
             {#if midi % 12 === 0}
               <span
-                class="pointer-events-none mb-1 text-[11px] font-bold leading-none text-black tabular-nums"
+                class="pointer-events-none mb-1 text-[11px] font-bold leading-none text-text-inverse tabular-nums"
               >
                 {midiToNoteName(midi)}
               </span>
@@ -146,11 +146,11 @@
           <button
             type="button"
             data-cursor="pointer"
-            class="pointer-events-auto absolute top-0 z-10 h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 rounded-b-md border border-zinc-900/80 shadow-md transition-[filter,background-color] duration-75 active:brightness-110 {isKeyHeld(
+            class="pointer-events-auto absolute top-0 z-10 h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 rounded-b-md border border-border-subtle/80 shadow-md transition-[filter,background-color] duration-75 active:brightness-110 {isKeyHeld(
               midi,
             )
               ? accent.pianoNoteActive
-              : 'bg-gradient-to-b from-zinc-700 to-zinc-950 hover:from-zinc-600 hover:to-zinc-900'}"
+              : 'bg-gradient-to-b from-surface-subtle to-app hover:from-surface-subtle hover:to-surface'}"
             style:left="{centerPercent}%"
             style:width="{widthPercent}%"
             aria-label={midiToNoteName(midi)}
@@ -173,7 +173,7 @@
     </div>
   </div>
 
-  <p class="mt-2 shrink-0 text-center text-[11px] text-zinc-600">
+  <p class="mt-2 shrink-0 text-center text-[11px] text-text-faint">
     Click keys or play MIDI · each note adds a 1× step · chords at the same instant are ignored
   </p>
 </section>

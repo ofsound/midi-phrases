@@ -38,7 +38,7 @@
   }
 
   let iconClasses = $derived(muted
-    ? "text-zinc-600"
+    ? "text-text-faint"
     : value
       ? toggleIconActiveClasses
       : toggleIconRestClasses);

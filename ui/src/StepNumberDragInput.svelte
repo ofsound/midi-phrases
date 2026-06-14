@@ -212,13 +212,13 @@
     ? dragging && !muted
       ? `${accent.dragBorder} ${accent.dragShadow}`
       : muted
-        ? 'border-zinc-800'
-        : 'border-zinc-700'
+        ? 'border-border-subtle'
+        : 'border-border'
     : ''} {muted
-    ? 'text-zinc-500'
+    ? 'text-text-muted'
     : dragging
       ? accent.textAccentLight
-      : 'text-zinc-100'}"
+      : 'text-text'}"
   role="slider"
   aria-label={ariaLabel}
   aria-valuemin={ariaValueMin}

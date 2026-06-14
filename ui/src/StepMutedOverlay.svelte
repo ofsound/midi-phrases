@@ -20,11 +20,11 @@
   .step-muted-overlay {
     background: repeating-linear-gradient(
       -45deg,
-      rgb(0 0 0 / 0.15),
-      rgb(0 0 0 / 0.15) 2px,
-      rgb(255 255 255 / 0.14) 2px,
-      rgb(255 255 255 / 0.14) 5px
+      color-mix(in srgb, var(--color-app) 15%, transparent),
+      color-mix(in srgb, var(--color-app) 15%, transparent) 2px,
+      color-mix(in srgb, var(--color-text) 14%, transparent) 2px,
+      color-mix(in srgb, var(--color-text) 14%, transparent) 5px
     );
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 12%, transparent);
   }
 </style>

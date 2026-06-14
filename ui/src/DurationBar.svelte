@@ -139,8 +139,8 @@
     {@attach trackAttachment}
     data-cursor="pointer"
     class="duration-track relative h-3.5 touch-none select-none overflow-hidden outline-none {accent.ringFocusWithWidth} {muted
-      ? 'bg-zinc-800'
-      : 'bg-zinc-600'}"
+      ? 'bg-surface-muted'
+      : 'bg-surface-subtle'}"
     role="slider"
     aria-label={ariaLabel}
     aria-valuemin={0}
@@ -172,7 +172,7 @@
     {/if}
     {#if displayFillPercent > 0}
       <div
-        class="duration-fill absolute inset-y-0 left-0 {muted ? 'bg-zinc-600' : accent.bgAccent} {dragging
+        class="duration-fill absolute inset-y-0 left-0 {muted ? 'bg-surface-subtle' : accent.bgAccent} {dragging
           ? ''
           : 'transition-[width,opacity] duration-75'}"
         style:width="{displayFillPercent}%"
@@ -184,16 +184,16 @@
 
 <style>
   .duration-track {
-    background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 42%, rgba(0, 0, 0, 0.2));
+    background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-text) 12%, transparent), color-mix(in srgb, var(--color-text) 2%, transparent) 42%, color-mix(in srgb, var(--color-app) 20%, transparent));
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+      inset 0 1px 0 color-mix(in srgb, var(--color-text) 8%, transparent),
+      inset 0 -1px 0 color-mix(in srgb, var(--color-app) 35%, transparent);
   }
 
   .duration-fill {
-    background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.04) 48%, rgba(0, 0, 0, 0.18));
+    background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-text) 26%, transparent), color-mix(in srgb, var(--color-text) 4%, transparent) 48%, color-mix(in srgb, var(--color-app) 18%, transparent));
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.22),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+      inset 0 1px 0 color-mix(in srgb, var(--color-text) 22%, transparent),
+      inset 0 -1px 0 color-mix(in srgb, var(--color-app) 22%, transparent);
   }
 </style>

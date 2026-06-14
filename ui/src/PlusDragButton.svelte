@@ -98,8 +98,8 @@
     ? 'opacity-100'
     : ''} {muted
     ? variant === 'large'
-      ? 'text-zinc-600 focus:ring-zinc-500'
-      : 'text-zinc-500'
+      ? 'text-text-faint focus:ring-focus-ring'
+      : 'text-text-muted'
     : active
       ? `${accent.textAccentLight}`
       : `${accent.textAccent}`} {variant === 'large' ? accent.ringFocusWithWidth : accent.insertZoneFocus} {className}"

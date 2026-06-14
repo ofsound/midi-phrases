@@ -85,11 +85,11 @@
 <div class="flex flex-col gap-1 {fullWidth ? 'min-w-0 w-full' : 'w-[10.5rem]'}">
   <div class="flex items-center justify-between gap-2">
     {#if label}
-      <span class="text-[9px] font-medium uppercase tracking-wide text-zinc-500">{label}</span>
+      <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">{label}</span>
     {:else}
       <span></span>
     {/if}
-    <span class="font-mono text-[10px] tabular-nums text-accent-300">{currentLabel}</span>
+    <span class="font-mono text-[10px] tabular-nums text-accent">{currentLabel}</span>
   </div>
 
   <div
@@ -121,12 +121,12 @@
       }
     }}
   >
-    <div class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-zinc-700">
-      <div class="h-full rounded-full bg-accent-500 transition-[width] duration-75" style:width="{thumbPercent}%"></div>
+    <div class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-surface-subtle">
+      <div class="h-full rounded-full bg-accent-strong transition-[width] duration-75" style:width="{thumbPercent}%"></div>
     </div>
 
     <div
-      class="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-zinc-500 bg-zinc-100 shadow-sm transition-[left] duration-75"
+      class="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border-strong bg-text shadow-sm transition-[left] duration-75"
       style:left="{thumbPercent}%"
     ></div>
   </div>
@@ -135,8 +135,8 @@
     {#each options as option, optionIndex (option.index)}
       <span
         class="absolute -translate-x-1/2 font-mono text-[9px] leading-none {value === option.index
-          ? 'text-accent-300'
-          : 'text-zinc-500'}"
+          ? 'text-accent'
+          : 'text-text-muted'}"
         style:left="{(optionIndex / maxIndex) * 100}%"
       >
         {option.label}

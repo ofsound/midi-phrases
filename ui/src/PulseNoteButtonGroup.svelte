@@ -34,8 +34,8 @@
       title={option.label}
       data-cursor="pointer"
       class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-gradient-to-b outline-none transition-[border-color,box-shadow,color,background-color] duration-75 {accent.ringFocusWithWidth} {selected
-        ? `${accent.dragBorder} ${accent.dragShadow} from-zinc-600/70 to-zinc-900 text-zinc-100`
-        : 'border-zinc-700/90 from-zinc-800/40 to-zinc-950 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}"
+        ? `${accent.dragBorder} ${accent.dragShadow} from-surface-subtle/70 to-surface text-text`
+        : 'border-border/90 from-surface-muted/40 to-app text-text-muted hover:border-border-strong hover:text-text-secondary'}"
       onclick={() => {
         if (!selected) onValueChange(option.index);
       }}
