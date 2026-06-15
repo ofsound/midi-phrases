@@ -1,19 +1,15 @@
 <script>
   import { onDestroy, tick } from "svelte";
-  import { SvelteMap, SvelteSet } from "svelte/reactivity";
   import { dragHandle, dragHandleZone, TRIGGERS } from "svelte-dnd-action";
   import DurationBar from "./DurationBar.svelte";
   import NoteDragInput from "./NoteDragInput.svelte";
   import VelocityDragInput from "./VelocityDragInput.svelte";
   import StepInsertZone from "./StepInsertZone.svelte";
   import PlusDragButton from "./PlusDragButton.svelte";
-  import StepCardFlip from "./StepCardFlip.svelte";
   import StepGearIcon from "./StepGearIcon.svelte";
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import StepMuteToggle from "./StepMuteToggle.svelte";
   import StepSkipToggle from "./StepSkipToggle.svelte";
-  import ProbabilityDragInput from "./ProbabilityDragInput.svelte";
-  import StepNumberDragInput from "./StepNumberDragInput.svelte";
   import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { preventTabFocus } from "./preventTabFocus.js";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
@@ -29,14 +25,9 @@
   import {
     phraseGridOriginLeftOffsetPx,
     phraseRowEndAddStepInsetPx,
+    phraseRowEndStepTailPaddingPx,
     phraseRowMinHeightPx,
   } from "./phraseRowLayout.js";
-  import {
-    applyStepFlipChange,
-    closeAllStepFlips as closeAllStepFlipsInSet,
-    isStepFlipped as readStepFlipped,
-    syncFlipOverridesForGlobalView,
-  } from "./stepFlipState.js";
   import {
     defaultStepTimingMultiplierIndex,
     insertStepTimingMultiplierOptions,
@@ -102,14 +93,10 @@
    * @property {number[]} [stepVelocity]
    * @property {boolean[]} [stepMuted]
    * @property {boolean[]} [stepSkipped]
-   * @property {number[]} [stepProbability]
-   * @property {number[]} [stepCycle]
-   * @property {number[]} [stepCycleOffset]
    * @property {boolean[]} [activeGates]
    * @property {{ index: number, label: string }[]} [timingMultiplierOptions]
-   * @property {boolean} [globalStepBackView]
-   * @property {number} [globalStepBackViewCommand]
    * @property {string[]} [selectedStepIds]
+   * @property {string | null} [inspectedStepId]
    * @property {(value: number, delta: number) => number} [stepNoteValue]
    * @property {number} [defaultStepNote]
    * @property {(row: number, orderedIds: string[]) => void} [onReorder]
@@ -124,9 +111,7 @@
    * @property {(row: number, step: number, value: number) => void | Promise<void>} [onVelocityChange]
    * @property {(row: number, step: number, muted: boolean) => void | Promise<void>} [onStepMuteChange]
    * @property {(row: number, step: number, skipped: boolean) => void | Promise<void>} [onStepSkipChange]
-   * @property {(row: number, step: number, probability: number) => void | Promise<void>} [onStepProbabilityChange]
-   * @property {(row: number, step: number, cycle: number) => void | Promise<void>} [onStepCycleChange]
-   * @property {(row: number, step: number, cycleOffset: number) => void | Promise<void>} [onStepCycleOffsetChange]
+   * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onInspectStep]
    * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
    * @property {(event: PointerEvent) => void} [onBulkSelectBackgroundDoubleClick]
    */
@@ -146,14 +131,10 @@
     stepVelocity = [],
     stepMuted = [],
     stepSkipped = [],
-    stepProbability = [],
-    stepCycle = [],
-    stepCycleOffset = [],
     activeGates = [],
     timingMultiplierOptions = [],
-    globalStepBackView = false,
-    globalStepBackViewCommand = 0,
     selectedStepIds = [],
+    inspectedStepId = null,
     stepNoteValue = (value, delta) => value + delta,
     defaultStepNote = 60,
     onReorder = () => {},
@@ -168,9 +149,7 @@
     onVelocityChange = () => {},
     onStepMuteChange = () => {},
     onStepSkipChange = () => {},
-    onStepProbabilityChange = () => {},
-    onStepCycleChange = () => {},
-    onStepCycleOffsetChange = () => {},
+    onInspectStep = () => {},
     onBulkSelectPointerDown = () => {},
     onBulkSelectBackgroundDoubleClick = () => {}
   } = $props();
@@ -203,62 +182,10 @@
   let lastBulkBackgroundPointerDownTime = 0;
   let lastBulkBackgroundPointerDownX = 0;
   let lastBulkBackgroundPointerDownY = 0;
-  const flipOverrides = new SvelteSet();
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
   let resizeListenerEntries = [];
   const resizeCapture = { capture: true };
   const resizePassiveCapture = { capture: true, passive: true };
-
-
-
-
-
-  /** @param {MouseEvent} event */
-  function shouldIgnoreFlipDoubleClick(event) {
-    const target = event.target;
-
-    if (!(target instanceof Element)) return true;
-
-    return Boolean(
-      target.closest(
-        "button, input, textarea, select, a, [contenteditable='true'], [data-remove-button], [data-multiplier-resize]",
-      ),
-    );
-  }
-
-  /** @param {MouseEvent} event @param {number} step */
-  function handleOpenFlipDoubleClick(event, step) {
-    if (stepFlipInteractionDisabled || shouldIgnoreFlipDoubleClick(event)) return;
-
-    event.preventDefault();
-    setStepFlipped(step, true);
-  }
-
-  /** @param {number} step @param {boolean} flipped */
-  function setStepFlipped(step, flipped) {
-    applyStepFlipChange(
-      flipOverrides,
-      globalStepBackView,
-      globalStepBackFingerprint,
-      step,
-      flipped,
-      stepIds.length,
-    );
-  }
-
-  /** @param {number} step @param {boolean} flipped */
-  function handleStepFlipChange(step, flipped) {
-    setStepFlipped(step, flipped);
-  }
-
-  function closeAllStepFlips() {
-    closeAllStepFlipsInSet(
-      flipOverrides,
-      globalStepBackView,
-      globalStepBackFingerprint,
-      stepIds.length,
-    );
-  }
 
   function blockRemoveTemporarily() {
     removeBlocked = true;
@@ -306,7 +233,6 @@
 
   function beginDragSession() {
     isDragging = true;
-    closeAllStepFlips();
     blockRemoveTemporarily();
     startDragYLock();
   }
@@ -729,30 +655,7 @@
   let reorderDisabled = $derived(stepIds.length <= 1);
   let selectedStepIdSet = $derived(new Set(selectedStepIds));
   let insertMultiplierOptions = $derived(insertStepTimingMultiplierOptions(timingMultiplierOptions));
-  let globalStepBackFingerprint = $derived(stepIds.join("|"));
-  let appliedGlobalStepBackViewCommand = -1;
-  let appliedGlobalStepBackFingerprint = "";
-
-  $effect.pre(() => {
-    const command = globalStepBackViewCommand;
-    const fingerprint = globalStepBackFingerprint;
-
-    syncFlipOverridesForGlobalView(
-      flipOverrides,
-      command,
-      fingerprint,
-      appliedGlobalStepBackViewCommand,
-      appliedGlobalStepBackFingerprint,
-    );
-    appliedGlobalStepBackViewCommand = command;
-    appliedGlobalStepBackFingerprint = fingerprint;
-  });
-
-  /** @param {number} step */
-  const isStepFlipped = (step) =>
-    readStepFlipped(globalStepBackView, flipOverrides, globalStepBackFingerprint, step);
-  let stepFlipInteractionDisabled =
-    $derived(isDragging || removeBlocked || resizingStep >= 0);
+  let stepInspectorInteractionDisabled = $derived(isDragging || removeBlocked || resizingStep >= 0);
   let orderedStepItems = $derived(stepIds.map((id) => ({ id })));
   let renderedDndItems = $derived(isDragging ? dndItems : orderedStepItems);
   let dndZoneOptions = $derived({
@@ -801,7 +704,7 @@
     data-cursor="pointer"
     aria-label="Remove step"
     disabled={removeBlocked}
-    class="relative z-30 flex h-5 w-5 shrink-0 items-center justify-center p-0 transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 {dimmed
+    class="relative z-30 flex h-5 w-5 shrink-0 items-center justify-start p-0 transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 {dimmed
       ? 'text-text-faint hover:text-text-muted'
       : `text-text-secondary hover:text-text ${accent.textAccentFocus}`}"
     onpointerdown={(event) => event.stopPropagation()}
@@ -826,9 +729,10 @@
   ></button>
 {/snippet}
 
-{#snippet stepSkipMuteFooter(step, isFlipped)}
+{#snippet stepSkipMuteFooter(step)}
   {@const stepIsMuted = stepMuted[step]}
   {@const stepIsSkipped = stepSkipped[step]}
+  {@const isInspected = inspectedStepId === stepIds[step]}
   {@const footerDimmed = muted || stepIsSkipped}
   {@const multiplierIndex = stepTimingMultiplier[step] ?? defaultStepTimingMultiplierIndex}
   {@const isQuarterStep = multiplierIndex === 0}
@@ -865,15 +769,15 @@
       <button
         type="button"
         data-cursor="pointer"
-        aria-label={isFlipped ? "Close step settings" : "Open step settings"}
-        aria-pressed={isFlipped}
-        disabled={stepFlipInteractionDisabled}
-        class="{footerButtonClass} min-w-0 flex-1 basis-0 disabled:pointer-events-none disabled:opacity-50 {isFlipped
+        aria-label="Open step inspector"
+        aria-pressed={isInspected}
+        disabled={stepInspectorInteractionDisabled}
+        class="{footerButtonClass} min-w-0 flex-1 basis-0 disabled:pointer-events-none disabled:opacity-50 {isInspected
           ? toggleIconActiveClasses
           : toggleIconRestClasses}"
         onpointerdown={(event) => event.stopPropagation()}
         onmousedown={(event) => event.stopPropagation()}
-        onclick={() => handleStepFlipChange(step, !isFlipped)}
+        onclick={() => onInspectStep(row, step, stepIds[step])}
       >
         <StepGearIcon class="pointer-events-none h-3 w-3" />
       </button>
@@ -903,16 +807,16 @@
       <button
         type="button"
         data-cursor="pointer"
-        aria-label={isFlipped ? "Close step settings" : "Open step settings"}
-        aria-pressed={isFlipped}
-        disabled={stepFlipInteractionDisabled}
+        aria-label="Open step inspector"
+        aria-pressed={isInspected}
+        disabled={stepInspectorInteractionDisabled}
         style={footerSlotStyle}
-        class="{footerButtonClass} disabled:pointer-events-none disabled:opacity-50 {isFlipped
+        class="{footerButtonClass} disabled:pointer-events-none disabled:opacity-50 {isInspected
           ? toggleIconActiveClasses
           : toggleIconRestClasses}"
         onpointerdown={(event) => event.stopPropagation()}
         onmousedown={(event) => event.stopPropagation()}
-        onclick={() => handleStepFlipChange(step, !isFlipped)}
+        onclick={() => onInspectStep(row, step, stepIds[step])}
       >
         <StepGearIcon class="pointer-events-none h-3 w-3" />
       </button>
@@ -922,7 +826,6 @@
 
 {#snippet stepCell(step, reorderEnabled)}
   {@const multiplierLabel = multiplierLabelForStep(step)}
-  {@const stepFlipped = isStepFlipped(step)}
   {@const stepIsMuted = stepMuted[step]}
   {@const stepIsSkipped = stepSkipped[step]}
   {@const stepDimmed = muted || stepIsSkipped}
@@ -934,222 +837,112 @@
     )} {isStepSelected && !isDragging ? accent.selectionShell : ''}"
   >
     <div class="relative z-0 h-full min-h-0 w-full min-w-0">
-    <StepCardFlip
-      {accent}
-      muted={stepDimmed}
-      flipped={stepFlipped}
-      disabled={stepFlipInteractionDisabled}
-      surfaceClass={stepCellSurfaceClass(stepDimmed)}
-      borderClass={stepCellPlaybackClass(activeGates[step], stepDimmed)}
-      headerClass={stepHeaderClass(stepDimmed)}
-      onFlipChange={(flipped) => handleStepFlipChange(step, flipped)}
-    >
-      {#snippet front()}
-        <div class="h-full min-h-0 w-full min-w-0">
-          <div
-            class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-75 {stepCellSurfaceClass(
-              stepDimmed,
-            )} {isStepSelected
-              ? `${accent.borderActive} ${isDragging ? '' : accent.selectionRing}`
-              : stepCellPlaybackClass(activeGates[step], stepDimmed)} {stepDimmed || isDragging
-              ? ''
-              : accent.cellFocusWithinBorder}"
-          >
-            {#if reorderEnabled}
-              <div
-                class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
-                data-no-long-press
-              >
-                {#if !stepFlipped}
-                  {@render stepHeaderRemoveButton(step, stepDimmed)}
-                {:else}
-                  <span class="inline-block h-5 w-5 shrink-0" aria-hidden="true"></span>
-                {/if}
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div
-                  use:dragHandle
-                  use:preventTabFocus
-                  aria-label="Drag to reorder step. Double-click header to open step settings."
-                  data-cursor="grab"
-                  data-no-marquee
-                  class="flex min-h-5 min-w-0 flex-1 items-center justify-end"
-                  ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
-                  title="Double-click to open step settings"
-                >
-                  <span
-                    data-multiplier-label
-                    class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
-                      stepDimmed,
-                    )}"
-                    aria-hidden="true"
-                  >
-                    {multiplierLabel}
-                  </span>
-                </div>
-              </div>
-            {:else}
-              <div
-                class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
-                data-no-long-press
-              >
-                {#if !stepFlipped}
-                  {@render stepHeaderRemoveButton(step, stepDimmed)}
-                {:else}
-                  <span class="inline-block h-5 w-5 shrink-0" aria-hidden="true"></span>
-                {/if}
-                <div
-                  role="presentation"
-                  aria-label="Double-click header to open step settings."
-                  data-cursor="default"
-                  class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
-                    ? 'opacity-80'
-                    : 'opacity-60'}"
-                  onpointerdown={stopPointerPropagation}
-                  ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
-                  title="Double-click to open step settings"
-                >
-                  <span
-                    data-multiplier-label
-                    class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
-                      stepDimmed,
-                    )}"
-                    aria-hidden="true"
-                  >
-                    {multiplierLabel}
-                  </span>
-                </div>
-              </div>
-            {/if}
-
-            <div
-              class="relative flex min-h-0 min-w-0 flex-1 flex-col gap-1 px-1 pt-0.5 pb-1 {stepDimmed
-                ? 'opacity-80'
-                : ''}"
-            >
-              <DurationBar
-                {accent}
-                muted={stepDimmed}
-                stepMuted={stepIsMuted && !stepDimmed}
-                value={stepDurationFraction[step]}
-                velocity={stepVelocity[step]}
-                resetValue={defaultStepDurationFraction}
-                ariaLabel="Step duration fraction"
-                onValueChange={(fraction) => onDurationChange(row, step, fraction)}
-              />
-              <div class="flex min-w-0 items-center pt-0.5 pb-0.5">
-                <div class="flex min-w-0 items-baseline gap-1.5">
-                  <NoteDragInput
-                    {accent}
-                    muted={stepDimmed}
-                    value={notes[step]}
-                    resetValue={defaultStepNote}
-                    ariaLabel="Step note"
-                    stepValue={stepNoteValue}
-                    deferCommit={true}
-                    onValuePreview={(midi) => onNotePreview(row, step, midi)}
-                    onValueCommit={(midi) => onNoteCommit(row, step, midi)}
-                  />
-                  <VelocityDragInput
-                    {accent}
-                    muted={stepDimmed}
-                    value={stepVelocity[step]}
-                    resetValue={defaultStepVelocity}
-                    ariaLabel="Step velocity"
-                    onValueChange={(value) => onVelocityChange(row, step, value)}
-                  />
-                </div>
-                <div
-                  class="min-h-5 min-w-4 flex-1 touch-none"
-                  role="presentation"
-                  aria-label="Double-click to open step settings"
-                  ondblclick={(event) => handleOpenFlipDoubleClick(event, step)}
-                  title="Double-click to open step settings"
-                ></div>
-              </div>
-            </div>
-
-            {@render stepSkipMuteFooter(step, stepFlipped)}
-          </div>
-        </div>
-      {/snippet}
-
-      {#snippet backHeader()}
       <div
-        class="flex min-w-0 flex-1 items-center justify-start gap-1"
-        data-no-long-press
+        class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-75 {stepCellSurfaceClass(
+          stepDimmed,
+        )} {isStepSelected
+          ? `${accent.borderActive} ${isDragging ? '' : accent.selectionRing}`
+          : stepCellPlaybackClass(activeGates[step], stepDimmed)} {stepDimmed || isDragging
+          ? ''
+          : accent.cellFocusWithinBorder}"
       >
-        {#if stepFlipped}
-          {@render stepHeaderRemoveButton(step, stepDimmed)}
-        {/if}
-        <div
-          data-cursor="default"
-          class="flex min-h-5 min-w-0 flex-1 items-center justify-end"
-          role="presentation"
-          aria-hidden="true"
-        >
-          <span
-            data-multiplier-label
-            class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
-              stepDimmed,
-            )}"
-          >
-            {multiplierLabel}
-          </span>
-        </div>
-      </div>
-      {/snippet}
-
-      {#snippet back()}
-        <div class="flex min-h-0 w-full min-w-0 flex-1 items-stretch">
+        {#if reorderEnabled}
           <div
-            data-no-flip-close
-            class="grid h-full w-max shrink-0 grid-rows-[1fr_1fr] items-center"
+            class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
+            data-no-long-press
           >
-            <ProbabilityDragInput
+            {@render stepHeaderRemoveButton(step, stepDimmed)}
+            <div
+              use:dragHandle
+              use:preventTabFocus
+              aria-label="Drag to reorder step"
+              data-cursor="grab"
+              data-no-marquee
+              class="flex min-h-5 min-w-0 flex-1 items-center justify-end"
+            >
+              <span
+                data-multiplier-label
+                class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
+                  stepDimmed,
+                )}"
+                aria-hidden="true"
+              >
+                {multiplierLabel}
+              </span>
+            </div>
+          </div>
+        {:else}
+          <div
+            class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
+            data-no-long-press
+          >
+            {@render stepHeaderRemoveButton(step, stepDimmed)}
+            <div
+              role="presentation"
+              data-cursor="default"
+              class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
+                ? 'opacity-80'
+                : 'opacity-60'}"
+              onpointerdown={stopPointerPropagation}
+            >
+              <span
+                data-multiplier-label
+                class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
+                  stepDimmed,
+                )}"
+                aria-hidden="true"
+              >
+                {multiplierLabel}
+              </span>
+            </div>
+          </div>
+        {/if}
+
+        <div
+          class="relative flex min-h-0 min-w-0 flex-1 flex-col gap-1 px-1 pt-0.5 pb-1 {stepDimmed
+            ? 'opacity-80'
+            : ''}"
+        >
+          <div class="-mx-1 -mt-0.5">
+            <DurationBar
               {accent}
               muted={stepDimmed}
-              value={stepProbability[step] ?? 100}
-              resetValue={100}
-              ariaLabel="Step probability"
-              onValueChange={(value) => onStepProbabilityChange(row, step, value)}
+              stepMuted={stepIsMuted && !stepDimmed}
+              value={stepDurationFraction[step]}
+              velocity={stepVelocity[step]}
+              resetValue={defaultStepDurationFraction}
+              ariaLabel="Step duration fraction"
+              onValueChange={(fraction) => onDurationChange(row, step, fraction)}
             />
-            <div class="flex shrink-0 items-baseline justify-start gap-0.5">
-              <StepNumberDragInput
+          </div>
+          <div class="flex min-w-0 items-center">
+            <div class="flex min-w-0 items-baseline gap-1.5">
+              <NoteDragInput
                 {accent}
                 muted={stepDimmed}
-                value={stepCycle[step] ?? 1}
-                min={1}
-                max={64}
-                resetValue={1}
-                ariaLabel="Step cycle length"
-                onValueChange={(value) => onStepCycleChange(row, step, value)}
+                value={notes[step]}
+                resetValue={defaultStepNote}
+                ariaLabel="Step note"
+                stepValue={stepNoteValue}
+                deferCommit={true}
+                onValuePreview={(midi) => onNotePreview(row, step, midi)}
+                onValueCommit={(midi) => onNoteCommit(row, step, midi)}
               />
-              <span
-                class="pointer-events-none font-sans text-xs leading-none font-bold text-text-secondary select-none"
-                aria-hidden="true">/</span
-              >
-              <StepNumberDragInput
+              <VelocityDragInput
                 {accent}
                 muted={stepDimmed}
-                value={stepCycleOffset[step] ?? 0}
-                min={0}
-                max={Math.max(0, (stepCycle[step] ?? 1) - 1)}
-                displayAdd={1}
-                resetValue={0}
-                ariaLabel="Step cycle offset"
-                onValueChange={(value) => onStepCycleOffsetChange(row, step, value)}
+                value={stepVelocity[step]}
+                resetValue={defaultStepVelocity}
+                ariaLabel="Step velocity"
+                onValueChange={(value) => onVelocityChange(row, step, value)}
               />
             </div>
+            <div class="min-h-5 min-w-4 flex-1 touch-none" role="presentation"></div>
           </div>
         </div>
-      {/snippet}
 
-      {#snippet backFooter()}
-      <div>
-        {@render stepSkipMuteFooter(step, stepFlipped)}
+        {@render stepSkipMuteFooter(step)}
       </div>
-      {/snippet}
-    </StepCardFlip>
     </div>
 
     {#if isStepSelected}
@@ -1242,7 +1035,7 @@
     <div
       class="relative w-max min-w-0 shrink-0 self-stretch overflow-visible"
       style:min-width="{rowGridSpanPx}px"
-      style:padding-right="{stepCellPaddingPx}px"
+      style:padding-right="{phraseRowEndStepTailPaddingPx}px"
     >
       {@render rowInsertSlots()}
 

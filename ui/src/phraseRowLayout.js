@@ -12,14 +12,14 @@ export const phraseRowScrollPaddingTopPx = phraseRowScrollPaddingVerticalPx / 2;
 /** Matches PhraseRow scroll container `pb-2`. */
 export const phraseRowScrollPaddingBottomPx = phraseRowScrollPaddingVerticalPx / 2;
 
-/** Matches App row gap spacers (`h-3`). */
-export const phraseRowInterRowGapPx = 12;
+/** Matches App row gap spacers (`h-2`). */
+export const phraseRowInterRowGapPx = 8;
 
 /**
  * Minimum front-face step cell height (header h-5, body, footer h-5, border-2).
  * Keeps zero-step rows the same band height as rows with steps.
  */
-export const phraseStepCellMinHeightPx = 92;
+export const phraseStepCellMinHeightPx = 88;
 
 /** PhraseRow scroll container min-height including vertical padding. */
 export const phraseRowMinHeightPx =
@@ -47,8 +47,11 @@ export const phraseGridOriginLeftOffsetPx = phraseRowScrollPaddingLeftPx;
 export const phraseFirstStepLeftOffsetPx =
   phraseGridOriginLeftOffsetPx + stepCellPaddingPx;
 
-/** Horizontal gap after the last step cell before the row-end add button (`px-3`). */
-export const phraseRowEndAddStepInsetPx = 12;
+/** Horizontal gap from the row grid edge to the row-end add button (⅔ of former 12px). */
+export const phraseRowEndAddStepInsetPx = 8;
+
+/** Right inset after the last step shell before the row-end + (⅔ of {@link stepCellPaddingPx}). */
+export const phraseRowEndStepTailPaddingPx = stepCellPaddingPx * (2 / 3);
 
 /**
  * Row header order in App.svelte: mute → record → offset knob → PhraseRow.

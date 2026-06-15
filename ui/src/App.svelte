@@ -22,7 +22,6 @@
   import RowRandomizeOrderIcon from "./RowRandomizeOrderIcon.svelte";
   import RowRecordIcon from "./RowRecordIcon.svelte";
   import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
-  import StepGearIcon from "./StepGearIcon.svelte";
   import ScaleModeDialog from "./ScaleModeDialog.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
   import PhraseRow from "./PhraseRow.svelte";
@@ -30,6 +29,7 @@
   import PianoRollPreview from "./PianoRollPreview.svelte";
   import CombinationModeRail from "./CombinationModeRail.svelte";
   import RecordPianoKeyboard from "./RecordPianoKeyboard.svelte";
+  import StepInspector from "./StepInspector.svelte";
   import {
     defaultStepTimingMultiplierIndex,
     maxPhraseStepsPerRow,
@@ -161,6 +161,9 @@
 
   /** Row index armed for MIDI capture, or null. */
   let recordingRow = $state(null);
+  /** Step shown in the lower inspector panel, or null. */
+  /** @type {{ row: number, stepId: string } | null} */
+  let inspectedStep = $state(null);
   /** Snapshot taken when recording was armed (for undo / cancel). */
   /** @type {ReturnType<typeof createHistorySnapshot> | null} */
   let recordingHistoryBefore = null;
@@ -225,8 +228,6 @@
     new Set([...selectedStepKeys].filter((key) => selectableStepKeySet.has(key))),
   );
   let selectedStepIdsByRow = $derived(selectedStepIdsByRowForKeys(selectedStepKeysForGrid));
-  let globalStepBackView = $state(false);
-  let globalStepBackViewCommand = $state(0);
   let bulkDurationPercent = $state(100);
   let bulkVelocityPercent = $state(100);
   let bulkTransposeSemitones = $state(0);
@@ -602,16 +603,6 @@
     }`;
   }
 
-  function brandIconToggleButtonClasses(active, enabled = true) {
-    return `flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 transition-colors outline-none focus:ring-1 focus:ring-focus-ring ${
-      !enabled
-        ? "text-text-faint"
-        : active
-          ? "text-text"
-          : "text-text-muted hover:text-text-secondary"
-    }`;
-  }
-
   function stepNoteByCurrentScale(value, delta) {
     const base = Math.min(127, Math.max(0, Math.round(value)));
     const steps = Math.round(delta);
@@ -779,16 +770,40 @@
     return groups;
   }
 
+  let activeStepInspector = $derived.by(() => {
+    if (inspectedStep === null) return null;
+
+    const row = inspectedStep.row;
+    const step = stepIds[row]?.indexOf(inspectedStep.stepId) ?? -1;
+
+    if (row < 0 || step < 0) return null;
+
+    return {
+      row,
+      step,
+      note: grid[row][step],
+      probability: stepProbability[row][step] ?? 100,
+      cycle: stepCycle[row][step] ?? 1,
+      cycleOffset: stepCycleOffset[row][step] ?? 0,
+    };
+  });
+
+  function closeStepInspector() {
+    inspectedStep = null;
+  }
+
+  /** @param {number} row @param {number} step @param {string} stepId */
+  async function openStepInspector(row, step, stepId) {
+    if (recordingRow !== null) {
+      await finishRowRecording();
+    }
+
+    inspectedStep = { row, stepId };
+  }
+
   function selectAllStepsForBulkEdit() {
     setSelectedStepKeys(new Set(allSelectableStepKeys()));
     syncBulkControlsFromSelection();
-  }
-
-  function toggleGlobalStepBackView() {
-    if (selectableStepCount === 0) return;
-
-    globalStepBackView = !globalStepBackView;
-    globalStepBackViewCommand += 1;
   }
 
   function syncBulkControlsFromSelection() {
@@ -2392,6 +2407,7 @@
       await cancelRowRecording();
     }
 
+    closeStepInspector();
     recordingRow = row;
     recordingHistoryBefore = createHistorySnapshot();
     recordingCapturedNotes = false;
@@ -3041,6 +3057,12 @@
     themeMode = applyThemeMode(storedThemeMode(), { persist: false });
 
     const handleKeydown = (event) => {
+      if (event.key === "Escape" && inspectedStep !== null) {
+        event.preventDefault();
+        closeStepInspector();
+        return;
+      }
+
       if (event.key === " ") {
         const active = document.activeElement;
 
@@ -3122,25 +3144,6 @@
             }}
           />
           <ThemeModeToggle value={themeMode} onValueChange={setThemeMode} />
-          <button
-            type="button"
-            aria-label={globalStepBackView
-              ? "Show front of all steps"
-              : "Show advanced settings for all steps"}
-            aria-pressed={globalStepBackView}
-            title={globalStepBackView
-              ? "Show front of all steps"
-              : "Show advanced settings for all steps"}
-            disabled={selectableStepCount === 0}
-            data-cursor="pointer"
-            class={brandIconToggleButtonClasses(
-              globalStepBackView,
-              selectableStepCount > 0,
-            )}
-            onclick={toggleGlobalStepBackView}
-          >
-            <StepGearIcon class="pointer-events-none h-5 w-5" />
-          </button>
         </div>
         <div class="flex h-8 items-end">
           <h1
@@ -3408,7 +3411,7 @@
           title="Beat one"
         ></div>
         <div
-          class="h-3 shrink-0"
+          class="h-2 shrink-0"
           role="presentation"
           aria-hidden="true"
           onpointerdown={handleRowGapBulkSelectPointerDown}
@@ -3477,13 +3480,9 @@
               stepVelocity={stepVelocity[row]}
               stepMuted={stepMuted[row]}
               stepSkipped={stepSkipped[row]}
-              stepProbability={stepProbability[row]}
-              stepCycle={stepCycle[row]}
-              stepCycleOffset={stepCycleOffset[row]}
               activeGates={activeGates[row]}
-              globalStepBackView={globalStepBackView}
-              globalStepBackViewCommand={globalStepBackViewCommand}
               selectedStepIds={selectedStepIdsByRow[row]}
+              inspectedStepId={inspectedStep?.row === row ? inspectedStep.stepId : null}
               stepNoteValue={stepNoteByCurrentScale}
               defaultStepNote={defaultNewStepNote}
               {timingMultiplierOptions}
@@ -3499,16 +3498,14 @@
               onVelocityChange={setStepVelocity}
               onStepMuteChange={setStepMuted}
               onStepSkipChange={setStepSkipped}
-              onStepProbabilityChange={setStepProbability}
-              onStepCycleChange={setStepCycle}
-              onStepCycleOffsetChange={setStepCycleOffset}
+              onInspectStep={openStepInspector}
               onBulkSelectPointerDown={beginStepMarqueeSelection}
               onBulkSelectBackgroundDoubleClick={selectAllStepsForBulkEdit}
             />
           </div>
           {#if row < grid.length - 1}
             <div
-              class="h-3 shrink-0"
+              class="h-2 shrink-0"
               role="presentation"
               aria-hidden="true"
               onpointerdown={handleRowGapBulkSelectPointerDown}
@@ -3552,7 +3549,18 @@
     </div>
 
     <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-    {#if recordingRow !== null}
+    {#if activeStepInspector !== null}
+      <StepInspector
+        row={activeStepInspector.row}
+        step={activeStepInspector.step}
+        note={activeStepInspector.note}
+        probability={activeStepInspector.probability}
+        cycle={activeStepInspector.cycle}
+        cycleOffset={activeStepInspector.cycleOffset}
+        accent={rowAccentFor(activeStepInspector.row, rowColorsEnabled)}
+        onClose={closeStepInspector}
+      />
+    {:else if recordingRow !== null}
       <RecordPianoKeyboard
         row={recordingRow}
         accent={rowAccentFor(recordingRow, rowColorsEnabled)}
