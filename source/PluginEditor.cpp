@@ -164,9 +164,9 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addAndMakeVisible (fallbackLabel);
 #endif
 
-    setResizeLimits (1000, 480, 2000, 1200);
+    setResizeLimits (1000, 480, 2000, 1280);
     setResizable (true, true);
-    setSize (1670, processorRef.hasStandaloneTransport() ? 1088 : 1024);
+    setSize (1670, processorRef.hasStandaloneTransport() ? 1168 : 1104);
 }
 
 PluginEditor::~PluginEditor()

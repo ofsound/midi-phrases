@@ -3170,7 +3170,7 @@
       </button>
     </div>
 
-    <div class="relative flex min-w-0 flex-1 -translate-y-3 flex-nowrap items-end justify-end gap-x-3">
+    <div class="relative flex min-w-0 flex-1 -translate-y-3 flex-nowrap items-end justify-start gap-x-3">
         <div class="flex flex-col items-start gap-1">
           <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
           <PulseNoteButtonGroup
@@ -3394,73 +3394,6 @@
         </div>
     </div>
 
-    <div class="flex shrink-0 items-end gap-2">
-      <div class="grid grid-cols-[3rem_auto_auto] items-center gap-x-1 gap-y-1">
-        <span class="text-right text-xs font-semibold leading-none text-text-muted">Patterns</span>
-        <div class="flex items-center gap-0.5 pl-1.5">
-          <div class="flex items-center gap-1">
-            {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
-              <button
-                type="button"
-                aria-label={patternCopySource === slot
-                  ? `Pattern ${slot + 1} selected as copy source`
-                  : `Select pattern ${slot + 1}`}
-                aria-pressed={activePatternSlot === slot}
-                title={patternCopySource === slot
-                  ? "Copy source selected"
-                  : "Shift-click to copy from this pattern"}
-                data-cursor="pointer"
-                class={slotButtonClasses(activePatternSlot === slot, true, patternCopySource === slot)}
-                onclick={(event) => handlePatternSlotClick(event, slot)}
-              >
-                {slot + 1}
-              </button>
-            {/each}
-          </div>
-          <button
-            type="button"
-            aria-label="Clear selected pattern"
-            title="Clear pattern shown in the grid"
-            data-cursor="pointer"
-            class={clearPatternButtonClasses(true)}
-            onclick={clearSelectedPatternSlot}
-          >
-            <RemoveXIcon class="pointer-events-none h-3 w-3" />
-          </button>
-        </div>
-        <button
-          type="button"
-          aria-label="Mute output"
-          aria-pressed={activePatternSlot < 0}
-          title="Mute output until a pattern or loop is selected (MIDI note 16)"
-          data-cursor="pointer"
-          class={outputMuteButtonClasses(activePatternSlot < 0)}
-          onclick={deactivateOutput}
-        >
-          M
-        </button>
-
-        <span class="text-right text-xs font-semibold leading-none text-text-muted">Loops</span>
-        <div class="flex items-center gap-1 pl-1.5">
-          {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
-            <button
-              type="button"
-              aria-label={loopSlotAssigned[slot]
-                ? `Select loop ${slot + 1}`
-                : `Save current brace to loop ${slot + 1}`}
-              aria-pressed={activeLoopSlot === slot}
-              title="Click to select, Shift-click to save current brace"
-              data-cursor="pointer"
-              class={slotButtonClasses(activeLoopSlot === slot, loopSlotAssigned[slot])}
-              onclick={(event) => handleLoopSlotClick(event, slot)}
-            >
-              {slot + 1}
-            </button>
-          {/each}
-        </div>
-        <div aria-hidden="true"></div>
-      </div>
-    </div>
   </header>
   </div>
 
@@ -3663,6 +3596,75 @@
         onLoopBraceChange={updateLoopBrace}
       />
     {/if}
+    </div>
+    <div class="-mx-6 shrink-0 overflow-x-auto border-t border-border-subtle px-6 py-3">
+      <div class="flex min-w-max items-center justify-start gap-8">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-semibold leading-none text-text-muted">Patterns:</span>
+          <div class="flex items-center gap-0.5">
+            <div class="flex items-center gap-1">
+              {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
+                <button
+                  type="button"
+                  aria-label={patternCopySource === slot
+                    ? `Pattern ${slot + 1} selected as copy source`
+                    : `Select pattern ${slot + 1}`}
+                  aria-pressed={activePatternSlot === slot}
+                  title={patternCopySource === slot
+                    ? "Copy source selected"
+                    : "Shift-click to copy from this pattern"}
+                  data-cursor="pointer"
+                  class={slotButtonClasses(activePatternSlot === slot, true, patternCopySource === slot)}
+                  onclick={(event) => handlePatternSlotClick(event, slot)}
+                >
+                  {slot + 1}
+                </button>
+              {/each}
+            </div>
+            <button
+              type="button"
+              aria-label="Clear selected pattern"
+              title="Clear pattern shown in the grid"
+              data-cursor="pointer"
+              class={clearPatternButtonClasses(true)}
+              onclick={clearSelectedPatternSlot}
+            >
+              <RemoveXIcon class="pointer-events-none h-3 w-3" />
+            </button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-semibold leading-none text-text-muted">Loops:</span>
+          <div class="flex items-center gap-1">
+            {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
+              <button
+                type="button"
+                aria-label={loopSlotAssigned[slot]
+                  ? `Select loop ${slot + 1}`
+                  : `Save current brace to loop ${slot + 1}`}
+                aria-pressed={activeLoopSlot === slot}
+                title="Click to select, Shift-click to save current brace"
+                data-cursor="pointer"
+                class={slotButtonClasses(activeLoopSlot === slot, loopSlotAssigned[slot])}
+                onclick={(event) => handleLoopSlotClick(event, slot)}
+              >
+                {slot + 1}
+              </button>
+            {/each}
+          </div>
+          <button
+            type="button"
+            aria-label="Mute output"
+            aria-pressed={activePatternSlot < 0}
+            title="Mute output until a pattern or loop is selected (MIDI note 16)"
+            data-cursor="pointer"
+            class={outputMuteButtonClasses(activePatternSlot < 0)}
+            onclick={deactivateOutput}
+          >
+            M
+          </button>
+        </div>
+      </div>
     </div>
   </section>
   {#if marqueeSelection}
