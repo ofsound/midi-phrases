@@ -114,5 +114,5 @@
     }
   }}
 >
-  <span class="font-sans text-xs leading-none font-bold tabular-nums">{displayValue}</span>
+  <span class="font-sans text-[0.625rem] leading-none font-bold tabular-nums">{displayValue}</span>
 </div>

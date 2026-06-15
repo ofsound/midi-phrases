@@ -263,7 +263,7 @@
 
   .combination-mode-connector {
     flex-shrink: 0;
-    width: 2.75rem;
+    width: 1.375rem;
     height: 1px;
     background: color-mix(in srgb, var(--color-border-strong) 50%, transparent);
   }
@@ -465,7 +465,7 @@
   .note-bandpass-slider {
     display: flex;
     align-items: center;
-    width: 17.25rem;
+    width: 13.834rem;
     gap: 0.55rem;
   }
 
@@ -480,7 +480,7 @@
 
     position: relative;
     flex: 1 1 auto;
-    min-width: 9rem;
+    min-width: 6rem;
     height: 2.45rem;
     touch-action: none;
     cursor: pointer;

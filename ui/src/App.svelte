@@ -571,7 +571,7 @@
   }
 
   function slotButtonClasses(active, assigned = true, copySource = false) {
-    return `flex h-7 w-7 items-center justify-center rounded-sm border text-xs font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
+    return `flex h-[2.625rem] w-[2.625rem] items-center justify-center rounded-sm border text-lg font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       active
         ? "border-accent bg-accent text-control-primary-text"
         : assigned
@@ -581,13 +581,13 @@
   }
 
   function clearPatternButtonClasses(enabled) {
-    return `flex h-7 w-7 items-center justify-center border-0 bg-transparent transition-colors outline-none focus:ring-1 focus:ring-focus-ring ${
+    return `flex h-[2.625rem] w-[2.625rem] items-center justify-center border-0 bg-transparent transition-colors outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled ? "text-danger hover:text-danger" : "text-text-faint"
     }`;
   }
 
   function outputMuteButtonClasses(active) {
-    return `row-span-2 flex h-[calc(1.75rem*1.33)] w-[calc(1.75rem*1.33)] items-center justify-center self-center rounded-sm border text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
+    return `flex h-[calc(2.625rem*1.33)] w-[calc(2.625rem*1.33)] items-center justify-center rounded-sm border text-lg font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       active
         ? "border-accent bg-accent text-control-primary-text"
         : "mp-control-gradient border-border text-text hover:border-border-strong"
@@ -3076,7 +3076,7 @@
   });
 </script>
 
-<main class="flex h-full flex-col overflow-hidden px-6 pt-3 pb-6 transition-[filter,opacity] duration-150 {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}">
+<main class="flex h-full flex-col overflow-hidden px-6 pt-3 transition-[filter,opacity] duration-150 {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}">
   <div class="shrink-0 -mx-6">
   {#if standaloneTransportAvailable}
     <div class="flex items-center justify-end gap-2 px-6 pb-3">
@@ -3344,7 +3344,7 @@
             />
           </div>
         </div>
-        <div class="flex shrink-0 items-end gap-1 border-l border-r border-border-subtle px-3">
+        <div class="flex shrink-0 items-end gap-1 border-l border-border-subtle pl-3">
           <button
             type="button"
             aria-label="Undo"
@@ -3597,12 +3597,12 @@
       />
     {/if}
     </div>
-    <div class="-mx-6 shrink-0 overflow-x-auto border-t border-border-subtle px-6 py-3">
-      <div class="flex min-w-max items-center justify-start gap-8">
-        <div class="flex items-center gap-2">
-          <span class="text-xs font-semibold leading-none text-text-muted">Patterns:</span>
-          <div class="flex items-center gap-0.5">
-            <div class="flex items-center gap-1">
+    <div class="-mx-6 flex h-24 shrink-0 items-center overflow-x-auto border-t border-border-subtle px-6">
+      <div class="flex min-w-max items-center justify-start gap-12">
+        <div class="flex items-center gap-3">
+          <span class="text-lg font-semibold leading-none text-text-muted">Patterns:</span>
+          <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1.5">
               {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
                 <button
                   type="button"
@@ -3629,13 +3629,13 @@
               class={clearPatternButtonClasses(true)}
               onclick={clearSelectedPatternSlot}
             >
-              <RemoveXIcon class="pointer-events-none h-3 w-3" />
+              <RemoveXIcon class="pointer-events-none h-[1.125rem] w-[1.125rem]" />
             </button>
           </div>
         </div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs font-semibold leading-none text-text-muted">Loops:</span>
-          <div class="flex items-center gap-1">
+        <div class="flex items-center gap-3">
+          <span class="text-lg font-semibold leading-none text-text-muted">Loops:</span>
+          <div class="flex items-center gap-1.5">
             {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
               <button
                 type="button"

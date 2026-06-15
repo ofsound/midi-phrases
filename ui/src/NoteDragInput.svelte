@@ -193,5 +193,5 @@
     }
   }}
 >
-  <span class="font-sans text-base leading-none font-bold tabular-nums">{displayName}</span>
+  <span class="font-sans text-sm leading-none font-bold tabular-nums">{displayName}</span>
 </div>
