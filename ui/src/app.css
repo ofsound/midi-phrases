@@ -667,3 +667,15 @@
 [data-phrase-row-dragging] {
   outline: none !important;
 }
+
+/* svelte-dnd-action keyboard a11y — pointer-only in this plugin; suppress stray focus rings. */
+[role="list"]:focus,
+[role="list"]:focus-visible,
+[role="listitem"]:focus,
+[role="listitem"]:focus-visible,
+[data-cursor="grab"]:focus,
+[data-cursor="grab"]:focus-visible,
+[data-cursor="grabbing"]:focus,
+[data-cursor="grabbing"]:focus-visible {
+  outline: none !important;
+}

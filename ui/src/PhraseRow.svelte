@@ -15,6 +15,7 @@
   import ProbabilityDragInput from "./ProbabilityDragInput.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
   import { clearActiveCursor, setActiveCursor } from "./cursor.js";
+  import { preventTabFocus } from "./preventTabFocus.js";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
   import {
     defaultStepDurationFraction,
@@ -760,6 +761,8 @@
     type: `phrase-row-${row}`,
     dropFromOthersDisabled: true,
     morphDisabled: true,
+    zoneTabIndex: -1,
+    autoAriaDisabled: true,
     dropTargetStyle: { outline: "none" },
     transformDraggedElement,
   });
@@ -965,6 +968,7 @@
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
                   use:dragHandle
+                  use:preventTabFocus
                   aria-label="Drag to reorder step. Double-click header to open step settings."
                   data-cursor="grab"
                   data-no-marquee
