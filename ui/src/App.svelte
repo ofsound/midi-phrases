@@ -3482,6 +3482,7 @@
               stepSkipped={stepSkipped[row]}
               activeGates={activeGates[row]}
               selectedStepIds={selectedStepIdsByRow[row]}
+              stepInspectionActive={activeStepInspector !== null}
               inspectedStepId={inspectedStep?.row === row ? inspectedStep.stepId : null}
               stepNoteValue={stepNoteByCurrentScale}
               defaultStepNote={defaultNewStepNote}
@@ -3558,6 +3559,12 @@
         cycle={activeStepInspector.cycle}
         cycleOffset={activeStepInspector.cycleOffset}
         accent={rowAccentFor(activeStepInspector.row, rowColorsEnabled)}
+        onProbabilityChange={(value) =>
+          setStepProbability(activeStepInspector.row, activeStepInspector.step, value)}
+        onCycleChange={(value) =>
+          setStepCycle(activeStepInspector.row, activeStepInspector.step, value)}
+        onCycleOffsetChange={(value) =>
+          setStepCycleOffset(activeStepInspector.row, activeStepInspector.step, value)}
         onClose={closeStepInspector}
       />
     {:else if recordingRow !== null}

@@ -96,6 +96,7 @@
    * @property {boolean[]} [activeGates]
    * @property {{ index: number, label: string }[]} [timingMultiplierOptions]
    * @property {string[]} [selectedStepIds]
+   * @property {boolean} [stepInspectionActive]
    * @property {string | null} [inspectedStepId]
    * @property {(value: number, delta: number) => number} [stepNoteValue]
    * @property {number} [defaultStepNote]
@@ -134,6 +135,7 @@
     activeGates = [],
     timingMultiplierOptions = [],
     selectedStepIds = [],
+    stepInspectionActive = false,
     inspectedStepId = null,
     stepNoteValue = (value, delta) => value + delta,
     defaultStepNote = 60,
@@ -830,8 +832,11 @@
   {@const stepIsSkipped = stepSkipped[step]}
   {@const stepDimmed = muted || stepIsSkipped}
   {@const isStepSelected = selectedStepIdSet.has(stepIds[step])}
+  {@const stepInspectionBlurred = stepInspectionActive && inspectedStepId !== stepIds[step]}
   <div
-    class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[box-shadow] duration-75 {stepCellPlaybackGlowClass(
+    class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[filter,opacity,box-shadow] duration-100 {stepInspectionBlurred
+      ? 'opacity-35 blur-[2px]'
+      : ''} {stepCellPlaybackGlowClass(
       activeGates[step],
       stepDimmed,
     )} {isStepSelected && !isDragging ? accent.selectionShell : ''}"

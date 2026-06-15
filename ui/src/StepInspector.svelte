@@ -1,5 +1,7 @@
 <script>
   import { midiToNoteName } from "./midiNoteNames.js";
+  import ProbabilityDragInput from "./ProbabilityDragInput.svelte";
+  import StepNumberDragInput from "./StepNumberDragInput.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
   /**
@@ -11,6 +13,9 @@
    * @property {number} [cycle]
    * @property {number} [cycleOffset]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {(value: number) => void | Promise<void>} [onProbabilityChange]
+   * @property {(value: number) => void | Promise<void>} [onCycleChange]
+   * @property {(value: number) => void | Promise<void>} [onCycleOffsetChange]
    * @property {() => void} [onClose]
    */
 
@@ -23,6 +28,9 @@
     cycle = 1,
     cycleOffset = 0,
     accent = emeraldRowAccent,
+    onProbabilityChange = () => {},
+    onCycleChange = () => {},
+    onCycleOffsetChange = () => {},
     onClose = () => {},
   } = $props();
 
@@ -51,15 +59,51 @@
   <div class="grid min-h-0 flex-1 grid-cols-3 gap-4">
     <div class="flex min-h-0 flex-col justify-between rounded-md border border-border-subtle bg-surface/80 p-4">
       <span class="text-xs font-semibold uppercase tracking-widest text-text-muted">Probability</span>
-      <span class="mt-4 text-4xl font-semibold leading-none {accent.textAccent}">{probability}%</span>
+      <div class="step-inspector-value mt-4 {accent.textAccent}">
+        <ProbabilityDragInput
+          {accent}
+          value={probability}
+          resetValue={100}
+          ariaLabel="Step probability"
+          onValueChange={onProbabilityChange}
+        />
+      </div>
     </div>
     <div class="flex min-h-0 flex-col justify-between rounded-md border border-border-subtle bg-surface/80 p-4">
       <span class="text-xs font-semibold uppercase tracking-widest text-text-muted">Cycle</span>
-      <span class="mt-4 text-4xl font-semibold leading-none text-text">{cycle}</span>
+      <div class="step-inspector-value mt-4">
+        <StepNumberDragInput
+          {accent}
+          value={cycle}
+          min={1}
+          max={64}
+          resetValue={1}
+          ariaLabel="Step cycle length"
+          onValueChange={onCycleChange}
+        />
+      </div>
     </div>
     <div class="flex min-h-0 flex-col justify-between rounded-md border border-border-subtle bg-surface/80 p-4">
       <span class="text-xs font-semibold uppercase tracking-widest text-text-muted">Cycle offset</span>
-      <span class="mt-4 text-4xl font-semibold leading-none text-text">{cycleOffset + 1}</span>
+      <div class="step-inspector-value mt-4">
+        <StepNumberDragInput
+          {accent}
+          value={cycleOffset}
+          min={0}
+          max={Math.max(0, cycle - 1)}
+          displayAdd={1}
+          resetValue={0}
+          ariaLabel="Step cycle offset"
+          onValueChange={onCycleOffsetChange}
+        />
+      </div>
     </div>
   </div>
 </section>
+
+<style>
+  .step-inspector-value :global([role="slider"] span) {
+    font-size: 2.25rem;
+    font-weight: 600;
+  }
+</style>
