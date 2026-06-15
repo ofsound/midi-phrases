@@ -24,9 +24,9 @@ export const maxPhraseStepsPerRow = 64;
 
 /**
  * Width of one invisible 0.25× grid unit.
- * Sized so a 0.25× shell (N×W − 2P) fits “G#4 127” with note + velocity.
+ * Sized so a 0.25× shell aligns “D#4 127” to the duration track's right edge.
  */
-export const stepCellQuarterGridWidthPx = 89;
+export const stepCellQuarterGridWidthPx = 76.5;
 
 /** Width of the insert divider control between cells (centered in the inter-step gap). */
 export const stepInsertZoneWidthPx = 16;
