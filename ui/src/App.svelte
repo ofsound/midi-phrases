@@ -782,6 +782,7 @@
       row,
       step,
       note: grid[row][step],
+      velocity: stepVelocity[row][step] ?? 127,
       probability: stepProbability[row][step] ?? 100,
       cycle: stepCycle[row][step] ?? 1,
       cycleOffset: stepCycleOffset[row][step] ?? 0,
@@ -3555,10 +3556,15 @@
         row={activeStepInspector.row}
         step={activeStepInspector.step}
         note={activeStepInspector.note}
+        velocity={activeStepInspector.velocity}
         probability={activeStepInspector.probability}
         cycle={activeStepInspector.cycle}
         cycleOffset={activeStepInspector.cycleOffset}
         accent={rowAccentFor(activeStepInspector.row, rowColorsEnabled)}
+        onNoteChange={(midi) =>
+          commitPhraseNoteValue(activeStepInspector.row, activeStepInspector.step, midi)}
+        onVelocityChange={(value) =>
+          setStepVelocity(activeStepInspector.row, activeStepInspector.step, value)}
         onProbabilityChange={(value) =>
           setStepProbability(activeStepInspector.row, activeStepInspector.step, value)}
         onCycleChange={(value) =>

@@ -1,7 +1,8 @@
 <script>
-  import { midiToNoteName } from "./midiNoteNames.js";
   import ProbabilityDragInput from "./ProbabilityDragInput.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
+  import ContinuousSlider from "./ContinuousSlider.svelte";
+  import StepInspectorKeyboard from "./StepInspectorKeyboard.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
   /**
@@ -9,10 +10,13 @@
    * @property {number} [row]
    * @property {number} [step]
    * @property {number} [note]
+   * @property {number} [velocity]
    * @property {number} [probability]
    * @property {number} [cycle]
    * @property {number} [cycleOffset]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {(midi: number) => void | Promise<void>} [onNoteChange]
+   * @property {(value: number) => void | Promise<void>} [onVelocityChange]
    * @property {(value: number) => void | Promise<void>} [onProbabilityChange]
    * @property {(value: number) => void | Promise<void>} [onCycleChange]
    * @property {(value: number) => void | Promise<void>} [onCycleOffsetChange]
@@ -24,26 +28,40 @@
     row = 0,
     step = 0,
     note = 60,
+    velocity = 127,
     probability = 100,
     cycle = 1,
     cycleOffset = 0,
     accent = emeraldRowAccent,
+    onNoteChange = () => {},
+    onVelocityChange = () => {},
     onProbabilityChange = () => {},
     onCycleChange = () => {},
     onCycleOffsetChange = () => {},
     onClose = () => {},
   } = $props();
 
-  let noteLabel = $derived(midiToNoteName(note));
+  let stepKey = $derived(`${row}:${step}`);
 </script>
 
 <section class="flex min-h-0 w-full flex-1 flex-col border-t border-border-subtle bg-app/90 px-6 py-5">
-  <div class="mb-5 flex shrink-0 items-center justify-between gap-4">
-    <div>
-      <p class="text-xs font-medium uppercase tracking-widest text-text-muted">Step inspector</p>
-      <h2 class="mt-1 text-2xl font-semibold leading-none text-text">
-        Row {row + 1} · Step {step + 1} · {noteLabel}
-      </h2>
+  <div class="mb-5 flex shrink-0 items-center gap-4">
+    <StepInspectorKeyboard
+      {note}
+      {stepKey}
+      {accent}
+      onNoteChange={onNoteChange}
+    />
+    <div class="min-w-[9rem] w-[12rem] shrink-0">
+      <ContinuousSlider
+        label="Velocity"
+        value={velocity}
+        min={1}
+        max={127}
+        ariaLabel="Step velocity"
+        fullWidth={true}
+        onValueChange={onVelocityChange}
+      />
     </div>
     <button
       type="button"
