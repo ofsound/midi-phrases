@@ -9,6 +9,7 @@ import {
   scaleDegreeDelta,
   transposeMidiByScaleDegrees,
 } from "./scaleUtils.js";
+import {cycleGatePasses} from "./cyclePattern.js";
 import {timingMultiplierAtIndex, timingOffsetValues} from "./stepCellLayout.js";
 
 export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
@@ -35,12 +36,7 @@ export const swingSubdivisionOptions = [
   {index: 2, label: "1"},
 ];
 
-/** @param {number} triggerCount @param {number} cycle @param {number} cycleOffset */
-export function cycleGatePasses(triggerCount, cycle, cycleOffset) {
-  const length = Math.max(1, Math.round(cycle));
-
-  return triggerCount % length === Math.min(Math.max(0, Math.round(cycleOffset)), length - 1);
-}
+export {cycleGatePasses} from "./cyclePattern.js";
 
 /** @param {number} step @param {number} triggerCount @param {number} probability */
 export function probabilityPasses(step, triggerCount, probability) {
@@ -174,7 +170,8 @@ export function stepStartInCycleForStep(stepStartQuarters, step) {
  * @param {boolean[][]} [params.stepSkipped]
  * @param {number[][]} [params.stepProbability]
  * @param {number[][]} [params.stepCycle]
- * @param {number[][]} [params.stepCycleOffset]
+ * @param {number[][]} [params.stepCycleMask]
+ * @param {number[][]} [params.stepCycleOffset] - Legacy alias for stepCycleMask.
  * @param {number} [params.pulseIndex]
  * @param {number} [params.swingPercent]
  * @param {number} [params.swingSubdivisionIndex]
@@ -205,6 +202,7 @@ function buildPhraseScheduleCore({
   stepSkipped = [],
   stepProbability = [],
   stepCycle = [],
+  stepCycleMask = [],
   stepCycleOffset = [],
   pulseIndex = defaultPulseIndex,
   swingPercent = 0,
@@ -239,7 +237,7 @@ function buildPhraseScheduleCore({
     const rowSkipped = stepSkipped[row] ?? [];
     const rowProbability = stepProbability[row] ?? [];
     const rowCycle = stepCycle[row] ?? [];
-    const rowCycleOffset = stepCycleOffset[row] ?? [];
+    const rowCycleMask = stepCycleMask[row] ?? stepCycleOffset[row] ?? [];
     const {stepStartQuarters, stepLengthQuarters, cycleLengthQuarters} = rowStepLayout(stepTimingMultiplier[row], pulseIndex, rowSkipped);
 
     if (cycleLengthQuarters <= 0) continue;
@@ -270,9 +268,9 @@ function buildPhraseScheduleCore({
         stepTriggerCounts[step] = triggerCount + 1;
 
         const stepCycleLength = Math.max(1, rowCycle[step] ?? 1);
-        const stepCyclePhase = Math.min(Math.max(0, rowCycleOffset[step] ?? 0), stepCycleLength - 1);
+        const stepCyclePatternMask = rowCycleMask[step] ?? 1;
 
-        if (!cycleGatePasses(triggerCount, stepCycleLength, stepCyclePhase)) continue;
+        if (!cycleGatePasses(triggerCount, stepCycleLength, stepCyclePatternMask)) continue;
 
         const probability = rowProbability[step] ?? 100;
 
@@ -790,6 +788,7 @@ export function isStepActiveAtBeat({
   stepSkipped = [],
   stepProbability = [],
   stepCycle = [],
+  stepCycleMask = [],
   stepCycleOffset = [],
   pulseIndex = defaultPulseIndex,
   swingPercent = 0,
@@ -799,7 +798,7 @@ export function isStepActiveAtBeat({
   if (stepSkipped[step] || stepMuted[step] || (stepVelocity[step] ?? 0) <= 0 || (stepDurationFraction[step] ?? 0) <= 0) return false;
 
   const cycle = Math.max(1, stepCycle[step] ?? 1);
-  const cycleOffset = Math.min(Math.max(0, stepCycleOffset[step] ?? 0), cycle - 1);
+  const cyclePatternMask = (stepCycleMask[step] ?? stepCycleOffset[step] ?? 1);
   const probability = stepProbability[step] ?? 100;
 
   const {stepStartQuarters, stepLengthQuarters, cycleLengthQuarters} = rowStepLayout(stepTimingMultiplier, pulseIndex, stepSkipped);
@@ -812,11 +811,13 @@ export function isStepActiveAtBeat({
 
   if (relativeBeat < -EPSILON) return false;
 
+  const firstGlobalTrigger = Math.ceil((0 - stepStartInCycle - rowOffsetQuarters - EPSILON) / cycleLengthQuarters);
   const cycleIndex = Math.floor((relativeBeat + EPSILON) / cycleLengthQuarters);
+  const triggerCount = cycleIndex - firstGlobalTrigger;
 
-  if (cycle > 1 && !cycleGatePasses(cycleIndex, cycle, cycleOffset)) return false;
+  if (cycle > 1 && !cycleGatePasses(triggerCount, cycle, cyclePatternMask)) return false;
 
-  if (!probabilityPasses(step, cycleIndex, probability)) return false;
+  if (!probabilityPasses(step, triggerCount, probability)) return false;
 
   const triggerBeat = cycleIndex * cycleLengthQuarters + stepStartInCycle + rowOffsetQuarters;
   const noteStart = triggerBeat + swingDelayQuartersForPpq(triggerBeat, pulseIndex, swingPercent, swingSubdivisionIndex);

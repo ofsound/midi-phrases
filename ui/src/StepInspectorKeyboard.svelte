@@ -25,8 +25,8 @@
     onNoteChange = () => {},
   } = $props();
 
-  const selectedNoteMarkerClass =
-    "pointer-events-none h-2 w-2 shrink-0 rounded-full bg-accent shadow-[0_0_6px_rgba(52,211,153,0.8)]";
+  const selectedNoteLabelClass =
+    "pointer-events-none max-w-full truncate text-[10px] font-bold leading-none tabular-nums text-text-inverse";
 
   let octaveOffset = $state(0);
   let appliedStepKey = "";
@@ -78,7 +78,7 @@
   }
 </script>
 
-<div class="flex min-w-0 flex-1 items-center gap-2">
+<div class="flex h-full min-h-0 min-w-0 flex-1 items-center gap-2">
   <button
     type="button"
     data-cursor="pointer"
@@ -91,7 +91,7 @@
   </button>
 
   <div
-    class="relative flex h-12 min-w-0 flex-1 touch-none select-none overflow-hidden rounded-lg border border-border-subtle bg-app/80"
+    class="relative flex h-full min-h-12 min-w-0 flex-1 touch-none select-none overflow-hidden rounded-lg border border-border-subtle bg-app/80"
     role="group"
     aria-label="Step note keyboard"
   >
@@ -112,7 +112,7 @@
           onpointercancel={onKeyPointerUp}
         >
           {#if isSelectedNote(midi)}
-            <span class={selectedNoteMarkerClass}></span>
+            <span class={selectedNoteLabelClass}>{midiToNoteName(midi)}</span>
           {/if}
         </button>
       {/each}
@@ -137,7 +137,7 @@
           onpointercancel={onKeyPointerUp}
         >
           {#if isSelectedNote(midi)}
-            <span class={selectedNoteMarkerClass}></span>
+            <span class={selectedNoteLabelClass}>{midiToNoteName(midi)}</span>
           {/if}
         </button>
       {/each}

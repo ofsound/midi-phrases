@@ -951,7 +951,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseStepCycle (0, 0) == 7);
         CHECK (testPlugin.getPhraseStepCycle (0, 3) == 4);
         CHECK (testPlugin.getPhraseStepCycleOffset (0, 0) == 3);
-        CHECK (testPlugin.getPhraseStepCycleOffset (0, 3) == 0);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 3) == 1);
 
         testPlugin.reversePhraseRowSteps (0);
         CHECK (testPlugin.getPhraseNote (0, 0) == 60);
@@ -3357,16 +3357,16 @@ TEST_CASE ("Plugin instance", "[instance]")
         ensurePhraseRowStepCount (testPlugin, 0, 2);
 
         CHECK (testPlugin.getPhraseStepCycle (0, 0) == PluginProcessor::defaultStepCycle);
-        CHECK (testPlugin.getPhraseStepCycleOffset (0, 0) == PluginProcessor::defaultStepCycleOffset);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 0) == PluginProcessor::defaultStepCycleMask);
 
         testPlugin.setPhraseStepCycle (0, 1, 3);
-        testPlugin.setPhraseStepCycleOffset (0, 1, 2);
+        testPlugin.setPhraseStepCycleOffset (0, 1, 0b110);
 
         CHECK (testPlugin.getPhraseStepCycle (0, 1) == 3);
-        CHECK (testPlugin.getPhraseStepCycleOffset (0, 1) == 2);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 1) == 0b110);
 
         testPlugin.setPhraseStepCycle (0, 1, 2);
-        CHECK (testPlugin.getPhraseStepCycleOffset (0, 1) == 1);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 1) == 0b10);
     }
 
     SECTION ("remove phrase step")
@@ -3515,7 +3515,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseStepCycle (0, 0) == 4);
         CHECK (testPlugin.getPhraseStepCycle (0, 1) == PluginProcessor::maxStepCycle);
         CHECK (testPlugin.getPhraseStepCycleOffset (0, 0) == 2);
-        CHECK (testPlugin.getPhraseStepCycleOffset (0, 1) == PluginProcessor::maxStepCycle - 1);
+        CHECK (testPlugin.getPhraseStepCycleOffset (0, 1) == 100);
     }
 
     SECTION ("phrase row MIDI recording")

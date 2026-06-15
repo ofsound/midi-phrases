@@ -1,6 +1,6 @@
 <script>
   import ProbabilityDragInput from "./ProbabilityDragInput.svelte";
-  import StepNumberDragInput from "./StepNumberDragInput.svelte";
+  import CyclePatternEditor from "./CyclePatternEditor.svelte";
   import ContinuousSlider from "./ContinuousSlider.svelte";
   import StepInspectorKeyboard from "./StepInspectorKeyboard.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
@@ -13,13 +13,12 @@
    * @property {number} [velocity]
    * @property {number} [probability]
    * @property {number} [cycle]
-   * @property {number} [cycleOffset]
+   * @property {number} [cycleMask]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {(midi: number) => void | Promise<void>} [onNoteChange]
    * @property {(value: number) => void | Promise<void>} [onVelocityChange]
    * @property {(value: number) => void | Promise<void>} [onProbabilityChange]
-   * @property {(value: number) => void | Promise<void>} [onCycleChange]
-   * @property {(value: number) => void | Promise<void>} [onCycleOffsetChange]
+   * @property {(cycle: number, cycleMask: number) => void | Promise<void>} [onCyclePatternCommit]
    * @property {() => void} [onClose]
    */
 
@@ -31,28 +30,27 @@
     velocity = 127,
     probability = 100,
     cycle = 1,
-    cycleOffset = 0,
+    cycleMask = 1,
     accent = emeraldRowAccent,
     onNoteChange = () => {},
     onVelocityChange = () => {},
     onProbabilityChange = () => {},
-    onCycleChange = () => {},
-    onCycleOffsetChange = () => {},
+    onCyclePatternCommit = () => {},
     onClose = () => {},
   } = $props();
 
   let stepKey = $derived(`${row}:${step}`);
 </script>
 
-<section class="flex min-h-0 w-full flex-1 flex-col border-t border-border-subtle bg-app/90 px-6 py-5">
-  <div class="mb-5 flex shrink-0 items-center gap-4">
+<section class="flex min-h-0 w-full flex-1 flex-col gap-2 bg-app/90 px-6 py-4">
+  <div class="flex min-h-0 flex-1 items-center gap-4">
     <StepInspectorKeyboard
       {note}
       {stepKey}
       {accent}
       onNoteChange={onNoteChange}
     />
-    <div class="min-w-[9rem] w-[12rem] shrink-0">
+    <div class="flex h-full w-[12rem] min-w-[9rem] shrink-0 items-center">
       <ContinuousSlider
         label="Velocity"
         value={velocity}
@@ -87,32 +85,15 @@
         />
       </div>
     </div>
-    <div class="flex min-h-0 flex-col justify-between rounded-md border border-border-subtle bg-surface/80 p-4">
-      <span class="text-xs font-semibold uppercase tracking-widest text-text-muted">Cycle</span>
-      <div class="step-inspector-value mt-4">
-        <StepNumberDragInput
+    <div class="col-span-2 flex min-h-0 flex-col rounded-md border border-border-subtle bg-surface/80 p-4">
+      <span class="mb-4 text-xs font-semibold uppercase tracking-widest text-text-muted">Cycle</span>
+      <div class="flex min-h-0 flex-1 items-center">
+        <CyclePatternEditor
           {accent}
-          value={cycle}
-          min={1}
-          max={64}
-          resetValue={1}
-          ariaLabel="Step cycle length"
-          onValueChange={onCycleChange}
-        />
-      </div>
-    </div>
-    <div class="flex min-h-0 flex-col justify-between rounded-md border border-border-subtle bg-surface/80 p-4">
-      <span class="text-xs font-semibold uppercase tracking-widest text-text-muted">Cycle offset</span>
-      <div class="step-inspector-value mt-4">
-        <StepNumberDragInput
-          {accent}
-          value={cycleOffset}
-          min={0}
-          max={Math.max(0, cycle - 1)}
-          displayAdd={1}
-          resetValue={0}
-          ariaLabel="Step cycle offset"
-          onValueChange={onCycleOffsetChange}
+          {cycle}
+          {cycleMask}
+          ariaLabel="Step cycle pattern"
+          onPatternCommit={onCyclePatternCommit}
         />
       </div>
     </div>

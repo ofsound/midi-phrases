@@ -127,3 +127,6 @@ export const defaultStepCycleOffsetGrid = () => [
   [],
   [],
 ];
+
+/** @deprecated Use defaultStepCycleOffsetGrid; values are cycle bitmasks. */
+export const defaultStepCycleMaskGrid = defaultStepCycleOffsetGrid;

@@ -17,6 +17,12 @@
     defaultStepDurationFraction,
     defaultStepVelocity,
   } from "./midiNoteNames.js";
+  import {
+    cycleMaskFromLegacyOffset,
+    defaultStepCycleMask,
+    normalizeCyclePattern,
+    normalizeEditorCyclePattern,
+  } from "./cyclePattern.js";
   import RowDisableIcon from "./RowDisableIcon.svelte";
   import RowRandomizeOctaveIcon from "./RowRandomizeOctaveIcon.svelte";
   import RowRandomizeOrderIcon from "./RowRandomizeOrderIcon.svelte";
@@ -785,7 +791,7 @@
       velocity: stepVelocity[row][step] ?? 127,
       probability: stepProbability[row][step] ?? 100,
       cycle: stepCycle[row][step] ?? 1,
-      cycleOffset: stepCycleOffset[row][step] ?? 0,
+      cycleMask: stepCycleOffset[row][step] ?? defaultStepCycleMask,
     };
   });
 
@@ -1698,10 +1704,19 @@
 
       for (let step = 0; step < stepCount; step += 1) {
         const cycle = stepCycle[row]?.[step] ?? defaults[row][step] ?? 1;
-        const value = Number.parseInt(String(rowData?.[step] ?? defaults[row][step]), 10);
-        next[row][step] = Number.isNaN(value)
-          ? defaults[row][step] ?? 0
-          : Math.min(Math.max(0, cycle - 1), Math.max(0, value));
+        const raw = Number.parseInt(String(rowData?.[step] ?? defaults[row][step]), 10);
+
+        if (Number.isNaN(raw)) {
+          next[row][step] = defaultStepCycleMask;
+          continue;
+        }
+
+        const normalized = normalizeCyclePattern(
+          cycle,
+          Number.isNaN(raw) ? defaultStepCycleMask : raw,
+        );
+
+        next[row][step] = normalized.mask;
       }
     }
 
@@ -2219,22 +2234,24 @@
     });
   }
 
-  async function setStepCycle(row, step, cycle) {
+  async function setStepCyclePattern(row, step, cycle, cycleMask) {
+    const normalized = normalizeCyclePattern(cycle, cycleMask);
+    const editorNormalized = normalizeEditorCyclePattern(normalized.cycle, normalized.mask);
+
     await commitHistory("Change cycle", async () => {
-      const nextCycle = Math.min(64, Math.max(1, cycle));
-      stepCycle[row][step] = nextCycle;
-      stepCycleOffset[row][step] = Math.min(stepCycleOffset[row][step], nextCycle - 1);
+      stepCycle[row][step] = editorNormalized.cycle;
+      stepCycleOffset[row][step] = editorNormalized.mask;
       await pushStepCycle(row, step);
       await pushStepCycleOffset(row, step);
     });
   }
 
-  async function setStepCycleOffset(row, step, cycleOffset) {
-    await commitHistory("Change cycle offset", async () => {
-      const maxOffset = Math.max(0, (stepCycle[row][step] ?? 1) - 1);
-      stepCycleOffset[row][step] = Math.min(maxOffset, Math.max(0, cycleOffset));
-      await pushStepCycleOffset(row, step);
-    });
+  async function setStepCycle(row, step, cycle) {
+    await setStepCyclePattern(row, step, cycle, stepCycleOffset[row][step] ?? defaultStepCycleMask);
+  }
+
+  async function setStepCycleMask(row, step, cycleMask) {
+    await setStepCyclePattern(row, step, stepCycle[row][step] ?? 1, cycleMask);
   }
 
   async function removeStep(row, step) {
@@ -2280,7 +2297,7 @@
       stepSkipped[row].splice(step, 0, defaultSkipped[row]?.[0] ?? false);
       stepProbability[row].splice(step, 0, defaultProbability[row]?.[0] ?? 100);
       stepCycle[row].splice(step, 0, defaultCycle[row]?.[0] ?? 1);
-      stepCycleOffset[row].splice(step, 0, defaultCycleOffset[row]?.[0] ?? 0);
+      stepCycleOffset[row].splice(step, 0, defaultCycleOffset[row]?.[0] ?? defaultStepCycleMask);
       activeGates[row].splice(step, 0, false);
       stepIds[row].splice(step, 0, createStepId());
 
@@ -2329,7 +2346,7 @@
       skipped: false,
       probability: 100,
       cycle: 1,
-      cycleOffset: 0,
+      cycleOffset: defaultStepCycleMask,
     };
   }
 
@@ -3559,7 +3576,7 @@
         velocity={activeStepInspector.velocity}
         probability={activeStepInspector.probability}
         cycle={activeStepInspector.cycle}
-        cycleOffset={activeStepInspector.cycleOffset}
+        cycleMask={activeStepInspector.cycleMask}
         accent={rowAccentFor(activeStepInspector.row, rowColorsEnabled)}
         onNoteChange={(midi) =>
           commitPhraseNoteValue(activeStepInspector.row, activeStepInspector.step, midi)}
@@ -3567,10 +3584,8 @@
           setStepVelocity(activeStepInspector.row, activeStepInspector.step, value)}
         onProbabilityChange={(value) =>
           setStepProbability(activeStepInspector.row, activeStepInspector.step, value)}
-        onCycleChange={(value) =>
-          setStepCycle(activeStepInspector.row, activeStepInspector.step, value)}
-        onCycleOffsetChange={(value) =>
-          setStepCycleOffset(activeStepInspector.row, activeStepInspector.step, value)}
+        onCyclePatternCommit={(nextCycle, nextMask) =>
+          setStepCyclePattern(activeStepInspector.row, activeStepInspector.step, nextCycle, nextMask)}
         onClose={closeStepInspector}
       />
     {:else if recordingRow !== null}

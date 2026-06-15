@@ -176,7 +176,7 @@ public:
     static constexpr int minStepCycle = 1;
     static constexpr int maxStepCycle = 64;
     static constexpr int defaultStepCycle = 1;
-    static constexpr int defaultStepCycleOffset = 0;
+    static constexpr int defaultStepCycleMask = 1;
 
     void setPhraseStepProbability (int row, int step, int probability);
     int getPhraseStepProbability (int row, int step) const;
@@ -184,7 +184,7 @@ public:
     void setPhraseStepCycle (int row, int step, int cycle);
     int getPhraseStepCycle (int row, int step) const;
 
-    void setPhraseStepCycleOffset (int row, int step, int cycleOffset);
+    void setPhraseStepCycleOffset (int row, int step, int cycleMask);
     int getPhraseStepCycleOffset (int row, int step) const;
 
     void removePhraseStep (int row, int step);

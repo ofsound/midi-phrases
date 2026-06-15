@@ -12,7 +12,7 @@ constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 16;
+constexpr int phraseStateVersion = 17;
 
 int clampStepProbability (const int probability)
 {
@@ -24,14 +24,41 @@ int clampStepCycle (const int cycle)
     return juce::jlimit (PluginProcessor::minStepCycle, PluginProcessor::maxStepCycle, cycle);
 }
 
-int clampStepCycleOffset (const int cycleOffset, const int cycle)
+int clampStepCycleMask (const int mask, const int cycle)
 {
-    return juce::jlimit (0, clampStepCycle (cycle) - 1, cycleOffset);
+    const auto length = clampStepCycle (cycle);
+    const auto bitCount = juce::jmin (length, 30);
+    const auto maxMask = bitCount <= 0 ? 1 : ((1 << bitCount) - 1);
+
+    return mask & maxMask;
 }
 
-bool cycleGateMatches (const int count, const int cycle, const int cycleOffset)
+int cycleMaskFromLegacyOffset (const int offset, const int cycle)
 {
-    return count % cycle == cycleOffset;
+    const auto length = clampStepCycle (cycle);
+
+    if (length <= 1)
+        return 1;
+
+    const auto phase = juce::jlimit (0, length - 1, offset);
+
+    return 1 << juce::jmin (phase, 30);
+}
+
+bool cycleGateMatches (const int count, const int cycle, const int mask)
+{
+    const auto length = clampStepCycle (cycle);
+    auto pattern = clampStepCycleMask (mask, length);
+
+    if (pattern == 0)
+        pattern = PluginProcessor::defaultStepCycleMask;
+
+    if (length <= 1)
+        return (pattern & 1) != 0;
+
+    const auto phase = ((count % length) + length) % length;
+
+    return ((pattern >> phase) & 1) != 0;
 }
 
 float nextRandomUnit (std::uint32_t& state)
@@ -741,7 +768,7 @@ void PluginProcessor::initialiseRowDefaults (PhraseRowSteps& steps,
         steps.stepSkipped[static_cast<size_t> (step)] = 0;
         steps.probability[static_cast<size_t> (step)] = PluginProcessor::defaultStepProbability;
         steps.cycle[static_cast<size_t> (step)] = PluginProcessor::defaultStepCycle;
-        steps.cycleOffset[static_cast<size_t> (step)] = PluginProcessor::PluginProcessor::defaultStepCycleOffset;
+        steps.cycleOffset[static_cast<size_t> (step)] = PluginProcessor::PluginProcessor::defaultStepCycleMask;
     }
 
     rebuildRowTimingLayout (steps);
@@ -971,14 +998,14 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             {
                 row.cycle[index] = command.intValue;
                 row.cycleOffset[index] =
-                    clampStepCycleOffset (row.cycleOffset[index], row.cycle[index]);
+                    clampStepCycleMask (row.cycleOffset[index], row.cycle[index]);
             }
             break;
 
         case SequencerCommand::Type::SetStepCycleOffset:
             if (isValidAudioStep (state, command.row, step))
                 row.cycleOffset[index] =
-                    clampStepCycleOffset (command.intValue, row.cycle[index]);
+                    clampStepCycleMask (command.intValue, row.cycle[index]);
             break;
 
         case SequencerCommand::Type::RemoveStep:
@@ -1031,7 +1058,7 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
                 row.stepSkipped[index] = 0;
                 row.probability[index] = PluginProcessor::defaultStepProbability;
                 row.cycle[index] = PluginProcessor::defaultStepCycle;
-                row.cycleOffset[index] = PluginProcessor::defaultStepCycleOffset;
+                row.cycleOffset[index] = PluginProcessor::defaultStepCycleMask;
                 ++row.stepCount;
                 rebuildRowTimingLayout (row);
                 resetStepCycleCountersForRow (command.row);
@@ -1284,7 +1311,7 @@ void PluginProcessor::resetPhraseStepToDefaults (const int row, const int step)
     steps.stepSkipped[static_cast<size_t> (step)] = 0;
     steps.probability[static_cast<size_t> (step)] = PluginProcessor::defaultStepProbability;
     steps.cycle[static_cast<size_t> (step)] = PluginProcessor::defaultStepCycle;
-    steps.cycleOffset[static_cast<size_t> (step)] = PluginProcessor::defaultStepCycleOffset;
+    steps.cycleOffset[static_cast<size_t> (step)] = PluginProcessor::defaultStepCycleMask;
     rebuildRowTimingLayout (steps);
     publishRowToAudio (row);
 }
@@ -2119,9 +2146,12 @@ void PluginProcessor::setPhraseStepCycle (const int row, const int step, const i
     auto& steps = modelRow (row);
     const auto index = static_cast<size_t> (step);
     const auto value = clampStepCycle (cycle);
-    const auto previousOffset = steps.cycleOffset[index];
+    const auto previousMask = steps.cycleOffset[index];
     steps.cycle[index] = value;
-    steps.cycleOffset[index] = clampStepCycleOffset (previousOffset, value);
+    steps.cycleOffset[index] = clampStepCycleMask (previousMask, value);
+
+    if (steps.cycleOffset[index] == 0)
+        steps.cycleOffset[index] = defaultStepCycleMask;
 
     SequencerCommand command;
     command.type = SequencerCommand::Type::SetStepCycle;
@@ -2130,7 +2160,7 @@ void PluginProcessor::setPhraseStepCycle (const int row, const int step, const i
     command.intValue = value;
     publishCommandToAudio (command);
 
-    if (steps.cycleOffset[index] != previousOffset)
+    if (steps.cycleOffset[index] != previousMask)
     {
         SequencerCommand offsetCommand;
         offsetCommand.type = SequencerCommand::Type::SetStepCycleOffset;
@@ -2149,14 +2179,18 @@ int PluginProcessor::getPhraseStepCycle (const int row, const int step) const
     return modelRow (row).cycle[static_cast<size_t> (step)];
 }
 
-void PluginProcessor::setPhraseStepCycleOffset (const int row, const int step, const int cycleOffset)
+void PluginProcessor::setPhraseStepCycleOffset (const int row, const int step, const int cycleMask)
 {
     if (! isValidStep (row, step))
         return;
 
     auto& steps = modelRow (row);
     const auto index = static_cast<size_t> (step);
-    const auto value = clampStepCycleOffset (cycleOffset, steps.cycle[index]);
+    auto value = clampStepCycleMask (cycleMask, steps.cycle[index]);
+
+    if (value == 0)
+        value = defaultStepCycleMask;
+
     steps.cycleOffset[index] = value;
 
     SequencerCommand command;
@@ -2170,7 +2204,7 @@ void PluginProcessor::setPhraseStepCycleOffset (const int row, const int step, c
 int PluginProcessor::getPhraseStepCycleOffset (const int row, const int step) const
 {
     if (! isValidStep (row, step))
-        return PluginProcessor::defaultStepCycleOffset;
+        return PluginProcessor::defaultStepCycleMask;
 
     return modelRow (row).cycleOffset[static_cast<size_t> (step)];
 }
@@ -2221,7 +2255,7 @@ void PluginProcessor::replacePhraseRowSteps (
 
         steps.probability[index] = clampStepProbability (probability[index]);
         steps.cycle[index] = clampStepCycle (cycle[index]);
-        steps.cycleOffset[index] = clampStepCycleOffset (cycleOffset[index], steps.cycle[index]);
+        steps.cycleOffset[index] = clampStepCycleMask (cycleOffset[index], steps.cycle[index]);
     }
 
     rebuildRowTimingLayout (steps);
@@ -2301,7 +2335,7 @@ void PluginProcessor::insertPhraseStep (const int row, const int step)
     steps.stepSkipped[insertIndex] = 0;
     steps.probability[insertIndex] = PluginProcessor::defaultStepProbability;
     steps.cycle[insertIndex] = PluginProcessor::defaultStepCycle;
-    steps.cycleOffset[insertIndex] = PluginProcessor::defaultStepCycleOffset;
+    steps.cycleOffset[insertIndex] = PluginProcessor::defaultStepCycleMask;
     steps.stepCount = count + 1;
     rebuildRowTimingLayout (steps);
     SequencerCommand command;
@@ -2841,7 +2875,7 @@ int PluginProcessor::getPatternPhraseStepCycleOffset (const int patternSlot,
     if (const auto* steps = patternRowForStep (patternSlot, row, step))
         return steps->cycleOffset[static_cast<size_t> (step)];
 
-    return defaultStepCycleOffset;
+    return defaultStepCycleMask;
 }
 
 bool PluginProcessor::isPatternLoopBraceEnabled (const int patternSlot) const
@@ -3459,7 +3493,7 @@ void PluginProcessor::appendRecordedNoteToModelRow (const int row, const int mid
         steps.stepSkipped[index] = 0;
         steps.probability[index] = defaultStepProbability;
         steps.cycle[index] = defaultStepCycle;
-        steps.cycleOffset[index] = defaultStepCycleOffset;
+        steps.cycleOffset[index] = defaultStepCycleMask;
         ++steps.stepCount;
     }
     else
@@ -3865,23 +3899,23 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             lastTrigger = trigger.ppq;
 
             const auto step = trigger.step;
+            const auto stepStartInCycle = rowSteps.stepStartQuarters[static_cast<size_t> (step)];
+            const auto firstGlobalTrigger = static_cast<int> (std::ceil (
+                (0.0 - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+            const auto cycleIndex = static_cast<int> (std::floor (
+                (trigger.ppq - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+            const auto stepTriggerCount = cycleIndex - firstGlobalTrigger;
+            const auto cycle = clampStepCycle (rowSteps.cycle[static_cast<size_t> (step)]);
+            const auto cycleMask =
+                clampStepCycleMask (rowSteps.cycleOffset[static_cast<size_t> (step)], cycle);
+
+            if (! cycleGateMatches (stepTriggerCount, cycle, cycleMask))
+                continue;
+
             auto velocity = rowSteps.velocity[static_cast<size_t> (step)];
 
             if (velocity <= 0 || rowSteps.stepMuted[static_cast<size_t> (step)] != 0)
                 continue;
-
-            const auto cycle = clampStepCycle (rowSteps.cycle[static_cast<size_t> (step)]);
-            const auto cycleOffset =
-                clampStepCycleOffset (rowSteps.cycleOffset[static_cast<size_t> (step)], cycle);
-
-            if (cycle > 1)
-            {
-                auto& counter = stepCycleCounters[static_cast<size_t> (row)][static_cast<size_t> (step)];
-                const auto count = static_cast<int> (counter++);
-
-                if (! cycleGateMatches (count, cycle, cycleOffset))
-                    continue;
-            }
 
             const auto probability =
                 clampStepProbability (rowSteps.probability[static_cast<size_t> (step)]);
@@ -5195,9 +5229,22 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                 const auto cycle = clampStepCycle (
                     static_cast<int> (rowTree.getProperty (cyclePropName, defaultStepCycle)));
                 steps.cycle[index] = cycle;
-                steps.cycleOffset[index] = clampStepCycleOffset (
-                    static_cast<int> (rowTree.getProperty (cycleOffsetPropName, defaultStepCycleOffset)),
-                    cycle);
+                const auto storedMask = static_cast<int> (
+                    rowTree.getProperty (cycleOffsetPropName, defaultStepCycleMask));
+
+                if (stateVersion < 17)
+                {
+                    steps.cycleOffset[index] = clampStepCycleMask (
+                        cycleMaskFromLegacyOffset (storedMask, cycle),
+                        cycle);
+                }
+                else
+                {
+                    steps.cycleOffset[index] = clampStepCycleMask (storedMask, cycle);
+                }
+
+                if (steps.cycleOffset[index] == 0)
+                    steps.cycleOffset[index] = defaultStepCycleMask;
             }
 
             pattern.sequencer.muted[static_cast<size_t> (row)] =
@@ -5343,9 +5390,23 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                 const auto cycle = clampStepCycle (
                     static_cast<int> (rowTree.getProperty (cyclePropName, PluginProcessor::defaultStepCycle)));
                 steps.cycle[static_cast<size_t> (step)] = cycle;
-                steps.cycleOffset[static_cast<size_t> (step)] = clampStepCycleOffset (
-                    static_cast<int> (rowTree.getProperty (cycleOffsetPropName, PluginProcessor::defaultStepCycleOffset)),
-                    cycle);
+                const auto storedMask = static_cast<int> (
+                    rowTree.getProperty (cycleOffsetPropName, PluginProcessor::defaultStepCycleMask));
+
+                if (stateVersion < 17)
+                {
+                    steps.cycleOffset[static_cast<size_t> (step)] = clampStepCycleMask (
+                        cycleMaskFromLegacyOffset (storedMask, cycle),
+                        cycle);
+                }
+                else
+                {
+                    steps.cycleOffset[static_cast<size_t> (step)] =
+                        clampStepCycleMask (storedMask, cycle);
+                }
+
+                if (steps.cycleOffset[static_cast<size_t> (step)] == 0)
+                    steps.cycleOffset[static_cast<size_t> (step)] = defaultStepCycleMask;
             }
         }
 

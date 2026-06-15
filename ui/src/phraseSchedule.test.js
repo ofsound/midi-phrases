@@ -68,7 +68,7 @@ function baseWindowScheduleParams(overrides = {}) {
     stepSkipped: [[false], [], [], []],
     stepProbability: [[100], [], [], []],
     stepCycle: [[1], [], [], []],
-    stepCycleOffset: [[0], [], [], []],
+    stepCycleOffset: [[1], [], [], []],
     pulseIndex: 1,
     combinationModeMask: 0,
     lengthQuarters: 128,
@@ -128,7 +128,7 @@ describe("windowed phrase schedule preview", () => {
       stepSkipped: [[false, false], [], [], []],
       stepProbability: [[50, 50], [], [], []],
       stepCycle: [[3, 4], [], [], []],
-      stepCycleOffset: [[1, 2], [], [], []],
+      stepCycleOffset: [[2, 4], [], [], []],
     });
     const full = buildPhraseScheduleBeforeBandpass(params);
     const windowed = buildPhraseScheduleWindowBeforeBandpass({
