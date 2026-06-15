@@ -28,14 +28,14 @@ export const phraseRowMinHeightPx =
 /** Matches App row header `gap-1` between controls and before PhraseRow. */
 export const phraseRowHeaderGapPx = 4;
 
-/** Matches row record icon button `h-9 w-9`. */
-export const phraseRowActionIconControlWidthPx = 36;
+/** Matches row record icon button `h-6 w-6`. */
+export const phraseRowActionIconControlWidthPx = 24;
 
-/** Matches row on/off toggle `h-10 w-10`. */
-export const phraseRowMuteControlWidthPx = 40;
+/** Matches row on/off toggle `h-[1.6875rem] w-[1.6875rem]`. */
+export const phraseRowMuteControlWidthPx = 27;
 
-/** Matches BipolarKnob `h-9 w-9` in the row header. */
-export const phraseRowOffsetKnobWidthPx = 36;
+/** Matches BipolarKnob `h-6 w-6` in the row header. */
+export const phraseRowOffsetKnobWidthPx = 24;
 
 /** Inset from PhraseRow left edge to the row’s quarter-grid origin (offset 0). */
 export const phraseGridOriginLeftOffsetPx = phraseRowScrollPaddingLeftPx;

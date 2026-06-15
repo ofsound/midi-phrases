@@ -95,7 +95,7 @@
 <div class="transition-opacity duration-200 {muted ? 'opacity-75' : ''}">
   <div
     data-cursor="vertical-drag"
-    class="relative h-9 w-9 touch-none select-none rounded-full border-2 bg-surface outline-none transition-[border-color,box-shadow] duration-75 {dragging && !muted
+    class="relative h-6 w-6 touch-none select-none rounded-full border-[1.5px] bg-surface outline-none transition-[border-color,box-shadow] duration-75 {dragging && !muted
       ? `${accent.dragBorder} ${accent.dragShadow}`
       : muted
         ? 'border-border-subtle'
@@ -131,14 +131,14 @@
       aria-hidden="true"
     >
       <span
-        class="absolute left-1/2 top-[2px] h-[3px] w-[3px] -translate-x-1/2 rounded-[1px] {muted
+        class="absolute left-1/2 top-[1.5px] h-0.5 w-0.5 -translate-x-1/2 rounded-[1px] {muted
           ? 'bg-surface-subtle'
           : accent.bgAccent}"
       ></span>
     </div>
 
     <span
-      class="pointer-events-none absolute inset-0 flex items-center justify-center font-mono text-[10px] leading-none font-semibold tabular-nums {muted
+      class="pointer-events-none absolute inset-0 flex items-center justify-center font-mono text-[8px] leading-none font-semibold tabular-nums {muted
         ? 'text-text-muted'
         : dragging
           ? accent.textAccentLight

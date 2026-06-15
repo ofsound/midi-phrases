@@ -3431,7 +3431,7 @@
                 onclick={(event) => toggleRowMute(row, event.shiftKey)}
                 title="Shift-click to solo row"
               >
-                <RowDisableIcon class="h-9 w-9" />
+                <RowDisableIcon class="h-6 w-6" />
               </button>
               <button
                 type="button"
@@ -3449,7 +3449,7 @@
                   : "Record row from MIDI keyboard (first note replaces row)"}
               >
                 <RowRecordIcon
-                  class="pointer-events-none h-9 w-9"
+                  class="pointer-events-none h-6 w-6"
                   recording={recordingRow === row}
                 />
               </button>

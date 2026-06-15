@@ -137,10 +137,10 @@ export const toggleIconActiveClasses = "text-text-secondary";
 export const rowPowerToggleOffClasses = "text-text-faint";
 
 /** On/off toggle stays above {@link rowMutedOverlayClasses}. */
-export const rowMuteControlClasses = "relative z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-focus-ring";
+export const rowMuteControlClasses = "relative z-20 flex h-[1.6875rem] w-[1.6875rem] shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-focus-ring";
 
 /** Bordered control in the global header (e.g. row reverse). */
 export const rowReverseControlClasses = "relative z-20 flex h-9 min-w-[3.75rem] shrink-0 items-center justify-center rounded-lg border bg-surface px-2 transition-colors outline-none hover:border-border-strong";
 
 /** Row reverse / randomize icon actions — borderless, equal hit target. */
-export const rowActionIconControlClasses = "relative z-20 flex h-9 w-9 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none";
+export const rowActionIconControlClasses = "relative z-20 flex h-6 w-6 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none";
