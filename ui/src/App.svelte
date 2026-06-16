@@ -102,7 +102,10 @@
     transposeMidiByScaleDegrees,
   } from "./scaleUtils.js";
   import { applyThemeMode, defaultThemeMode, storedThemeMode } from "./themeMode.js";
+  import { setUiViewportSize } from "./uiScale.svelte.js";
 
+  /** @type {HTMLElement | null} */
+  let appRoot = $state(null);
   let pluginName = $state("MIDI Phrases");
   let grid = $state(defaultPhraseGrid());
   /** @type {boolean[]} */
@@ -250,6 +253,15 @@
   let lastRowGapPointerDownY = 0;
 
   const historyLimit = 100;
+
+  /** @param {HTMLElement} node */
+  function appRootAttachment(node) {
+    appRoot = node;
+
+    return () => {
+      if (appRoot === node) appRoot = null;
+    };
+  }
   const rowGapDoubleClickIntervalMs = 400;
   const rowGapDoubleClickMaxDistancePx = 16;
   const stepTriggerFlashMs = 110;
@@ -3078,6 +3090,31 @@
 
   onMount(() => {
     themeMode = applyThemeMode(storedThemeMode(), { persist: false });
+    let scaleFrameId = 0;
+
+    const updateUiScale = () => {
+      const target = appRoot ?? document.documentElement;
+      const rect = target.getBoundingClientRect();
+
+      setUiViewportSize({
+        widthPx: rect.width || window.innerWidth,
+        heightPx: rect.height || window.innerHeight,
+        standaloneTransportAvailable,
+      });
+    };
+
+    const scheduleUiScaleUpdate = () => {
+      if (scaleFrameId) return;
+
+      scaleFrameId = requestAnimationFrame(() => {
+        scaleFrameId = 0;
+        updateUiScale();
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(scheduleUiScaleUpdate);
+    resizeObserver.observe(appRoot ?? document.documentElement);
+    updateUiScale();
 
     const handleKeydown = (event) => {
       if (event.key === "Escape" && inspectedStep !== null) {
@@ -3112,6 +3149,8 @@
     playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
 
     return () => {
+      resizeObserver.disconnect();
+      if (scaleFrameId) cancelAnimationFrame(scaleFrameId);
       window.removeEventListener("keydown", handleKeydown);
       cancelAnimationFrame(playbackPollFrameId);
       document.removeEventListener("pointermove", updateMarqueePointer);
@@ -3121,7 +3160,7 @@
   });
 </script>
 
-<main class="flex h-full flex-col overflow-hidden px-6 pt-3 transition-[filter,opacity] duration-150 {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}">
+<main {@attach appRootAttachment} class="flex h-full flex-col overflow-hidden px-6 pt-3 transition-[filter,opacity] duration-150 {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}">
   <div class="shrink-0 -mx-6">
   {#if standaloneTransportAvailable}
     <div class="flex items-center justify-end gap-2 px-6 pb-3">
@@ -3429,7 +3468,7 @@
         <div
           class="pointer-events-none absolute bottom-0 z-0 w-px bg-surface-subtle/70"
           style:left="{phraseBeatGuideGlobalLeftPx(phraseVisualOffsetCompensationPx)}px"
-          style:top="{phraseBeatGuideTopPx}px"
+          style:top="{phraseBeatGuideTopPx()}px"
           aria-hidden="true"
           title="Beat one"
         ></div>

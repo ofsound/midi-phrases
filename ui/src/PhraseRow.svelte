@@ -40,7 +40,6 @@
     rowStepLayoutsPx,
     rowTimingOffsetShiftPx,
     stepCellPaddingPx,
-    stepCellQuarterGridWidthPx,
     stepDisplayWidthPx,
     stepFooterActionSlotWidthPx,
     stepInsertZoneWidthPx,
@@ -302,7 +301,7 @@
 
   /** @param {number} leftPx */
   function insertSlotStyle(leftPx) {
-    return `left: ${leftPx}px; width: ${stepInsertZoneWidthPx}px;`;
+    return `left: ${leftPx}px; width: ${stepInsertZoneWidthPx()}px;`;
   }
 
   /** @param {number} boundaryPx */
@@ -684,7 +683,7 @@
   let rowStepLayout = $derived(rowStepLayoutsPx(layoutTimingMultipliers));
   let rowGridSpanPx = $derived(rowGridWidthPx(layoutTimingMultipliers));
   let trailingInsertLeftPx = $derived(insertLeftAtBoundary(rowGridSpanPx));
-  let trailingAddStepLeftPx = $derived(rowGridSpanPx + phraseRowEndAddStepInsetPx);
+  let trailingAddStepLeftPx = $derived(rowGridSpanPx + phraseRowEndAddStepInsetPx());
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
   let rowCellLayouts = $derived(renderedDndItems.map((item, index) => {
     const dataStep = isShadowItem(item)
@@ -742,7 +741,7 @@
     ? "border-t border-border-subtle/90 bg-surface/70"
     : "border-t border-border-subtle bg-surface-muted/60"}
   {@const footerButtonClass = `flex h-full shrink-0 items-center justify-center border-0 bg-surface-muted/30 p-0 outline-none ${accent.ringFocusWithWidth}`}
-  {@const footerSlotStyle = `width: ${stepFooterActionSlotWidthPx}px`}
+  {@const footerSlotStyle = `width: ${stepFooterActionSlotWidthPx()}px`}
   <div
     class="flex h-5 w-full shrink-0 {isQuarterStep
       ? 'divide-x divide-border-subtle'
@@ -1035,23 +1034,23 @@
 >
   <div
     class="pointer-events-none shrink-0 self-stretch"
-    style:width="{phraseGridOriginLeftOffsetPx}px"
+    style:width="{phraseGridOriginLeftOffsetPx()}px"
     aria-hidden="true"
   ></div>
   <div
     class="flex min-w-0 flex-1 items-stretch overflow-x-auto pt-2 pr-2 pb-2"
     role="presentation"
-    style:min-height="{phraseRowMinHeightPx}px"
+    style:min-height="{phraseRowMinHeightPx()}px"
   >
   {#if isEmptyRow}
-    <div class="relative flex shrink-0 items-center" style:padding-left="{phraseRowEndAddStepInsetPx}px">
+    <div class="relative flex shrink-0 items-center" style:padding-left="{phraseRowEndAddStepInsetPx()}px">
       {@render largeAddStepButton("Add first step", 0)}
     </div>
   {:else}
     <div
       class="relative w-max min-w-0 shrink-0 self-stretch overflow-visible"
       style:min-width="{rowGridSpanPx}px"
-      style:padding-right="{phraseRowEndStepTailPaddingPx}px"
+      style:padding-right="{phraseRowEndStepTailPaddingPx()}px"
     >
       {@render rowInsertSlots()}
 
@@ -1067,8 +1066,8 @@
               class="relative shrink-0 overflow-visible"
               style={shellStyleForStep(step)}
               style:margin-left={step === 0
-                ? `${stepCellPaddingPx}px`
-                : `${stepInsertZoneWidthPx}px`}
+                ? `${stepCellPaddingPx()}px`
+                : `${stepInsertZoneWidthPx()}px`}
             >
               <div class="pointer-events-auto h-full overflow-visible">
                 {@render stepCell(step, false)}
@@ -1096,8 +1095,8 @@
               class="relative shrink-0 overflow-visible {isShadowItem(item) ? 'pointer-events-none' : ''}"
               style={fixedFlexStyle(layout.cellWidth)}
               style:margin-left={index === 0
-                ? `${stepCellPaddingPx}px`
-                : `${stepInsertZoneWidthPx}px`}
+                ? `${stepCellPaddingPx()}px`
+                : `${stepInsertZoneWidthPx()}px`}
               aria-hidden={isShadowItem(item) ? true : undefined}
             >
               {#if isShadowItem(item)}

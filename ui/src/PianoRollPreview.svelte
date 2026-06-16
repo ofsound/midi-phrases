@@ -15,6 +15,7 @@
     isBlackKey,
     isScheduledNoteActiveAtBeat,
   } from "./phraseSchedule.js";
+  import { scaledPx } from "./uiScale.svelte.js";
 
   
   /**
@@ -93,12 +94,11 @@
     onLoopBraceChange = () => {}
   } = $props();
 
-  const pxPerQuarter = 28;
-  const fallbackRowHeightPx = 11;
-  const maxRowHeightPx = 16;
-  const keyboardWidthPx = 44;
-  const rulerHeightPx = 28;
-  const handleWidthPx = 10;
+  const basePxPerQuarter = 28;
+  const baseFallbackRowHeightPx = 11;
+  const baseMaxRowHeightPx = 16;
+  const baseKeyboardWidthPx = 44;
+  const baseRulerHeightPx = 28;
   const renderOverscanQuarters = 8;
 
   const notePalettes = [
@@ -133,6 +133,11 @@
   let themeRevision = $state(0);
   let displayStart = $derived(dragMode === null ? loopStart : dragDisplayStart);
   let displayEnd = $derived(dragMode === null ? loopEnd : dragDisplayEnd);
+  let pxPerQuarter = $derived(scaledPx(basePxPerQuarter));
+  let fallbackRowHeightPx = $derived(scaledPx(baseFallbackRowHeightPx));
+  let maxRowHeightPx = $derived(scaledPx(baseMaxRowHeightPx));
+  let keyboardWidthPx = $derived(scaledPx(baseKeyboardWidthPx));
+  let rulerHeightPx = $derived(scaledPx(baseRulerHeightPx));
 
   let displayBandpassLow = $derived(noteBandpassPreview.low ?? noteBandpassLowMidi);
   let displayBandpassHigh = $derived(noteBandpassPreview.high ?? noteBandpassHighMidi);

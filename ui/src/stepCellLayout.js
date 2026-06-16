@@ -1,4 +1,6 @@
 
+import { scaledPx } from "./uiScale.svelte.js";
+
 export const stepTimingMultiplierQuarterStep = 0.25;
 export const stepTimingMultiplierMin = 0.25;
 export const stepTimingMultiplierMax = 4;
@@ -26,27 +28,43 @@ export const maxPhraseStepsPerRow = 64;
  * Width of one invisible 0.25× grid unit.
  * Sized so a 0.25× shell aligns “D#4 127” to the duration track's right edge.
  */
-export const stepCellQuarterGridWidthPx = 76.5;
+export const baseStepCellQuarterGridWidthPx = 76.5;
 
 /** Width of the insert divider control between cells (centered in the inter-step gap). */
-export const stepInsertZoneWidthPx = 16;
+export const baseStepInsertZoneWidthPx = 16;
+
+export function stepCellQuarterGridWidthPx() {
+  return scaledPx(baseStepCellQuarterGridWidthPx);
+}
+
+export function stepInsertZoneWidthPx() {
+  return scaledPx(baseStepInsertZoneWidthPx);
+}
 
 /** Left edge for an insert slot centered on a quarter-grid boundary. */
 export function insertSlotLeftPxAtGridBoundaryPx(boundaryPx) {
-  return boundaryPx - stepInsertZoneWidthPx / 2;
+  return boundaryPx - stepInsertZoneWidthPx() / 2;
 }
 
 /** Padding from a grid line to the step shell on each side (= half the insert zone). */
-export const stepCellPaddingPx = stepInsertZoneWidthPx / 2;
+export function stepCellPaddingPx() {
+  return stepInsertZoneWidthPx() / 2;
+}
 
 /** Minimum shell width for the smallest (0.25×) step cell (1 column − 2 paddings). */
-export const stepCellMinWidthPx = stepCellQuarterGridWidthPx - stepInsertZoneWidthPx;
+export function stepCellMinWidthPx() {
+  return stepCellQuarterGridWidthPx() - stepInsertZoneWidthPx();
+}
 
 /** Width of one skip / mute / gear slot in the 0.25× step footer (three equal columns). */
-export const stepFooterActionSlotWidthPx = stepCellMinWidthPx / 3;
+export function stepFooterActionSlotWidthPx() {
+  return stepCellMinWidthPx() / 3;
+}
 
 /** Base pixel width for a step with timing multiplier index at 1× (four grid columns). */
-export const stepCellBaseWidthPx = stepCellQuarterGridWidthPx / stepTimingMultiplierQuarterStep;
+export function stepCellBaseWidthPx() {
+  return stepCellQuarterGridWidthPx() / stepTimingMultiplierQuarterStep;
+}
 
 /**
  * Row timing offset in step-timing-multiplier units on the fixed quarter grid
@@ -61,7 +79,7 @@ export function durationToQuarterGridSteps(durationQuarters) {
 
 /** @param {number} quarterGridSteps */
 export function quarterGridStepsToWidthPx(quarterGridSteps) {
-  return quarterGridSteps * stepCellQuarterGridWidthPx;
+  return quarterGridSteps * stepCellQuarterGridWidthPx();
 }
 
 /**
@@ -122,7 +140,7 @@ export function quarterGridColumnsForMultiplierIndex(multiplierIndex) {
 /** Nominal grid span in px (N columns × W, before padding). */
 export function stepCellGridSpanPx(multiplierIndex) {
   return (
-    quarterGridColumnsForMultiplierIndex(multiplierIndex) * stepCellQuarterGridWidthPx
+    quarterGridColumnsForMultiplierIndex(multiplierIndex) * stepCellQuarterGridWidthPx()
   );
 }
 
@@ -133,7 +151,7 @@ export function stepCellGridSpanPx(multiplierIndex) {
  * @param {number} multiplierIndex
  */
 export function stepDisplayWidthPx(multiplierIndex) {
-  return stepCellGridSpanPx(multiplierIndex) - stepInsertZoneWidthPx;
+  return stepCellGridSpanPx(multiplierIndex) - stepInsertZoneWidthPx();
 }
 
 /** @deprecated Use {@link stepDisplayWidthPx}; kept for call sites that mean shell width. */
@@ -148,7 +166,7 @@ export function rowGridWidthPx(multiplierIndices) {
     0,
   );
 
-  return totalColumns * stepCellQuarterGridWidthPx;
+  return totalColumns * stepCellQuarterGridWidthPx();
 }
 
 /**
@@ -177,9 +195,9 @@ export function rowCellDisplayWidthsPx(multiplierIndices) {
  * @returns {{ layouts: RowStepLayout[], gridWidthPx: number }}
  */
 export function rowStepLayoutsPx(multiplierIndices) {
-  const W = stepCellQuarterGridWidthPx;
-  const gapPx = stepInsertZoneWidthPx;
-  const paddingPx = stepCellPaddingPx;
+  const W = stepCellQuarterGridWidthPx();
+  const gapPx = stepInsertZoneWidthPx();
+  const paddingPx = stepCellPaddingPx();
 
   let cumulativeColumns = 0;
   /** @type {RowStepLayout[]} */
