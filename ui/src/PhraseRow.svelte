@@ -771,7 +771,7 @@
       <button
         type="button"
         data-cursor="pointer"
-        aria-label="Open step inspector"
+        aria-label={isInspected ? "Close step inspector" : "Open step inspector"}
         aria-pressed={isInspected}
         disabled={stepInspectorInteractionDisabled}
         class="{footerButtonClass} min-w-0 flex-1 basis-0 disabled:pointer-events-none disabled:opacity-50 {isInspected
@@ -809,7 +809,7 @@
       <button
         type="button"
         data-cursor="pointer"
-        aria-label="Open step inspector"
+        aria-label={isInspected ? "Close step inspector" : "Open step inspector"}
         aria-pressed={isInspected}
         disabled={stepInspectorInteractionDisabled}
         style={footerSlotStyle}
@@ -841,7 +841,7 @@
       stepDimmed,
     )} {isStepSelected && !isDragging ? accent.selectionShell : ''}"
   >
-    <div class="relative z-0 h-full min-h-0 w-full min-w-0">
+    <div class="relative z-0 h-full min-h-0 w-full min-w-0 {stepInspectionBlurred ? 'pointer-events-none select-none' : ''}">
       <div
         class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-75 {stepCellSurfaceClass(
           stepDimmed,
@@ -956,7 +956,18 @@
         aria-hidden="true"
       ></div>
     {/if}
-    {@render multiplierResizeHandle(step)}
+    {#if stepInspectionBlurred}
+      <button
+        type="button"
+        data-cursor="pointer"
+        aria-label="Edit step in inspector"
+        disabled={stepInspectorInteractionDisabled}
+        class="absolute inset-0 z-[80] rounded-lg border-0 bg-transparent p-0 outline-none disabled:pointer-events-none disabled:opacity-50 {accent.ringFocusWithWidth}"
+        onclick={() => onInspectStep(row, step, stepIds[step])}
+      ></button>
+    {:else}
+      {@render multiplierResizeHandle(step)}
+    {/if}
   </div>
 {/snippet}
 

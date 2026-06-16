@@ -805,6 +805,11 @@
       await finishRowRecording();
     }
 
+    if (inspectedStep?.row === row && inspectedStep.stepId === stepId) {
+      inspectedStep = null;
+      return;
+    }
+
     inspectedStep = { row, stepId };
   }
 

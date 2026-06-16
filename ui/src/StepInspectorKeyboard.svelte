@@ -25,8 +25,15 @@
     onNoteChange = () => {},
   } = $props();
 
-  const selectedNoteLabelClass =
-    "pointer-events-none max-w-full truncate text-[10px] font-bold leading-none tabular-nums text-text-inverse";
+  const whiteKeyClass =
+    "relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end border-r border-b border-border-strong/70 pb-1 transition-[filter] duration-75 last:border-r-0 hover:brightness-105 active:brightness-95 bg-gradient-to-b from-input to-surface-muted hover:from-surface hover:to-surface-subtle";
+
+  const blackKeyClass =
+    "pointer-events-auto absolute top-0 z-10 flex h-[58%] max-w-[2rem] min-w-[0.5rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md border border-border-subtle/80 pb-1 shadow-md transition-[filter] duration-75 active:brightness-110 bg-gradient-to-b from-surface-subtle to-app hover:from-surface-subtle hover:to-surface";
+
+  const selectedNoteLabelClass = $derived(
+    `pointer-events-none max-w-full truncate text-sm font-extrabold leading-none tabular-nums ${accent.textAccentStrong}`,
+  );
 
   let octaveOffset = $state(0);
   let appliedStepKey = "";
@@ -100,11 +107,7 @@
         <button
           type="button"
           data-cursor="pointer"
-          class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end border-r border-b border-border-strong/70 pb-1 transition-[filter,background-color] duration-75 last:border-r-0 hover:brightness-105 active:brightness-95 {isSelectedNote(
-            midi,
-          )
-            ? accent.pianoNoteActive
-            : 'bg-gradient-to-b from-input to-surface-muted hover:from-surface hover:to-surface-subtle'}"
+          class={whiteKeyClass}
           aria-label={midiToNoteName(midi)}
           aria-pressed={isSelectedNote(midi)}
           onpointerdown={(event) => onKeyPointerDown(event, midi)}
@@ -123,11 +126,7 @@
         <button
           type="button"
           data-cursor="pointer"
-          class="pointer-events-auto absolute top-0 z-10 flex h-[58%] max-w-[2rem] min-w-[0.5rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md border border-border-subtle/80 pb-1 shadow-md transition-[filter,background-color] duration-75 active:brightness-110 {isSelectedNote(
-            midi,
-          )
-            ? accent.pianoNoteActive
-            : 'bg-gradient-to-b from-surface-subtle to-app hover:from-surface-subtle hover:to-surface'}"
+          class={blackKeyClass}
           style:left="{centerPercent}%"
           style:width="{widthPercent}%"
           aria-label={midiToNoteName(midi)}
