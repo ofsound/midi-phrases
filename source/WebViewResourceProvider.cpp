@@ -445,6 +445,14 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    args.size() >= 1 ? varToInt (args[0]) : 1));
                            })
                        .withNativeFunction (
+                           "setEditorScaleMinimum",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               complete (processor.requestWebEditorScaleMinimum (
+                                   args.size() >= 1 ? varToInt (args[0]) : 1500,
+                                   args.size() >= 2 ? varToInt (args[1]) : 875));
+                           })
+                       .withNativeFunction (
                            "getPatternSlotState",
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {

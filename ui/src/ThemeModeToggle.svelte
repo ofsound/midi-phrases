@@ -22,14 +22,14 @@
   aria-label={title}
   title="{title} · click for {nextTitle.toLowerCase()}"
   data-cursor="pointer"
-  class="flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 text-text-muted outline-none transition-colors hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
+  class="flex h-8 w-8 shrink-0 items-center justify-center border-0 bg-transparent p-0 text-text-muted outline-none transition-colors hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
   onclick={cycleThemeMode}
 >
   {#if value === "light"}
-    <ThemeSunIcon class="pointer-events-none h-5 w-5" />
+    <ThemeSunIcon class="pointer-events-none h-4 w-4" />
   {:else if value === "dark"}
-    <ThemeMoonIcon class="pointer-events-none h-5 w-5" />
+    <ThemeMoonIcon class="pointer-events-none h-4 w-4" />
   {:else}
-    <ThemeAltIcon class="pointer-events-none h-5 w-5" />
+    <ThemeAltIcon class="pointer-events-none h-4 w-4" />
   {/if}
 </button>

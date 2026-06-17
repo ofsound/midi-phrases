@@ -31,6 +31,7 @@ public:
     bool isWebViewHierarchy (const juce::Component& component) const;
     void applyHostCursorFromWeb (const juce::String& cursorName);
     juce::var handleEditorFullscreenRequest (int mode);
+    juce::var handleEditorScaleMinimumRequest (int minWidth, int minHeight);
 #endif
 
 private:
@@ -69,6 +70,8 @@ private:
     juce::String lastHostCursorName;
     juce::Rectangle<int> preFullscreenEditorBounds;
     int standaloneTitleBarHeightBeforeFullscreen = -1;
+    int scaleMinimumWidth = 1500;
+    int scaleMinimumHeight = 875;
     bool mouseWasOverWebView = false;
     bool windowAcceptsMouseMoved = false;
     bool editorFullscreen = false;

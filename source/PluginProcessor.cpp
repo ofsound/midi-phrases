@@ -5020,6 +5020,21 @@ juce::var PluginProcessor::requestWebEditorFullscreen (const int mode)
     object->setProperty ("available", 0);
     return juce::var (object.release());
 }
+
+void PluginProcessor::setWebEditorScaleMinimumHandler (std::function<juce::var (int, int)> handler)
+{
+    webEditorScaleMinimumHandler = std::move (handler);
+}
+
+juce::var PluginProcessor::requestWebEditorScaleMinimum (const int minWidth, const int minHeight)
+{
+    if (webEditorScaleMinimumHandler != nullptr)
+        return webEditorScaleMinimumHandler (minWidth, minHeight);
+
+    auto object = std::make_unique<juce::DynamicObject>();
+    object->setProperty ("available", 0);
+    return juce::var (object.release());
+}
 #endif
 
 void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)

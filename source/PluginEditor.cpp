@@ -153,6 +153,10 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     {
         return handleEditorFullscreenRequest (mode);
     });
+    processorRef.setWebEditorScaleMinimumHandler ([this] (const int minWidth, const int minHeight)
+    {
+        return handleEditorScaleMinimumRequest (minWidth, minHeight);
+    });
 
    #if JUCE_DEBUG && defined (MIDI_PHRASES_UI_DEV_SERVER)
     webView->goToURL ("http://localhost:5174");
@@ -182,6 +186,7 @@ PluginEditor::~PluginEditor()
 #if JUCE_WEB_BROWSER
     processorRef.setWebHostCursorHandler (nullptr);
     processorRef.setWebEditorFullscreenHandler (nullptr);
+    processorRef.setWebEditorScaleMinimumHandler (nullptr);
 
     if (webView != nullptr)
         webView->setLookAndFeel (nullptr);
@@ -193,7 +198,7 @@ PluginEditor::~PluginEditor()
 #if JUCE_WEB_BROWSER
 void PluginEditor::applyNormalResizeLimits()
 {
-    setResizeLimits (1000, 480, 2000, 1280);
+    setResizeLimits (scaleMinimumWidth, scaleMinimumHeight, 4096, 2400);
 }
 
 void PluginEditor::applyFullscreenResizeLimits (const juce::Rectangle<int> targetBounds)
@@ -341,6 +346,25 @@ juce::var PluginEditor::handleEditorFullscreenRequest (const int mode)
         return createEditorFullscreenState();
 
     return setEditorFullscreen (mode != 0);
+}
+
+juce::var PluginEditor::handleEditorScaleMinimumRequest (const int minWidth, const int minHeight)
+{
+    scaleMinimumWidth = juce::jlimit (900, 2400, minWidth);
+    scaleMinimumHeight = juce::jlimit (480, 1800, minHeight);
+
+    if (! editorFullscreen)
+    {
+        applyNormalResizeLimits();
+        setSize (juce::jmax (getWidth(), scaleMinimumWidth),
+                 juce::jmax (getHeight(), scaleMinimumHeight));
+    }
+
+    auto object = std::make_unique<juce::DynamicObject>();
+    object->setProperty ("available", 1);
+    object->setProperty ("minWidth", scaleMinimumWidth);
+    object->setProperty ("minHeight", scaleMinimumHeight);
+    return juce::var (object.release());
 }
 #endif
 

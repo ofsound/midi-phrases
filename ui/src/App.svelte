@@ -76,6 +76,7 @@
   import ColorsToggle from "./ColorsToggle.svelte";
   import ThemeModeToggle from "./ThemeModeToggle.svelte";
   import FullscreenIcon from "./FullscreenIcon.svelte";
+  import UiScaleToggle from "./UiScaleToggle.svelte";
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
@@ -107,7 +108,14 @@
     transposeMidiByScaleDegrees,
   } from "./scaleUtils.js";
   import { applyThemeMode, defaultThemeMode, storedThemeMode } from "./themeMode.js";
-  import { setUiViewportSize } from "./uiScale.svelte.js";
+  import {
+    currentUiScaleMinimumSize,
+    setUiScalePreset,
+    setUiViewportSize,
+    storedUiScalePreset,
+    uiScalePresetOptions,
+    uiScaleState,
+  } from "./uiScale.svelte.js";
 
   const randomStepTimingMultiplierIndices = insertStepTimingMultiplierOptions(timingMultiplierOptions)
     .map((option) => option.index);
@@ -295,8 +303,20 @@
     themeMode = applyThemeMode(next);
   }
 
+  async function syncEditorScaleMinimumToNative() {
+    if (!nativeFunctionAvailable("setEditorScaleMinimum")) return;
+
+    const minimumSize = currentUiScaleMinimumSize({ standaloneTransportAvailable });
+    await getNativeFunction("setEditorScaleMinimum")(minimumSize.widthPx, minimumSize.heightPx);
+  }
+
+  function setExplicitUiScalePreset(next) {
+    setUiScalePreset(next);
+    void syncEditorScaleMinimumToNative();
+  }
+
   function editorFullscreenButtonClasses() {
-    return `flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus-visible:ring-1 focus-visible:ring-focus-ring ${
+    return `flex h-8 w-8 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus-visible:ring-1 focus-visible:ring-focus-ring ${
       editorFullscreen ? "text-text" : "text-text-muted hover:text-text-secondary"
     } ${editorFullscreenBusy ? "opacity-60" : ""}`;
   }
@@ -3283,6 +3303,7 @@
 
   onMount(() => {
     themeMode = applyThemeMode(storedThemeMode(), { persist: false });
+    setUiScalePreset(storedUiScalePreset(), { persist: false });
     let scaleFrameId = 0;
 
     const updateUiScale = () => {
@@ -3294,6 +3315,7 @@
         heightPx: rect.height || window.innerHeight,
         standaloneTransportAvailable,
       });
+      void syncEditorScaleMinimumToNative();
     };
 
     const scheduleUiScaleUpdate = () => {
@@ -3410,27 +3432,6 @@
           <p class="text-base font-semibold uppercase leading-none tracking-widest text-accent">
             ofsound
           </p>
-          <ColorsToggle
-            accent={emeraldRowAccent}
-            enabled={rowColorsEnabled}
-            onChange={async (next) => {
-              rowColorsEnabled = next;
-              await pushRowColorsEnabled();
-            }}
-          />
-          <ThemeModeToggle value={themeMode} onValueChange={setThemeMode} />
-          <button
-            type="button"
-            aria-label={editorFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            aria-pressed={editorFullscreen}
-            title={editorFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            disabled={editorFullscreenBusy || !nativeFunctionAvailable("setEditorFullscreen")}
-            data-cursor="pointer"
-            class={editorFullscreenButtonClasses()}
-            onclick={toggleEditorFullscreen}
-          >
-            <FullscreenIcon class="pointer-events-none h-5 w-5" />
-          </button>
         </div>
         <div class="flex h-8 items-end">
           <h1
@@ -3693,6 +3694,34 @@
               <path d="m15 14 5-5-5-5" />
               <path d="M20 9H10a6 6 0 0 0 0 12h2" />
             </svg>
+          </button>
+        </div>
+        <div class="ml-auto flex shrink-0 items-end gap-1.5 pl-3">
+          <ColorsToggle
+            accent={emeraldRowAccent}
+            enabled={rowColorsEnabled}
+            onChange={async (next) => {
+              rowColorsEnabled = next;
+              await pushRowColorsEnabled();
+            }}
+          />
+          <ThemeModeToggle value={themeMode} onValueChange={setThemeMode} />
+          <UiScaleToggle
+            value={uiScaleState.presetValue}
+            options={uiScalePresetOptions}
+            onValueChange={setExplicitUiScalePreset}
+          />
+          <button
+            type="button"
+            aria-label={editorFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            aria-pressed={editorFullscreen}
+            title={editorFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            disabled={editorFullscreenBusy || !nativeFunctionAvailable("setEditorFullscreen")}
+            data-cursor="pointer"
+            class={editorFullscreenButtonClasses()}
+            onclick={toggleEditorFullscreen}
+          >
+            <FullscreenIcon class="pointer-events-none h-4 w-4" />
           </button>
         </div>
     </div>
