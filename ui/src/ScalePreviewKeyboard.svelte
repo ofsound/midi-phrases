@@ -4,6 +4,7 @@
     scalePreviewBlackKeyWidthRatio,
     scalePreviewMidiRange,
   } from "./pianoKeyboardLayout.js";
+  import { pianoBlackKeyClass, pianoWhiteKeyClass } from "./pianoKeyboardTheme.js";
   import { isMidiInScale } from "./scaleUtils.js";
 
   /**
@@ -42,7 +43,7 @@
     <div class="relative z-0 flex h-full min-h-[10rem] w-full">
       {#each layout.whites as { midi } (midi)}
         <div
-          class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end border-r border-b border-border-strong/70 bg-gradient-to-b from-input to-surface-muted pb-1.5 last:border-r-0"
+          class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end pb-1.5 last:border-r-0 {pianoWhiteKeyClass}"
         >
           {#if inScale(midi)}
             <span class={scaleToneMarkerClass}></span>
@@ -54,7 +55,7 @@
     <div class="pointer-events-none absolute inset-0 z-10">
       {#each layout.blacks as { midi, centerPercent, widthPercent } (midi)}
         <div
-          class="absolute top-0 z-10 flex h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md border border-border-subtle/80 bg-gradient-to-b from-surface-subtle to-app pb-1.5 shadow-md"
+          class="absolute top-0 z-10 flex h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1.5 {pianoBlackKeyClass}"
           style:left="{centerPercent}%"
           style:width="{widthPercent}%"
         >

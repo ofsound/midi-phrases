@@ -2,6 +2,7 @@
   import { SvelteSet } from "svelte/reactivity";
   import { midiToNoteName } from "./midiNoteNames.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
+  import { pianoBlackKeyClass, pianoWhiteKeyClass } from "./pianoKeyboardTheme.js";
   import {
     buildRecordPianoKeys,
     clampRecordPianoOctaveOffset,
@@ -132,11 +133,11 @@
           <button
             type="button"
             data-cursor={usable ? "pointer" : "default"}
-            class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end border-r border-b border-border/80 transition-[filter,background-color,opacity] duration-75 last:border-r-0 {usable
-              ? 'hover:brightness-105 active:brightness-95'
+            class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end transition-[filter,background-color,opacity] duration-75 last:border-r-0 {usable
+              ? 'hover:brightness-[0.98] active:brightness-95'
               : 'pointer-events-none opacity-35'} {isKeyHeld(midi)
               ? accent.pianoNoteActive
-              : 'bg-gradient-to-b from-input to-surface-muted hover:from-surface hover:to-surface-subtle'}"
+              : pianoWhiteKeyClass}"
             aria-label={midiToNoteName(midi)}
             aria-disabled={!usable}
             disabled={!usable}
@@ -166,11 +167,9 @@
             data-cursor={usable ? "pointer" : "default"}
             class="{usable
               ? 'pointer-events-auto'
-              : 'pointer-events-none opacity-35'} absolute top-0 z-10 flex h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md border border-border-subtle/80 pb-1 shadow-md transition-[filter,background-color,opacity] duration-75 {usable
-              ? 'active:brightness-110 hover:from-surface-subtle hover:to-surface'
-              : ''} {isKeyHeld(midi)
+              : 'pointer-events-none opacity-35'} absolute top-0 z-10 flex h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1 {isKeyHeld(midi)
               ? accent.pianoNoteActive
-              : 'bg-gradient-to-b from-surface-subtle to-app'}"
+              : pianoBlackKeyClass}"
             style:left="{centerPercent}%"
             style:width="{widthPercent}%"
             aria-label={midiToNoteName(midi)}

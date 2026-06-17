@@ -47,6 +47,12 @@
   --color-row-accent-4: var(--theme-row-accent-4);
   --color-row-accent-4-soft: var(--theme-row-accent-4-soft);
   --color-row-accent-4-strong: var(--theme-row-accent-4-strong);
+  --color-piano-key-white: var(--theme-piano-key-white);
+  --color-piano-key-white-muted: var(--theme-piano-key-white-muted);
+  --color-piano-key-black: var(--theme-piano-key-black);
+  --color-piano-key-black-muted: var(--theme-piano-key-black-muted);
+  --color-piano-key-white-border: var(--theme-piano-key-white-border);
+  --color-piano-key-black-border: var(--theme-piano-key-black-border);
   --color-piano-roll-bg: var(--theme-piano-roll-bg);
   --color-piano-roll-black-key: var(--theme-piano-roll-black-key);
   --color-piano-roll-white-key: var(--theme-piano-roll-white-key);
@@ -129,10 +135,10 @@
   --theme-note-row-4-active-border: rgba(221, 214, 254, 0.95);
   --theme-note-row-4-glow: rgba(139, 92, 246, 0.65);
   --theme-piano-roll-bg: rgba(9, 9, 11, 0.78);
-  --theme-piano-roll-black-key: rgba(9, 9, 11, 0.9);
-  --theme-piano-roll-white-key: rgba(39, 39, 42, 0.68);
-  --theme-piano-roll-black-key-line: rgba(39, 39, 42, 0.78);
-  --theme-piano-roll-white-key-line: rgba(63, 63, 70, 0.5);
+  --theme-piano-roll-black-key: var(--theme-piano-key-black);
+  --theme-piano-roll-white-key: var(--theme-piano-key-white);
+  --theme-piano-roll-black-key-line: var(--theme-piano-key-black-border);
+  --theme-piano-roll-white-key-line: var(--theme-piano-key-white-border);
   --theme-piano-roll-loop-fill: rgba(52, 211, 153, 0.08);
   --theme-piano-roll-loop-border: rgba(52, 211, 153, 0.35);
   --theme-piano-roll-bar-line: rgba(113, 113, 122, 0.7);
@@ -210,10 +216,10 @@
   --theme-note-row-4-active-border: rgba(124, 58, 237, 0.72);
   --theme-note-row-4-glow: rgba(124, 58, 237, 0.38);
   --theme-piano-roll-bg: rgba(236, 239, 235, 0.82);
-  --theme-piano-roll-black-key: rgba(210, 219, 211, 0.88);
-  --theme-piano-roll-white-key: rgba(255, 255, 255, 0.72);
-  --theme-piano-roll-black-key-line: rgba(143, 160, 152, 0.52);
-  --theme-piano-roll-white-key-line: rgba(189, 201, 192, 0.55);
+  --theme-piano-roll-black-key: var(--theme-piano-key-black);
+  --theme-piano-roll-white-key: var(--theme-piano-key-white);
+  --theme-piano-roll-black-key-line: var(--theme-piano-key-black-border);
+  --theme-piano-roll-white-key-line: var(--theme-piano-key-white-border);
   --theme-piano-roll-loop-fill: rgba(15, 159, 115, 0.09);
   --theme-piano-roll-loop-border: rgba(15, 159, 115, 0.32);
   --theme-piano-roll-bar-line: rgba(105, 116, 109, 0.5);
@@ -291,10 +297,10 @@
   --theme-note-row-4-active-border: rgba(237, 233, 254, 0.95);
   --theme-note-row-4-glow: rgba(167, 139, 250, 0.62);
   --theme-piano-roll-bg: rgba(11, 13, 14, 0.78);
-  --theme-piano-roll-black-key: rgba(11, 13, 14, 0.9);
-  --theme-piano-roll-white-key: rgba(34, 48, 54, 0.68);
-  --theme-piano-roll-black-key-line: rgba(34, 48, 54, 0.78);
-  --theme-piano-roll-white-key-line: rgba(56, 83, 92, 0.5);
+  --theme-piano-roll-black-key: var(--theme-piano-key-black);
+  --theme-piano-roll-white-key: var(--theme-piano-key-white);
+  --theme-piano-roll-black-key-line: var(--theme-piano-key-black-border);
+  --theme-piano-roll-white-key-line: var(--theme-piano-key-white-border);
   --theme-piano-roll-loop-fill: rgba(244, 114, 182, 0.08);
   --theme-piano-roll-loop-border: rgba(244, 114, 182, 0.35);
   --theme-piano-roll-bar-line: rgba(111, 143, 151, 0.7);
@@ -303,5 +309,11 @@
 }
 
 :root {
-  /* No local aliases defined. */
+  /* Virtual piano keys — same high contrast in dark, light, and alt themes. */
+  --theme-piano-key-white: #ffffff;
+  --theme-piano-key-white-muted: #ececec;
+  --theme-piano-key-black: #0c0c0c;
+  --theme-piano-key-black-muted: #181818;
+  --theme-piano-key-white-border: rgba(0, 0, 0, 0.18);
+  --theme-piano-key-black-border: rgba(0, 0, 0, 0.5);
 }
