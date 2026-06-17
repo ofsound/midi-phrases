@@ -359,8 +359,8 @@
   /** @param {number} midi */
   function keyboardRowClass(midi) {
     return isBlackKey(midi)
-      ? "bg-app/90 border-b border-border-subtle/80"
-      : "bg-surface-muted/70 border-b border-border/50";
+      ? "bg-piano-roll-black-key border-b border-piano-roll-black-key-line"
+      : "bg-piano-roll-white-key border-b border-piano-roll-white-key-line";
   }
 
   /** @param {{ enabled?: boolean, start?: number, end?: number }} next */
@@ -847,7 +847,7 @@
         <div class="relative bg-surface/95" style:width="{rollWidthPx}px" style:height="{rulerHeightPx}px">
           {#each barLines as bar (bar)}
             <div
-              class="pointer-events-none absolute top-0 bottom-0 border-l border-border/80"
+              class="pointer-events-none absolute top-0 bottom-0 border-l border-piano-roll-bar-line"
               style:left="{bar * pxPerQuarter}px"
             >
               <span class="absolute top-1 left-1 text-[9px] font-medium text-text-muted">{bar}</span>

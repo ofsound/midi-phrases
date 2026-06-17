@@ -68,8 +68,8 @@
   } = $props();
 
   const basePxPerQuarter = 28;
-  const baseKeyboardWidthPx = 54;
-  const baseRulerHeightPx = 24;
+  const baseKeyboardWidthPx = 44;
+  const baseRulerHeightPx = 28;
   const minimumVisibleSemitones = 12;
 
   /** @type {HTMLElement | null} */
@@ -167,13 +167,18 @@
       const shapePreviewMidi = shapeStroke?.mode === "note" ? shapePreviewValue : undefined;
       const shapePreviewVelocity = shapeStroke?.mode === "velocity" ? shapePreviewValue : undefined;
       const noteLengthQuarters = slot.lengthQuarters * durationFraction;
+      const fullStepWidthPx = Math.max(1, slot.lengthQuarters * pxPerQuarter);
 
       return {
         step,
         stepId: stepIds[step],
         midi: shapePreviewMidi ?? midi,
         leftPx: slot.startQuarters * pxPerQuarter,
-        noteWidthPx: Math.max(scaledPx(12), noteLengthQuarters * pxPerQuarter - 2),
+        fullStepWidthPx,
+        durationWidthPx: Math.min(
+          fullStepWidthPx,
+          Math.max(scaledPx(12), noteLengthQuarters * pxPerQuarter - 2),
+        ),
         velocity: shapePreviewVelocity ?? stepVelocity[step] ?? 100,
         muted: stepMuted[step] || stepSkipped[step],
       };
@@ -236,8 +241,8 @@
   /** @param {number} midi */
   function pitchRowClass(midi) {
     return isBlackKey(midi)
-      ? "bg-app/85 border-b border-border-subtle/80"
-      : "bg-surface-muted/70 border-b border-border/50";
+      ? "bg-piano-roll-black-key border-b border-piano-roll-black-key-line"
+      : "bg-piano-roll-white-key border-b border-piano-roll-white-key-line";
   }
 
   /** @param {number} quarter */
@@ -474,7 +479,7 @@
     </div>
   </div>
 
-  <div class="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border-subtle bg-app/80">
+  <div class="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-app/80">
     <div
       class="shrink-0 border-r border-border-subtle bg-surface/90"
       style:width="{keyboardWidthPx}px"
@@ -506,7 +511,7 @@
         >
           {#each measureLines as measureQuarter (measureQuarter)}
             <div
-              class="absolute top-0 bottom-0 border-l border-border/80"
+              class="absolute top-0 bottom-0 border-l border-piano-roll-bar-line"
               style:left="{quarterLeftPx(measureQuarter)}px"
             >
               <span class="absolute top-1 left-1 text-[9px] font-medium text-text-muted">
@@ -543,14 +548,14 @@
               {@const isMeasureLine = quarter % 4 === 0}
               <div
                 class="pointer-events-none absolute top-0 bottom-0 border-l {isMeasureLine
-                  ? 'border-border/70'
-                  : 'border-border/25'}"
+                  ? 'border-piano-roll-bar-line'
+                  : 'border-piano-roll-beat-line'}"
                 style:left="{quarterLeftPx(quarter)}px"
                 aria-hidden="true"
               ></div>
             {/each}
             <div
-              class="pointer-events-none absolute top-0 bottom-0 border-r border-border/50"
+              class="pointer-events-none absolute top-0 bottom-0 border-r border-piano-roll-bar-line"
               style:left="{rollWidthPx}px"
               aria-hidden="true"
             ></div>
@@ -590,17 +595,26 @@
                 class="absolute z-20 {shapeDrawMode ? 'pointer-events-none' : ''}"
                 style:left="{note.leftPx}px"
                 style:top="{pitchTopPx(displayMidi) + 1}px"
-                style:width="{note.noteWidthPx}px"
+                style:width="{note.fullStepWidthPx}px"
                 style:height="{Math.max(8, rowHeightPx - 2)}px"
               >
+                <div
+                  class="pointer-events-none absolute inset-0 rounded-sm border border-current {rowAccent.textAccent} {note.muted
+                    ? 'opacity-25'
+                    : selected
+                      ? 'opacity-90'
+                      : 'opacity-50'}"
+                  aria-hidden="true"
+                ></div>
                 <button
                   type="button"
                   data-cursor="grab"
                   aria-label={`Move ${midiToNoteName(note.midi)} step ${note.step + 1}`}
                   aria-pressed={selected}
-                  class="flex h-full w-full items-center rounded-sm border px-1 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {selected
+                  class="absolute top-0 left-0 flex h-full items-center rounded-sm border px-1 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {selected
                     ? rowAccent.pianoNoteActive
                     : rowAccent.pianoNoteIdle} {note.muted ? 'opacity-35' : ''}"
+                  style:width="{note.durationWidthPx}px"
                   onpointerdown={(event) => {
                     if (shapeDrawMode) return;
                     beginNoteDrag(event, note);
