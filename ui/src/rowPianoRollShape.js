@@ -1,4 +1,8 @@
 /**
+ * @typedef {{ step: number, startQuarters: number, lengthQuarters: number }} RowRollStepSlot
+ */
+
+/**
  * @param {number} yPx
  * @param {number} rowHeightPx
  * @param {number} maxMidi
@@ -42,29 +46,58 @@ export function interpolateShapeYAtX(points, targetXPx) {
 }
 
 /**
+ * @param {number} xPx
+ * @param {RowRollStepSlot[]} slots
+ * @param {number} pxPerQuarter
+ */
+export function stepAtRollX(xPx, slots, pxPerQuarter) {
+  if (slots.length === 0 || pxPerQuarter <= 0) return -1;
+
+  const quarters = xPx / pxPerQuarter;
+
+  for (let index = 0; index < slots.length; index += 1) {
+    const slot = slots[index];
+    const endQuarters = slot.startQuarters + slot.lengthQuarters;
+
+    if (quarters < endQuarters) return slot.step;
+  }
+
+  return slots[slots.length - 1].step;
+}
+
+/**
+ * @param {RowRollStepSlot} slot
+ * @param {number} pxPerQuarter
+ */
+export function stepSlotCenterXPx(slot, pxPerQuarter) {
+  return (slot.startQuarters + slot.lengthQuarters / 2) * pxPerQuarter;
+}
+
+/**
  * Map a drawn stroke to per-step MIDI updates for the horizontal span it covers.
  *
  * @param {{ x: number, y: number }[]} points - x/y in roll pixel coordinates
- * @param {number} stepCount
- * @param {number} pxPerStep
+ * @param {RowRollStepSlot[]} slots
+ * @param {number} pxPerQuarter
  * @param {number} rowHeightPx
  * @param {number} maxMidi
  * @returns {{ step: number, midi: number }[]}
  */
-export function shapeNoteUpdatesFromStroke(points, stepCount, pxPerStep, rowHeightPx, maxMidi) {
-  if (points.length === 0 || stepCount <= 0 || pxPerStep <= 0 || rowHeightPx <= 0) {
+export function shapeNoteUpdatesFromStroke(points, slots, pxPerQuarter, rowHeightPx, maxMidi) {
+  if (points.length === 0 || slots.length === 0 || pxPerQuarter <= 0 || rowHeightPx <= 0) {
     return [];
   }
 
   const minX = Math.min(points[0].x, points[points.length - 1].x);
   const maxX = Math.max(points[0].x, points[points.length - 1].x);
-  const firstStep = Math.max(0, Math.floor(minX / pxPerStep));
-  const lastStep = Math.min(stepCount - 1, Math.floor(maxX / pxPerStep));
+  const firstStep = Math.max(0, stepAtRollX(minX, slots, pxPerQuarter));
+  const lastStep = Math.min(slots.length - 1, stepAtRollX(maxX, slots, pxPerQuarter));
   /** @type {{ step: number, midi: number }[]} */
   const updates = [];
 
   for (let step = firstStep; step <= lastStep; step += 1) {
-    const centerX = (step + 0.5) * pxPerStep;
+    const slot = slots[step];
+    const centerX = stepSlotCenterXPx(slot, pxPerQuarter);
     const y = interpolateShapeYAtX(points, centerX);
 
     if (y === null) continue;
@@ -76,4 +109,31 @@ export function shapeNoteUpdatesFromStroke(points, stepCount, pxPerStep, rowHeig
   }
 
   return updates;
+}
+
+export const quartersPerMeasure = 4;
+
+/**
+ * @param {number} lengthQuarters
+ */
+export function rollLengthQuartersForCycle(lengthQuarters) {
+  return Math.max(quartersPerMeasure, Math.ceil(lengthQuarters / quartersPerMeasure) * quartersPerMeasure);
+}
+
+/**
+ * @param {number} lengthQuarters
+ */
+export function measureLineQuarters(lengthQuarters) {
+  const paddedLength = rollLengthQuartersForCycle(lengthQuarters);
+
+  return Array.from({ length: paddedLength / quartersPerMeasure + 1 }, (_, measure) => measure * quartersPerMeasure);
+}
+
+/**
+ * @param {number} lengthQuarters
+ */
+export function beatLineQuarters(lengthQuarters) {
+  const paddedLength = rollLengthQuartersForCycle(lengthQuarters);
+
+  return Array.from({ length: paddedLength + 1 }, (_, quarter) => quarter);
 }

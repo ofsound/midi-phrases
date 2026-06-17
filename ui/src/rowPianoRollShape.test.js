@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { rowStepLayout } from "./phraseSchedule.js";
+import { buildRowRollTimeline } from "./rowPianoRollTimeline.js";
 import {
+  beatLineQuarters,
   interpolateShapeYAtX,
+  measureLineQuarters,
   midiFromRollY,
+  rollLengthQuartersForCycle,
   shapeNoteUpdatesFromStroke,
+  stepAtRollX,
+  stepSlotCenterXPx,
 } from "./rowPianoRollShape.js";
 
 describe("midiFromRollY", () => {
@@ -26,14 +33,54 @@ describe("interpolateShapeYAtX", () => {
   });
 });
 
+describe("rollLengthQuartersForCycle", () => {
+  it("pads the timeline to whole 4-quarter measures", () => {
+    expect(rollLengthQuartersForCycle(3)).toBe(4);
+    expect(rollLengthQuartersForCycle(5)).toBe(8);
+    expect(rollLengthQuartersForCycle(8)).toBe(8);
+  });
+});
+
+describe("measureLineQuarters", () => {
+  it("places measure boundaries every four quarter notes", () => {
+    expect(measureLineQuarters(5)).toEqual([0, 4, 8]);
+    expect(beatLineQuarters(5)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+});
+
+describe("buildRowRollTimeline", () => {
+  it("positions steps using multiplier times pulse in quarter notes", () => {
+    const multipliers = [5, 3, 7];
+    const { slots, timelineLengthQuarters } = buildRowRollTimeline(multipliers, [], 1, 3);
+    const layout = rowStepLayout(multipliers, 1, []);
+
+    expect(slots.map((slot) => slot.startQuarters)).toEqual(layout.stepStartQuarters);
+    expect(slots.map((slot) => slot.lengthQuarters)).toEqual(layout.stepLengthQuarters);
+    expect(timelineLengthQuarters).toBe(layout.cycleLengthQuarters);
+  });
+});
+
+describe("stepAtRollX", () => {
+  it("maps x positions to steps using quarter-note slot widths", () => {
+    const { slots } = buildRowRollTimeline([5, 3, 7, 15], [], 1, 3);
+    const pxPerQuarter = 28;
+
+    expect(stepAtRollX(0, slots, pxPerQuarter)).toBe(0);
+    expect(stepAtRollX(stepSlotCenterXPx(slots[1], pxPerQuarter), slots, pxPerQuarter)).toBe(1);
+    expect(stepAtRollX(10_000, slots, pxPerQuarter)).toBe(3);
+  });
+});
+
 describe("shapeNoteUpdatesFromStroke", () => {
   it("updates only steps beneath the drawn horizontal span", () => {
+    const { slots } = buildRowRollTimeline([7, 7, 7, 7], [], 1, 3);
+    const pxPerQuarter = 28;
     const points = [
-      { x: 36, y: 0 },
-      { x: 180, y: 32 },
+      { x: stepSlotCenterXPx(slots[0], pxPerQuarter), y: 0 },
+      { x: stepSlotCenterXPx(slots[2], pxPerQuarter), y: 32 },
     ];
 
-    const updates = shapeNoteUpdatesFromStroke(points, 4, 72, 16, 72);
+    const updates = shapeNoteUpdatesFromStroke(points, slots, pxPerQuarter, 16, 72);
 
     expect(updates).toEqual([
       { step: 0, midi: 72 },

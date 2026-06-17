@@ -4026,7 +4026,6 @@
         onNoteCommit={commitPhraseNoteValue}
         onShapeNotesCommit={commitPhraseRowNoteShape}
         onStepMove={movePhraseStepFromPianoRoll}
-        onDurationChange={selectStepDurationFraction}
         onClose={closeRowPianoRollEditor}
       />
     {:else if recordingRow !== null}

@@ -7,7 +7,15 @@
     toggleIconActiveClasses,
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
-  import { shapeNoteUpdatesFromStroke } from "./rowPianoRollShape.js";
+  import {
+    beatLineQuarters,
+    measureLineQuarters,
+    rollLengthQuartersForCycle,
+    shapeNoteUpdatesFromStroke,
+    stepAtRollX,
+    stepSlotCenterXPx,
+  } from "./rowPianoRollShape.js";
+  import { buildRowRollTimeline } from "./rowPianoRollTimeline.js";
   import RowShapeDrawIcon from "./RowShapeDrawIcon.svelte";
   import { scaledPx } from "./uiScale.svelte.js";
 
@@ -29,7 +37,6 @@
    * @property {(row: number, step: number, midi: number) => void} [onNotePreview]
    * @property {(row: number, step: number, midi: number) => void | Promise<void>} [onNoteCommit]
    * @property {(row: number, fromStep: number, toStep: number) => void | Promise<void>} [onStepMove]
-   * @property {(row: number, step: number, fraction: number) => void | Promise<void>} [onDurationChange]
    * @property {(row: number, updates: { step: number, midi: number }[]) => void | Promise<void>} [onShapeNotesCommit]
    * @property {() => void} [onClose]
    */
@@ -52,17 +59,14 @@
     onNotePreview = () => {},
     onNoteCommit = () => {},
     onStepMove = () => {},
-    onDurationChange = () => {},
     onShapeNotesCommit = () => {},
     onClose = () => {},
   } = $props();
 
-  const basePxPerStepColumn = 72;
+  const basePxPerQuarter = 28;
   const baseKeyboardWidthPx = 54;
   const baseRulerHeightPx = 24;
   const minimumVisibleSemitones = 12;
-  const durationSnapFractions = [0, 0.25, 0.5, 0.75, 1];
-  const durationSnapStep = 0.25;
 
   /** @type {HTMLElement | null} */
   let gridElement = $state(null);
@@ -76,18 +80,24 @@
   let shapeStroke = $state(null);
   let rowAccent = $derived(accent ?? emeraldRowAccent);
 
-  // Equal-width step columns: bar length is duration fraction (0.25–1), not musical time.
-  let stepCount = $derived(Math.max(1, notes.length));
-  let pxPerStep = $derived.by(() => {
-    const floor = scaledPx(basePxPerStepColumn);
+  let timeline = $derived(
+    buildRowRollTimeline(stepTimingMultiplier, stepSkipped, pulseIndex, rowTimingOffset),
+  );
+  let rollLengthQuarters = $derived(
+    rollLengthQuartersForCycle(timeline.timelineLengthQuarters),
+  );
+  let pxPerQuarter = $derived.by(() => {
+    const floor = scaledPx(basePxPerQuarter);
 
-    if (gridViewportWidthPx <= 0 || stepCount <= 0) return floor;
+    if (gridViewportWidthPx <= 0 || rollLengthQuarters <= 0) return floor;
 
-    return Math.max(floor, gridViewportWidthPx / stepCount);
+    return Math.max(floor, gridViewportWidthPx / rollLengthQuarters);
   });
-  let rollWidthPx = $derived(Math.max(1, stepCount * pxPerStep));
+  let rollWidthPx = $derived(Math.max(1, rollLengthQuarters * pxPerQuarter));
   let keyboardWidthPx = $derived(scaledPx(baseKeyboardWidthPx));
   let rulerHeightPx = $derived(scaledPx(baseRulerHeightPx));
+  let measureLines = $derived(measureLineQuarters(rollLengthQuarters));
+  let beatLines = $derived(beatLineQuarters(rollLengthQuarters));
   let visiblePitchRange = $derived.by(() => {
     let minMidi = 60;
     let maxMidi = 72;
@@ -122,8 +132,8 @@
 
     const updates = shapeNoteUpdatesFromStroke(
       shapeStroke.points,
-      stepCount,
-      pxPerStep,
+      timeline.slots,
+      pxPerQuarter,
       rowHeightPx,
       visiblePitchRange.maxMidi,
     );
@@ -134,19 +144,17 @@
     return notes.map((midi, step) => {
       const displayStep =
         drag?.mode === "move" && drag.step === step ? drag.targetStep : step;
-      const start = displayStep;
-      const previewFraction =
-        drag?.mode === "resize" && drag.step === step ? drag.previewFraction : null;
-      const durationFraction =
-        previewFraction ?? stepDurationFraction[step] ?? 1;
+      const slot = timeline.slots[displayStep] ?? timeline.slots[step];
+      const durationFraction = stepDurationFraction[step] ?? 1;
       const shapePreviewMidi = shapePreviewByStep?.get(step);
+      const noteLengthQuarters = slot.lengthQuarters * durationFraction;
 
       return {
         step,
         stepId: stepIds[step],
         midi: shapePreviewMidi ?? midi,
-        start,
-        end: start + durationFraction,
+        leftPx: slot.startQuarters * pxPerQuarter,
+        noteWidthPx: Math.max(scaledPx(12), noteLengthQuarters * pxPerQuarter - 2),
         velocity: stepVelocity[step] ?? 100,
         muted: stepMuted[step] || stepSkipped[step],
       };
@@ -161,7 +169,7 @@
     return [...shapePreviewByStep.entries()].map(([step, midi]) => ({
       step,
       midi,
-      x: (step + 0.5) * pxPerStep,
+      x: stepSlotCenterXPx(timeline.slots[step], pxPerQuarter),
       y: pitchTopPx(midi) + rowHeightPx / 2,
     }));
   });
@@ -203,16 +211,6 @@
     return (visiblePitchRange.maxMidi - midi) * rowHeightPx;
   }
 
-  /** @param {number} stepPosition */
-  function stepLeftPx(stepPosition) {
-    return stepPosition * pxPerStep;
-  }
-
-  /** @param {number} start @param {number} end */
-  function noteWidthPx(start, end) {
-    return Math.max(scaledPx(12), (end - start) * pxPerStep - 2);
-  }
-
   /** @param {number} midi */
   function pitchRowClass(midi) {
     return isBlackKey(midi)
@@ -220,25 +218,22 @@
       : "bg-surface-muted/70 border-b border-border/50";
   }
 
-  /** @param {number} position */
-  function snapToDurationGrid(position) {
-    return Math.round(position / durationSnapStep) * durationSnapStep;
+  /** @param {number} quarter */
+  function quarterLeftPx(quarter) {
+    return quarter * pxPerQuarter;
   }
 
-  /** @param {number} position */
-  function stepAtDisplayPosition(position) {
-    if (stepCount <= 0) return -1;
-
-    const snapped = Math.floor(snapToDurationGrid(position));
-    return Math.min(stepCount - 1, Math.max(0, snapped));
+  /** @param {number} measureQuarter */
+  function measureNumberForQuarter(measureQuarter) {
+    return measureQuarter / 4 + 1;
   }
 
   /** @param {PointerEvent} event */
-  function stepPositionFromPointer(event) {
+  function rollXFromPointer(event) {
     if (!gridElement) return 0;
 
     const rect = gridElement.getBoundingClientRect();
-    return Math.max(0, (event.clientX - rect.left + gridElement.scrollLeft) / pxPerStep);
+    return Math.max(0, Math.min(rollWidthPx, event.clientX - rect.left + gridElement.scrollLeft));
   }
 
   /** @param {PointerEvent} event @param {HTMLElement} surface */
@@ -299,8 +294,8 @@
 
     const updates = shapeNoteUpdatesFromStroke(
       finished.points,
-      stepCount,
-      pxPerStep,
+      timeline.slots,
+      pxPerQuarter,
       rowHeightPx,
       visiblePitchRange.maxMidi,
     );
@@ -321,45 +316,20 @@
     return Math.min(127, Math.max(0, baseMidi + deltaRows));
   }
 
-  /** @param {number} value */
-  function clampDurationFraction(value) {
-    return Math.min(1, Math.max(0, value));
-  }
-
-  /** @param {number} fraction */
-  function snapDurationFraction(fraction) {
-    return durationSnapFractions.reduce((closest, snapValue) =>
-      Math.abs(snapValue - fraction) < Math.abs(closest - fraction) ? snapValue : closest,
-    );
-  }
-
-  /** @param {number} endPosition @param {number} startPosition */
-  function durationFractionFromSnappedEnd(endPosition, startPosition) {
-    const minEnd = startPosition + durationSnapStep;
-    const snappedEnd = Math.max(minEnd, snapToDurationGrid(endPosition));
-    const rawFraction = snappedEnd - startPosition;
-
-    return snapDurationFraction(clampDurationFraction(rawFraction));
-  }
-
-  /** @param {PointerEvent} event @param {any} note @param {"move" | "resize"} mode */
-  function beginNoteDrag(event, note, mode) {
+  /** @param {PointerEvent} event @param {any} note */
+  function beginNoteDrag(event, note) {
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
 
     drag = {
-      mode,
+      mode: "move",
       pointerId: event.pointerId,
       row,
       step: note.step,
       startY: event.clientY,
-      startPosition: stepPositionFromPointer(event),
-      baseStartPosition: note.start,
       baseMidi: note.midi,
-      baseFraction: stepDurationFraction[note.step] ?? 1,
       previewMidi: note.midi,
-      previewFraction: stepDurationFraction[note.step] ?? 1,
       targetStep: note.step,
       didDrag: false,
     };
@@ -373,20 +343,12 @@
 
     drag.didDrag = true;
 
-    if (drag.mode === "move") {
-      const nextMidi = midiFromPointerDelta(event, drag.baseMidi, drag.startY);
-      const targetStep = stepAtDisplayPosition(stepPositionFromPointer(event));
+    const nextMidi = midiFromPointerDelta(event, drag.baseMidi, drag.startY);
+    const targetStep = stepAtRollX(rollXFromPointer(event), timeline.slots, pxPerQuarter);
 
-      drag.previewMidi = nextMidi;
-      drag.targetStep = targetStep < 0 ? drag.step : targetStep;
-      onNotePreview(row, drag.step, nextMidi);
-      return;
-    }
-
-    drag.previewFraction = durationFractionFromSnappedEnd(
-      stepPositionFromPointer(event),
-      drag.baseStartPosition,
-    );
+    drag.previewMidi = nextMidi;
+    drag.targetStep = targetStep < 0 ? drag.step : targetStep;
+    onNotePreview(row, drag.step, nextMidi);
   }
 
   /** @param {PointerEvent} event */
@@ -400,17 +362,11 @@
 
     if (!finished.didDrag) return;
 
-    if (finished.mode === "move") {
-      await onNoteCommit(row, finished.step, finished.previewMidi);
+    await onNoteCommit(row, finished.step, finished.previewMidi);
 
-      if (finished.targetStep !== finished.step) {
-        await onStepMove(row, finished.step, finished.targetStep);
-      }
-
-      return;
+    if (finished.targetStep !== finished.step) {
+      await onStepMove(row, finished.step, finished.targetStep);
     }
-
-    await onDurationChange(row, finished.step, finished.previewFraction);
   }
 </script>
 
@@ -481,12 +437,14 @@
           class="relative border-b border-border-subtle bg-surface/95"
           style:height="{rulerHeightPx}px"
         >
-          {#each stepNotes as note (note.stepId)}
+          {#each measureLines as measureQuarter (measureQuarter)}
             <div
               class="absolute top-0 bottom-0 border-l border-border/80"
-              style:left="{stepLeftPx(note.start)}px"
+              style:left="{quarterLeftPx(measureQuarter)}px"
             >
-              <span class="absolute top-1 left-1 text-[9px] font-medium text-text-muted">{note.step + 1}</span>
+              <span class="absolute top-1 left-1 text-[9px] font-medium text-text-muted">
+                {measureNumberForQuarter(measureQuarter)}
+              </span>
             </div>
           {/each}
         </div>
@@ -514,16 +472,19 @@
               ></div>
             {/each}
 
-            {#each stepIds as stepId, stepIndex (stepId)}
+            {#each beatLines as quarter (quarter)}
+              {@const isMeasureLine = quarter % 4 === 0}
               <div
-                class="pointer-events-none absolute top-0 bottom-0 border-l border-border/50"
-                style:left="{stepLeftPx(stepIndex)}px"
+                class="pointer-events-none absolute top-0 bottom-0 border-l {isMeasureLine
+                  ? 'border-border/70'
+                  : 'border-border/25'}"
+                style:left="{quarterLeftPx(quarter)}px"
                 aria-hidden="true"
               ></div>
             {/each}
             <div
               class="pointer-events-none absolute top-0 bottom-0 border-r border-border/50"
-              style:left="{stepLeftPx(stepCount)}px"
+              style:left="{rollWidthPx}px"
               aria-hidden="true"
             ></div>
 
@@ -559,9 +520,9 @@
               {@const displayMidi = drag?.mode === "move" && drag.step === note.step ? drag.previewMidi : note.midi}
               <div
                 class="absolute z-20 {shapeDrawMode ? 'pointer-events-none' : ''}"
-                style:left="{stepLeftPx(note.start)}px"
+                style:left="{note.leftPx}px"
                 style:top="{pitchTopPx(displayMidi) + 1}px"
-                style:width="{noteWidthPx(note.start, note.end)}px"
+                style:width="{note.noteWidthPx}px"
                 style:height="{Math.max(8, rowHeightPx - 2)}px"
               >
                 <button
@@ -569,12 +530,12 @@
                   data-cursor="grab"
                   aria-label={`Move ${midiToNoteName(note.midi)} step ${note.step + 1}`}
                   aria-pressed={selected}
-                  class="flex h-full w-full items-center rounded-sm border px-1 pr-3 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {selected
+                  class="flex h-full w-full items-center rounded-sm border px-1 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {selected
                     ? rowAccent.pianoNoteActive
                     : rowAccent.pianoNoteIdle} {note.muted ? 'opacity-35' : ''}"
                   onpointerdown={(event) => {
                     if (shapeDrawMode) return;
-                    beginNoteDrag(event, note, "move");
+                    beginNoteDrag(event, note);
                   }}
                   onpointermove={moveNoteDrag}
                   onpointerup={endNoteDrag}
@@ -582,19 +543,6 @@
                 >
                   <span class="pointer-events-none truncate">{midiToNoteName(displayMidi)}</span>
                 </button>
-                <button
-                  type="button"
-                  data-cursor="ew-resize"
-                  aria-label={`Resize step ${note.step + 1}`}
-                  class="absolute top-0 right-0 bottom-0 w-2 rounded-r-sm border-0 border-l border-border/70 bg-text/15 p-0 outline-none focus-visible:ring-1 focus-visible:ring-focus-ring"
-                  onpointerdown={(event) => {
-                    if (shapeDrawMode) return;
-                    beginNoteDrag(event, note, "resize");
-                  }}
-                  onpointermove={moveNoteDrag}
-                  onpointerup={endNoteDrag}
-                  onpointercancel={endNoteDrag}
-                ></button>
               </div>
             {/each}
           </div>
