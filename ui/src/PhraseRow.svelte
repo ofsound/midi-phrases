@@ -860,20 +860,22 @@
   {@const stepIsSkipped = stepSkipped[step]}
   {@const stepDimmed = muted || stepIsSkipped}
   {@const isStepSelected = selectedStepIdSet.has(stepIds[step])}
-  {@const stepInspectionBlurred = stepInspectionActive && inspectedStepId !== stepIds[step]}
+  {@const isInspectedStep = inspectedStepId === stepIds[step]}
+  {@const stepInspectionMuted = stepInspectionActive && !isInspectedStep}
+  {@const stepInspectionFocused = stepInspectionActive && isInspectedStep}
   <div
-    class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[filter,opacity,box-shadow] duration-100 {stepInspectionBlurred
-      ? 'opacity-35 blur-[2px]'
-      : ''} {stepCellPlaybackGlowClass(
+    class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[opacity,box-shadow] duration-150 {stepInspectionMuted
+      ? 'opacity-[0.78]'
+      : ''} {stepInspectionFocused ? 'z-[2]' : ''} {stepCellPlaybackGlowClass(
       activeGates[step],
       stepDimmed,
-    )} {isStepSelected && !isDragging ? accent.selectionShell : ''}"
+    )} {(isStepSelected || stepInspectionFocused) && !isDragging ? accent.selectionShell : ''}"
   >
-    <div class="relative z-0 h-full min-h-0 w-full min-w-0 {stepInspectionBlurred ? 'pointer-events-none select-none' : ''}">
+    <div class="relative z-0 h-full min-h-0 w-full min-w-0 {stepInspectionMuted ? 'pointer-events-none select-none' : ''}">
       <div
-        class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-75 {stepCellSurfaceClass(
+        class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-150 {stepCellSurfaceClass(
           stepDimmed,
-        )} {isStepSelected
+        )} {isStepSelected || stepInspectionFocused
           ? `${accent.borderActive} ${isDragging ? '' : accent.selectionRing}`
           : stepCellPlaybackClass(activeGates[step], stepDimmed)} {stepDimmed || isDragging
           ? ''
@@ -978,13 +980,25 @@
       </div>
     </div>
 
+    {#if stepInspectionMuted}
+      <div
+        class="pointer-events-none absolute inset-0 z-[65] rounded-lg bg-app/15"
+        aria-hidden="true"
+      ></div>
+    {/if}
     {#if isStepSelected}
       <div
         class="pointer-events-none absolute inset-0 z-[70] rounded-lg border border-text/40 bg-text/8"
         aria-hidden="true"
       ></div>
     {/if}
-    {#if stepInspectionBlurred}
+    {#if stepInspectionFocused}
+      <div
+        class="pointer-events-none absolute inset-0 z-[75] rounded-lg ring-1 ring-inset ring-accent/25"
+        aria-hidden="true"
+      ></div>
+    {/if}
+    {#if stepInspectionMuted}
       <button
         type="button"
         data-cursor="pointer"
