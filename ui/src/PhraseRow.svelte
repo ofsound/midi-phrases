@@ -122,6 +122,7 @@
    * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onEditRowPianoRoll]
    * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
    * @property {(event: PointerEvent) => void} [onBulkSelectBackgroundDoubleClick]
+   * @property {() => void} [onDismissPhraseBackground]
    */
 
   /** @type {Props} */
@@ -164,7 +165,8 @@
     onInspectStep = () => {},
     onEditRowPianoRoll = () => {},
     onBulkSelectPointerDown = () => {},
-    onBulkSelectBackgroundDoubleClick = () => {}
+    onBulkSelectBackgroundDoubleClick = () => {},
+    onDismissPhraseBackground = () => {},
   } = $props();
   const defaultStepProbability = 100;
   const removeBlockMs = 500;
@@ -431,6 +433,15 @@
     onEditRowPianoRoll(row, step, stepIds[step]);
   }
 
+  /** @param {MouseEvent} event @param {number} step */
+  function openRowPianoRollFromStepHeader(event, step) {
+    event.stopPropagation();
+
+    if (stepInspectorInteractionDisabled) return;
+
+    onEditRowPianoRoll(row, step, stepIds[step]);
+  }
+
   /** @param {PointerEvent} event */
   function shouldIgnoreBulkBackgroundInteraction(event) {
     const target = event.target;
@@ -479,6 +490,7 @@
     lastBulkBackgroundPointerDownX = event.clientX;
     lastBulkBackgroundPointerDownY = event.clientY;
 
+    onDismissPhraseBackground();
     onBulkSelectPointerDown(event);
   }
 
@@ -757,6 +769,40 @@
   </button>
 {/snippet}
 
+{#snippet stepHeaderTimingArea(step, stepDimmed, multiplierLabel, reorderEnabled)}
+  {#if reorderEnabled}
+    <div
+      use:dragHandle
+      use:preventTabFocus
+      aria-label="Drag to reorder step"
+      data-cursor="grab"
+      data-no-marquee
+      data-no-long-press
+      class="flex h-5 w-4 shrink-0 items-center justify-center opacity-50"
+    ></div>
+  {/if}
+  <button
+    type="button"
+    data-cursor="pointer"
+    aria-label="Edit row in piano roll"
+    disabled={stepInspectorInteractionDisabled}
+    class="flex min-h-5 min-w-0 flex-1 items-center justify-end border-0 bg-transparent p-0 outline-none disabled:pointer-events-none disabled:opacity-50 {stepDimmed
+      ? 'opacity-80'
+      : 'opacity-60'} {accent.ringFocusWithWidth}"
+    onclick={(event) => openRowPianoRollFromStepHeader(event, step)}
+  >
+    <span
+      data-multiplier-label
+      class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
+        stepDimmed,
+      )}"
+      aria-hidden="true"
+    >
+      {multiplierLabel}
+    </span>
+  </button>
+{/snippet}
+
 {#snippet multiplierResizeHandle(step)}
   <button
     type="button"
@@ -904,52 +950,16 @@
         {#if reorderEnabled}
           <div
             class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
-            data-no-long-press
           >
             {@render stepHeaderRemoveButton(step, stepDimmed)}
-            <div
-              use:dragHandle
-              use:preventTabFocus
-              aria-label="Drag to reorder step"
-              data-cursor="grab"
-              data-no-marquee
-              class="flex min-h-5 min-w-0 flex-1 items-center justify-end"
-            >
-              <span
-                data-multiplier-label
-                class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
-                  stepDimmed,
-                )}"
-                aria-hidden="true"
-              >
-                {multiplierLabel}
-              </span>
-            </div>
+            {@render stepHeaderTimingArea(step, stepDimmed, multiplierLabel, true)}
           </div>
         {:else}
           <div
             class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
-            data-no-long-press
           >
             {@render stepHeaderRemoveButton(step, stepDimmed)}
-            <div
-              role="presentation"
-              data-cursor="default"
-              class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
-                ? 'opacity-80'
-                : 'opacity-60'}"
-              onpointerdown={stopPointerPropagation}
-            >
-              <span
-                data-multiplier-label
-                class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
-                  stepDimmed,
-                )}"
-                aria-hidden="true"
-              >
-                {multiplierLabel}
-              </span>
-            </div>
+            {@render stepHeaderTimingArea(step, stepDimmed, multiplierLabel, false)}
           </div>
         {/if}
 

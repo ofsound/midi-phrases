@@ -754,6 +754,19 @@
     });
   }
 
+  /** @param {number} row @param {{ step: number, midi: number }[]} updates */
+  async function commitPhraseRowNoteShape(row, updates) {
+    if (updates.length === 0) return;
+
+    await commitHistory("Draw note shape", async () => {
+      for (const { step, midi } of updates) {
+        grid[row][step] = clampPhraseNote(midi);
+      }
+
+      await pushCurrentPhraseRow(row);
+    });
+  }
+
   async function setPatternScale(nextRoot, nextModeIndex) {
     const root = clampScaleRoot(nextRoot);
     const mode = clampScaleModeIndex(nextModeIndex);
@@ -1099,16 +1112,21 @@
     document.removeEventListener("pointercancel", cancelMarqueeSelection);
   }
 
+  function dismissPhraseEditingFocus() {
+    closeStepInspector();
+    closeRowPianoRollEditor();
+
+    if (selectedStepKeysForGrid.size > 0) {
+      setSelectedStepKeys(new Set());
+      syncBulkControlsFromSelection();
+    }
+
+    cancelMarqueeSelection();
+  }
+
   /** @param {PointerEvent} event */
   function handleRowGapBulkSelectPointerDown(event) {
     if (event.button !== 0) return;
-
-    if (rowPianoRollStep !== null) {
-      closeRowPianoRollEditor();
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
 
     const now = performance.now();
     const elapsed = now - lastRowGapPointerDownTime;
@@ -1128,6 +1146,8 @@
       selectAllStepsForBulkEdit();
       return;
     }
+
+    dismissPhraseEditingFocus();
 
     lastRowGapPointerDownTime = now;
     lastRowGapPointerDownX = event.clientX;
@@ -3916,6 +3936,7 @@
               onEditRowPianoRoll={openRowPianoRollEditor}
               onBulkSelectPointerDown={beginStepMarqueeSelection}
               onBulkSelectBackgroundDoubleClick={selectAllStepsForBulkEdit}
+              onDismissPhraseBackground={dismissPhraseEditingFocus}
             />
           </div>
           {#if row < grid.length - 1}
@@ -4003,6 +4024,7 @@
         onInspectStep={openRowPianoRollEditor}
         onNotePreview={previewPhraseNoteValue}
         onNoteCommit={commitPhraseNoteValue}
+        onShapeNotesCommit={commitPhraseRowNoteShape}
         onStepMove={movePhraseStepFromPianoRoll}
         onDurationChange={selectStepDurationFraction}
         onClose={closeRowPianoRollEditor}
