@@ -19,10 +19,6 @@
     patternRepeatLengthQuarters,
   } from "./phraseSchedule.js";
   import { scaledPx } from "./uiScale.svelte.js";
-  import {
-    pianoRollKeyboardBlackRowClass,
-    pianoRollKeyboardWhiteRowClass,
-  } from "./pianoKeyboardTheme.js";
 
   
   /**
@@ -365,8 +361,8 @@
   /** @param {number} midi */
   function keyboardRowClass(midi) {
     return isBlackKey(midi)
-      ? pianoRollKeyboardBlackRowClass
-      : pianoRollKeyboardWhiteRowClass;
+      ? "bg-app/90 border-b border-border-subtle/80"
+      : "bg-surface-muted/70 border-b border-border/50";
   }
 
   /** @param {{ enabled?: boolean, start?: number, end?: number }} next */
