@@ -1,3 +1,4 @@
+import {loopBraceSnapQuarters} from "./loopBraceLayout.js";
 import {defaultPulseIndex, pulseQuartersForIndex} from "./pulseLayout.js";
 import {applyNoteBandpass, defaultNoteBandpassHighMidi, defaultNoteBandpassLowMidi} from "./noteBandpass.js";
 import {applyOctavizer, defaultOctavizerRelativeVelocity} from "./octavizer.js";
@@ -824,4 +825,172 @@ export function isStepActiveAtBeat({
   const gateEnd = triggerBeat + stepLengthQuarters[step] * stepDurationFraction[step];
 
   return beat >= noteStart - EPSILON && beat < gateEnd - triggerBeat + noteStart - EPSILON;
+}
+
+const PATTERN_REPEAT_GRID_QUARTERS = loopBraceSnapQuarters;
+
+/** @param {number} value @param {number} modulus */
+export function positiveMod(value, modulus) {
+  if (modulus <= EPSILON) return value;
+
+  const remainder = value % modulus;
+
+  return remainder < 0 ? remainder + modulus : remainder;
+}
+
+/** @param {number} a @param {number} b */
+function gcdInt(a, b) {
+  let x = Math.abs(Math.trunc(a));
+  let y = Math.abs(Math.trunc(b));
+
+  while (y !== 0) {
+    const next = x % y;
+    x = y;
+    y = next;
+  }
+
+  return x;
+}
+
+/** @param {number} a @param {number} b */
+function lcmInt(a, b) {
+  if (a === 0 || b === 0) return 0;
+
+  return Math.abs(a / gcdInt(a, b) * b);
+}
+
+/** @param {number} quarters */
+function patternRepeatUnits(quarters) {
+  return Math.max(1, Math.round(quarters / PATTERN_REPEAT_GRID_QUARTERS));
+}
+
+/** @param {number} units */
+function quartersFromPatternRepeatUnits(units) {
+  return units * PATTERN_REPEAT_GRID_QUARTERS;
+}
+
+/**
+ * Quarter-note repeat length for one row, including per-step cycle patterns.
+ *
+ * @param {number[]} stepTimingMultiplier
+ * @param {boolean[]} [stepSkipped]
+ * @param {number[]} [stepCycle]
+ * @param {number} [pulseIndex]
+ */
+export function rowPatternRepeatLengthQuarters(
+  stepTimingMultiplier,
+  stepSkipped = [],
+  stepCycle = [],
+  pulseIndex = defaultPulseIndex,
+) {
+  const {cycleLengthQuarters} = rowStepLayout(stepTimingMultiplier, pulseIndex, stepSkipped);
+
+  if (cycleLengthQuarters <= EPSILON) return 0;
+
+  let triggerCycleUnits = 1;
+
+  for (let step = 0; step < stepTimingMultiplier.length; step += 1) {
+    if (stepSkipped[step]) continue;
+
+    const cycle = Math.max(1, Math.trunc(stepCycle[step] ?? 1));
+    triggerCycleUnits = lcmInt(triggerCycleUnits, cycle);
+  }
+
+  return quartersFromPatternRepeatUnits(
+    patternRepeatUnits(cycleLengthQuarters) * triggerCycleUnits,
+  );
+}
+
+/**
+ * Smallest clean loop length where every active row returns to the same phase.
+ *
+ * @param {object} params
+ * @param {number[][]} params.stepTimingMultiplier
+ * @param {boolean[]} params.rowMuted
+ * @param {boolean[][]} [params.stepSkipped]
+ * @param {number[][]} [params.stepCycle]
+ * @param {number} [params.pulseIndex]
+ */
+export function patternRepeatLengthQuarters({
+  stepTimingMultiplier,
+  rowMuted,
+  stepSkipped = [],
+  stepCycle = [],
+  pulseIndex = defaultPulseIndex,
+}) {
+  let repeatUnits = 0;
+
+  for (let row = 0; row < stepTimingMultiplier.length; row += 1) {
+    if (rowMuted[row]) continue;
+
+    const rowRepeatQuarters = rowPatternRepeatLengthQuarters(
+      stepTimingMultiplier[row] ?? [],
+      stepSkipped[row] ?? [],
+      stepCycle[row] ?? [],
+      pulseIndex,
+    );
+
+    if (rowRepeatQuarters <= EPSILON) continue;
+
+    const rowRepeatUnits = patternRepeatUnits(rowRepeatQuarters);
+    repeatUnits = repeatUnits <= 0 ? rowRepeatUnits : lcmInt(repeatUnits, rowRepeatUnits);
+  }
+
+  return repeatUnits > 0 ? quartersFromPatternRepeatUnits(repeatUnits) : 0;
+}
+
+/**
+ * Map transport beat to a piano-roll position when the manual loop brace is off.
+ *
+ * @param {number} beat
+ * @param {object} [options]
+ * @param {boolean} [options.loopEnabled]
+ * @param {number} [options.patternRepeatLengthQuarters]
+ * @param {number} [options.previewLengthQuarters]
+ */
+export function mapPlaybackBeatForPianoRoll(
+  beat,
+  {
+    loopEnabled = false,
+    patternRepeatLengthQuarters: patternRepeatLength = 0,
+    previewLengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
+  } = {},
+) {
+  if (beat < 0) return -1;
+  if (loopEnabled) return beat;
+
+  let repeatLength =
+    patternRepeatLength > EPSILON ? patternRepeatLength : previewLengthQuarters;
+
+  if (repeatLength > previewLengthQuarters + EPSILON) {
+    repeatLength = previewLengthQuarters;
+  }
+
+  return positiveMod(beat, repeatLength);
+}
+
+/**
+ * @param {ScheduledNote} note
+ * @param {number} beat
+ * @param {number} patternLength
+ */
+export function isScheduledNoteActiveAtPatternBeat(note, beat, patternLength) {
+  if (beat < 0) return false;
+  if (patternLength <= EPSILON) return isScheduledNoteActiveAtBeat(note, beat);
+
+  const duration = note.end - note.start;
+
+  if (duration <= EPSILON) return false;
+
+  const startInPattern = positiveMod(note.start, patternLength);
+  const beatInPattern = positiveMod(beat, patternLength);
+
+  if (startInPattern + duration <= patternLength + EPSILON) {
+    return beatInPattern >= startInPattern - EPSILON
+      && beatInPattern < startInPattern + duration - EPSILON;
+  }
+
+  const wrappedEnd = startInPattern + duration - patternLength;
+
+  return beatInPattern >= startInPattern - EPSILON || beatInPattern < wrappedEnd - EPSILON;
 }
