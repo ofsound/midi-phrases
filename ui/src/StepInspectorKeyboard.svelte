@@ -9,7 +9,7 @@
     stepInspectorMidiRange,
     stepInspectorOctaveOffsetForNote,
   } from "./pianoKeyboardLayout.js";
-  import { isChromaticScaleMode, isMidiInScale } from "./scaleUtils.js";
+  import { isChromaticScaleMode, isKeyCenterPitchClass, isMidiInScale } from "./scaleUtils.js";
 
   /**
    * @typedef {Object} Props
@@ -33,6 +33,12 @@
 
   const scaleToneMarkerClass =
     "pointer-events-none mb-1 h-2 w-2 shrink-0 rounded-full bg-accent shadow-[0_0_6px_rgba(52,211,153,0.8)]";
+
+  const keyCenterLabelClass =
+    "pointer-events-none mb-0.5 text-[10px] font-bold leading-none text-text-inverse tabular-nums";
+
+  const keyCenterBlackLabelClass =
+    "pointer-events-none mb-0.5 text-[9px] font-bold leading-none text-text-secondary tabular-nums";
 
   const whiteKeyClass =
     `relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end pb-1 last:border-r-0 ${pianoWhiteKeyClass}`;
@@ -138,6 +144,8 @@
           {/if}
           {#if selected}
             <span class={selectedNoteLabelClass}>{midiToNoteName(midi)}</span>
+          {:else if isKeyCenterPitchClass(midi, scaleRoot)}
+            <span class={keyCenterLabelClass}>{midiToNoteName(midi)}</span>
           {/if}
         </button>
       {/each}
@@ -166,6 +174,8 @@
           {/if}
           {#if selected}
             <span class={selectedNoteLabelClass}>{midiToNoteName(midi)}</span>
+          {:else if isKeyCenterPitchClass(midi, scaleRoot)}
+            <span class={keyCenterBlackLabelClass}>{midiToNoteName(midi)}</span>
           {/if}
         </button>
       {/each}

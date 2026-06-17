@@ -40,6 +40,11 @@ export function clampScaleRoot(root) {
   return Number.isNaN(value) ? defaultScaleRoot : Math.min(11, Math.max(0, value));
 }
 
+/** True when `midi` matches the scale root pitch class (key-center octave markers). */
+export function isKeyCenterPitchClass(midi, scaleRoot) {
+  return ((Math.round(midi) % 12) + 12) % 12 === clampScaleRoot(scaleRoot);
+}
+
 export function clampScaleModeIndex(modeIndex) {
   const value = Number.parseInt(String(modeIndex), 10);
   return Number.isNaN(value) ? defaultScaleModeIndex : Math.min(scaleModes.length - 1, Math.max(0, value));

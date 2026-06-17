@@ -149,6 +149,10 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     {
         applyHostCursorFromWeb (cursorName);
     });
+    processorRef.setWebEditorFullscreenHandler ([this] (const int mode)
+    {
+        return handleEditorFullscreenRequest (mode);
+    });
 
    #if JUCE_DEBUG && defined (MIDI_PHRASES_UI_DEV_SERVER)
     webView->goToURL ("http://localhost:5174");
@@ -164,7 +168,11 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addAndMakeVisible (fallbackLabel);
 #endif
 
+#if JUCE_WEB_BROWSER
+    applyNormalResizeLimits();
+#else
     setResizeLimits (1000, 480, 2000, 1280);
+#endif
     setResizable (true, true);
     setSize (1670, processorRef.hasStandaloneTransport() ? 1044 : 980);
 }
@@ -173,6 +181,7 @@ PluginEditor::~PluginEditor()
 {
 #if JUCE_WEB_BROWSER
     processorRef.setWebHostCursorHandler (nullptr);
+    processorRef.setWebEditorFullscreenHandler (nullptr);
 
     if (webView != nullptr)
         webView->setLookAndFeel (nullptr);
@@ -180,6 +189,107 @@ PluginEditor::~PluginEditor()
     setLookAndFeel (nullptr);
 #endif
 }
+
+#if JUCE_WEB_BROWSER
+void PluginEditor::applyNormalResizeLimits()
+{
+    setResizeLimits (1000, 480, 2000, 1280);
+}
+
+void PluginEditor::applyFullscreenResizeLimits (const juce::Rectangle<int> targetBounds)
+{
+    setResizeLimits (1000,
+                     480,
+                     juce::jmax (2000, targetBounds.getWidth()),
+                     juce::jmax (1280, targetBounds.getHeight()));
+}
+
+juce::Rectangle<int> PluginEditor::getDisplayUserBounds() const
+{
+    const auto& displays = juce::Desktop::getInstance().getDisplays();
+
+    if (const auto* display = displays.getDisplayForRect (getScreenBounds()))
+        return display->userBounds.toNearestInt();
+
+    return { 0, 0, juce::jmax (getWidth(), 2000), juce::jmax (getHeight(), 1280) };
+}
+
+juce::ResizableWindow* PluginEditor::getStandaloneFullscreenWindow() const
+{
+    if (! processorRef.hasStandaloneTransport())
+        return nullptr;
+
+    auto* topLevelComponent = getTopLevelComponent();
+
+    if (topLevelComponent == nullptr || topLevelComponent == this)
+        return nullptr;
+
+    return dynamic_cast<juce::ResizableWindow*> (topLevelComponent);
+}
+
+juce::var PluginEditor::createEditorFullscreenState() const
+{
+    const auto* standaloneWindow = getStandaloneFullscreenWindow();
+    const auto nativeFullscreenActive = standaloneWindow != nullptr && standaloneWindow->isFullScreen();
+
+    auto object = std::make_unique<juce::DynamicObject>();
+    object->setProperty ("enabled", editorFullscreen || nativeFullscreenActive ? 1 : 0);
+    object->setProperty ("native", nativeFullscreenActive ? 1 : 0);
+    object->setProperty ("available", 1);
+    object->setProperty ("width", getWidth());
+    object->setProperty ("height", getHeight());
+    return juce::var (object.release());
+}
+
+juce::var PluginEditor::setEditorFullscreen (const bool shouldBeFullscreen)
+{
+    if (shouldBeFullscreen == editorFullscreen)
+        return createEditorFullscreenState();
+
+    if (shouldBeFullscreen)
+    {
+        preFullscreenEditorBounds = getBounds();
+        editorFullscreen = true;
+
+        if (auto* standaloneWindow = getStandaloneFullscreenWindow())
+        {
+            standaloneNativeFullscreen = true;
+            standaloneWindow->setFullScreen (true);
+            return createEditorFullscreenState();
+        }
+
+        const auto displayBounds = getDisplayUserBounds();
+        applyFullscreenResizeLimits (displayBounds);
+        setSize (displayBounds.getWidth(), displayBounds.getHeight());
+        return createEditorFullscreenState();
+    }
+
+    if (standaloneNativeFullscreen)
+    {
+        if (auto* standaloneWindow = getStandaloneFullscreenWindow())
+            standaloneWindow->setFullScreen (false);
+
+        standaloneNativeFullscreen = false;
+    }
+
+    const auto restoreBounds = preFullscreenEditorBounds;
+    editorFullscreen = false;
+    applyNormalResizeLimits();
+
+    if (! restoreBounds.isEmpty())
+        setSize (restoreBounds.getWidth(), restoreBounds.getHeight());
+
+    return createEditorFullscreenState();
+}
+
+juce::var PluginEditor::handleEditorFullscreenRequest (const int mode)
+{
+    if (mode < 0)
+        return createEditorFullscreenState();
+
+    return setEditorFullscreen (mode != 0);
+}
+#endif
 
 void PluginEditor::paint (juce::Graphics& g)
 {

@@ -432,6 +432,19 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("standaloneTempoBpm",
                                                 processor.getStandaloneTempoBpm())
                        .withNativeFunction (
+                           "getEditorFullscreenState",
+                           [&processor] (const juce::Array<juce::var>&,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               complete (processor.requestWebEditorFullscreen (-1));
+                           })
+                       .withNativeFunction (
+                           "setEditorFullscreen",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               complete (processor.requestWebEditorFullscreen (
+                                   args.size() >= 1 ? varToInt (args[0]) : 1));
+                           })
+                       .withNativeFunction (
                            "getPatternSlotState",
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {

@@ -9,7 +9,7 @@
     recordPianoMidiRange,
     recordPianoRangeLabel,
   } from "./pianoKeyboardLayout.js";
-  import { isChromaticScaleMode, isMidiInScale } from "./scaleUtils.js";
+  import { isChromaticScaleMode, isKeyCenterPitchClass, isMidiInScale } from "./scaleUtils.js";
 
   /**
    * @typedef {Object} Props
@@ -148,7 +148,7 @@
             {#if usable && !isKeyHeld(midi)}
               <span class={scaleToneMarkerClass}></span>
             {/if}
-            {#if midi % 12 === 0}
+            {#if isKeyCenterPitchClass(midi, scaleRoot)}
               <span
                 class="pointer-events-none mb-1 text-[11px] font-bold leading-none text-text-inverse tabular-nums"
               >
@@ -197,6 +197,13 @@
           >
             {#if usable && !isKeyHeld(midi)}
               <span class={scaleToneMarkerClass}></span>
+            {/if}
+            {#if isKeyCenterPitchClass(midi, scaleRoot)}
+              <span
+                class="pointer-events-none mb-1 text-[10px] font-bold leading-none text-text-secondary tabular-nums"
+              >
+                {midiToNoteName(midi)}
+              </span>
             {/if}
           </button>
         {/each}

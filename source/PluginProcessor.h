@@ -31,6 +31,8 @@ public:
 #if JUCE_WEB_BROWSER
     void setWebHostCursorHandler (std::function<void (const juce::String&)> handler);
     void notifyWebHostCursor (const juce::String& cursorName);
+    void setWebEditorFullscreenHandler (std::function<juce::var (int)> handler);
+    juce::var requestWebEditorFullscreen (int mode);
 #endif
 
     const juce::String getName() const override;
@@ -667,6 +669,7 @@ private:
 
 #if JUCE_WEB_BROWSER
     std::function<void (const juce::String&)> webHostCursorHandler;
+    std::function<juce::var (int)> webEditorFullscreenHandler;
 #endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)

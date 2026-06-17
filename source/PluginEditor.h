@@ -30,6 +30,7 @@ public:
 
     bool isWebViewHierarchy (const juce::Component& component) const;
     void applyHostCursorFromWeb (const juce::String& cursorName);
+    juce::var handleEditorFullscreenRequest (int mode);
 #endif
 
 private:
@@ -53,13 +54,22 @@ private:
     void timerCallback() override;
     void syncWebViewInteractionFromMouse();
     void pokeWebViewHoverAt (juce::Point<float> localPos);
+    void applyNormalResizeLimits();
+    void applyFullscreenResizeLimits (juce::Rectangle<int> targetBounds);
+    juce::Rectangle<int> getDisplayUserBounds() const;
+    juce::ResizableWindow* getStandaloneFullscreenWindow() const;
+    juce::var createEditorFullscreenState() const;
+    juce::var setEditorFullscreen (bool shouldBeFullscreen);
 
     HostCursorLookAndFeel hostCursorLookAndFeel { *this };
     std::unique_ptr<juce::WebBrowserComponent> webView;
     juce::MouseCursor hostMouseCursor { juce::MouseCursor::NormalCursor };
     juce::String lastHostCursorName;
+    juce::Rectangle<int> preFullscreenEditorBounds;
     bool mouseWasOverWebView = false;
     bool windowAcceptsMouseMoved = false;
+    bool editorFullscreen = false;
+    bool standaloneNativeFullscreen = false;
 #else
     juce::Label fallbackLabel;
 #endif

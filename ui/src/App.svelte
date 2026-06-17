@@ -75,6 +75,7 @@
   import PulseNoteButtonGroup from "./PulseNoteButtonGroup.svelte";
   import ColorsToggle from "./ColorsToggle.svelte";
   import ThemeModeToggle from "./ThemeModeToggle.svelte";
+  import FullscreenIcon from "./FullscreenIcon.svelte";
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
@@ -262,6 +263,8 @@
   let lastRowGapPointerDownTime = 0;
   let lastRowGapPointerDownX = 0;
   let lastRowGapPointerDownY = 0;
+  let editorFullscreen = $state(false);
+  let editorFullscreenBusy = $state(false);
 
   const historyLimit = 100;
 
@@ -290,6 +293,53 @@
   /** @param {string} next */
   function setThemeMode(next) {
     themeMode = applyThemeMode(next);
+  }
+
+  function editorFullscreenButtonClasses() {
+    return `flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus-visible:ring-1 focus-visible:ring-focus-ring ${
+      editorFullscreen ? "text-text" : "text-text-muted hover:text-text-secondary"
+    } ${editorFullscreenBusy ? "opacity-60" : ""}`;
+  }
+
+  function editorFullscreenEnabledFromNativeResult(result) {
+    const payload = Array.isArray(result) && result.length === 1 ? result[0] : result;
+
+    if (typeof payload === "boolean") return payload;
+    if (typeof payload === "number") return payload !== 0;
+    if (payload && typeof payload === "object" && "enabled" in payload) return Boolean(payload.enabled);
+
+    return null;
+  }
+
+  async function refreshEditorFullscreenState() {
+    if (!nativeFunctionAvailable("getEditorFullscreenState")) return;
+
+    const result = await getNativeFunction("getEditorFullscreenState")();
+    const enabled = editorFullscreenEnabledFromNativeResult(result);
+
+    if (enabled !== null) editorFullscreen = enabled;
+  }
+
+  async function setEditorFullscreen(next) {
+    if (!nativeFunctionAvailable("setEditorFullscreen") || editorFullscreenBusy) return;
+
+    editorFullscreenBusy = true;
+    const previous = editorFullscreen;
+    editorFullscreen = next;
+
+    try {
+      const result = await getNativeFunction("setEditorFullscreen")(next ? 1 : 0);
+      const enabled = editorFullscreenEnabledFromNativeResult(result);
+      editorFullscreen = enabled ?? next;
+    } catch {
+      editorFullscreen = previous;
+    } finally {
+      editorFullscreenBusy = false;
+    }
+  }
+
+  function toggleEditorFullscreen() {
+    void setEditorFullscreen(!editorFullscreen);
   }
 
   function setNoteBandpassState(lowMidi, highMidi) {
@@ -609,18 +659,20 @@
     }
   }
 
-  function slotButtonClasses(active, assigned = true, copySource = false) {
+  function slotButtonClasses(active, assigned = true, copySource = false, copyTarget = false) {
     if (copySource) {
       return "flex h-[2.1rem] w-[2.1rem] items-center justify-center rounded-sm border border-accent text-sm font-semibold leading-none text-control-primary-text outline-none focus:ring-1 focus:ring-focus-ring mp-slot-copy-source";
     }
 
-    return `flex h-[2.1rem] w-[2.1rem] items-center justify-center rounded-sm border text-sm font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
+    const base = `flex h-[2.1rem] w-[2.1rem] items-center justify-center rounded-sm border text-sm font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       active
         ? "border-accent bg-accent text-control-primary-text"
         : assigned
           ? "mp-control-gradient border-border text-text hover:border-border-strong"
           : "mp-control-gradient-muted border-border-subtle text-text-faint hover:border-border hover:text-text-secondary"
     }`;
+
+    return copyTarget ? `${base} mp-slot-copy-target` : base;
   }
 
   function clearPatternButtonClasses(enabled) {
@@ -3256,11 +3308,18 @@
     const resizeObserver = new ResizeObserver(scheduleUiScaleUpdate);
     resizeObserver.observe(appRoot ?? document.documentElement);
     updateUiScale();
+    void refreshEditorFullscreenState();
 
     const handleKeydown = (event) => {
       if (event.key === "Escape" && inspectedStep !== null) {
         event.preventDefault();
         closeStepInspector();
+        return;
+      }
+
+      if (event.key === "Escape" && editorFullscreen) {
+        event.preventDefault();
+        void setEditorFullscreen(false);
         return;
       }
 
@@ -3270,6 +3329,19 @@
         if (active instanceof HTMLElement && active.getAttribute("role") === "slider") {
           event.preventDefault();
           active.blur();
+          return;
+        }
+
+        if (
+          standaloneTransportAvailable &&
+          !scaleDialogOpen &&
+          !(active instanceof HTMLInputElement) &&
+          !(active instanceof HTMLTextAreaElement) &&
+          !(active instanceof HTMLSelectElement) &&
+          !(active instanceof HTMLElement && active.isContentEditable)
+        ) {
+          event.preventDefault();
+          void toggleStandaloneTransport();
           return;
         }
       }
@@ -3347,6 +3419,18 @@
             }}
           />
           <ThemeModeToggle value={themeMode} onValueChange={setThemeMode} />
+          <button
+            type="button"
+            aria-label={editorFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            aria-pressed={editorFullscreen}
+            title={editorFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            disabled={editorFullscreenBusy || !nativeFunctionAvailable("setEditorFullscreen")}
+            data-cursor="pointer"
+            class={editorFullscreenButtonClasses()}
+            onclick={toggleEditorFullscreen}
+          >
+            <FullscreenIcon class="pointer-events-none h-5 w-5" />
+          </button>
         </div>
         <div class="flex h-8 items-end">
           <h1
@@ -3838,7 +3922,9 @@
       />
     {/if}
     </div>
-    <div class="-mx-6 flex h-20 w-full shrink-0 items-center justify-center overflow-x-auto border-t border-border-subtle px-6">
+    <div class="-mx-6 w-[calc(100%+3rem)] shrink-0">
+      <div class="h-10 shrink-0 bg-app" role="presentation" aria-hidden="true"></div>
+      <div class="combination-mode-rail relative z-20 flex h-20 items-center justify-center overflow-x-auto px-6">
       <div class="flex min-w-max items-center gap-8">
         <div class="flex items-center gap-2">
           <span class="text-sm font-semibold leading-none text-text-muted">Patterns:</span>
@@ -3855,7 +3941,12 @@
                     ? "Copy source selected"
                     : "Shift-click to copy from this pattern"}
                   data-cursor="pointer"
-                  class={slotButtonClasses(activePatternSlot === slot, true, patternCopySource === slot)}
+                  class={slotButtonClasses(
+                    activePatternSlot === slot,
+                    true,
+                    patternCopySource === slot,
+                    patternCopySource >= 0 && patternCopySource !== slot,
+                  )}
                   onclick={(event) => handlePatternSlotClick(event, slot)}
                 >
                   {slot + 1}
@@ -3905,6 +3996,7 @@
             M
           </button>
         </div>
+      </div>
       </div>
     </div>
   </section>

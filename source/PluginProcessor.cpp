@@ -5003,6 +5003,23 @@ void PluginProcessor::notifyWebHostCursor (const juce::String& cursorName)
     if (webHostCursorHandler != nullptr)
         webHostCursorHandler (cursorName);
 }
+
+void PluginProcessor::setWebEditorFullscreenHandler (std::function<juce::var (int)> handler)
+{
+    webEditorFullscreenHandler = std::move (handler);
+}
+
+juce::var PluginProcessor::requestWebEditorFullscreen (const int mode)
+{
+    if (webEditorFullscreenHandler != nullptr)
+        return webEditorFullscreenHandler (mode);
+
+    auto object = std::make_unique<juce::DynamicObject>();
+    object->setProperty ("enabled", 0);
+    object->setProperty ("native", 0);
+    object->setProperty ("available", 0);
+    return juce::var (object.release());
+}
 #endif
 
 void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
