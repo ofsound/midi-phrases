@@ -12,7 +12,7 @@ constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 17;
+constexpr int phraseStateVersion = 18;
 
 int clampStepProbability (const int probability)
 {
@@ -270,6 +270,40 @@ std::pair<int, int> clampNoteBandpassBounds (int lowMidi, int highMidi)
         std::swap (low, high);
 
     return { low, high };
+}
+
+int clampVelocityTiltPivotMidi (const int pivotMidi)
+{
+    return juce::jlimit (PluginProcessor::minMidiNote, PluginProcessor::maxMidiNote, pivotMidi);
+}
+
+int clampVelocityTiltAmount (const int amount)
+{
+    return juce::jlimit (PluginProcessor::minVelocityTiltAmount,
+                         PluginProcessor::maxVelocityTiltAmount,
+                         amount);
+}
+
+int velocityTiltOutputVelocity (const int baseVelocity,
+                                const int note,
+                                const int pivotMidi,
+                                const int amount)
+{
+    const auto clampedVelocity = juce::jlimit (1, 127, baseVelocity);
+    const auto tilt = clampVelocityTiltAmount (amount);
+
+    if (tilt == 0)
+        return clampedVelocity;
+
+    const auto octaveDistance =
+        static_cast<double> (juce::jlimit (PluginProcessor::minMidiNote,
+                                           PluginProcessor::maxMidiNote,
+                                           note)
+                             - clampVelocityTiltPivotMidi (pivotMidi))
+        / 12.0;
+    const auto delta = static_cast<int> (std::lround (octaveDistance * static_cast<double> (tilt)));
+
+    return juce::jlimit (1, 127, clampedVelocity + delta);
 }
 
 int clampOctavizerRelativeVelocity (const int relativeVelocity)
@@ -780,6 +814,8 @@ void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
     pattern.scaleModeIndex = defaultScaleModeIndex;
     pattern.noteBandpassLowMidi = defaultNoteBandpassLowMidi;
     pattern.noteBandpassHighMidi = defaultNoteBandpassHighMidi;
+    pattern.velocityTiltPivotMidi = defaultVelocityTiltPivotMidi;
+    pattern.velocityTiltAmount = defaultVelocityTiltAmount;
     pattern.octavizerDown8vaEnabled = 0;
     pattern.octavizerUp8vaEnabled = 0;
     pattern.octavizerDown8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
@@ -1212,6 +1248,14 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             break;
         }
 
+        case SequencerCommand::Type::SetPatternVelocityTiltPivotMidi:
+            pattern.velocityTiltPivotMidi = clampVelocityTiltPivotMidi (command.intValue);
+            break;
+
+        case SequencerCommand::Type::SetPatternVelocityTiltAmount:
+            pattern.velocityTiltAmount = clampVelocityTiltAmount (command.intValue);
+            break;
+
         case SequencerCommand::Type::SetPatternOctavizerDown8vaEnabled:
             pattern.octavizerDown8vaEnabled = command.intValue != 0 ? 1 : 0;
             break;
@@ -1637,6 +1681,46 @@ int PluginProcessor::getPatternNoteBandpassHigh (const int patternSlot) const
     return clampNoteBandpassBounds (modelPattern (patternSlot).noteBandpassLowMidi,
                                     modelPattern (patternSlot).noteBandpassHighMidi)
         .second;
+}
+
+void PluginProcessor::setPatternVelocityTiltPivotMidi (const int pivotMidi)
+{
+    const auto patternSlot = getViewPatternSlot();
+    const auto clamped = clampVelocityTiltPivotMidi (pivotMidi);
+
+    auto& pattern = modelPattern (patternSlot);
+    pattern.velocityTiltPivotMidi = clamped;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternVelocityTiltPivotMidi;
+    command.patternSlot = patternSlot;
+    command.intValue = clamped;
+    publishCommandToAudio (command);
+}
+
+void PluginProcessor::setPatternVelocityTiltAmount (const int amount)
+{
+    const auto patternSlot = getViewPatternSlot();
+    const auto clamped = clampVelocityTiltAmount (amount);
+
+    auto& pattern = modelPattern (patternSlot);
+    pattern.velocityTiltAmount = clamped;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternVelocityTiltAmount;
+    command.patternSlot = patternSlot;
+    command.intValue = clamped;
+    publishCommandToAudio (command);
+}
+
+int PluginProcessor::getPatternVelocityTiltPivotMidi (const int patternSlot) const
+{
+    return clampVelocityTiltPivotMidi (modelPattern (patternSlot).velocityTiltPivotMidi);
+}
+
+int PluginProcessor::getPatternVelocityTiltAmount (const int patternSlot) const
+{
+    return clampVelocityTiltAmount (modelPattern (patternSlot).velocityTiltAmount);
 }
 
 void PluginProcessor::setPatternOctavizerDown8vaEnabled (const bool enabled)
@@ -4467,6 +4551,24 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         copyFilteredEvents (eventCount);
     }
 
+    {
+        const auto tiltAmount = activePattern.velocityTiltAmount;
+
+        if (tiltAmount != 0)
+        {
+            const auto pivotMidi = activePattern.velocityTiltPivotMidi;
+
+            for (size_t index = 0; index < eventCount; ++index)
+            {
+                auto& event = combinedEvents[index];
+                event.velocity = velocityTiltOutputVelocity (event.velocity,
+                                                             event.note,
+                                                             pivotMidi,
+                                                             tiltAmount);
+            }
+        }
+    }
+
     for (size_t index = 0; index < eventCount; ++index)
     {
         auto event = combinedEvents[index];
@@ -5070,6 +5172,12 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
         patternTree.setProperty ("noteBandpassHighMidi",
                                  getPatternNoteBandpassHigh (patternSlot),
                                  nullptr);
+        patternTree.setProperty ("velocityTiltPivotMidi",
+                                 getPatternVelocityTiltPivotMidi (patternSlot),
+                                 nullptr);
+        patternTree.setProperty ("velocityTiltAmount",
+                                 getPatternVelocityTiltAmount (patternSlot),
+                                 nullptr);
         patternTree.setProperty ("octavizerDown8vaEnabled",
                                  isPatternOctavizerDown8vaEnabled (patternSlot) ? 1 : 0,
                                  nullptr);
@@ -5327,6 +5435,12 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                                                        defaultNoteBandpassHighMidi)));
         pattern.noteBandpassLowMidi = bandpassBounds.first;
         pattern.noteBandpassHighMidi = bandpassBounds.second;
+        pattern.velocityTiltPivotMidi = clampVelocityTiltPivotMidi (
+            static_cast<int> (patternTree.getProperty ("velocityTiltPivotMidi",
+                                                       defaultVelocityTiltPivotMidi)));
+        pattern.velocityTiltAmount = clampVelocityTiltAmount (
+            static_cast<int> (patternTree.getProperty ("velocityTiltAmount",
+                                                       defaultVelocityTiltAmount)));
         pattern.octavizerDown8vaEnabled =
             static_cast<int> (patternTree.getProperty ("octavizerDown8vaEnabled", 0)) != 0 ? 1 : 0;
         pattern.octavizerUp8vaEnabled =

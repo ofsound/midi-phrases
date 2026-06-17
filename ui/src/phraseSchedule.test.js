@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPhraseSchedule,
   buildPhraseScheduleBeforeBandpass,
   buildPhraseScheduleWindowBeforeBandpass,
 } from "./phraseSchedule.js";
@@ -154,5 +155,44 @@ describe("windowed phrase schedule preview", () => {
     expect(windowed).toHaveLength(1);
     expect(windowed[0].start).toBe(2);
     expect(windowed[0].end).toBe(3);
+  });
+});
+
+describe("velocity tilt schedule preview", () => {
+  it("tilts filtered notes around the pivot in velocity per octave", () => {
+    const schedule = buildPhraseSchedule({
+      ...baseWindowScheduleParams({
+        notes: [[48, 60, 72], [], [], []],
+        stepDurationFraction: [[1, 1, 1], [], [], []],
+        stepTimingMultiplier: [
+          [
+            defaultStepTimingMultiplierIndex,
+            defaultStepTimingMultiplierIndex,
+            defaultStepTimingMultiplierIndex,
+          ],
+          [],
+          [],
+          [],
+        ],
+        stepVelocity: [[100, 100, 100], [], [], []],
+        stepMuted: [[false, false, false], [], [], []],
+        stepSkipped: [[false, false, false], [], [], []],
+        stepProbability: [[100, 100, 100], [], [], []],
+        stepCycle: [[1, 1, 1], [], [], []],
+        stepCycleOffset: [[1, 1, 1], [], [], []],
+        lengthQuarters: 3,
+        noteBandpassLowMidi: 60,
+        noteBandpassHighMidi: 72,
+        velocityTiltPivotMidi: 60,
+        velocityTiltAmount: 12,
+      }),
+    });
+    const velocitiesByMidi = Object.fromEntries(
+      schedule.map((note) => [note.midi, note.velocity]),
+    );
+
+    expect(velocitiesByMidi[48]).toBeUndefined();
+    expect(velocitiesByMidi[60]).toBe(100);
+    expect(velocitiesByMidi[72]).toBe(112);
   });
 });

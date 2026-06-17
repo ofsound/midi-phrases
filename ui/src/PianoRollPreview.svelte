@@ -8,6 +8,7 @@
   import { noteBandpassPreview } from "./noteBandpassPreview.svelte.js";
   import { pagedPlaybackScrollLeft } from "./pianoRollAutoScroll.js";
   import { fittedPitchRangeForSchedule } from "./pianoRollViewport.js";
+  import { applyVelocityTilt } from "./velocityTilt.js";
   import {
     buildPhraseScheduleBeforeBandpass,
     buildPhraseScheduleWindowBeforeBandpass,
@@ -40,6 +41,8 @@
    * @property {number} [scaleModeIndex]
    * @property {number} [noteBandpassLowMidi]
    * @property {number} [noteBandpassHighMidi]
+   * @property {number} [velocityTiltPivotMidi]
+   * @property {number} [velocityTiltAmount]
    * @property {boolean} [octavizerDown8vaEnabled]
    * @property {boolean} [octavizerUp8vaEnabled]
    * @property {number} [octavizerDown8vaRelativeVelocity]
@@ -78,6 +81,8 @@
     scaleModeIndex = 0,
     noteBandpassLowMidi = 36,
     noteBandpassHighMidi = 108,
+    velocityTiltPivotMidi = 60,
+    velocityTiltAmount = 0,
     octavizerDown8vaEnabled = false,
     octavizerUp8vaEnabled = false,
     octavizerDown8vaRelativeVelocity = 0,
@@ -193,7 +198,11 @@
   );
 
   let scheduled = $derived(
-    applyNoteBandpass(scheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
+    applyVelocityTilt(
+      applyNoteBandpass(scheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
+      velocityTiltPivotMidi,
+      velocityTiltAmount,
+    ),
   );
 
   let fullScheduledBeforeBandpass = $derived(
@@ -228,7 +237,11 @@
   );
 
   let fullScheduled = $derived(
-    applyNoteBandpass(fullScheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
+    applyVelocityTilt(
+      applyNoteBandpass(fullScheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
+      velocityTiltPivotMidi,
+      velocityTiltAmount,
+    ),
   );
 
   let pitchRange = $derived(fittedPitchRangeForSchedule(fullScheduled));

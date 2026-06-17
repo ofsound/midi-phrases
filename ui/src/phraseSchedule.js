@@ -3,6 +3,7 @@ import {defaultPulseIndex, pulseQuartersForIndex} from "./pulseLayout.js";
 import {applyNoteBandpass, defaultNoteBandpassHighMidi, defaultNoteBandpassLowMidi} from "./noteBandpass.js";
 import {applyOctavizer, defaultOctavizerRelativeVelocity} from "./octavizer.js";
 import {applyShimmer, defaultShimmerDelayMultiplierIndex, defaultShimmerFeedbackPercent, defaultShimmerMixPercent} from "./shimmer.js";
+import {applyVelocityTilt, defaultVelocityTiltAmount, defaultVelocityTiltPivotMidi} from "./velocityTilt.js";
 import {
   defaultScaleModeIndex,
   defaultScaleRoot,
@@ -388,10 +389,14 @@ function buildPhraseScheduleCore({
  * @returns {ScheduledNote[]}
  */
 export function buildPhraseSchedule(params) {
-  return applyNoteBandpass(
-    buildPhraseScheduleBeforeBandpass(params),
-    params.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
-    params.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
+  return applyVelocityTilt(
+    applyNoteBandpass(
+      buildPhraseScheduleBeforeBandpass(params),
+      params.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
+      params.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
+    ),
+    params.velocityTiltPivotMidi ?? defaultVelocityTiltPivotMidi,
+    params.velocityTiltAmount ?? defaultVelocityTiltAmount,
   );
 }
 
@@ -405,6 +410,8 @@ export function buildPhraseScheduleBeforeBandpass(params) {
   const {
     noteBandpassLowMidi: _noteBandpassLowMidi,
     noteBandpassHighMidi: _noteBandpassHighMidi,
+    velocityTiltPivotMidi: _velocityTiltPivotMidi,
+    velocityTiltAmount: _velocityTiltAmount,
     ...scheduleParams
   } = params;
 
@@ -427,6 +434,8 @@ export function buildPhraseScheduleWindowBeforeBandpass(params) {
   const {
     noteBandpassLowMidi: _noteBandpassLowMidi,
     noteBandpassHighMidi: _noteBandpassHighMidi,
+    velocityTiltPivotMidi: _velocityTiltPivotMidi,
+    velocityTiltAmount: _velocityTiltAmount,
     windowStartQuarters = 0,
     windowEndQuarters = params.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS,
     windowLookbackQuarters = DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS,

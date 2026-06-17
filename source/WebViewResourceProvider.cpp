@@ -220,6 +220,10 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
                          processor.getPatternNoteBandpassLow (patternSlot));
     object->setProperty ("noteBandpassHighMidi",
                          processor.getPatternNoteBandpassHigh (patternSlot));
+    object->setProperty ("velocityTiltPivotMidi",
+                         processor.getPatternVelocityTiltPivotMidi (patternSlot));
+    object->setProperty ("velocityTiltAmount",
+                         processor.getPatternVelocityTiltAmount (patternSlot));
     object->setProperty ("octavizerDown8vaEnabled",
                          processor.isPatternOctavizerDown8vaEnabled (patternSlot) ? 1 : 0);
     object->setProperty ("octavizerUp8vaEnabled",
@@ -388,6 +392,12 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                                     patternSlotForNativeDefault (processor)))
                        .withInitialisationData ("noteBandpassHighMidi",
                                                 processor.getPatternNoteBandpassHigh (
+                                                    patternSlotForNativeDefault (processor)))
+                       .withInitialisationData ("velocityTiltPivotMidi",
+                                                processor.getPatternVelocityTiltPivotMidi (
+                                                    patternSlotForNativeDefault (processor)))
+                       .withInitialisationData ("velocityTiltAmount",
+                                                processor.getPatternVelocityTiltAmount (
                                                     patternSlotForNativeDefault (processor)))
                        .withInitialisationData ("octavizerDown8vaEnabled",
                                                 processor.isPatternOctavizerDown8vaEnabled (
@@ -570,6 +580,26 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                result.add (processor.getPatternNoteBandpassLow (patternSlot));
                                result.add (processor.getPatternNoteBandpassHigh (patternSlot));
                                complete (result);
+                           })
+                       .withNativeFunction (
+                           "setPatternVelocityTiltPivotMidi",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPatternVelocityTiltPivotMidi (varToInt (args[0]));
+
+                               complete (processor.getPatternVelocityTiltPivotMidi (
+                                   patternSlotForNativeDefault (processor)));
+                           })
+                       .withNativeFunction (
+                           "setPatternVelocityTiltAmount",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPatternVelocityTiltAmount (varToInt (args[0]));
+
+                               complete (processor.getPatternVelocityTiltAmount (
+                                   patternSlotForNativeDefault (processor)));
                            })
                        .withNativeFunction (
                            "setPatternOctavizerDown8vaEnabled",

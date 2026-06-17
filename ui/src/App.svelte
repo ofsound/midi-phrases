@@ -66,6 +66,12 @@
     defaultShimmerMixPercent,
   } from "./shimmer.js";
   import {
+    clampVelocityTiltAmount,
+    clampVelocityTiltPivotMidi,
+    defaultVelocityTiltAmount,
+    defaultVelocityTiltPivotMidi,
+  } from "./velocityTilt.js";
+  import {
     combinationModeMaskBits,
     combinationModes,
     isStepActiveAtBeat,
@@ -233,6 +239,8 @@
   let scaleModeIndex = $state(defaultScaleModeIndex);
   let noteBandpassLowMidi = $state(defaultNoteBandpassLowMidi);
   let noteBandpassHighMidi = $state(defaultNoteBandpassHighMidi);
+  let velocityTiltPivotMidi = $state(defaultVelocityTiltPivotMidi);
+  let velocityTiltAmount = $state(defaultVelocityTiltAmount);
   let octavizerDown8vaEnabled = $state(false);
   let octavizerUp8vaEnabled = $state(false);
   let octavizerDown8vaRelativeVelocity = $state(defaultOctavizerRelativeVelocity);
@@ -433,6 +441,14 @@
     octavizerUp8vaRelativeVelocity = clampOctavizerRelativeVelocity(up8vaRelativeVelocity);
   }
 
+  function setVelocityTiltState({
+    pivotMidi = velocityTiltPivotMidi,
+    amount = velocityTiltAmount,
+  } = {}) {
+    velocityTiltPivotMidi = clampVelocityTiltPivotMidi(pivotMidi);
+    velocityTiltAmount = clampVelocityTiltAmount(amount);
+  }
+
   function setShimmerState({
     enabled = shimmerEnabled,
     delayMultiplierIndex = shimmerDelayMultiplierIndex,
@@ -443,6 +459,28 @@
     shimmerDelayMultiplierIndex = clampShimmerDelayMultiplierIndex(delayMultiplierIndex);
     shimmerFeedbackPercent = clampShimmerFeedbackPercent(feedbackPercent);
     shimmerMixPercent = clampShimmerMixPercent(mixPercent);
+  }
+
+  async function syncVelocityTiltToNative() {
+    if (nativeFunctionAvailable("setPatternVelocityTiltPivotMidi")) {
+      const confirmed = await getNativeFunction("setPatternVelocityTiltPivotMidi")(
+        velocityTiltPivotMidi,
+      );
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        velocityTiltPivotMidi = clampVelocityTiltPivotMidi(parsed);
+      }
+    }
+
+    if (nativeFunctionAvailable("setPatternVelocityTiltAmount")) {
+      const confirmed = await getNativeFunction("setPatternVelocityTiltAmount")(velocityTiltAmount);
+      const parsed = Number.parseInt(String(confirmed), 10);
+
+      if (!Number.isNaN(parsed)) {
+        velocityTiltAmount = clampVelocityTiltAmount(parsed);
+      }
+    }
   }
 
   async function syncOctavizerToNative() {
@@ -589,6 +627,14 @@
     setShimmerState({ mixPercent: value });
   }
 
+  function previewVelocityTiltPivot(value) {
+    setVelocityTiltState({ pivotMidi: value });
+  }
+
+  function previewVelocityTiltAmount(value) {
+    setVelocityTiltState({ amount: value });
+  }
+
   async function commitProcessingParam(label, applyState, syncFn, changed) {
     const before = processingParamGestureBefore ?? createHistorySnapshot();
     resetProcessingParamGesture();
@@ -620,6 +666,24 @@
       syncOctavizerToNative,
       (before, after) =>
         after.octavizerUp8vaRelativeVelocity !== before.octavizerUp8vaRelativeVelocity,
+    );
+  }
+
+  async function commitVelocityTiltPivot(value) {
+    await commitProcessingParam(
+      "Velocity tilt pivot",
+      () => setVelocityTiltState({ pivotMidi: value }),
+      syncVelocityTiltToNative,
+      (before, after) => after.velocityTiltPivotMidi !== before.velocityTiltPivotMidi,
+    );
+  }
+
+  async function commitVelocityTiltAmount(value) {
+    await commitProcessingParam(
+      "Velocity tilt",
+      () => setVelocityTiltState({ amount: value }),
+      syncVelocityTiltToNative,
+      (before, after) => after.velocityTiltAmount !== before.velocityTiltAmount,
     );
   }
 
@@ -1244,6 +1308,8 @@
       scaleModeIndex,
       noteBandpassLowMidi,
       noteBandpassHighMidi,
+      velocityTiltPivotMidi,
+      velocityTiltAmount,
       octavizerDown8vaEnabled,
       octavizerUp8vaEnabled,
       octavizerDown8vaRelativeVelocity,
@@ -1313,6 +1379,10 @@
       next.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
       next.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
     );
+    setVelocityTiltState({
+      pivotMidi: next.velocityTiltPivotMidi ?? defaultVelocityTiltPivotMidi,
+      amount: next.velocityTiltAmount ?? defaultVelocityTiltAmount,
+    });
     setOctavizerState({
       down8vaEnabled: next.octavizerDown8vaEnabled ?? false,
       up8vaEnabled: next.octavizerUp8vaEnabled ?? false,
@@ -1364,6 +1434,16 @@
       Number.parseInt(String(state.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi), 10),
       Number.parseInt(String(state.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi), 10),
     );
+    setVelocityTiltState({
+      pivotMidi: Number.parseInt(
+        String(state.velocityTiltPivotMidi ?? defaultVelocityTiltPivotMidi),
+        10,
+      ),
+      amount: Number.parseInt(
+        String(state.velocityTiltAmount ?? defaultVelocityTiltAmount),
+        10,
+      ),
+    });
     setOctavizerState({
       down8vaEnabled: Boolean(Number.parseInt(String(state.octavizerDown8vaEnabled ?? 0), 10)),
       up8vaEnabled: Boolean(Number.parseInt(String(state.octavizerUp8vaEnabled ?? 0), 10)),
@@ -1512,6 +1592,12 @@
         snapshot.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
       );
     }
+
+    setVelocityTiltState({
+      pivotMidi: snapshot.velocityTiltPivotMidi ?? defaultVelocityTiltPivotMidi,
+      amount: snapshot.velocityTiltAmount ?? defaultVelocityTiltAmount,
+    });
+    await syncVelocityTiltToNative();
 
     setOctavizerState({
       down8vaEnabled: snapshot.octavizerDown8vaEnabled ?? false,
@@ -3097,6 +3183,19 @@
     );
   }
 
+  function loadVelocityTiltFromInitialisation() {
+    setVelocityTiltState({
+      pivotMidi: Number.parseInt(
+        String(unwrapJuceInit("velocityTiltPivotMidi") ?? defaultVelocityTiltPivotMidi),
+        10,
+      ),
+      amount: Number.parseInt(
+        String(unwrapJuceInit("velocityTiltAmount") ?? defaultVelocityTiltAmount),
+        10,
+      ),
+    });
+  }
+
   function loadOctavizerFromInitialisation() {
     setOctavizerState({
       down8vaEnabled: Boolean(
@@ -3420,6 +3519,7 @@
     loadCombinationModesFromInitialisation();
     loadPatternScaleFromInitialisation();
     loadNoteBandpassFromInitialisation();
+    loadVelocityTiltFromInitialisation();
     loadOctavizerFromInitialisation();
     loadShimmerFromInitialisation();
     loadStandaloneTransportFromInitialisation();
@@ -4002,6 +4102,12 @@
       noteBandpassHighMidi={noteBandpassHighMidi}
       onNoteBandpassChange={handleNoteBandpassChange}
       onNoteBandpassCommit={commitNoteBandpass}
+      velocityTiltPivotMidi={velocityTiltPivotMidi}
+      velocityTiltAmount={velocityTiltAmount}
+      onVelocityTiltPivotPreview={previewVelocityTiltPivot}
+      onVelocityTiltPivotCommit={commitVelocityTiltPivot}
+      onVelocityTiltAmountPreview={previewVelocityTiltAmount}
+      onVelocityTiltAmountCommit={commitVelocityTiltAmount}
       octavizerDown8vaEnabled={octavizerDown8vaEnabled}
       octavizerUp8vaEnabled={octavizerUp8vaEnabled}
       octavizerDown8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}
@@ -4100,6 +4206,8 @@
         {scaleModeIndex}
         noteBandpassLowMidi={noteBandpassLowMidi}
         noteBandpassHighMidi={noteBandpassHighMidi}
+        velocityTiltPivotMidi={velocityTiltPivotMidi}
+        velocityTiltAmount={velocityTiltAmount}
         octavizerDown8vaEnabled={octavizerDown8vaEnabled}
         octavizerUp8vaEnabled={octavizerUp8vaEnabled}
         octavizerDown8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}

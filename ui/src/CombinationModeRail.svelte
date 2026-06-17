@@ -4,6 +4,7 @@
   import NoteBandpassSlider from "./NoteBandpassSlider.svelte";
   import OctavizerControl from "./OctavizerControl.svelte";
   import ShimmerControl from "./ShimmerControl.svelte";
+  import VelocityTiltControl from "./VelocityTiltControl.svelte";
   import { combinationModes } from "./phraseSchedule.js";
 
   /**
@@ -16,6 +17,12 @@
    * @property {number} noteBandpassHighMidi
    * @property {(lowMidi: number, highMidi: number) => void} [onNoteBandpassChange]
    * @property {(lowMidi: number, highMidi: number) => void | Promise<void>} [onNoteBandpassCommit]
+   * @property {number} velocityTiltPivotMidi
+   * @property {number} velocityTiltAmount
+   * @property {(value: number) => void} [onVelocityTiltPivotPreview]
+   * @property {(value: number) => void | Promise<void>} [onVelocityTiltPivotCommit]
+   * @property {(value: number) => void} [onVelocityTiltAmountPreview]
+   * @property {(value: number) => void | Promise<void>} [onVelocityTiltAmountCommit]
    * @property {boolean} octavizerDown8vaEnabled
    * @property {boolean} octavizerUp8vaEnabled
    * @property {number} octavizerDown8vaRelativeVelocity
@@ -48,6 +55,12 @@
     noteBandpassHighMidi = 108,
     onNoteBandpassChange = () => {},
     onNoteBandpassCommit = () => {},
+    velocityTiltPivotMidi = 60,
+    velocityTiltAmount = 0,
+    onVelocityTiltPivotPreview = () => {},
+    onVelocityTiltPivotCommit = () => {},
+    onVelocityTiltAmountPreview = () => {},
+    onVelocityTiltAmountCommit = () => {},
     octavizerDown8vaEnabled = false,
     octavizerUp8vaEnabled = false,
     octavizerDown8vaRelativeVelocity = 0,
@@ -130,6 +143,16 @@
       highMidi={noteBandpassHighMidi}
       onChange={onNoteBandpassChange}
       onCommit={onNoteBandpassCommit}
+    />
+
+    <VelocityTiltControl
+      pivotMidi={velocityTiltPivotMidi}
+      amount={velocityTiltAmount}
+      onParamGestureStart={onProcessingParamGestureStart}
+      onPivotPreview={onVelocityTiltPivotPreview}
+      onPivotCommit={onVelocityTiltPivotCommit}
+      onAmountPreview={onVelocityTiltAmountPreview}
+      onAmountCommit={onVelocityTiltAmountCommit}
     />
   </div>
 </div>

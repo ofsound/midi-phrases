@@ -92,6 +92,16 @@ public:
     int getPatternNoteBandpassLow (int patternSlot) const;
     int getPatternNoteBandpassHigh (int patternSlot) const;
 
+    static constexpr int defaultVelocityTiltPivotMidi = 60;
+    static constexpr int defaultVelocityTiltAmount = 0;
+    static constexpr int minVelocityTiltAmount = -48;
+    static constexpr int maxVelocityTiltAmount = 48;
+
+    void setPatternVelocityTiltPivotMidi (int pivotMidi);
+    void setPatternVelocityTiltAmount (int amount);
+    int getPatternVelocityTiltPivotMidi (int patternSlot) const;
+    int getPatternVelocityTiltAmount (int patternSlot) const;
+
     static constexpr int defaultOctavizerRelativeVelocity = 0;
     static constexpr int minOctavizerRelativeVelocity = -127;
     static constexpr int maxOctavizerRelativeVelocity = 127;
@@ -358,6 +368,8 @@ private:
         int scaleModeIndex = defaultScaleModeIndex;
         int noteBandpassLowMidi = defaultNoteBandpassLowMidi;
         int noteBandpassHighMidi = defaultNoteBandpassHighMidi;
+        int velocityTiltPivotMidi = defaultVelocityTiltPivotMidi;
+        int velocityTiltAmount = defaultVelocityTiltAmount;
         int octavizerDown8vaEnabled = 0;
         int octavizerUp8vaEnabled = 0;
         int octavizerDown8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
@@ -403,6 +415,8 @@ private:
             SetCombinationModeMask,
             SetPatternScale,
             SetPatternNoteBandpass,
+            SetPatternVelocityTiltPivotMidi,
+            SetPatternVelocityTiltAmount,
             SetPatternOctavizerDown8vaEnabled,
             SetPatternOctavizerUp8vaEnabled,
             SetPatternOctavizerDown8vaRelativeVelocity,
