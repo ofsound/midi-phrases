@@ -2,6 +2,7 @@
   import { midiToNoteName } from "./midiNoteNames.js";
   import { defaultPulseIndex } from "./pulseLayout.js";
   import { isBlackKey } from "./phraseSchedule.js";
+  import { durationFractionFromRailX } from "./rowPianoRollDuration.js";
   import {
     emeraldRowAccent,
     toggleIconActiveClasses,
@@ -49,6 +50,7 @@
    * @property {(row: number, step: number, midi: number) => void | Promise<void>} [onNoteCommit]
    * @property {(row: number, fromStep: number, toStep: number) => void | Promise<void>} [onStepMove]
    * @property {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} [onStepResize]
+   * @property {(row: number, step: number, fraction: number) => void | Promise<void>} [onDurationCommit]
    * @property {(row: number, updates: { step: number, midi: number }[]) => void | Promise<void>} [onShapeNotesCommit]
    * @property {(row: number, updates: { step: number, velocity: number }[]) => void | Promise<void>} [onShapeVelocitiesCommit]
    * @property {() => void} [onClose]
@@ -73,6 +75,7 @@
     onNoteCommit = () => {},
     onStepMove = () => {},
     onStepResize = () => {},
+    onDurationCommit = () => {},
     onShapeNotesCommit = () => {},
     onShapeVelocitiesCommit = () => {},
     onClose = () => {},
@@ -197,7 +200,10 @@
       const displayStep =
         drag?.mode === "move" && drag.step === step ? drag.targetStep : step;
       const slot = timeline.slots[displayStep] ?? timeline.slots[step];
-      const durationFraction = stepDurationFraction[step] ?? 1;
+      const durationFraction =
+        drag?.mode === "duration" && drag.step === step
+          ? drag.previewFraction
+          : stepDurationFraction[step] ?? 1;
       const shapePreviewValue = shapePreviewByStep?.get(step);
       const shapePreviewMidi = shapeStroke?.mode === "note" ? shapePreviewValue : undefined;
       const shapePreviewVelocity = shapeStroke?.mode === "velocity" ? shapePreviewValue : undefined;
@@ -413,6 +419,11 @@
 
   /** @param {PointerEvent} event @param {any} note */
   function beginNoteDrag(event, note) {
+    if (event.shiftKey) {
+      beginDurationDrag(event, note);
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -545,8 +556,44 @@
     }
   }
 
+  /** @param {PointerEvent} event */
+  function moveNoteInteraction(event) {
+    if (drag?.mode === "duration") {
+      moveDurationDrag(event);
+      return;
+    }
+
+    moveNoteDrag(event);
+  }
+
+  /** @param {PointerEvent} event */
+  async function endNoteInteraction(event) {
+    if (drag?.mode === "duration") {
+      await endDurationDrag(event);
+      return;
+    }
+
+    await endNoteDrag(event);
+  }
+
+  /** @param {PointerEvent} event */
+  async function cancelNoteInteraction(event) {
+    if (drag?.mode === "duration") {
+      cancelDurationDrag(event);
+      return;
+    }
+
+    await endNoteDrag(event);
+  }
+
   /** @param {PointerEvent} event @param {any} note */
   function beginStepResize(event, note) {
+    if (event.shiftKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -625,6 +672,101 @@
       void onStepResize(row, note.step, nextMultiplierIndex);
     }
   }
+
+  /** @param {PointerEvent} event @param {any} note @param {HTMLElement | null} [rail] */
+  function beginDurationDrag(
+    event,
+    note,
+    rail = /** @type {HTMLElement} */ (event.currentTarget).parentElement,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    if (!rail) return;
+
+    const rect = rail.getBoundingClientRect();
+    const initialFraction = stepDurationFraction[note.step] ?? 1;
+    const previewFraction = durationFractionFromRailX(event.clientX, rect.left, rect.width);
+
+    drag = {
+      mode: "duration",
+      pointerId: event.pointerId,
+      step: note.step,
+      railLeftPx: rect.left,
+      railWidthPx: rect.width,
+      initialFraction,
+      previewFraction,
+    };
+
+    void onInspectStep(row, note.step, note.stepId);
+  }
+
+  /** @param {PointerEvent} event */
+  function moveDurationDrag(event) {
+    if (!drag || drag.mode !== "duration" || event.pointerId !== drag.pointerId) return;
+
+    const previewFraction = durationFractionFromRailX(
+      event.clientX,
+      drag.railLeftPx,
+      drag.railWidthPx,
+    );
+
+    if (Math.abs(previewFraction - drag.previewFraction) < 0.0001) return;
+
+    drag = { ...drag, previewFraction };
+  }
+
+  /** @param {PointerEvent} event */
+  async function endDurationDrag(event) {
+    if (!drag || drag.mode !== "duration" || event.pointerId !== drag.pointerId) return;
+
+    event.currentTarget.releasePointerCapture(event.pointerId);
+
+    const finished = drag;
+    drag = null;
+
+    if (Math.abs(finished.previewFraction - finished.initialFraction) < 0.0001) return;
+
+    await onDurationCommit(row, finished.step, finished.previewFraction);
+  }
+
+  /** @param {PointerEvent} event */
+  function cancelDurationDrag(event) {
+    if (!drag || drag.mode !== "duration" || event.pointerId !== drag.pointerId) return;
+
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    drag = null;
+  }
+
+  /** @param {PointerEvent} event @param {any} note */
+  function beginOutlineDurationDrag(event, note) {
+    if (!event.shiftKey || event.target !== event.currentTarget) return;
+
+    beginDurationDrag(event, note, /** @type {HTMLElement} */ (event.currentTarget));
+  }
+
+  /** @param {PointerEvent} event */
+  function moveOutlineDurationDrag(event) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+
+    moveDurationDrag(event);
+  }
+
+  /** @param {PointerEvent} event */
+  async function endOutlineDurationDrag(event) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+
+    await endDurationDrag(event);
+  }
+
+  /** @param {PointerEvent} event */
+  function cancelOutlineDurationDrag(event) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+
+    cancelDurationDrag(event);
+  }
+
 </script>
 
 <section class="flex min-h-0 w-full flex-1 flex-col gap-2 bg-app/90 px-6 py-4">
@@ -790,10 +932,16 @@
               {@const displayLabel = shapeDrawMode === "velocity" ? note.velocity : midiToNoteName(displayMidi)}
               <div
                 class="absolute z-20 {shapeDrawMode ? 'pointer-events-none' : ''}"
+                role="group"
+                aria-label={`Step ${note.step + 1}`}
                 style:left="{note.leftPx}px"
                 style:top="{pitchTopPx(displayMidi) + 1}px"
                 style:width="{note.fullStepWidthPx}px"
                 style:height="{Math.max(8, rowHeightPx - 2)}px"
+                onpointerdown={(event) => beginOutlineDurationDrag(event, note)}
+                onpointermove={moveOutlineDurationDrag}
+                onpointerup={endOutlineDurationDrag}
+                onpointercancel={cancelOutlineDurationDrag}
               >
                 <div
                   class="pointer-events-none absolute inset-0 rounded-sm border border-current {rowAccent.textAccent} {note.muted
@@ -806,8 +954,9 @@
                 <button
                   type="button"
                   data-cursor="grab"
-                  aria-label={`Move ${midiToNoteName(note.midi)} step ${note.step + 1}`}
+                  aria-label={`Move ${midiToNoteName(note.midi)} step ${note.step + 1}; Shift-drag to set duration`}
                   aria-pressed={selected}
+                  title="Drag to move · Shift-click or Shift-drag to set duration"
                   class="absolute top-0 left-0 flex h-full items-center rounded-sm border px-1 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {selected
                     ? rowAccent.pianoNoteActive
                     : rowAccent.pianoNoteIdle} {note.muted ? 'opacity-35' : ''}"
@@ -816,9 +965,9 @@
                     if (shapeDrawMode) return;
                     beginNoteDrag(event, note);
                   }}
-                  onpointermove={moveNoteDrag}
-                  onpointerup={endNoteDrag}
-                  onpointercancel={endNoteDrag}
+                  onpointermove={moveNoteInteraction}
+                  onpointerup={endNoteInteraction}
+                  onpointercancel={cancelNoteInteraction}
                 >
                   <span class="pointer-events-none truncate">{displayLabel}</span>
                 </button>

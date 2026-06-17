@@ -4199,6 +4199,7 @@
         onShapeVelocitiesCommit={commitPhraseRowVelocityShape}
         onStepMove={movePhraseStepFromPianoRoll}
         onStepResize={selectStepTimingMultiplier}
+        onDurationCommit={selectStepDurationFraction}
         onClose={closeRowPianoRollEditor}
       />
     {:else if recordingRow !== null}
