@@ -104,6 +104,7 @@
    * @property {string[]} [selectedStepIds]
    * @property {boolean} [stepInspectionActive]
    * @property {string | null} [inspectedStepId]
+   * @property {string | null} [stepInspectorHighlightedId]
    * @property {(value: number, delta: number) => number} [stepNoteValue]
    * @property {number} [defaultStepNote]
    * @property {(row: number, orderedIds: string[]) => void} [onReorder]
@@ -148,6 +149,7 @@
     selectedStepIds = [],
     stepInspectionActive = false,
     inspectedStepId = null,
+    stepInspectorHighlightedId = null,
     stepNoteValue = (value, delta) => value + delta,
     defaultStepNote = 60,
     onReorder = () => {},
@@ -820,7 +822,7 @@
 {#snippet stepSkipMuteFooter(step)}
   {@const stepIsMuted = stepMuted[step]}
   {@const stepIsSkipped = stepSkipped[step]}
-  {@const isInspected = inspectedStepId === stepIds[step]}
+  {@const isInspected = stepInspectorHighlightedId === stepIds[step]}
   {@const hasAdvancedParameterChanges = stepHasAdvancedParameterChanges(step)}
   {@const footerDimmed = muted || stepIsSkipped}
   {@const multiplierIndex = stepTimingMultiplier[step] ?? defaultStepTimingMultiplierIndex}
@@ -926,6 +928,7 @@
   {@const isInspectedStep = inspectedStepId === stepIds[step]}
   {@const stepInspectionMuted = stepInspectionActive && !isInspectedStep}
   {@const stepInspectionFocused = stepInspectionActive && isInspectedStep}
+  {@const stepInspectorHighlighted = stepInspectorHighlightedId === stepIds[step]}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -934,14 +937,14 @@
       : ''} {stepInspectionFocused ? 'z-[2]' : ''} {stepCellPlaybackGlowClass(
       activeGates[step],
       stepDimmed,
-    )} {(isStepSelected || stepInspectionFocused) && !isDragging ? accent.selectionShell : ''}"
+    )} {(isStepSelected || stepInspectorHighlighted) && !isDragging ? accent.selectionShell : ''}"
     onclick={(event) => openStepFromCellBackground(event, step)}
   >
     <div class="relative z-0 h-full min-h-0 w-full min-w-0 {stepInspectionMuted ? 'pointer-events-none select-none' : ''}">
       <div
         class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-150 {stepCellSurfaceClass(
           stepDimmed,
-        )} {isStepSelected || stepInspectionFocused
+        )} {isStepSelected || stepInspectorHighlighted
           ? `${accent.selectionBorder} ${isDragging ? '' : accent.selectionRing}`
           : stepCellPlaybackClass(activeGates[step], stepDimmed)} {stepDimmed || isDragging
           ? ''
@@ -1022,7 +1025,7 @@
         aria-hidden="true"
       ></div>
     {/if}
-    {#if stepInspectionFocused}
+    {#if stepInspectorHighlighted}
       <div
         class="pointer-events-none absolute inset-0 z-[75] rounded-lg ring-1 ring-inset ring-accent/25"
         aria-hidden="true"

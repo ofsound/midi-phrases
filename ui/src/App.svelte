@@ -3955,6 +3955,11 @@
                     ? activeRowPianoRollEditor.stepId
                     : null
               }
+              stepInspectorHighlightedId={
+                activeStepInspector !== null && inspectedStep?.row === row
+                  ? inspectedStep.stepId
+                  : null
+              }
               stepNoteValue={stepNoteByCurrentScale}
               defaultStepNote={defaultNewStepNote}
               {timingMultiplierOptions}
