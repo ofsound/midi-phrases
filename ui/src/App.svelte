@@ -1103,6 +1103,13 @@
   function handleRowGapBulkSelectPointerDown(event) {
     if (event.button !== 0) return;
 
+    if (rowPianoRollStep !== null) {
+      closeRowPianoRollEditor();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     const now = performance.now();
     const elapsed = now - lastRowGapPointerDownTime;
     const distance = Math.hypot(
@@ -3882,8 +3889,14 @@
               stepCycleOffset={stepCycleOffset[row]}
               activeGates={activeGates[row]}
               selectedStepIds={selectedStepIdsByRow[row]}
-              stepInspectionActive={activeStepInspector !== null}
-              inspectedStepId={inspectedStep?.row === row ? inspectedStep.stepId : null}
+              stepInspectionActive={activeStepInspector !== null || activeRowPianoRollEditor !== null}
+              inspectedStepId={
+                activeStepInspector !== null && inspectedStep?.row === row
+                  ? inspectedStep.stepId
+                  : activeRowPianoRollEditor !== null && activeRowPianoRollEditor.row === row
+                    ? activeRowPianoRollEditor.stepId
+                    : null
+              }
               stepNoteValue={stepNoteByCurrentScale}
               defaultStepNote={defaultNewStepNote}
               {timingMultiplierOptions}
