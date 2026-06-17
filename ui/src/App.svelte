@@ -591,13 +591,7 @@
 
   function slotButtonClasses(active, assigned = true, copySource = false) {
     if (copySource) {
-      return `flex h-[2.625rem] w-[2.625rem] items-center justify-center rounded-sm border text-lg font-semibold leading-none outline-none focus:ring-1 focus:ring-focus-ring ${
-        active
-          ? "border-accent text-control-primary-text mp-slot-copy-source-active"
-          : assigned
-            ? "border-border text-text mp-slot-copy-source"
-            : "border-border-subtle text-text-faint mp-slot-copy-source-muted"
-      }`;
+      return "flex h-[2.625rem] w-[2.625rem] items-center justify-center rounded-sm border border-accent text-lg font-semibold leading-none text-control-primary-text outline-none focus:ring-1 focus:ring-focus-ring mp-slot-copy-source";
     }
 
     return `flex h-[2.625rem] w-[2.625rem] items-center justify-center rounded-sm border text-lg font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
@@ -3700,8 +3694,8 @@
       />
     {/if}
     </div>
-    <div class="-mx-6 flex h-24 shrink-0 items-center overflow-x-auto border-t border-border-subtle px-6">
-      <div class="flex min-w-max items-center justify-start gap-12">
+    <div class="-mx-6 flex h-24 w-full shrink-0 items-center justify-end overflow-x-auto border-t border-border-subtle px-6">
+      <div class="flex min-w-max items-center gap-12">
         <div class="flex items-center gap-3">
           <span class="text-lg font-semibold leading-none text-text-muted">Patterns:</span>
           <div class="flex items-center gap-1">
