@@ -14,6 +14,10 @@
   import { preventTabFocus } from "./preventTabFocus.js";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
   import {
+    defaultStepCycle,
+    defaultStepCycleMask,
+  } from "./cyclePattern.js";
+  import {
     defaultStepDurationFraction,
     defaultStepVelocity,
   } from "./midiNoteNames.js";
@@ -92,6 +96,9 @@
    * @property {number[]} [stepVelocity]
    * @property {boolean[]} [stepMuted]
    * @property {boolean[]} [stepSkipped]
+   * @property {number[]} [stepProbability]
+   * @property {number[]} [stepCycle]
+   * @property {number[]} [stepCycleOffset]
    * @property {boolean[]} [activeGates]
    * @property {{ index: number, label: string }[]} [timingMultiplierOptions]
    * @property {string[]} [selectedStepIds]
@@ -131,6 +138,9 @@
     stepVelocity = [],
     stepMuted = [],
     stepSkipped = [],
+    stepProbability = [],
+    stepCycle = [],
+    stepCycleOffset = [],
     activeGates = [],
     timingMultiplierOptions = [],
     selectedStepIds = [],
@@ -154,6 +164,7 @@
     onBulkSelectPointerDown = () => {},
     onBulkSelectBackgroundDoubleClick = () => {}
   } = $props();
+  const defaultStepProbability = 100;
   const removeBlockMs = 500;
   const backgroundDoubleClickIntervalMs = 400;
   const backgroundDoubleClickMaxDistancePx = 16;
@@ -292,6 +303,19 @@
     const index = (resizePreviewMultipliers ?? stepTimingMultiplier)[step];
 
     return multiplierLabelForIndex(index, timingMultiplierOptions);
+  }
+
+  /** @param {number} step */
+  function stepHasAdvancedParameterChanges(step) {
+    const probability = stepProbability[step] ?? defaultStepProbability;
+    const cycle = stepCycle[step] ?? defaultStepCycle;
+    const cycleMask = stepCycleOffset[step] ?? defaultStepCycleMask;
+
+    return (
+      probability !== defaultStepProbability ||
+      cycle !== defaultStepCycle ||
+      cycleMask !== defaultStepCycleMask
+    );
   }
 
   /** @param {number} widthPx */
@@ -734,6 +758,7 @@
   {@const stepIsMuted = stepMuted[step]}
   {@const stepIsSkipped = stepSkipped[step]}
   {@const isInspected = inspectedStepId === stepIds[step]}
+  {@const hasAdvancedParameterChanges = stepHasAdvancedParameterChanges(step)}
   {@const footerDimmed = muted || stepIsSkipped}
   {@const multiplierIndex = stepTimingMultiplier[step] ?? defaultStepTimingMultiplierIndex}
   {@const isQuarterStep = multiplierIndex === 0}
@@ -773,9 +798,11 @@
         aria-label={isInspected ? "Close step inspector" : "Open step inspector"}
         aria-pressed={isInspected}
         disabled={stepInspectorInteractionDisabled}
-        class="{footerButtonClass} min-w-0 flex-1 basis-0 disabled:pointer-events-none disabled:opacity-50 {isInspected
-          ? toggleIconActiveClasses
-          : toggleIconRestClasses}"
+        class="{footerButtonClass} min-w-0 flex-1 basis-0 disabled:pointer-events-none disabled:opacity-50 {hasAdvancedParameterChanges
+          ? accent.textAccent
+          : isInspected
+            ? toggleIconActiveClasses
+            : toggleIconRestClasses}"
         onpointerdown={(event) => event.stopPropagation()}
         onmousedown={(event) => event.stopPropagation()}
         onclick={() => onInspectStep(row, step, stepIds[step])}
@@ -812,9 +839,11 @@
         aria-pressed={isInspected}
         disabled={stepInspectorInteractionDisabled}
         style={footerSlotStyle}
-        class="{footerButtonClass} disabled:pointer-events-none disabled:opacity-50 {isInspected
-          ? toggleIconActiveClasses
-          : toggleIconRestClasses}"
+        class="{footerButtonClass} disabled:pointer-events-none disabled:opacity-50 {hasAdvancedParameterChanges
+          ? accent.textAccent
+          : isInspected
+            ? toggleIconActiveClasses
+            : toggleIconRestClasses}"
         onpointerdown={(event) => event.stopPropagation()}
         onmousedown={(event) => event.stopPropagation()}
         onclick={() => onInspectStep(row, step, stepIds[step])}

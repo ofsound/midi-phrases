@@ -3542,6 +3542,9 @@
               stepVelocity={stepVelocity[row]}
               stepMuted={stepMuted[row]}
               stepSkipped={stepSkipped[row]}
+              stepProbability={stepProbability[row]}
+              stepCycle={stepCycle[row]}
+              stepCycleOffset={stepCycleOffset[row]}
               activeGates={activeGates[row]}
               selectedStepIds={selectedStepIdsByRow[row]}
               stepInspectionActive={activeStepInspector !== null}
