@@ -1,4 +1,5 @@
 <script>
+  import { onDestroy } from "svelte";
   import { midiToNoteName } from "./midiNoteNames.js";
   import { defaultPulseIndex } from "./pulseLayout.js";
   import { isBlackKey } from "./phraseSchedule.js";
@@ -51,6 +52,7 @@
    * @property {(row: number, fromStep: number, toStep: number) => void | Promise<void>} [onStepMove]
    * @property {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} [onStepResize]
    * @property {(row: number, step: number, fraction: number) => void | Promise<void>} [onDurationCommit]
+   * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onOpenAdvancedInspector]
    * @property {(row: number, updates: { step: number, midi: number }[]) => void | Promise<void>} [onShapeNotesCommit]
    * @property {(row: number, updates: { step: number, velocity: number }[]) => void | Promise<void>} [onShapeVelocitiesCommit]
    * @property {() => void} [onClose]
@@ -76,6 +78,7 @@
     onStepMove = () => {},
     onStepResize = () => {},
     onDurationCommit = () => {},
+    onOpenAdvancedInspector = () => {},
     onShapeNotesCommit = () => {},
     onShapeVelocitiesCommit = () => {},
     onClose = () => {},
@@ -93,6 +96,8 @@
   let viewportHeightPx = $state(0);
   let gridViewportWidthPx = $state(0);
   let drag = $state(null);
+  /** @type {{ timer: ReturnType<typeof setTimeout>, step: number, fraction: number } | null} */
+  let pendingDurationClick = null;
   /** @type {'note' | 'velocity' | null} */
   let shapeDrawMode = $state(null);
   /** @type {{ pointerId: number, mode: 'note' | 'velocity', points: { x: number, y: number }[] } | null} */
@@ -679,6 +684,14 @@
     note,
     rail = /** @type {HTMLElement} */ (event.currentTarget).parentElement,
   ) {
+    if (pendingDurationClick) {
+      if (pendingDurationClick.step === note.step) {
+        clearPendingDurationClick();
+      } else {
+        flushPendingDurationClick();
+      }
+    }
+
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -697,6 +710,8 @@
       railWidthPx: rect.width,
       initialFraction,
       previewFraction,
+      startClientX: event.clientX,
+      didDrag: false,
     };
 
     void onInspectStep(row, note.step, note.stepId);
@@ -712,9 +727,13 @@
       drag.railWidthPx,
     );
 
-    if (Math.abs(previewFraction - drag.previewFraction) < 0.0001) return;
+    const didDrag = drag.didDrag || Math.abs(event.clientX - drag.startClientX) >= 2;
 
-    drag = { ...drag, previewFraction };
+    if (Math.abs(previewFraction - drag.previewFraction) < 0.0001 && didDrag === drag.didDrag) {
+      return;
+    }
+
+    drag = { ...drag, previewFraction, didDrag };
   }
 
   /** @param {PointerEvent} event */
@@ -728,7 +747,12 @@
 
     if (Math.abs(finished.previewFraction - finished.initialFraction) < 0.0001) return;
 
-    await onDurationCommit(row, finished.step, finished.previewFraction);
+    if (finished.didDrag) {
+      await onDurationCommit(row, finished.step, finished.previewFraction);
+      return;
+    }
+
+    scheduleDurationClickCommit(finished.step, finished.previewFraction);
   }
 
   /** @param {PointerEvent} event */
@@ -737,6 +761,42 @@
 
     event.currentTarget.releasePointerCapture(event.pointerId);
     drag = null;
+  }
+
+  function clearPendingDurationClick() {
+    if (!pendingDurationClick) return;
+
+    clearTimeout(pendingDurationClick.timer);
+    pendingDurationClick = null;
+  }
+
+  function flushPendingDurationClick() {
+    if (!pendingDurationClick) return;
+
+    const pending = pendingDurationClick;
+    clearPendingDurationClick();
+    void onDurationCommit(row, pending.step, pending.fraction);
+  }
+
+  /** @param {number} step @param {number} fraction */
+  function scheduleDurationClickCommit(step, fraction) {
+    clearPendingDurationClick();
+
+    const timer = setTimeout(() => {
+      pendingDurationClick = null;
+      void onDurationCommit(row, step, fraction);
+    }, 250);
+
+    pendingDurationClick = { timer, step, fraction };
+  }
+
+  /** @param {MouseEvent} event @param {any} note */
+  function openAdvancedInspector(event, note) {
+    event.preventDefault();
+    event.stopPropagation();
+    clearPendingDurationClick();
+    drag = null;
+    void onOpenAdvancedInspector(row, note.step, note.stepId);
   }
 
   /** @param {PointerEvent} event @param {any} note */
@@ -766,6 +826,10 @@
 
     cancelDurationDrag(event);
   }
+
+  onDestroy(() => {
+    flushPendingDurationClick();
+  });
 
 </script>
 
@@ -934,6 +998,7 @@
                 class="absolute z-20 {shapeDrawMode ? 'pointer-events-none' : ''}"
                 role="group"
                 aria-label={`Step ${note.step + 1}`}
+                title="Shift-click or Shift-drag to set duration · Double-click for advanced settings"
                 style:left="{note.leftPx}px"
                 style:top="{pitchTopPx(displayMidi) + 1}px"
                 style:width="{note.fullStepWidthPx}px"
@@ -942,6 +1007,7 @@
                 onpointermove={moveOutlineDurationDrag}
                 onpointerup={endOutlineDurationDrag}
                 onpointercancel={cancelOutlineDurationDrag}
+                ondblclick={(event) => openAdvancedInspector(event, note)}
               >
                 <div
                   class="pointer-events-none absolute inset-0 rounded-sm border border-current {rowAccent.textAccent} {note.muted
@@ -956,7 +1022,7 @@
                   data-cursor="grab"
                   aria-label={`Move ${midiToNoteName(note.midi)} step ${note.step + 1}; Shift-drag to set duration`}
                   aria-pressed={selected}
-                  title="Drag to move · Shift-click or Shift-drag to set duration"
+                  title="Drag to move · Shift-click or Shift-drag to set duration · Double-click for advanced settings"
                   class="absolute top-0 left-0 flex h-full items-center rounded-sm border px-1 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {selected
                     ? rowAccent.pianoNoteActive
                     : rowAccent.pianoNoteIdle} {note.muted ? 'opacity-35' : ''}"

@@ -4200,6 +4200,7 @@
         onStepMove={movePhraseStepFromPianoRoll}
         onStepResize={selectStepTimingMultiplier}
         onDurationCommit={selectStepDurationFraction}
+        onOpenAdvancedInspector={openStepInspector}
         onClose={closeRowPianoRollEditor}
       />
     {:else if recordingRow !== null}
