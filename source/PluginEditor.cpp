@@ -227,6 +227,56 @@ juce::ResizableWindow* PluginEditor::getStandaloneFullscreenWindow() const
     return dynamic_cast<juce::ResizableWindow*> (topLevelComponent);
 }
 
+juce::DocumentWindow* PluginEditor::getStandaloneDocumentWindow() const
+{
+    if (! processorRef.hasStandaloneTransport())
+        return nullptr;
+
+    auto* topLevelComponent = getTopLevelComponent();
+
+    if (topLevelComponent == nullptr || topLevelComponent == this)
+        return nullptr;
+
+    return dynamic_cast<juce::DocumentWindow*> (topLevelComponent);
+}
+
+void PluginEditor::setStandaloneWrapperChromeVisible (const bool shouldBeVisible)
+{
+    auto* standaloneWindow = getStandaloneDocumentWindow();
+
+    if (standaloneWindow == nullptr)
+        return;
+
+    if (! shouldBeVisible)
+    {
+        if (standaloneTitleBarHeightBeforeFullscreen < 0)
+            standaloneTitleBarHeightBeforeFullscreen = standaloneWindow->getTitleBarHeight();
+
+        standaloneWindow->setTitleBarButtonsRequired (0, false);
+        standaloneWindow->setTitleBarHeight (0);
+    }
+    else
+    {
+        standaloneWindow->setTitleBarHeight (standaloneTitleBarHeightBeforeFullscreen > 0
+                                                 ? standaloneTitleBarHeightBeforeFullscreen
+                                                 : 26);
+        standaloneWindow->setTitleBarButtonsRequired (juce::DocumentWindow::minimiseButton | juce::DocumentWindow::closeButton,
+                                                      false);
+        standaloneTitleBarHeightBeforeFullscreen = -1;
+    }
+
+    for (int childIndex = 0; childIndex < standaloneWindow->getNumChildComponents(); ++childIndex)
+    {
+        if (auto* button = dynamic_cast<juce::Button*> (standaloneWindow->getChildComponent (childIndex)))
+        {
+            if (button->getButtonText() == "Options")
+                button->setVisible (shouldBeVisible);
+        }
+    }
+
+    standaloneWindow->resized();
+}
+
 juce::var PluginEditor::createEditorFullscreenState() const
 {
     const auto* standaloneWindow = getStandaloneFullscreenWindow();
@@ -250,16 +300,18 @@ juce::var PluginEditor::setEditorFullscreen (const bool shouldBeFullscreen)
     {
         preFullscreenEditorBounds = getBounds();
         editorFullscreen = true;
+        const auto displayBounds = getDisplayUserBounds();
+        applyFullscreenResizeLimits (displayBounds);
 
         if (auto* standaloneWindow = getStandaloneFullscreenWindow())
         {
             standaloneNativeFullscreen = true;
+            setStandaloneWrapperChromeVisible (false);
             standaloneWindow->setFullScreen (true);
+            standaloneWindow->setContentComponentSize (displayBounds.getWidth(), displayBounds.getHeight());
             return createEditorFullscreenState();
         }
 
-        const auto displayBounds = getDisplayUserBounds();
-        applyFullscreenResizeLimits (displayBounds);
         setSize (displayBounds.getWidth(), displayBounds.getHeight());
         return createEditorFullscreenState();
     }
@@ -270,6 +322,7 @@ juce::var PluginEditor::setEditorFullscreen (const bool shouldBeFullscreen)
             standaloneWindow->setFullScreen (false);
 
         standaloneNativeFullscreen = false;
+        setStandaloneWrapperChromeVisible (true);
     }
 
     const auto restoreBounds = preFullscreenEditorBounds;
