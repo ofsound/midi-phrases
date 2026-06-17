@@ -148,6 +148,8 @@
     <VelocityTiltControl
       pivotMidi={velocityTiltPivotMidi}
       amount={velocityTiltAmount}
+      bandpassLowMidi={noteBandpassLowMidi}
+      bandpassHighMidi={noteBandpassHighMidi}
       onParamGestureStart={onProcessingParamGestureStart}
       onPivotPreview={onVelocityTiltPivotPreview}
       onPivotCommit={onVelocityTiltPivotCommit}

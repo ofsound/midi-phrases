@@ -20,6 +20,8 @@
    * @typedef {Object} Props
    * @property {number} pivotMidi
    * @property {number} amount
+   * @property {number} bandpassLowMidi
+   * @property {number} bandpassHighMidi
    * @property {() => void} [onParamGestureStart]
    * @property {(value: number) => void} [onPivotPreview]
    * @property {(value: number) => void | Promise<void>} [onPivotCommit]
@@ -31,6 +33,8 @@
   let {
     pivotMidi = defaultVelocityTiltPivotMidi,
     amount = defaultVelocityTiltAmount,
+    bandpassLowMidi = minMidiNote,
+    bandpassHighMidi = maxMidiNote,
     onParamGestureStart = () => {},
     onPivotPreview = () => {},
     onPivotCommit = () => {},
@@ -39,23 +43,41 @@
   } = $props();
 
   const pixelsPerStep = 4;
+  const pivotPixelsPerStep = 8;
+  const dragAxisThreshold = 3;
   const previewThrottleMs = 100;
   const maxLineAngleDeg = 34;
 
   let draggingAmount = $state(false);
   let dragStartY = 0;
+  let dragStartX = 0;
   let dragStartAmount = 0;
+  let dragStartPivot = 0;
   let dragAmount = $state(defaultVelocityTiltAmount);
+  let dragPivot = $state(defaultVelocityTiltPivotMidi);
+  /** @type {"amount" | "pivot" | null} */
+  let dragAxis = null;
   let previewTimerId = 0;
   let lastPreviewAt = 0;
   /** @type {number | null} */
   let pendingPreviewAmount = null;
 
   let displayedAmount = $derived(draggingAmount ? dragAmount : amount);
-  let clampedPivotMidi = $derived(clampVelocityTiltPivotMidi(pivotMidi));
+  let pivotBounds = $derived.by(() => {
+    const low = clampVelocityTiltPivotMidi(bandpassLowMidi);
+    const high = clampVelocityTiltPivotMidi(bandpassHighMidi);
+
+    return { low: Math.min(low, high), high: Math.max(low, high) };
+  });
+  let displayedPivot = $derived(draggingAmount ? dragPivot : pivotMidi);
+  let clampedPivotMidi = $derived(
+    Math.min(pivotBounds.high, Math.max(pivotBounds.low, clampVelocityTiltPivotMidi(displayedPivot))),
+  );
   let clampedAmount = $derived(clampVelocityTiltAmount(displayedAmount));
   let pivotPercent = $derived(
-    ((clampedPivotMidi - minMidiNote) / (maxMidiNote - minMidiNote)) * 100,
+    pivotBounds.high === pivotBounds.low
+      ? 50
+      : ((clampedPivotMidi - pivotBounds.low) / (pivotBounds.high - pivotBounds.low)) * 100,
   );
   let tiltAngleDeg = $derived(
     (clampedAmount / maxVelocityTiltAmount) * maxLineAngleDeg,
@@ -109,6 +131,14 @@
     return clampVelocityTiltAmount(dragStartAmount + steps);
   }
 
+  /** @param {number} clientX */
+  function pivotFromDrag(clientX) {
+    const steps = Math.round((clientX - dragStartX) / pivotPixelsPerStep);
+    const next = dragStartPivot + steps;
+
+    return Math.min(pivotBounds.high, Math.max(pivotBounds.low, next));
+  }
+
   /** @param {number} next */
   function commitAmount(next) {
     onAmountCommit(clampVelocityTiltAmount(next));
@@ -120,9 +150,13 @@
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     draggingAmount = true;
+    dragStartX = event.clientX;
     dragStartY = event.clientY;
     dragStartAmount = amount;
+    dragStartPivot = clampedPivotMidi;
     dragAmount = amount;
+    dragPivot = clampedPivotMidi;
+    dragAxis = null;
     pendingPreviewAmount = null;
     lastPreviewAt = 0;
     onParamGestureStart();
@@ -131,6 +165,26 @@
   /** @param {PointerEvent} event */
   function onTiltPointerMove(event) {
     if (!draggingAmount) return;
+
+    const deltaX = event.clientX - dragStartX;
+    const deltaY = event.clientY - dragStartY;
+
+    if (dragAxis === null && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= dragAxisThreshold) {
+      dragAxis = Math.abs(deltaX) >= Math.abs(deltaY) ? "pivot" : "amount";
+    }
+
+    if (dragAxis === "pivot") {
+      const nextPivot = pivotFromDrag(event.clientX);
+
+      if (nextPivot !== dragPivot) {
+        dragPivot = nextPivot;
+        onPivotPreview(nextPivot);
+      }
+
+      return;
+    }
+
+    if (dragAxis !== "amount") return;
 
     const next = amountFromDrag(event.clientY);
 
@@ -148,7 +202,11 @@
     event.currentTarget.releasePointerCapture(event.pointerId);
     cancelPreviewThrottle();
     pendingPreviewAmount = null;
-    commitAmount(dragAmount);
+
+    if (dragAxis === "amount") commitAmount(dragAmount);
+    if (dragAxis === "pivot") onPivotCommit(dragPivot);
+
+    dragAxis = null;
     releasePointerDragFocus(event);
   }
 
@@ -171,13 +229,13 @@
     class={`velocity-tilt-icon ${clampedAmount !== 0 ? "velocity-tilt-icon-active" : ""} ${draggingAmount ? "velocity-tilt-icon-dragging" : ""}`}
     data-cursor="vertical-drag"
     role="slider"
-    aria-label="Velocity tilt amount"
+    aria-label="Velocity tilt amount and pivot"
     aria-valuemin={minVelocityTiltAmount}
     aria-valuemax={maxVelocityTiltAmount}
     aria-valuenow={clampedAmount}
     aria-valuetext={`${amountText}, pivot ${pivotText}`}
     tabindex="-1"
-    title="Velocity tilt · drag vertically · double-click to reset"
+    title="Velocity tilt · drag horizontally for pivot, vertically for amount · double-click to reset amount"
     style={tiltStyle}
     onpointerdown={onTiltPointerDown}
     onpointermove={onTiltPointerMove}
