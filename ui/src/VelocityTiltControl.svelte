@@ -11,6 +11,7 @@
     formatVelocityTiltPivot,
     maxVelocityTiltAmount,
     minVelocityTiltAmount,
+    velocityTiltOutputVelocity,
   } from "./velocityTilt.js";
   import { maxMidiNote, minMidiNote } from "./noteBandpass.js";
 
@@ -46,7 +47,7 @@
   const pivotPixelsPerStep = 8;
   const dragAxisThreshold = 3;
   const previewThrottleMs = 100;
-  const maxLineAngleDeg = 34;
+  const representativeInputVelocity = 64;
 
   let draggingAmount = $state(false);
   let dragStartY = 0;
@@ -79,11 +80,29 @@
       ? 50
       : ((clampedPivotMidi - pivotBounds.low) / (pivotBounds.high - pivotBounds.low)) * 100,
   );
-  let tiltAngleDeg = $derived(
-    (clampedAmount / maxVelocityTiltAmount) * maxLineAngleDeg,
-  );
+  let tiltPlotPoints = $derived.by(() => {
+    const noteSpan = pivotBounds.high - pivotBounds.low;
+
+    if (noteSpan === 0) return "0,50 100,50";
+
+    const points = [];
+
+    for (let midi = pivotBounds.low; midi <= pivotBounds.high; midi += 1) {
+      const x = ((midi - pivotBounds.low) / noteSpan) * 100;
+      const outputVelocity = velocityTiltOutputVelocity(
+        representativeInputVelocity,
+        midi,
+        clampedPivotMidi,
+        clampedAmount,
+      );
+      const y = ((127 - outputVelocity) / 126) * 100;
+      points.push(`${x},${y}`);
+    }
+
+    return points.join(" ");
+  });
   let tiltStyle = $derived(
-    `--velocity-tilt-pivot-x: ${pivotPercent}%; --velocity-tilt-angle: ${-tiltAngleDeg}deg;`,
+    `--velocity-tilt-pivot-x: ${pivotPercent}%;`,
   );
   let amountText = $derived(formatVelocityTiltAmount(clampedAmount));
   let pivotText = $derived(formatVelocityTiltPivot(clampedPivotMidi));
@@ -255,7 +274,9 @@
     }}
   >
     <div class="velocity-tilt-face" aria-hidden="true">
-      <span class="velocity-tilt-line"></span>
+      <svg class="velocity-tilt-plot" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polyline class="velocity-tilt-line" points={tiltPlotPoints}></polyline>
+      </svg>
       <span class="velocity-tilt-pivot"></span>
     </div>
   </div>
