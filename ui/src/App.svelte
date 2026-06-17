@@ -591,10 +591,10 @@
 
   function slotButtonClasses(active, assigned = true, copySource = false) {
     if (copySource) {
-      return "flex h-[2.625rem] w-[2.625rem] items-center justify-center rounded-sm border border-accent text-lg font-semibold leading-none text-control-primary-text outline-none focus:ring-1 focus:ring-focus-ring mp-slot-copy-source";
+      return "flex h-[2.1rem] w-[2.1rem] items-center justify-center rounded-sm border border-accent text-sm font-semibold leading-none text-control-primary-text outline-none focus:ring-1 focus:ring-focus-ring mp-slot-copy-source";
     }
 
-    return `flex h-[2.625rem] w-[2.625rem] items-center justify-center rounded-sm border text-lg font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
+    return `flex h-[2.1rem] w-[2.1rem] items-center justify-center rounded-sm border text-sm font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       active
         ? "border-accent bg-accent text-control-primary-text"
         : assigned
@@ -604,13 +604,13 @@
   }
 
   function clearPatternButtonClasses(enabled) {
-    return `flex h-[2.625rem] w-[2.625rem] items-center justify-center border-0 bg-transparent transition-colors outline-none focus:ring-1 focus:ring-focus-ring ${
+    return `flex h-[2.1rem] w-[2.1rem] items-center justify-center border-0 bg-transparent transition-colors outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled ? "text-danger hover:text-danger" : "text-text-faint"
     }`;
   }
 
   function outputMuteButtonClasses(active) {
-    return `flex h-[calc(2.625rem*1.33)] w-[calc(2.625rem*1.33)] items-center justify-center rounded-sm border text-lg font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
+    return `flex h-[calc(2.1rem*1.33)] w-[calc(2.1rem*1.33)] items-center justify-center rounded-sm border text-sm font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       active
         ? "border-accent bg-accent text-control-primary-text"
         : "mp-control-gradient border-border text-text hover:border-border-strong"
@@ -3694,12 +3694,12 @@
       />
     {/if}
     </div>
-    <div class="-mx-6 flex h-24 w-full shrink-0 items-center justify-end overflow-x-auto border-t border-border-subtle px-6">
-      <div class="flex min-w-max items-center gap-12">
-        <div class="flex items-center gap-3">
-          <span class="text-lg font-semibold leading-none text-text-muted">Patterns:</span>
+    <div class="-mx-6 flex h-20 w-full shrink-0 items-center justify-center overflow-x-auto border-t border-border-subtle px-6">
+      <div class="flex min-w-max items-center gap-8">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold leading-none text-text-muted">Patterns:</span>
           <div class="flex items-center gap-1">
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-1">
               {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
                 <button
                   type="button"
@@ -3726,13 +3726,13 @@
               class={clearPatternButtonClasses(true)}
               onclick={clearSelectedPatternSlot}
             >
-              <RemoveXIcon class="pointer-events-none h-[1.125rem] w-[1.125rem]" />
+              <RemoveXIcon class="pointer-events-none h-4 w-4" />
             </button>
           </div>
         </div>
-        <div class="flex items-center gap-3">
-          <span class="text-lg font-semibold leading-none text-text-muted">Loops:</span>
-          <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold leading-none text-text-muted">Loops:</span>
+          <div class="flex items-center gap-1">
             {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
               <button
                 type="button"
