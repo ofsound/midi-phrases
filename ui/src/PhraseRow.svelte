@@ -765,7 +765,7 @@
   {@const footerShellClass = footerDimmed
     ? "border-t border-border-subtle/90 bg-surface/70"
     : "border-t border-border-subtle bg-surface-muted/60"}
-  {@const footerButtonClass = `flex h-full shrink-0 items-center justify-center border-0 bg-surface-muted/30 p-0 outline-none ${accent.ringFocusWithWidth}`}
+  {@const footerButtonClass = `flex h-full shrink-0 items-center justify-center border-0 bg-surface-muted/30 p-0 outline-none focus-visible:outline-none ${accent.ringFocusWithWidth}`}
   {@const footerSlotStyle = `width: ${stepFooterActionSlotWidthPx()}px`}
   <div
     class="flex h-5 w-full shrink-0 {isQuarterStep
@@ -1004,8 +1004,11 @@
         data-cursor="pointer"
         aria-label="Edit step in inspector"
         disabled={stepInspectorInteractionDisabled}
-        class="absolute inset-0 z-[80] rounded-lg border-0 bg-transparent p-0 outline-none disabled:pointer-events-none disabled:opacity-50 {accent.ringFocusWithWidth}"
-        onclick={() => onInspectStep(row, step, stepIds[step])}
+        class="absolute inset-0 z-[80] rounded-lg border-0 bg-transparent p-0 outline-none focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 {accent.ringFocusWithWidth}"
+        onclick={(event) => {
+          onInspectStep(row, step, stepIds[step]);
+          event.currentTarget.blur();
+        }}
       ></button>
     {:else}
       {@render multiplierResizeHandle(step)}

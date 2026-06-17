@@ -808,7 +808,17 @@
   });
 
   function closeStepInspector() {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     inspectedStep = null;
+
+    queueMicrotask(() => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    });
   }
 
   /** @param {number} row @param {number} step @param {string} stepId */
@@ -818,7 +828,7 @@
     }
 
     if (inspectedStep?.row === row && inspectedStep.stepId === stepId) {
-      inspectedStep = null;
+      closeStepInspector();
       return;
     }
 
