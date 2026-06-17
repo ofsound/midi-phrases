@@ -1,5 +1,7 @@
 <script>
+  import { onDestroy } from "svelte";
   import ShimmerParamDragInput from "./ShimmerParamDragInput.svelte";
+  import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
   import {
     clampVelocityTiltAmount,
     clampVelocityTiltPivotMidi,
@@ -35,12 +37,169 @@
     onAmountPreview = () => {},
     onAmountCommit = () => {},
   } = $props();
+
+  const pixelsPerStep = 4;
+  const previewThrottleMs = 100;
+  const maxLineAngleDeg = 34;
+
+  let draggingAmount = $state(false);
+  let dragStartY = 0;
+  let dragStartAmount = 0;
+  let dragAmount = $state(defaultVelocityTiltAmount);
+  let previewTimerId = 0;
+  let lastPreviewAt = 0;
+  /** @type {number | null} */
+  let pendingPreviewAmount = null;
+
+  let displayedAmount = $derived(draggingAmount ? dragAmount : amount);
+  let clampedPivotMidi = $derived(clampVelocityTiltPivotMidi(pivotMidi));
+  let clampedAmount = $derived(clampVelocityTiltAmount(displayedAmount));
+  let pivotPercent = $derived(
+    ((clampedPivotMidi - minMidiNote) / (maxMidiNote - minMidiNote)) * 100,
+  );
+  let tiltAngleDeg = $derived(
+    (clampedAmount / maxVelocityTiltAmount) * maxLineAngleDeg,
+  );
+  let tiltStyle = $derived(
+    `--velocity-tilt-pivot-x: ${pivotPercent}%; --velocity-tilt-angle: ${-tiltAngleDeg}deg;`,
+  );
+  let amountText = $derived(formatVelocityTiltAmount(clampedAmount));
+  let pivotText = $derived(formatVelocityTiltPivot(clampedPivotMidi));
+
+  function cancelPreviewThrottle() {
+    if (!previewTimerId) return;
+
+    clearTimeout(previewTimerId);
+    previewTimerId = 0;
+  }
+
+  /** @param {number} next */
+  function flushAmountPreview(next) {
+    cancelPreviewThrottle();
+    pendingPreviewAmount = null;
+    lastPreviewAt = Date.now();
+    onAmountPreview(next);
+  }
+
+  /** @param {number} next */
+  function scheduleAmountPreview(next) {
+    pendingPreviewAmount = next;
+
+    const elapsed = Date.now() - lastPreviewAt;
+
+    if (elapsed >= previewThrottleMs) {
+      flushAmountPreview(next);
+      return;
+    }
+
+    if (previewTimerId) return;
+
+    previewTimerId = window.setTimeout(() => {
+      previewTimerId = 0;
+      const pending = pendingPreviewAmount;
+
+      if (pending !== null) flushAmountPreview(pending);
+    }, previewThrottleMs - elapsed);
+  }
+
+  /** @param {number} clientY */
+  function amountFromDrag(clientY) {
+    const steps = Math.round((dragStartY - clientY) / pixelsPerStep);
+
+    return clampVelocityTiltAmount(dragStartAmount + steps);
+  }
+
+  /** @param {number} next */
+  function commitAmount(next) {
+    onAmountCommit(clampVelocityTiltAmount(next));
+  }
+
+  /** @param {PointerEvent} event */
+  function onTiltPointerDown(event) {
+    absorbPointerDragFocus(event);
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    draggingAmount = true;
+    dragStartY = event.clientY;
+    dragStartAmount = amount;
+    dragAmount = amount;
+    pendingPreviewAmount = null;
+    lastPreviewAt = 0;
+    onParamGestureStart();
+  }
+
+  /** @param {PointerEvent} event */
+  function onTiltPointerMove(event) {
+    if (!draggingAmount) return;
+
+    const next = amountFromDrag(event.clientY);
+
+    if (next === dragAmount) return;
+
+    dragAmount = next;
+    scheduleAmountPreview(next);
+  }
+
+  /** @param {PointerEvent} event */
+  function onTiltPointerUp(event) {
+    if (!draggingAmount) return;
+
+    draggingAmount = false;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    cancelPreviewThrottle();
+    pendingPreviewAmount = null;
+    commitAmount(dragAmount);
+    releasePointerDragFocus(event);
+  }
+
+  /** @param {MouseEvent} event */
+  function onTiltDoubleClick(event) {
+    if (draggingAmount) return;
+
+    event.preventDefault();
+    onParamGestureStart();
+    commitAmount(defaultVelocityTiltAmount);
+  }
+
+  onDestroy(() => {
+    cancelPreviewThrottle();
+  });
 </script>
 
 <div class="velocity-tilt-control" role="group" aria-label="Velocity tilt">
-  <div class="velocity-tilt-icon" aria-hidden="true">
-    <span class="velocity-tilt-line"></span>
-    <span class="velocity-tilt-pivot"></span>
+  <div
+    class={`velocity-tilt-icon ${clampedAmount !== 0 ? "velocity-tilt-icon-active" : ""} ${draggingAmount ? "velocity-tilt-icon-dragging" : ""}`}
+    data-cursor="vertical-drag"
+    role="slider"
+    aria-label="Velocity tilt amount"
+    aria-valuemin={minVelocityTiltAmount}
+    aria-valuemax={maxVelocityTiltAmount}
+    aria-valuenow={clampedAmount}
+    aria-valuetext={`${amountText}, pivot ${pivotText}`}
+    tabindex="-1"
+    title="Velocity tilt · drag vertically · double-click to reset"
+    style={tiltStyle}
+    onpointerdown={onTiltPointerDown}
+    onpointermove={onTiltPointerMove}
+    onpointerup={onTiltPointerUp}
+    onpointercancel={onTiltPointerUp}
+    ondblclick={onTiltDoubleClick}
+    onkeydown={(event) => {
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+
+        if (clampedAmount < maxVelocityTiltAmount) commitAmount(clampedAmount + 1);
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+
+        if (clampedAmount > minVelocityTiltAmount) commitAmount(clampedAmount - 1);
+      }
+    }}
+  >
+    <div class="velocity-tilt-face" aria-hidden="true">
+      <span class="velocity-tilt-line"></span>
+      <span class="velocity-tilt-pivot"></span>
+    </div>
   </div>
 
   <div class="processing-param-labeled">
@@ -59,23 +218,5 @@
       onValueCommit={onPivotCommit}
     />
     <span class="processing-param-label" aria-hidden="true">Piv</span>
-  </div>
-
-  <div class="processing-param-labeled">
-    <ShimmerParamDragInput
-      value={amount}
-      min={minVelocityTiltAmount}
-      max={maxVelocityTiltAmount}
-      defaultValue={defaultVelocityTiltAmount}
-      formatValue={formatVelocityTiltAmount}
-      clampValue={clampVelocityTiltAmount}
-      active={amount !== 0}
-      ariaLabel="Velocity tilt amount"
-      title="Velocity change per octave · drag vertically · double-click to reset"
-      onGestureStart={onParamGestureStart}
-      onValuePreview={onAmountPreview}
-      onValueCommit={onAmountCommit}
-    />
-    <span class="processing-param-label" aria-hidden="true">Tilt</span>
   </div>
 </div>
