@@ -9,6 +9,13 @@ export const noteBandpassPreview = $state({
 let rafId = 0;
 /** @type {{ low: number, high: number } | null} */
 let pending = null;
+/** @type {((low: number, high: number) => void) | null} */
+let applyListener = null;
+
+/** @param {((low: number, high: number) => void) | null} listener */
+export function setNoteBandpassPreviewApplyListener(listener) {
+  applyListener = listener;
+}
 
 /** @param {number} lowMidi @param {number} highMidi */
 export function scheduleNoteBandpassPreview(lowMidi, highMidi) {
@@ -21,9 +28,12 @@ export function scheduleNoteBandpassPreview(lowMidi, highMidi) {
 
     if (!pending) return;
 
-    noteBandpassPreview.low = pending.low;
-    noteBandpassPreview.high = pending.high;
+    const next = pending;
     pending = null;
+
+    noteBandpassPreview.low = next.low;
+    noteBandpassPreview.high = next.high;
+    applyListener?.(next.low, next.high);
   });
 }
 

@@ -49,6 +49,7 @@
     defaultNoteBandpassHighMidi,
     defaultNoteBandpassLowMidi,
   } from "./noteBandpass.js";
+  import { setNoteBandpassPreviewApplyListener } from "./noteBandpassPreview.svelte.js";
   import {
     clampOctavizerRelativeVelocity,
     defaultOctavizerRelativeVelocity,
@@ -290,6 +291,15 @@
   function handleNoteBandpassChange(lowMidi, highMidi) {
     setNoteBandpassState(lowMidi, highMidi);
   }
+
+  function previewNoteBandpass(lowMidi, highMidi) {
+    if (!nativeFunctionAvailable("setPatternNoteBandpass")) return;
+
+    const next = clampNoteBandpass(lowMidi, highMidi);
+    void getNativeFunction("setPatternNoteBandpass")(next.low, next.high);
+  }
+
+  setNoteBandpassPreviewApplyListener(previewNoteBandpass);
 
   async function commitNoteBandpass(lowMidi, highMidi) {
     const previousLow = noteBandpassLowMidi;
