@@ -28,6 +28,7 @@
    * @property {(value: number) => void | Promise<void>} [onPivotCommit]
    * @property {(value: number) => void} [onAmountPreview]
    * @property {(value: number) => void | Promise<void>} [onAmountCommit]
+   * @property {(pivotMidi: number, amount: number) => void | Promise<void>} [onXYCommit]
    */
 
   /** @type {Props} */
@@ -41,11 +42,11 @@
     onPivotCommit = () => {},
     onAmountPreview = () => {},
     onAmountCommit = () => {},
+    onXYCommit = undefined,
   } = $props();
 
   const pixelsPerStep = 4;
   const pivotPixelsPerStep = 8;
-  const dragAxisThreshold = 3;
   const previewThrottleMs = 100;
   const representativeInputVelocity = 64;
 
@@ -56,8 +57,6 @@
   let dragStartPivot = 0;
   let dragAmount = $state(defaultVelocityTiltAmount);
   let dragPivot = $state(defaultVelocityTiltPivotMidi);
-  /** @type {"amount" | "pivot" | null} */
-  let dragAxis = null;
   let previewTimerId = 0;
   let lastPreviewAt = 0;
   /** @type {number | null} */
@@ -171,11 +170,10 @@
     draggingAmount = true;
     dragStartX = event.clientX;
     dragStartY = event.clientY;
-    dragStartAmount = amount;
+    dragStartAmount = clampVelocityTiltAmount(amount);
     dragStartPivot = clampedPivotMidi;
-    dragAmount = amount;
+    dragAmount = dragStartAmount;
     dragPivot = clampedPivotMidi;
-    dragAxis = null;
     pendingPreviewAmount = null;
     lastPreviewAt = 0;
     onParamGestureStart();
@@ -185,32 +183,18 @@
   function onTiltPointerMove(event) {
     if (!draggingAmount) return;
 
-    const deltaX = event.clientX - dragStartX;
-    const deltaY = event.clientY - dragStartY;
-
-    if (dragAxis === null && Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= dragAxisThreshold) {
-      dragAxis = Math.abs(deltaX) >= Math.abs(deltaY) ? "pivot" : "amount";
-    }
-
-    if (dragAxis === "pivot") {
-      const nextPivot = pivotFromDrag(event.clientX);
-
-      if (nextPivot !== dragPivot) {
-        dragPivot = nextPivot;
-        onPivotPreview(nextPivot);
-      }
-
-      return;
-    }
-
-    if (dragAxis !== "amount") return;
-
+    const nextPivot = pivotFromDrag(event.clientX);
     const next = amountFromDrag(event.clientY);
 
-    if (next === dragAmount) return;
+    if (nextPivot !== dragPivot) {
+      dragPivot = nextPivot;
+      onPivotPreview(nextPivot);
+    }
 
-    dragAmount = next;
-    scheduleAmountPreview(next);
+    if (next !== dragAmount) {
+      dragAmount = next;
+      scheduleAmountPreview(next);
+    }
   }
 
   /** @param {PointerEvent} event */
@@ -222,10 +206,15 @@
     cancelPreviewThrottle();
     pendingPreviewAmount = null;
 
-    if (dragAxis === "amount") commitAmount(dragAmount);
-    if (dragAxis === "pivot") onPivotCommit(dragPivot);
+    if (dragPivot !== dragStartPivot || dragAmount !== dragStartAmount) {
+      if (onXYCommit) {
+        onXYCommit(dragPivot, dragAmount);
+      } else {
+        onPivotCommit(dragPivot);
+        commitAmount(dragAmount);
+      }
+    }
 
-    dragAxis = null;
     releasePointerDragFocus(event);
   }
 

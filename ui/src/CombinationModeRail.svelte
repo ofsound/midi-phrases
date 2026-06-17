@@ -23,6 +23,7 @@
    * @property {(value: number) => void | Promise<void>} [onVelocityTiltPivotCommit]
    * @property {(value: number) => void} [onVelocityTiltAmountPreview]
    * @property {(value: number) => void | Promise<void>} [onVelocityTiltAmountCommit]
+   * @property {(pivotMidi: number, amount: number) => void | Promise<void>} [onVelocityTiltXYCommit]
    * @property {boolean} octavizerDown8vaEnabled
    * @property {boolean} octavizerUp8vaEnabled
    * @property {number} octavizerDown8vaRelativeVelocity
@@ -61,6 +62,7 @@
     onVelocityTiltPivotCommit = () => {},
     onVelocityTiltAmountPreview = () => {},
     onVelocityTiltAmountCommit = () => {},
+    onVelocityTiltXYCommit = undefined,
     octavizerDown8vaEnabled = false,
     octavizerUp8vaEnabled = false,
     octavizerDown8vaRelativeVelocity = 0,
@@ -155,6 +157,7 @@
       onPivotCommit={onVelocityTiltPivotCommit}
       onAmountPreview={onVelocityTiltAmountPreview}
       onAmountCommit={onVelocityTiltAmountCommit}
+      onXYCommit={onVelocityTiltXYCommit}
     />
   </div>
 </div>

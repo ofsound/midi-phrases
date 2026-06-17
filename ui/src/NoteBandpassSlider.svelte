@@ -1,4 +1,5 @@
 <script>
+  import ShimmerParamDragInput from "./ShimmerParamDragInput.svelte";
   import {
     clearNoteBandpassPreview,
     scheduleNoteBandpassPreview,
@@ -8,6 +9,8 @@
   import { midiToNoteName } from "./midiNoteNames.js";
   import {
     clampNoteBandpass,
+    defaultNoteBandpassHighMidi,
+    defaultNoteBandpassLowMidi,
     maxMidiNote,
     minMidiNote,
   } from "./noteBandpass.js";
@@ -51,6 +54,53 @@
   let lowPercent = $derived(((bounds.low - minMidiNote) / (maxMidiNote - minMidiNote)) * 100);
   let highPercent = $derived(((bounds.high - minMidiNote) / (maxMidiNote - minMidiNote)) * 100);
 
+  /** @param {number} midi */
+  function formatNoteMidi(midi) {
+    return midiToNoteName(midi);
+  }
+
+  /** @param {number} midi */
+  function clampLowMidi(midi) {
+    return clampNoteBandpass(midi, bounds.high).low;
+  }
+
+  /** @param {number} midi */
+  function clampHighMidi(midi) {
+    return clampNoteBandpass(bounds.low, midi).high;
+  }
+
+  /** @param {number} midi */
+  function previewLowMidi(midi) {
+    const next = clampNoteBandpass(midi, bounds.high);
+    dragPreviewBounds = next;
+    scheduleNoteBandpassPreview(next.low, next.high);
+  }
+
+  /** @param {number} midi */
+  function previewHighMidi(midi) {
+    const next = clampNoteBandpass(bounds.low, midi);
+    dragPreviewBounds = next;
+    scheduleNoteBandpassPreview(next.low, next.high);
+  }
+
+  /** @param {number} midi */
+  function commitLowMidi(midi) {
+    clearNoteBandpassPreview();
+    const next = clampNoteBandpass(midi, bounds.high);
+    dragPreviewBounds = null;
+    onChange(next.low, next.high);
+    void onCommit(next.low, next.high);
+  }
+
+  /** @param {number} midi */
+  function commitHighMidi(midi) {
+    clearNoteBandpassPreview();
+    const next = clampNoteBandpass(bounds.low, midi);
+    dragPreviewBounds = null;
+    onChange(next.low, next.high);
+    void onCommit(next.low, next.high);
+  }
+
   /** @param {number} clientX */
   function midiFromClientX(clientX) {
     if (!trackElement) return minMidiNote;
@@ -68,18 +118,6 @@
     const semitonesPerPixel = (maxMidiNote - minMidiNote) / Math.max(1, rect.width);
     const sensitivity = dragFine ? 0.22 : 1;
     return Math.round(deltaX * semitonesPerPixel * sensitivity);
-  }
-
-  /** @param {"low" | "high"} thumb @param {number} midi */
-  function setThumbValue(thumb, midi) {
-    if (thumb === "low") {
-      const next = clampNoteBandpass(midi, bounds.high);
-      onChange(next.low, next.high);
-      return;
-    }
-
-    const next = clampNoteBandpass(bounds.low, midi);
-    onChange(next.low, next.high);
   }
 
   /** @param {PointerEvent} event @param {"low" | "high"} thumb */
@@ -161,7 +199,22 @@
 </script>
 
 <div class={`note-bandpass-slider ${className}`.trim()} role="group" aria-label="MIDI note bandpass">
-  <span class="note-bandpass-display" aria-hidden="true">{midiToNoteName(bounds.low)}</span>
+  <div class="processing-param-labeled">
+    <ShimmerParamDragInput
+      value={bounds.low}
+      min={minMidiNote}
+      max={bounds.high}
+      defaultValue={defaultNoteBandpassLowMidi}
+      formatValue={formatNoteMidi}
+      clampValue={clampLowMidi}
+      active={true}
+      ariaLabel="Bandpass low note"
+      title="Low note · drag vertically · double-click to reset"
+      onValuePreview={previewLowMidi}
+      onValueCommit={commitLowMidi}
+    />
+    <span class="processing-param-label" aria-hidden="true">Min</span>
+  </div>
 
   <div
     class="note-bandpass-track-shell"
@@ -215,5 +268,20 @@
     </div>
   </div>
 
-  <span class="note-bandpass-display" aria-hidden="true">{midiToNoteName(bounds.high)}</span>
+  <div class="processing-param-labeled">
+    <ShimmerParamDragInput
+      value={bounds.high}
+      min={bounds.low}
+      max={maxMidiNote}
+      defaultValue={defaultNoteBandpassHighMidi}
+      formatValue={formatNoteMidi}
+      clampValue={clampHighMidi}
+      active={true}
+      ariaLabel="Bandpass high note"
+      title="High note · drag vertically · double-click to reset"
+      onValuePreview={previewHighMidi}
+      onValueCommit={commitHighMidi}
+    />
+    <span class="processing-param-label" aria-hidden="true">Max</span>
+  </div>
 </div>

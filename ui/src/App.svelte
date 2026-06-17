@@ -697,6 +697,17 @@
     );
   }
 
+  async function commitVelocityTiltXY(pivotMidi, amount) {
+    await commitProcessingParam(
+      "Velocity tilt XY",
+      () => setVelocityTiltState({ pivotMidi, amount }),
+      syncVelocityTiltToNative,
+      (before, after) =>
+        after.velocityTiltPivotMidi !== before.velocityTiltPivotMidi
+        || after.velocityTiltAmount !== before.velocityTiltAmount,
+    );
+  }
+
   async function handleShimmerToggle(enabled) {
     const previousEnabled = shimmerEnabled;
     setShimmerState({ enabled });
@@ -4118,6 +4129,7 @@
       onVelocityTiltPivotCommit={commitVelocityTiltPivot}
       onVelocityTiltAmountPreview={previewVelocityTiltAmount}
       onVelocityTiltAmountCommit={commitVelocityTiltAmount}
+      onVelocityTiltXYCommit={commitVelocityTiltXY}
       octavizerDown8vaEnabled={octavizerDown8vaEnabled}
       octavizerUp8vaEnabled={octavizerUp8vaEnabled}
       octavizerDown8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}
