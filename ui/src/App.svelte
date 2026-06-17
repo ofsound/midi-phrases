@@ -184,6 +184,7 @@
   let slotSelectionInFlight = 0;
   let previousGateSnapshot = defaultPhraseGrid().map((row) => row.map(() => false));
   let activeGateHoldUntil = defaultPhraseGrid().map((row) => row.map(() => 0));
+  let bulkPreviewSyncPromise = Promise.resolve();
 
   /** Row index armed for MIDI capture, or null. */
   let recordingRow = $state(null);
@@ -2346,6 +2347,22 @@
     }
   }
 
+  /**
+   * @param {{ row: number, step: number }[]} locations
+   * @param {(row: number, step: number) => Promise<void>} pushStep
+   */
+  function queueBulkPreviewSync(locations, pushStep) {
+    const snapshot = locations.map(({ row, step }) => ({ row, step }));
+
+    bulkPreviewSyncPromise = bulkPreviewSyncPromise
+      .catch(() => {})
+      .then(async () => {
+        for (const { row, step } of snapshot) {
+          await pushStep(row, step);
+        }
+      });
+  }
+
   function beginBulkEditGesture() {
     if (!bulkEditGestureBefore) {
       bulkEditGestureBefore = createHistorySnapshot();
@@ -2406,6 +2423,8 @@
       const baseline = bulkDurationBaselineByKey?.get(key) ?? 100;
       stepDurationFraction[row][step] = clampStepDurationPercent(baseline + clamped) / 100;
     }
+
+    queueBulkPreviewSync(locations, pushStepDurationFraction);
   }
 
   async function commitBulkDurationPercent(value) {
@@ -2439,6 +2458,8 @@
       const baseline = bulkVelocityBaselineByKey?.get(key) ?? (defaultStepVelocity / 127) * 100;
       stepVelocity[row][step] = Math.round((clampStepVelocityPercent(baseline + clamped) / 100) * 127);
     }
+
+    queueBulkPreviewSync(locations, pushStepVelocity);
   }
 
   async function commitBulkVelocityPercent(value) {
@@ -2479,6 +2500,8 @@
       const baseline = bulkTransposeBaselineByKey.get(key) ?? grid[row][step];
       grid[row][step] = clampPhraseNote(stepNoteByCurrentScale(baseline, clamped));
     }
+
+    queueBulkPreviewSync(locations, pushNote);
   }
 
   async function commitBulkTransposeSemitones(value) {

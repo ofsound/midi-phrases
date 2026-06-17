@@ -59,34 +59,16 @@ describe("patternRepeatLengthQuarters", () => {
 });
 
 describe("mapPlaybackBeatForPianoRoll", () => {
-  it("wraps transport beats to the pattern repeat when loop is off", () => {
-    expect(
-      mapPlaybackBeatForPianoRoll(305, {
-        loopEnabled: false,
-        patternRepeatLengthQuarters: 8,
-        previewLengthQuarters: 300,
-      }),
-    ).toBe(1);
+  it("keeps transport beats unchanged when loop is off", () => {
+    expect(mapPlaybackBeatForPianoRoll(305)).toBe(305);
   });
 
-  it("keeps loop-brace beats unchanged", () => {
-    expect(
-      mapPlaybackBeatForPianoRoll(12, {
-        loopEnabled: true,
-        patternRepeatLengthQuarters: 8,
-        previewLengthQuarters: 300,
-      }),
-    ).toBe(12);
+  it("keeps loop-brace mapped beats unchanged", () => {
+    expect(mapPlaybackBeatForPianoRoll(12)).toBe(12);
   });
 
-  it("caps repeat length to the preview window", () => {
-    expect(
-      mapPlaybackBeatForPianoRoll(350, {
-        loopEnabled: false,
-        patternRepeatLengthQuarters: 384,
-        previewLengthQuarters: 300,
-      }),
-    ).toBe(50);
+  it("returns inactive beats unchanged", () => {
+    expect(mapPlaybackBeatForPianoRoll(-1)).toBe(-1);
   });
 });
 

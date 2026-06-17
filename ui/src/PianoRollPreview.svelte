@@ -14,9 +14,7 @@
     DEFAULT_PREVIEW_LENGTH_QUARTERS,
     isBlackKey,
     isScheduledNoteActiveAtBeat,
-    isScheduledNoteActiveAtPatternBeat,
     mapPlaybackBeatForPianoRoll,
-    patternRepeatLengthQuarters,
   } from "./phraseSchedule.js";
   import { scaledPx } from "./uiScale.svelte.js";
 
@@ -249,21 +247,8 @@
   let loopSpan = $derived(Math.max(loopBraceSnapQuarters, displayEnd - displayStart));
   let loopLeftPx = $derived(displayStart * pxPerQuarter);
   let loopWidthPx = $derived(loopSpan * pxPerQuarter);
-  let patternRepeatLength = $derived(
-    patternRepeatLengthQuarters({
-      stepTimingMultiplier,
-      rowMuted,
-      stepSkipped,
-      stepCycle,
-      pulseIndex,
-    }),
-  );
   let displayPlaybackBeat = $derived(
-    mapPlaybackBeatForPianoRoll(playbackBeat, {
-      loopEnabled,
-      patternRepeatLengthQuarters: patternRepeatLength,
-      previewLengthQuarters: lengthQuarters,
-    }),
+    mapPlaybackBeatForPianoRoll(playbackBeat),
   );
   let showPlaybackPlayhead = $derived(displayPlaybackBeat >= 0);
   let playbackPlayheadLeftPx = $derived(displayPlaybackBeat * pxPerQuarter);
@@ -718,9 +703,7 @@
     const windowLeftPx = renderWindowStart * pxPerQuarter;
 
     for (const note of scheduled) {
-      const noteIsActive = loopEnabled
-        ? isScheduledNoteActiveAtBeat(note, displayPlaybackBeat)
-        : isScheduledNoteActiveAtPatternBeat(note, displayPlaybackBeat, patternRepeatLength);
+      const noteIsActive = isScheduledNoteActiveAtBeat(note, displayPlaybackBeat);
 
       if (note.velocity <= 0 || !noteIsActive) continue;
 

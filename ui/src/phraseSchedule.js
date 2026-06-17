@@ -939,34 +939,10 @@ export function patternRepeatLengthQuarters({
   return repeatUnits > 0 ? quartersFromPatternRepeatUnits(repeatUnits) : 0;
 }
 
-/**
- * Map transport beat to a piano-roll position when the manual loop brace is off.
- *
- * @param {number} beat
- * @param {object} [options]
- * @param {boolean} [options.loopEnabled]
- * @param {number} [options.patternRepeatLengthQuarters]
- * @param {number} [options.previewLengthQuarters]
- */
-export function mapPlaybackBeatForPianoRoll(
-  beat,
-  {
-    loopEnabled = false,
-    patternRepeatLengthQuarters: patternRepeatLength = 0,
-    previewLengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
-  } = {},
-) {
+/** @param {number} beat */
+export function mapPlaybackBeatForPianoRoll(beat) {
   if (beat < 0) return -1;
-  if (loopEnabled) return beat;
-
-  let repeatLength =
-    patternRepeatLength > EPSILON ? patternRepeatLength : previewLengthQuarters;
-
-  if (repeatLength > previewLengthQuarters + EPSILON) {
-    repeatLength = previewLengthQuarters;
-  }
-
-  return positiveMod(beat, repeatLength);
+  return beat;
 }
 
 /**
