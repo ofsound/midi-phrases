@@ -24,6 +24,7 @@
     normalizeEditorCyclePattern,
   } from "./cyclePattern.js";
   import RowDisableIcon from "./RowDisableIcon.svelte";
+  import RowRandomizeLengthIcon from "./RowRandomizeLengthIcon.svelte";
   import RowRandomizeOctaveIcon from "./RowRandomizeOctaveIcon.svelte";
   import RowRandomizeOrderIcon from "./RowRandomizeOrderIcon.svelte";
   import RowRecordIcon from "./RowRecordIcon.svelte";
@@ -40,6 +41,7 @@
     defaultStepTimingMultiplierIndex,
     maxPhraseStepsPerRow,
     findSingleMove,
+    insertStepTimingMultiplierOptions,
     stepTimingMultiplierCount,
     timingMultiplierOptions,
   } from "./stepCellLayout.js";
@@ -105,6 +107,9 @@
   } from "./scaleUtils.js";
   import { applyThemeMode, defaultThemeMode, storedThemeMode } from "./themeMode.js";
   import { setUiViewportSize } from "./uiScale.svelte.js";
+
+  const randomStepTimingMultiplierIndices = insertStepTimingMultiplierOptions(timingMultiplierOptions)
+    .map((option) => option.index);
 
   /** @type {HTMLElement | null} */
   let appRoot = $state(null);
@@ -2028,6 +2033,25 @@
     syncBulkControlsFromSelection();
   }
 
+  async function randomizeSelectedStepLengths() {
+    const locations = selectedStepLocationsByPosition();
+
+    if (locations.length === 0 || randomStepTimingMultiplierIndices.length === 0) return;
+
+    await commitHistory("Randomize selected step lengths", async () => {
+      const changedRows = new SvelteSet(locations.map(({ row }) => row));
+
+      for (const { row, step } of locations) {
+        const randomIndex = Math.floor(Math.random() * randomStepTimingMultiplierIndices.length);
+        stepTimingMultiplier[row][step] = randomStepTimingMultiplierIndices[randomIndex];
+      }
+
+      await pushRowsForRowSet(changedRows);
+    });
+
+    syncBulkControlsFromSelection();
+  }
+
   async function reverseSelectedStepsByRow() {
     const groups = [...selectedStepLocationsGroupedByRow().entries()]
       .filter(([, locations]) => locations.length > 1);
@@ -3433,6 +3457,17 @@
                 onclick={randomizeSelectedStepOctaves}
               >
                 <RowRandomizeOctaveIcon class="pointer-events-none h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Randomize selected step lengths"
+                title="Randomize selected step lengths"
+                disabled={selectedStepCount === 0}
+                data-cursor="pointer"
+                class={bulkActionIconButtonClasses(selectedStepCount > 0)}
+                onclick={randomizeSelectedStepLengths}
+              >
+                <RowRandomizeLengthIcon class="pointer-events-none h-5 w-5" />
               </button>
             </div>
           </div>
