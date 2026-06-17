@@ -400,7 +400,7 @@
     element.querySelector("[data-insert-slot]")?.style.setProperty("display", "none");
     element.querySelector("[data-multiplier-resize]")?.style.setProperty("display", "none");
 
-    element.querySelectorAll(".border, .border-2").forEach((node) => {
+    element.querySelectorAll(".border-2").forEach((node) => {
       if (node instanceof HTMLElement) {
         node.style.setProperty("outline", "none");
         node.style.setProperty("--tw-ring-shadow", "0 0 #0000");
@@ -873,7 +873,7 @@
   >
     <div class="relative z-0 h-full min-h-0 w-full min-w-0 {stepInspectionMuted ? 'pointer-events-none select-none' : ''}">
       <div
-        class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg outline-none transition-[border-color,background-color,box-shadow,opacity] duration-150 {isStepSelected || stepInspectionFocused ? 'border' : 'border-2'} {stepCellSurfaceClass(
+        class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-150 {stepCellSurfaceClass(
           stepDimmed,
         )} {isStepSelected || stepInspectionFocused
           ? `${accent.selectionBorder} ${isDragging ? '' : accent.selectionRing}`

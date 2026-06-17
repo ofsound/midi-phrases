@@ -47,6 +47,33 @@
 </script>
 
 <section class="flex min-h-0 w-full flex-1 flex-col gap-2 bg-app/90 px-6 py-4">
+  <div class="grid min-h-0 flex-1 grid-cols-3 gap-4">
+    <div class="flex min-h-0 flex-col justify-between rounded-md border border-border-subtle bg-surface/80 p-4">
+      <span class="text-xs font-semibold uppercase tracking-widest text-text-muted">Probability</span>
+      <div class="step-inspector-value mt-4 {accent.textAccent}">
+        <ProbabilityDragInput
+          {accent}
+          value={probability}
+          resetValue={100}
+          ariaLabel="Step probability"
+          onValueChange={onProbabilityChange}
+        />
+      </div>
+    </div>
+    <div class="col-span-2 flex min-h-0 flex-col rounded-md border border-border-subtle bg-surface/80 p-4">
+      <span class="mb-4 text-xs font-semibold uppercase tracking-widest text-text-muted">Cycle</span>
+      <div class="flex min-h-0 flex-1 items-center">
+        <CyclePatternEditor
+          {accent}
+          {cycle}
+          {cycleMask}
+          ariaLabel="Step cycle pattern"
+          onPatternCommit={onCyclePatternCommit}
+        />
+      </div>
+    </div>
+  </div>
+
   <div class="flex min-h-0 flex-1 items-center gap-4">
     <StepInspectorKeyboard
       {note}
@@ -76,33 +103,6 @@
     >
       X
     </button>
-  </div>
-
-  <div class="grid min-h-0 flex-1 grid-cols-3 gap-4">
-    <div class="flex min-h-0 flex-col justify-between rounded-md border border-border-subtle bg-surface/80 p-4">
-      <span class="text-xs font-semibold uppercase tracking-widest text-text-muted">Probability</span>
-      <div class="step-inspector-value mt-4 {accent.textAccent}">
-        <ProbabilityDragInput
-          {accent}
-          value={probability}
-          resetValue={100}
-          ariaLabel="Step probability"
-          onValueChange={onProbabilityChange}
-        />
-      </div>
-    </div>
-    <div class="col-span-2 flex min-h-0 flex-col rounded-md border border-border-subtle bg-surface/80 p-4">
-      <span class="mb-4 text-xs font-semibold uppercase tracking-widest text-text-muted">Cycle</span>
-      <div class="flex min-h-0 flex-1 items-center">
-        <CyclePatternEditor
-          {accent}
-          {cycle}
-          {cycleMask}
-          ariaLabel="Step cycle pattern"
-          onPatternCommit={onCyclePatternCommit}
-        />
-      </div>
-    </div>
   </div>
 </section>
 
