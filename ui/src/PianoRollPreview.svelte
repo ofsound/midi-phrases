@@ -773,7 +773,6 @@
 <section class="flex min-h-0 w-full flex-1 flex-col">
   <div class="mb-2 flex shrink-0 items-baseline justify-between gap-3">
     <div class="flex items-center gap-3">
-      <p class="text-xs font-medium uppercase tracking-widest text-text-muted">Output preview</p>
       <button
         type="button"
         data-cursor="pointer"
@@ -795,7 +794,7 @@
       </button>
     </div>
     <p class="text-xs text-text-faint">
-      {lengthQuarters} quarter notes · loop {formatBeat(displayStart)}–{formatBeat(displayEnd)} ({formatBeat(loopSpan)} beats)
+      loop {formatBeat(displayStart)}–{formatBeat(displayEnd)} ({formatBeat(loopSpan)} beats)
     </p>
   </div>
 
