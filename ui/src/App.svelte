@@ -590,13 +590,23 @@
   }
 
   function slotButtonClasses(active, assigned = true, copySource = false) {
+    if (copySource) {
+      return `flex h-[2.625rem] w-[2.625rem] items-center justify-center rounded-sm border text-lg font-semibold leading-none outline-none focus:ring-1 focus:ring-focus-ring ${
+        active
+          ? "border-accent text-control-primary-text mp-slot-copy-source-active"
+          : assigned
+            ? "border-border text-text mp-slot-copy-source"
+            : "border-border-subtle text-text-faint mp-slot-copy-source-muted"
+      }`;
+    }
+
     return `flex h-[2.625rem] w-[2.625rem] items-center justify-center rounded-sm border text-lg font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       active
         ? "border-accent bg-accent text-control-primary-text"
         : assigned
           ? "mp-control-gradient border-border text-text hover:border-border-strong"
           : "mp-control-gradient-muted border-border-subtle text-text-faint hover:border-border hover:text-text-secondary"
-    } ${copySource ? "ring-1 ring-warning" : ""}`;
+    }`;
   }
 
   function clearPatternButtonClasses(enabled) {
