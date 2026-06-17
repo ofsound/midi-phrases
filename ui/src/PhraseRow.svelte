@@ -119,6 +119,7 @@
    * @property {(row: number, step: number, muted: boolean) => void | Promise<void>} [onStepMuteChange]
    * @property {(row: number, step: number, skipped: boolean) => void | Promise<void>} [onStepSkipChange]
    * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onInspectStep]
+   * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onEditRowPianoRoll]
    * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
    * @property {(event: PointerEvent) => void} [onBulkSelectBackgroundDoubleClick]
    */
@@ -161,6 +162,7 @@
     onStepMuteChange = () => {},
     onStepSkipChange = () => {},
     onInspectStep = () => {},
+    onEditRowPianoRoll = () => {},
     onBulkSelectPointerDown = () => {},
     onBulkSelectBackgroundDoubleClick = () => {}
   } = $props();
@@ -426,7 +428,7 @@
       return;
     }
 
-    onInspectStep(row, step, stepIds[step]);
+    onEditRowPianoRoll(row, step, stepIds[step]);
   }
 
   /** @param {PointerEvent} event */
@@ -1020,11 +1022,11 @@
       <button
         type="button"
         data-cursor="pointer"
-        aria-label="Edit step in inspector"
+        aria-label="Edit row in piano roll"
         disabled={stepInspectorInteractionDisabled}
         class="absolute inset-0 z-[80] rounded-lg border-0 bg-transparent p-0 outline-none focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 {accent.ringFocusWithWidth}"
         onclick={(event) => {
-          onInspectStep(row, step, stepIds[step]);
+          onEditRowPianoRoll(row, step, stepIds[step]);
           event.currentTarget.blur();
         }}
       ></button>

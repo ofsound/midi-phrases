@@ -37,6 +37,7 @@
   import RowPianoRollEditor from "./RowPianoRollEditor.svelte";
   import CombinationModeRail from "./CombinationModeRail.svelte";
   import RecordPianoKeyboard from "./RecordPianoKeyboard.svelte";
+  import StepInspector from "./StepInspector.svelte";
   import {
     defaultStepTimingMultiplierIndex,
     maxPhraseStepsPerRow,
@@ -189,6 +190,9 @@
   /** Step shown in the lower inspector panel, or null. */
   /** @type {{ row: number, stepId: string } | null} */
   let inspectedStep = $state(null);
+  /** Step whose row is shown in the lower piano-roll editor, or null. */
+  /** @type {{ row: number, stepId: string } | null} */
+  let rowPianoRollStep = $state(null);
   /** Snapshot taken when recording was armed (for undo / cancel). */
   /** @type {ReturnType<typeof createHistorySnapshot> | null} */
   let recordingHistoryBefore = null;
@@ -927,6 +931,21 @@
     };
   });
 
+  let activeRowPianoRollEditor = $derived.by(() => {
+    if (rowPianoRollStep === null) return null;
+
+    const row = rowPianoRollStep.row;
+    const step = stepIds[row]?.indexOf(rowPianoRollStep.stepId) ?? -1;
+
+    if (row < 0 || step < 0) return null;
+
+    return {
+      row,
+      step,
+      stepId: rowPianoRollStep.stepId,
+    };
+  });
+
   function closeStepInspector() {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -941,11 +960,27 @@
     });
   }
 
+  function closeRowPianoRollEditor() {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    rowPianoRollStep = null;
+
+    queueMicrotask(() => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    });
+  }
+
   /** @param {number} row @param {number} step @param {string} stepId */
   async function openStepInspector(row, step, stepId) {
     if (recordingRow !== null) {
       await finishRowRecording();
     }
+
+    rowPianoRollStep = null;
 
     if (inspectedStep?.row === row && inspectedStep.stepId === stepId) {
       closeStepInspector();
@@ -953,6 +988,16 @@
     }
 
     inspectedStep = { row, stepId };
+  }
+
+  /** @param {number} row @param {number} step @param {string} stepId */
+  async function openRowPianoRollEditor(row, step, stepId) {
+    if (recordingRow !== null) {
+      await finishRowRecording();
+    }
+
+    inspectedStep = null;
+    rowPianoRollStep = { row, stepId };
   }
 
   function selectAllStepsForBulkEdit() {
@@ -1909,7 +1954,7 @@
     afterIds.splice(toStep, 0, movedId);
 
     reorderRowByIds(row, afterIds);
-    inspectedStep = { row, stepId: movedStepId };
+    rowPianoRollStep = { row, stepId: movedStepId };
     await commitRowMove(row, beforeIds, afterIds);
   }
 
@@ -2664,6 +2709,7 @@
     }
 
     closeStepInspector();
+    closeRowPianoRollEditor();
     recordingRow = row;
     recordingHistoryBefore = createHistorySnapshot();
     recordingCapturedNotes = false;
@@ -3355,6 +3401,12 @@
         return;
       }
 
+      if (event.key === "Escape" && rowPianoRollStep !== null) {
+        event.preventDefault();
+        closeRowPianoRollEditor();
+        return;
+      }
+
       if (event.key === "Escape" && editorFullscreen) {
         event.preventDefault();
         void setEditorFullscreen(false);
@@ -3848,6 +3900,7 @@
               onStepMuteChange={setStepMuted}
               onStepSkipChange={setStepSkipped}
               onInspectStep={openStepInspector}
+              onEditRowPianoRoll={openRowPianoRollEditor}
               onBulkSelectPointerDown={beginStepMarqueeSelection}
               onBulkSelectBackgroundDoubleClick={selectAllStepsForBulkEdit}
             />
@@ -3899,25 +3952,47 @@
 
     <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
     {#if activeStepInspector !== null}
-      <RowPianoRollEditor
+      <StepInspector
         row={activeStepInspector.row}
-        stepIds={stepIds[activeStepInspector.row]}
-        notes={grid[activeStepInspector.row]}
-        stepDurationFraction={stepDurationFraction[activeStepInspector.row]}
-        stepTimingMultiplier={stepTimingMultiplier[activeStepInspector.row]}
-        stepVelocity={stepVelocity[activeStepInspector.row]}
-        stepMuted={stepMuted[activeStepInspector.row]}
-        stepSkipped={stepSkipped[activeStepInspector.row]}
-        rowTimingOffset={rowTimingOffset[activeStepInspector.row]}
-        {pulseIndex}
-        inspectedStepId={inspectedStep?.row === activeStepInspector.row ? inspectedStep.stepId : null}
+        step={activeStepInspector.step}
+        note={activeStepInspector.note}
+        velocity={activeStepInspector.velocity}
+        probability={activeStepInspector.probability}
+        cycle={activeStepInspector.cycle}
+        cycleMask={activeStepInspector.cycleMask}
+        {scaleRoot}
+        {scaleModeIndex}
         accent={rowAccentFor(activeStepInspector.row, rowColorsEnabled)}
-        onInspectStep={openStepInspector}
+        onNoteChange={(midi) =>
+          commitPhraseNoteValue(activeStepInspector.row, activeStepInspector.step, midi)}
+        onVelocityChange={(value) =>
+          setStepVelocity(activeStepInspector.row, activeStepInspector.step, value)}
+        onProbabilityChange={(value) =>
+          setStepProbability(activeStepInspector.row, activeStepInspector.step, value)}
+        onCyclePatternCommit={(nextCycle, nextMask) =>
+          setStepCyclePattern(activeStepInspector.row, activeStepInspector.step, nextCycle, nextMask)}
+        onClose={closeStepInspector}
+      />
+    {:else if activeRowPianoRollEditor !== null}
+      <RowPianoRollEditor
+        row={activeRowPianoRollEditor.row}
+        stepIds={stepIds[activeRowPianoRollEditor.row]}
+        notes={grid[activeRowPianoRollEditor.row]}
+        stepDurationFraction={stepDurationFraction[activeRowPianoRollEditor.row]}
+        stepTimingMultiplier={stepTimingMultiplier[activeRowPianoRollEditor.row]}
+        stepVelocity={stepVelocity[activeRowPianoRollEditor.row]}
+        stepMuted={stepMuted[activeRowPianoRollEditor.row]}
+        stepSkipped={stepSkipped[activeRowPianoRollEditor.row]}
+        rowTimingOffset={rowTimingOffset[activeRowPianoRollEditor.row]}
+        {pulseIndex}
+        inspectedStepId={activeRowPianoRollEditor.stepId}
+        accent={rowAccentFor(activeRowPianoRollEditor.row, rowColorsEnabled)}
+        onInspectStep={openRowPianoRollEditor}
         onNotePreview={previewPhraseNoteValue}
         onNoteCommit={commitPhraseNoteValue}
         onStepMove={movePhraseStepFromPianoRoll}
         onDurationChange={selectStepDurationFraction}
-        onClose={closeStepInspector}
+        onClose={closeRowPianoRollEditor}
       />
     {:else if recordingRow !== null}
       <RecordPianoKeyboard
