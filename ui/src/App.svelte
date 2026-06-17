@@ -4198,6 +4198,7 @@
         onShapeNotesCommit={commitPhraseRowNoteShape}
         onShapeVelocitiesCommit={commitPhraseRowVelocityShape}
         onStepMove={movePhraseStepFromPianoRoll}
+        onStepResize={selectStepTimingMultiplier}
         onClose={closeRowPianoRollEditor}
       />
     {:else if recordingRow !== null}

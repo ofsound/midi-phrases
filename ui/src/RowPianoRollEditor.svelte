@@ -17,8 +17,17 @@
     stepSlotCenterXPx,
     velocityYInRoll,
   } from "./rowPianoRollShape.js";
-  import { buildRowRollTimeline } from "./rowPianoRollTimeline.js";
+  import {
+    buildRowRollTimeline,
+    precedingStepExpansionForNoteDrag,
+    precedingStepResizeForNoteDrag,
+    timingMultiplierIndexAfterRollResize,
+  } from "./rowPianoRollTimeline.js";
   import RowShapeDrawIcon from "./RowShapeDrawIcon.svelte";
+  import {
+    defaultStepTimingMultiplierIndex,
+    stepTimingMultiplierCount,
+  } from "./stepCellLayout.js";
   import { scaledPx } from "./uiScale.svelte.js";
 
   /**
@@ -39,6 +48,7 @@
    * @property {(row: number, step: number, midi: number) => void} [onNotePreview]
    * @property {(row: number, step: number, midi: number) => void | Promise<void>} [onNoteCommit]
    * @property {(row: number, fromStep: number, toStep: number) => void | Promise<void>} [onStepMove]
+   * @property {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} [onStepResize]
    * @property {(row: number, updates: { step: number, midi: number }[]) => void | Promise<void>} [onShapeNotesCommit]
    * @property {(row: number, updates: { step: number, velocity: number }[]) => void | Promise<void>} [onShapeVelocitiesCommit]
    * @property {() => void} [onClose]
@@ -62,6 +72,7 @@
     onNotePreview = () => {},
     onNoteCommit = () => {},
     onStepMove = () => {},
+    onStepResize = () => {},
     onShapeNotesCommit = () => {},
     onShapeVelocitiesCommit = () => {},
     onClose = () => {},
@@ -87,13 +98,37 @@
   let noteShapeDrawActive = $derived(shapeDrawMode === "note");
   let velocityShapeDrawActive = $derived(shapeDrawMode === "velocity");
 
+  let displayedTimingMultipliers = $derived.by(() => {
+    if (drag?.mode === "resize") {
+      return stepTimingMultiplier.map((value, step) =>
+        step === drag.step ? drag.previewMultiplierIndex : value,
+      );
+    }
+
+    if (
+      drag?.mode === "move" &&
+      drag.previewPreviousStep >= 0 &&
+      drag.previewPreviousMultiplierIndex !== drag.originalPreviousMultiplierIndex
+    ) {
+      return stepTimingMultiplier.map((value, step) =>
+        step === drag.previewPreviousStep ? drag.previewPreviousMultiplierIndex : value,
+      );
+    }
+
+    return stepTimingMultiplier;
+  });
   let timeline = $derived(
-    buildRowRollTimeline(stepTimingMultiplier, stepSkipped, pulseIndex, rowTimingOffset),
+    buildRowRollTimeline(displayedTimingMultipliers, stepSkipped, pulseIndex, rowTimingOffset),
   );
   let rollLengthQuarters = $derived(
     rollLengthQuartersForCycle(timeline.timelineLengthQuarters),
   );
   let pxPerQuarter = $derived.by(() => {
+    if (drag?.mode === "resize") return drag.resizePxPerQuarter;
+    if (drag?.mode === "move" && drag.previewPreviousStep >= 0) {
+      return drag.dragPxPerQuarter;
+    }
+
     const floor = scaledPx(basePxPerQuarter);
 
     if (gridViewportWidthPx <= 0 || rollLengthQuarters <= 0) return floor;
@@ -382,15 +417,28 @@
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
 
+    const originalSlots = timeline.slots.map((slot) => ({ ...slot }));
+    const previewPreviousStep = note.step - 1;
+    const originalPreviousMultiplierIndex =
+      previewPreviousStep >= 0
+        ? stepTimingMultiplier[previewPreviousStep] ?? defaultStepTimingMultiplierIndex
+        : defaultStepTimingMultiplierIndex;
+
     drag = {
       mode: "move",
       pointerId: event.pointerId,
       row,
       step: note.step,
+      startX: event.clientX,
       startY: event.clientY,
       baseMidi: note.midi,
       previewMidi: note.midi,
       targetStep: note.step,
+      originalSlots,
+      dragPxPerQuarter: pxPerQuarter,
+      previewPreviousStep,
+      originalPreviousMultiplierIndex,
+      previewPreviousMultiplierIndex: originalPreviousMultiplierIndex,
       didDrag: false,
     };
 
@@ -399,21 +447,80 @@
 
   /** @param {PointerEvent} event */
   function moveNoteDrag(event) {
-    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (!drag || drag.mode !== "move" || event.pointerId !== drag.pointerId) return;
 
-    drag.didDrag = true;
-
+    const dragDeltaX = event.clientX - drag.startX;
     const nextMidi = midiFromPointerDelta(event, drag.baseMidi, drag.startY);
-    const targetStep = stepAtRollX(rollXFromPointer(event), timeline.slots, pxPerQuarter);
+    let targetStep = stepAtRollX(
+      rollXFromPointer(event),
+      drag.originalSlots,
+      drag.dragPxPerQuarter,
+    );
+    let previewPreviousMultiplierIndex = drag.originalPreviousMultiplierIndex;
 
-    drag.previewMidi = nextMidi;
-    drag.targetStep = targetStep < 0 ? drag.step : targetStep;
+    if (dragDeltaX < 0 && drag.previewPreviousStep >= 0) {
+      const precedingSlot = drag.originalSlots[drag.previewPreviousStep];
+      const draggedSlot = drag.originalSlots[drag.step];
+      const draggedStartXPx = Math.max(
+        0,
+        draggedSlot.startQuarters * drag.dragPxPerQuarter + dragDeltaX,
+      );
+      targetStep = stepAtRollX(
+        draggedStartXPx,
+        drag.originalSlots,
+        drag.dragPxPerQuarter,
+      );
+      const distanceToPrecedingStartPx =
+        (draggedSlot.startQuarters - precedingSlot.startQuarters) * drag.dragPxPerQuarter;
+      const precedingResize = precedingStepResizeForNoteDrag(
+        drag.originalPreviousMultiplierIndex,
+        dragDeltaX,
+        drag.dragPxPerQuarter,
+        distanceToPrecedingStartPx,
+        pulseIndex,
+      );
+
+      previewPreviousMultiplierIndex = precedingResize.multiplierIndex;
+
+      if (!precedingResize.crossedPrecedingStart) {
+        targetStep = drag.step;
+      }
+    } else if (dragDeltaX > 0 && drag.previewPreviousStep >= 0) {
+      const draggedSlot = drag.originalSlots[drag.step];
+      const draggedStartXPx =
+        draggedSlot.startQuarters * drag.dragPxPerQuarter + dragDeltaX;
+      targetStep = stepAtRollX(
+        draggedStartXPx,
+        drag.originalSlots,
+        drag.dragPxPerQuarter,
+      );
+      const precedingExpansion = precedingStepExpansionForNoteDrag(
+        drag.originalPreviousMultiplierIndex,
+        dragDeltaX,
+        drag.dragPxPerQuarter,
+        pulseIndex,
+      );
+
+      previewPreviousMultiplierIndex = precedingExpansion.multiplierIndex;
+
+      if (!precedingExpansion.exceededMaximum) {
+        targetStep = drag.step;
+      }
+    }
+
+    drag = {
+      ...drag,
+      didDrag: true,
+      previewMidi: nextMidi,
+      targetStep: targetStep < 0 ? drag.step : targetStep,
+      previewPreviousMultiplierIndex,
+    };
     onNotePreview(row, drag.step, nextMidi);
   }
 
   /** @param {PointerEvent} event */
   async function endNoteDrag(event) {
-    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (!drag || drag.mode !== "move" || event.pointerId !== drag.pointerId) return;
 
     event.currentTarget.releasePointerCapture(event.pointerId);
 
@@ -426,6 +533,96 @@
 
     if (finished.targetStep !== finished.step) {
       await onStepMove(row, finished.step, finished.targetStep);
+    } else if (
+      finished.previewPreviousStep >= 0 &&
+      finished.previewPreviousMultiplierIndex !== finished.originalPreviousMultiplierIndex
+    ) {
+      await onStepResize(
+        row,
+        finished.previewPreviousStep,
+        finished.previewPreviousMultiplierIndex,
+      );
+    }
+  }
+
+  /** @param {PointerEvent} event @param {any} note */
+  function beginStepResize(event, note) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const initialMultiplierIndex =
+      stepTimingMultiplier[note.step] ?? defaultStepTimingMultiplierIndex;
+    drag = {
+      mode: "resize",
+      pointerId: event.pointerId,
+      step: note.step,
+      startX: event.clientX,
+      initialMultiplierIndex,
+      previewMultiplierIndex: initialMultiplierIndex,
+      resizePxPerQuarter: pxPerQuarter,
+    };
+
+    void onInspectStep(row, note.step, note.stepId);
+  }
+
+  /** @param {PointerEvent} event */
+  function moveStepResize(event) {
+    if (!drag || drag.mode !== "resize" || event.pointerId !== drag.pointerId) return;
+
+    const previewMultiplierIndex = timingMultiplierIndexAfterRollResize(
+      drag.initialMultiplierIndex,
+      event.clientX - drag.startX,
+      drag.resizePxPerQuarter,
+      pulseIndex,
+    );
+
+    if (previewMultiplierIndex === drag.previewMultiplierIndex) return;
+
+    drag = { ...drag, previewMultiplierIndex };
+  }
+
+  /** @param {PointerEvent} event */
+  async function endStepResize(event) {
+    if (!drag || drag.mode !== "resize" || event.pointerId !== drag.pointerId) return;
+
+    event.currentTarget.releasePointerCapture(event.pointerId);
+
+    const finished = drag;
+    drag = null;
+
+    if (finished.previewMultiplierIndex === finished.initialMultiplierIndex) return;
+
+    await onStepResize(row, finished.step, finished.previewMultiplierIndex);
+  }
+
+  /** @param {PointerEvent} event */
+  function cancelStepResize(event) {
+    if (!drag || drag.mode !== "resize" || event.pointerId !== drag.pointerId) return;
+
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    drag = null;
+  }
+
+  /** @param {KeyboardEvent} event @param {any} note */
+  function resizeStepWithKeyboard(event, note) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const initialMultiplierIndex =
+      stepTimingMultiplier[note.step] ?? defaultStepTimingMultiplierIndex;
+    const nextMultiplierIndex = Math.min(
+      stepTimingMultiplierCount - 1,
+      Math.max(
+        0,
+        initialMultiplierIndex + (event.key === "ArrowLeft" ? -1 : 1),
+      ),
+    );
+
+    if (nextMultiplierIndex !== initialMultiplierIndex) {
+      void onStepResize(row, note.step, nextMultiplierIndex);
     }
   }
 </script>
@@ -624,6 +821,23 @@
                   onpointercancel={endNoteDrag}
                 >
                   <span class="pointer-events-none truncate">{displayLabel}</span>
+                </button>
+                <button
+                  type="button"
+                  data-cursor="horizontal-drag"
+                  aria-label={`Resize step ${note.step + 1}`}
+                  title="Drag left or right to resize step"
+                  class="absolute top-0 right-0 z-30 flex h-full w-2 touch-none items-center justify-end rounded-sm outline-none {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'}"
+                  onpointerdown={(event) => beginStepResize(event, note)}
+                  onpointermove={moveStepResize}
+                  onpointerup={endStepResize}
+                  onpointercancel={cancelStepResize}
+                  onkeydown={(event) => resizeStepWithKeyboard(event, note)}
+                >
+                  <span
+                    class="pointer-events-none h-[70%] w-px rounded-full bg-current {rowAccent.textAccent} opacity-70"
+                    aria-hidden="true"
+                  ></span>
                 </button>
               </div>
             {/each}
