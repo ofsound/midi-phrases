@@ -239,13 +239,17 @@
     new Set([...selectedStepKeys].filter((key) => selectableStepKeySet.has(key))),
   );
   let selectedStepIdsByRow = $derived(selectedStepIdsByRowForKeys(selectedStepKeysForGrid));
-  let bulkDurationPercent = $state(100);
-  let bulkVelocityPercent = $state(100);
+  let bulkDurationPercent = $state(0);
+  let bulkVelocityPercent = $state(0);
   let bulkTransposeSemitones = $state(0);
   /** @type {ReturnType<typeof createHistorySnapshot> | null} */
   let bulkEditGestureBefore = null;
   /** @type {ReturnType<typeof createHistorySnapshot> | null} */
   let processingParamGestureBefore = null;
+  /** @type {Map<string, number> | null} */
+  let bulkDurationBaselineByKey = null;
+  /** @type {Map<string, number> | null} */
+  let bulkVelocityBaselineByKey = null;
   /** @type {Map<string, number> | null} */
   let bulkTransposeBaselineByKey = null;
   /** @type {{ startX: number, startY: number, currentX: number, currentY: number, addToSelection: boolean, baseKeys: Set<string> } | null} */
@@ -858,18 +862,13 @@
   function syncBulkControlsFromSelection() {
     const [first] = selectedStepLocations();
 
+    bulkDurationPercent = 0;
+    bulkVelocityPercent = 0;
     bulkTransposeSemitones = 0;
 
     if (!first) {
       return;
     }
-
-    bulkDurationPercent = Math.round(
-      Math.min(1, Math.max(0, stepDurationFraction[first.row][first.step] ?? 1)) * 100,
-    );
-    bulkVelocityPercent = Math.round(
-      (Math.min(127, Math.max(0, stepVelocity[first.row][first.step] ?? defaultStepVelocity)) / 127) * 100,
-    );
   }
 
   function marqueeRect() {
@@ -1199,6 +1198,8 @@
     activeGates = grid.map((row) => row.map(() => false));
     stepIds = createStepIdsForGrid(grid);
     setSelectedStepKeys(new Set());
+    bulkDurationPercent = 0;
+    bulkVelocityPercent = 0;
     bulkTransposeSemitones = 0;
     undoStack = [];
     redoStack = [];
@@ -2087,10 +2088,10 @@
     });
   }
 
-  function clampBulkPercent(value) {
+  function clampBulkRelativePercent(value) {
     const parsed = Number.parseInt(String(value), 10);
 
-    return Number.isNaN(parsed) ? 0 : Math.min(100, Math.max(0, parsed));
+    return Number.isNaN(parsed) ? 0 : Math.min(100, Math.max(-100, parsed));
   }
 
   function clampTransposeSemitones(value) {
@@ -2103,6 +2104,20 @@
     const rounded = Math.round(value);
 
     return rounded > 0 ? `+${rounded}` : String(rounded);
+  }
+
+  function formatRelativePercent(value) {
+    const rounded = Math.round(value);
+
+    return rounded > 0 ? `+${rounded}` : String(rounded);
+  }
+
+  function clampStepDurationPercent(value) {
+    return Math.min(100, Math.max(0, value));
+  }
+
+  function clampStepVelocityPercent(value) {
+    return Math.min(100, Math.max(0, value));
   }
 
   async function pushRowsForSelectedLocations(locations) {
@@ -2121,6 +2136,8 @@
 
   function resetBulkEditGesture() {
     bulkEditGestureBefore = null;
+    bulkDurationBaselineByKey = null;
+    bulkVelocityBaselineByKey = null;
     bulkTransposeBaselineByKey = null;
   }
 
@@ -2135,22 +2152,46 @@
     pushHistoryEntry(label, before, after);
   }
 
+  function ensureBulkDurationBaseline(locations) {
+    if (bulkDurationBaselineByKey) return;
+
+    bulkDurationBaselineByKey = new SvelteMap();
+
+    for (const { row, step, key } of locations) {
+      bulkDurationBaselineByKey.set(key, (stepDurationFraction[row][step] ?? defaultStepDurationFraction) * 100);
+    }
+  }
+
+  function ensureBulkVelocityBaseline(locations) {
+    if (bulkVelocityBaselineByKey) return;
+
+    bulkVelocityBaselineByKey = new SvelteMap();
+
+    for (const { row, step, key } of locations) {
+      bulkVelocityBaselineByKey.set(
+        key,
+        ((stepVelocity[row][step] ?? defaultStepVelocity) / 127) * 100,
+      );
+    }
+  }
+
   function previewBulkDurationPercent(value) {
-    const clamped = clampBulkPercent(value);
-    bulkDurationPercent = clamped;
+    const clamped = clampBulkRelativePercent(value);
     const locations = selectedStepLocations();
 
     if (locations.length === 0) return;
 
-    const fraction = clamped / 100;
+    ensureBulkDurationBaseline(locations);
+    bulkDurationPercent = clamped;
 
-    for (const { row, step } of locations) {
-      stepDurationFraction[row][step] = fraction;
+    for (const { row, step, key } of locations) {
+      const baseline = bulkDurationBaselineByKey?.get(key) ?? 100;
+      stepDurationFraction[row][step] = clampStepDurationPercent(baseline + clamped) / 100;
     }
   }
 
   async function commitBulkDurationPercent(value) {
-    const clamped = clampBulkPercent(value);
+    const clamped = clampBulkRelativePercent(value);
     const locations = selectedStepLocations();
 
     if (locations.length === 0) {
@@ -2163,24 +2204,27 @@
     await commitBulkEditGesture("Bulk duration", async () => {
       await pushRowsForSelectedLocations(locations);
     });
+
+    bulkDurationPercent = 0;
   }
 
   function previewBulkVelocityPercent(value) {
-    const clamped = clampBulkPercent(value);
-    bulkVelocityPercent = clamped;
+    const clamped = clampBulkRelativePercent(value);
     const locations = selectedStepLocations();
 
     if (locations.length === 0) return;
 
-    const velocity = Math.round((clamped / 100) * 127);
+    ensureBulkVelocityBaseline(locations);
+    bulkVelocityPercent = clamped;
 
-    for (const { row, step } of locations) {
-      stepVelocity[row][step] = velocity;
+    for (const { row, step, key } of locations) {
+      const baseline = bulkVelocityBaselineByKey?.get(key) ?? (defaultStepVelocity / 127) * 100;
+      stepVelocity[row][step] = Math.round((clampStepVelocityPercent(baseline + clamped) / 100) * 127);
     }
   }
 
   async function commitBulkVelocityPercent(value) {
-    const clamped = clampBulkPercent(value);
+    const clamped = clampBulkRelativePercent(value);
     const locations = selectedStepLocations();
 
     if (locations.length === 0) {
@@ -2193,6 +2237,8 @@
     await commitBulkEditGesture("Bulk velocity", async () => {
       await pushRowsForSelectedLocations(locations);
     });
+
+    bulkVelocityPercent = 0;
   }
 
   function previewBulkTransposeSemitones(value) {
@@ -3398,10 +3444,11 @@
               deferCommit
               accent={emeraldRowAccent}
               value={bulkDurationPercent}
-              min={0}
+              min={-100}
               max={100}
-              resetValue={100}
-              ariaLabel="Bulk step duration percent"
+              resetValue={0}
+              formatValue={formatRelativePercent}
+              ariaLabel="Bulk step relative duration percent"
               disabled={selectedStepCount === 0}
               onGestureStart={beginBulkEditGesture}
               onValuePreview={previewBulkDurationPercent}
@@ -3416,10 +3463,11 @@
               deferCommit
               accent={emeraldRowAccent}
               value={bulkVelocityPercent}
-              min={0}
+              min={-100}
               max={100}
-              resetValue={100}
-              ariaLabel="Bulk step velocity percent"
+              resetValue={0}
+              formatValue={formatRelativePercent}
+              ariaLabel="Bulk step relative velocity percent"
               disabled={selectedStepCount === 0}
               onGestureStart={beginBulkEditGesture}
               onValuePreview={previewBulkVelocityPercent}
