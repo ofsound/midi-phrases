@@ -8,8 +8,11 @@ import {
   midiFromRollY,
   rollLengthQuartersForCycle,
   shapeNoteUpdatesFromStroke,
+  shapeVelocityUpdatesFromStroke,
   stepAtRollX,
   stepSlotCenterXPx,
+  velocityFromRollY,
+  velocityYInRoll,
 } from "./rowPianoRollShape.js";
 
 describe("midiFromRollY", () => {
@@ -17,6 +20,21 @@ describe("midiFromRollY", () => {
     expect(midiFromRollY(0, 16, 72)).toBe(72);
     expect(midiFromRollY(16, 16, 72)).toBe(71);
     expect(midiFromRollY(32.4, 16, 72)).toBe(70);
+  });
+});
+
+describe("velocityFromRollY", () => {
+  it("maps roll y to velocity with the top as maximum", () => {
+    expect(velocityFromRollY(0, 100)).toBe(127);
+    expect(velocityFromRollY(50, 100)).toBe(64);
+    expect(velocityFromRollY(100, 100)).toBe(0);
+  });
+});
+
+describe("velocityYInRoll", () => {
+  it("maps velocity back to roll y positions", () => {
+    expect(velocityYInRoll(127, 100)).toBe(0);
+    expect(velocityYInRoll(0, 100)).toBe(100);
   });
 });
 
@@ -86,6 +104,25 @@ describe("shapeNoteUpdatesFromStroke", () => {
       { step: 0, midi: 72 },
       { step: 1, midi: 71 },
       { step: 2, midi: 70 },
+    ]);
+  });
+});
+
+describe("shapeVelocityUpdatesFromStroke", () => {
+  it("updates velocities only for steps beneath the drawn horizontal span", () => {
+    const { slots } = buildRowRollTimeline([7, 7, 7, 7], [], 1, 3);
+    const pxPerQuarter = 28;
+    const points = [
+      { x: stepSlotCenterXPx(slots[0], pxPerQuarter), y: 0 },
+      { x: stepSlotCenterXPx(slots[2], pxPerQuarter), y: 100 },
+    ];
+
+    const updates = shapeVelocityUpdatesFromStroke(points, slots, pxPerQuarter, 100);
+
+    expect(updates).toEqual([
+      { step: 0, velocity: 127 },
+      { step: 1, velocity: 64 },
+      { step: 2, velocity: 0 },
     ]);
   });
 });

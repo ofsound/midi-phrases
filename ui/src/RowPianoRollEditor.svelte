@@ -12,8 +12,10 @@
     measureLineQuarters,
     rollLengthQuartersForCycle,
     shapeNoteUpdatesFromStroke,
+    shapeVelocityUpdatesFromStroke,
     stepAtRollX,
     stepSlotCenterXPx,
+    velocityYInRoll,
   } from "./rowPianoRollShape.js";
   import { buildRowRollTimeline } from "./rowPianoRollTimeline.js";
   import RowShapeDrawIcon from "./RowShapeDrawIcon.svelte";
@@ -38,6 +40,7 @@
    * @property {(row: number, step: number, midi: number) => void | Promise<void>} [onNoteCommit]
    * @property {(row: number, fromStep: number, toStep: number) => void | Promise<void>} [onStepMove]
    * @property {(row: number, updates: { step: number, midi: number }[]) => void | Promise<void>} [onShapeNotesCommit]
+   * @property {(row: number, updates: { step: number, velocity: number }[]) => void | Promise<void>} [onShapeVelocitiesCommit]
    * @property {() => void} [onClose]
    */
 
@@ -60,6 +63,7 @@
     onNoteCommit = () => {},
     onStepMove = () => {},
     onShapeNotesCommit = () => {},
+    onShapeVelocitiesCommit = () => {},
     onClose = () => {},
   } = $props();
 
@@ -75,10 +79,13 @@
   let viewportHeightPx = $state(0);
   let gridViewportWidthPx = $state(0);
   let drag = $state(null);
-  let shapeDrawMode = $state(false);
-  /** @type {{ pointerId: number, points: { x: number, y: number }[] } | null} */
+  /** @type {'note' | 'velocity' | null} */
+  let shapeDrawMode = $state(null);
+  /** @type {{ pointerId: number, mode: 'note' | 'velocity', points: { x: number, y: number }[] } | null} */
   let shapeStroke = $state(null);
   let rowAccent = $derived(accent ?? emeraldRowAccent);
+  let noteShapeDrawActive = $derived(shapeDrawMode === "note");
+  let velocityShapeDrawActive = $derived(shapeDrawMode === "velocity");
 
   let timeline = $derived(
     buildRowRollTimeline(stepTimingMultiplier, stepSkipped, pulseIndex, rowTimingOffset),
@@ -130,6 +137,17 @@
   let shapePreviewByStep = $derived.by(() => {
     if (!shapeStroke || shapeStroke.points.length === 0) return null;
 
+    if (shapeStroke.mode === "velocity") {
+      const updates = shapeVelocityUpdatesFromStroke(
+        shapeStroke.points,
+        timeline.slots,
+        pxPerQuarter,
+        rollHeightPx,
+      );
+
+      return new Map(updates.map((update) => [update.step, update.velocity]));
+    }
+
     const updates = shapeNoteUpdatesFromStroke(
       shapeStroke.points,
       timeline.slots,
@@ -137,7 +155,6 @@
       rowHeightPx,
       visiblePitchRange.maxMidi,
     );
-
     return new Map(updates.map((update) => [update.step, update.midi]));
   });
   let stepNotes = $derived.by(() => {
@@ -146,7 +163,9 @@
         drag?.mode === "move" && drag.step === step ? drag.targetStep : step;
       const slot = timeline.slots[displayStep] ?? timeline.slots[step];
       const durationFraction = stepDurationFraction[step] ?? 1;
-      const shapePreviewMidi = shapePreviewByStep?.get(step);
+      const shapePreviewValue = shapePreviewByStep?.get(step);
+      const shapePreviewMidi = shapeStroke?.mode === "note" ? shapePreviewValue : undefined;
+      const shapePreviewVelocity = shapeStroke?.mode === "velocity" ? shapePreviewValue : undefined;
       const noteLengthQuarters = slot.lengthQuarters * durationFraction;
 
       return {
@@ -155,7 +174,7 @@
         midi: shapePreviewMidi ?? midi,
         leftPx: slot.startQuarters * pxPerQuarter,
         noteWidthPx: Math.max(scaledPx(12), noteLengthQuarters * pxPerQuarter - 2),
-        velocity: stepVelocity[step] ?? 100,
+        velocity: shapePreviewVelocity ?? stepVelocity[step] ?? 100,
         muted: stepMuted[step] || stepSkipped[step],
       };
     });
@@ -166,11 +185,14 @@
   let shapePreviewDots = $derived.by(() => {
     if (!shapePreviewByStep) return [];
 
-    return [...shapePreviewByStep.entries()].map(([step, midi]) => ({
+    return [...shapePreviewByStep.entries()].map(([step, value]) => ({
       step,
-      midi,
+      value,
       x: stepSlotCenterXPx(timeline.slots[step], pxPerQuarter),
-      y: pitchTopPx(midi) + rowHeightPx / 2,
+      y:
+        shapeStroke?.mode === "velocity"
+          ? velocityYInRoll(value, rollHeightPx)
+          : pitchTopPx(value) + rowHeightPx / 2,
     }));
   });
 
@@ -246,10 +268,22 @@
     };
   }
 
-  function toggleShapeDrawMode() {
-    shapeDrawMode = !shapeDrawMode;
+  /** @param {'note' | 'velocity'} mode */
+  function toggleShapeDrawMode(mode) {
+    shapeDrawMode = shapeDrawMode === mode ? null : mode;
     shapeStroke = null;
     drag = null;
+  }
+
+  /** @param {'note' | 'velocity'} mode */
+  function shapeDrawButtonClasses(mode) {
+    const active = shapeDrawMode === mode;
+
+    return `flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors outline-none ${
+      active
+        ? `${rowAccent.borderActive} ${rowAccent.bgAccent}/15 ${rowAccent.textAccent}`
+        : "border-border bg-surface text-text-muted hover:border-border-strong hover:text-text"
+    } ${rowAccent.ringFocusWithWidth || "focus-visible:ring-1 focus-visible:ring-focus-ring"}`;
   }
 
   /** @param {PointerEvent} event */
@@ -263,6 +297,7 @@
     const surface = /** @type {HTMLElement} */ (event.currentTarget);
     shapeStroke = {
       pointerId: event.pointerId,
+      mode: shapeDrawMode,
       points: [rollPointFromPointer(event, surface)],
     };
   }
@@ -291,6 +326,26 @@
 
     const finished = shapeStroke;
     shapeStroke = null;
+
+    if (finished.mode === "velocity") {
+      const updates = shapeVelocityUpdatesFromStroke(
+        finished.points,
+        timeline.slots,
+        pxPerQuarter,
+        rollHeightPx,
+      );
+
+      if (updates.length === 0) return;
+
+      const changedUpdates = updates.filter(
+        (update) => stepVelocity[update.step] !== update.velocity,
+      );
+
+      if (changedUpdates.length === 0) return;
+
+      await onShapeVelocitiesCommit(row, changedUpdates);
+      return;
+    }
 
     const updates = shapeNoteUpdatesFromStroke(
       finished.points,
@@ -383,17 +438,29 @@
         type="button"
         data-cursor="pointer"
         aria-label="Draw note shape across steps"
-        aria-pressed={shapeDrawMode}
+        aria-pressed={noteShapeDrawActive}
         title="Draw a freeform line to set step pitches"
-        class="flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors outline-none {shapeDrawMode
-          ? `${rowAccent.borderActive} ${rowAccent.bgAccent}/15 ${rowAccent.textAccent}`
-          : 'border-border bg-surface text-text-muted hover:border-border-strong hover:text-text'} {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'}"
-        onclick={toggleShapeDrawMode}
+        class={shapeDrawButtonClasses("note")}
+        onclick={() => toggleShapeDrawMode("note")}
       >
         <RowShapeDrawIcon
-          class="pointer-events-none h-4 w-4 {shapeDrawMode ? toggleIconActiveClasses : toggleIconRestClasses}"
+          class="pointer-events-none h-4 w-4 {noteShapeDrawActive ? toggleIconActiveClasses : toggleIconRestClasses}"
         />
         Shape
+      </button>
+      <button
+        type="button"
+        data-cursor="pointer"
+        aria-label="Draw velocity shape across steps"
+        aria-pressed={velocityShapeDrawActive}
+        title="Draw a freeform line to set step velocities"
+        class={shapeDrawButtonClasses("velocity")}
+        onclick={() => toggleShapeDrawMode("velocity")}
+      >
+        <RowShapeDrawIcon
+          class="pointer-events-none h-4 w-4 {velocityShapeDrawActive ? toggleIconActiveClasses : toggleIconRestClasses}"
+        />
+        Velocity Shape
       </button>
       <button
         type="button"
@@ -518,6 +585,7 @@
             {#each stepNotes as note (note.stepId)}
               {@const selected = inspectedStepId === note.stepId}
               {@const displayMidi = drag?.mode === "move" && drag.step === note.step ? drag.previewMidi : note.midi}
+              {@const displayLabel = shapeDrawMode === "velocity" ? note.velocity : midiToNoteName(displayMidi)}
               <div
                 class="absolute z-20 {shapeDrawMode ? 'pointer-events-none' : ''}"
                 style:left="{note.leftPx}px"
@@ -541,7 +609,7 @@
                   onpointerup={endNoteDrag}
                   onpointercancel={endNoteDrag}
                 >
-                  <span class="pointer-events-none truncate">{midiToNoteName(displayMidi)}</span>
+                  <span class="pointer-events-none truncate">{displayLabel}</span>
                 </button>
               </div>
             {/each}

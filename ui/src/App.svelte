@@ -768,6 +768,21 @@
     });
   }
 
+  /** @param {number} row @param {{ step: number, velocity: number }[]} updates */
+  async function commitPhraseRowVelocityShape(row, updates) {
+    if (updates.length === 0) return;
+
+    await commitHistory("Draw velocity shape", async () => {
+      for (const { step, velocity } of updates) {
+        stepVelocity[row][step] = Math.min(127, Math.max(0, velocity));
+      }
+
+      for (const { step } of updates) {
+        await pushStepVelocity(row, step);
+      }
+    });
+  }
+
   async function setPatternScale(nextRoot, nextModeIndex) {
     const root = clampScaleRoot(nextRoot);
     const mode = clampScaleModeIndex(nextModeIndex);
@@ -4048,6 +4063,7 @@
         onNotePreview={previewPhraseNoteValue}
         onNoteCommit={commitPhraseNoteValue}
         onShapeNotesCommit={commitPhraseRowNoteShape}
+        onShapeVelocitiesCommit={commitPhraseRowVelocityShape}
         onStepMove={movePhraseStepFromPianoRoll}
         onClose={closeRowPianoRollEditor}
       />

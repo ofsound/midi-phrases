@@ -14,6 +14,28 @@ export function midiFromRollY(yPx, rowHeightPx, maxMidi) {
 }
 
 /**
+ * @param {number} yPx
+ * @param {number} rollHeightPx
+ */
+export function velocityFromRollY(yPx, rollHeightPx) {
+  if (rollHeightPx <= 0) return 0;
+
+  const percentFromTop = Math.min(1, Math.max(0, yPx / rollHeightPx));
+
+  return Math.min(127, Math.max(0, Math.round((1 - percentFromTop) * 127)));
+}
+
+/**
+ * @param {number} velocity
+ * @param {number} rollHeightPx
+ */
+export function velocityYInRoll(velocity, rollHeightPx) {
+  const clampedVelocity = Math.min(127, Math.max(0, Math.round(velocity)));
+
+  return (1 - clampedVelocity / 127) * rollHeightPx;
+}
+
+/**
  * @param {{ x: number, y: number }[]} points
  * @param {number} targetXPx
  * @returns {number | null}
@@ -105,6 +127,43 @@ export function shapeNoteUpdatesFromStroke(points, slots, pxPerQuarter, rowHeigh
     updates.push({
       step,
       midi: midiFromRollY(y, rowHeightPx, maxMidi),
+    });
+  }
+
+  return updates;
+}
+
+/**
+ * Map a drawn stroke to per-step velocity updates for the horizontal span it covers.
+ *
+ * @param {{ x: number, y: number }[]} points - x/y in roll pixel coordinates
+ * @param {RowRollStepSlot[]} slots
+ * @param {number} pxPerQuarter
+ * @param {number} rollHeightPx
+ * @returns {{ step: number, velocity: number }[]}
+ */
+export function shapeVelocityUpdatesFromStroke(points, slots, pxPerQuarter, rollHeightPx) {
+  if (points.length === 0 || slots.length === 0 || pxPerQuarter <= 0 || rollHeightPx <= 0) {
+    return [];
+  }
+
+  const minX = Math.min(points[0].x, points[points.length - 1].x);
+  const maxX = Math.max(points[0].x, points[points.length - 1].x);
+  const firstStep = Math.max(0, stepAtRollX(minX, slots, pxPerQuarter));
+  const lastStep = Math.min(slots.length - 1, stepAtRollX(maxX, slots, pxPerQuarter));
+  /** @type {{ step: number, velocity: number }[]} */
+  const updates = [];
+
+  for (let step = firstStep; step <= lastStep; step += 1) {
+    const slot = slots[step];
+    const centerX = stepSlotCenterXPx(slot, pxPerQuarter);
+    const y = interpolateShapeYAtX(points, centerX);
+
+    if (y === null) continue;
+
+    updates.push({
+      step,
+      velocity: velocityFromRollY(y, rollHeightPx),
     });
   }
 
