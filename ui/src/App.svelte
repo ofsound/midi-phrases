@@ -34,9 +34,9 @@
   import PhraseRow from "./PhraseRow.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
   import PianoRollPreview from "./PianoRollPreview.svelte";
+  import RowPianoRollEditor from "./RowPianoRollEditor.svelte";
   import CombinationModeRail from "./CombinationModeRail.svelte";
   import RecordPianoKeyboard from "./RecordPianoKeyboard.svelte";
-  import StepInspector from "./StepInspector.svelte";
   import {
     defaultStepTimingMultiplierIndex,
     maxPhraseStepsPerRow,
@@ -1895,6 +1895,22 @@
     pushHistoryEntry("Move step", before, after);
 
     await pushMovePhraseStep(row, move.from, move.to);
+  }
+
+  async function movePhraseStepFromPianoRoll(row, fromStep, toStep) {
+    if (row < 0 || row >= stepIds.length) return;
+    if (fromStep < 0 || fromStep >= stepIds[row].length) return;
+    if (toStep < 0 || toStep >= stepIds[row].length || fromStep === toStep) return;
+
+    const beforeIds = [...stepIds[row]];
+    const movedStepId = beforeIds[fromStep];
+    const afterIds = [...beforeIds];
+    const [movedId] = afterIds.splice(fromStep, 1);
+    afterIds.splice(toStep, 0, movedId);
+
+    reorderRowByIds(row, afterIds);
+    inspectedStep = { row, stepId: movedStepId };
+    await commitRowMove(row, beforeIds, afterIds);
   }
 
   async function pushNote(row, step) {
@@ -3883,25 +3899,24 @@
 
     <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
     {#if activeStepInspector !== null}
-      <StepInspector
+      <RowPianoRollEditor
         row={activeStepInspector.row}
-        step={activeStepInspector.step}
-        note={activeStepInspector.note}
-        velocity={activeStepInspector.velocity}
-        probability={activeStepInspector.probability}
-        cycle={activeStepInspector.cycle}
-        cycleMask={activeStepInspector.cycleMask}
-        {scaleRoot}
-        {scaleModeIndex}
+        stepIds={stepIds[activeStepInspector.row]}
+        notes={grid[activeStepInspector.row]}
+        stepDurationFraction={stepDurationFraction[activeStepInspector.row]}
+        stepTimingMultiplier={stepTimingMultiplier[activeStepInspector.row]}
+        stepVelocity={stepVelocity[activeStepInspector.row]}
+        stepMuted={stepMuted[activeStepInspector.row]}
+        stepSkipped={stepSkipped[activeStepInspector.row]}
+        rowTimingOffset={rowTimingOffset[activeStepInspector.row]}
+        {pulseIndex}
+        inspectedStepId={inspectedStep?.row === activeStepInspector.row ? inspectedStep.stepId : null}
         accent={rowAccentFor(activeStepInspector.row, rowColorsEnabled)}
-        onNoteChange={(midi) =>
-          commitPhraseNoteValue(activeStepInspector.row, activeStepInspector.step, midi)}
-        onVelocityChange={(value) =>
-          setStepVelocity(activeStepInspector.row, activeStepInspector.step, value)}
-        onProbabilityChange={(value) =>
-          setStepProbability(activeStepInspector.row, activeStepInspector.step, value)}
-        onCyclePatternCommit={(nextCycle, nextMask) =>
-          setStepCyclePattern(activeStepInspector.row, activeStepInspector.step, nextCycle, nextMask)}
+        onInspectStep={openStepInspector}
+        onNotePreview={previewPhraseNoteValue}
+        onNoteCommit={commitPhraseNoteValue}
+        onStepMove={movePhraseStepFromPianoRoll}
+        onDurationChange={selectStepDurationFraction}
         onClose={closeStepInspector}
       />
     {:else if recordingRow !== null}

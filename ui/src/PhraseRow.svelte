@@ -414,6 +414,21 @@
     event.stopPropagation();
   }
 
+  /** @param {MouseEvent} event @param {number} step */
+  function openStepFromCellBackground(event, step) {
+    if (stepInspectorInteractionDisabled || event.defaultPrevented) return;
+    if (!(event.target instanceof Element)) return;
+    if (
+      event.target.closest(
+        "button, input, select, textarea, [role='slider'], [data-no-inspect], [data-no-long-press], [data-no-marquee]",
+      )
+    ) {
+      return;
+    }
+
+    onInspectStep(row, step, stepIds[step]);
+  }
+
   /** @param {PointerEvent} event */
   function shouldIgnoreBulkBackgroundInteraction(event) {
     const target = event.target;
@@ -863,6 +878,8 @@
   {@const isInspectedStep = inspectedStepId === stepIds[step]}
   {@const stepInspectionMuted = stepInspectionActive && !isInspectedStep}
   {@const stepInspectionFocused = stepInspectionActive && isInspectedStep}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[opacity,box-shadow] duration-150 {stepInspectionMuted
       ? 'opacity-[0.78]'
@@ -870,6 +887,7 @@
       activeGates[step],
       stepDimmed,
     )} {(isStepSelected || stepInspectionFocused) && !isDragging ? accent.selectionShell : ''}"
+    onclick={(event) => openStepFromCellBackground(event, step)}
   >
     <div class="relative z-0 h-full min-h-0 w-full min-w-0 {stepInspectionMuted ? 'pointer-events-none select-none' : ''}">
       <div
