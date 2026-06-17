@@ -3876,7 +3876,7 @@
   </section>
   {#if marqueeSelection}
     <div
-      class="pointer-events-none fixed z-[9999] rounded-sm border border-accent bg-link-hover/15 shadow-accent-selection"
+      class="pointer-events-none fixed z-[9999] rounded-sm border border-accent/55 bg-link-hover/10 shadow-accent-selection"
       style={marqueeRectStyle}
       aria-hidden="true"
     ></div>

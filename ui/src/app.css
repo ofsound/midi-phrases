@@ -11,7 +11,7 @@
   --shadow-accent-piano-active: 0 0 12px color-mix(in srgb, var(--color-accent) 65%, transparent);
   --shadow-accent-focus: 0 0 0 1px color-mix(in srgb, var(--color-accent) 85%, transparent);
   --shadow-accent-pressed: inset 0 1px 0 color-mix(in srgb, var(--color-text) 38%, transparent), 0 0 14px color-mix(in srgb, var(--color-accent) 58%, transparent), 0 0 28px color-mix(in srgb, var(--color-accent) 28%, transparent);
-  --shadow-accent-selection: 0 0 0 1px color-mix(in srgb, var(--color-accent) 85%, transparent), 0 0 14px color-mix(in srgb, var(--color-accent) 32%, transparent);
+  --shadow-accent-selection: 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent), 0 0 8px color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
 
 /* Embedded WKWebView in JUCE does not apply :hover until after a click; mirror with data-mp-hover. */

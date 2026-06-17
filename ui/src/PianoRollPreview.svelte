@@ -643,16 +643,17 @@
       context.stroke();
     }
 
+    /** @type {{ left: number, width: number } | null} */
+    let loopBounds = null;
+
     if (loopEnabled) {
       const left = displayStart * pxPerQuarter - windowLeftPx;
       const width = loopSpan * pxPerQuarter;
 
       if (left < renderWindowWidthPx && left + width > 0) {
+        loopBounds = { left, width };
         context.fillStyle = themeColor("--theme-piano-roll-loop-fill");
-        context.strokeStyle = themeColor("--theme-piano-roll-loop-border");
-        context.lineWidth = 1;
         context.fillRect(left, 0, width, rollHeightPx);
-        context.strokeRect(left + 0.5, 0.5, Math.max(0, width - 1), Math.max(0, rollHeightPx - 1));
       }
     }
 
@@ -670,6 +671,17 @@
       context.moveTo(x, 0);
       context.lineTo(x, rollHeightPx);
       context.stroke();
+    }
+
+    if (loopBounds) {
+      context.strokeStyle = themeColor("--theme-piano-roll-loop-border");
+      context.lineWidth = 1;
+      context.strokeRect(
+        loopBounds.left + 0.5,
+        0.5,
+        Math.max(0, loopBounds.width - 1),
+        Math.max(0, rollHeightPx - 1),
+      );
     }
 
     for (const note of scheduled) {
