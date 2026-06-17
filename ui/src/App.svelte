@@ -812,6 +812,30 @@
     return groups;
   }
 
+  /** @param {HTMLElement} element */
+  function toggleStepSelectionFromCellElement(element) {
+    const row = Number.parseInt(element.dataset.stepRow ?? "-1", 10);
+    const stepId = element.dataset.stepId;
+
+    if (Number.isNaN(row) || !stepId) return false;
+
+    const key = stepSelectionKey(row, stepId);
+    if (!selectableStepKeySet.has(key)) return false;
+
+    const next = new SvelteSet(selectedStepKeysForGrid);
+
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+
+    setSelectedStepKeys(next);
+    syncBulkControlsFromSelection();
+
+    return true;
+  }
+
   let activeStepInspector = $derived.by(() => {
     if (inspectedStep === null) return null;
 
@@ -995,6 +1019,16 @@
     const target = event.target;
 
     if (!(target instanceof Element)) return;
+
+    const stepCell = target.closest("[data-bulk-step-cell]");
+
+    if (event.shiftKey && stepCell instanceof HTMLElement) {
+      if (toggleStepSelectionFromCellElement(stepCell)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
 
     if (
       target.closest(
