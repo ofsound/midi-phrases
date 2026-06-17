@@ -628,11 +628,21 @@
   }
 
   function previewVelocityTiltPivot(value) {
-    setVelocityTiltState({ pivotMidi: value });
+    const next = clampVelocityTiltPivotMidi(value);
+    setVelocityTiltState({ pivotMidi: next });
+
+    if (!nativeFunctionAvailable("setPatternVelocityTiltPivotMidi")) return;
+
+    void getNativeFunction("setPatternVelocityTiltPivotMidi")(next);
   }
 
   function previewVelocityTiltAmount(value) {
-    setVelocityTiltState({ amount: value });
+    const next = clampVelocityTiltAmount(value);
+    setVelocityTiltState({ amount: next });
+
+    if (!nativeFunctionAvailable("setPatternVelocityTiltAmount")) return;
+
+    void getNativeFunction("setPatternVelocityTiltAmount")(next);
   }
 
   async function commitProcessingParam(label, applyState, syncFn, changed) {
