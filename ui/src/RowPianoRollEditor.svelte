@@ -3,7 +3,7 @@
   import { loopBraceSnapQuarters } from "./loopBraceLayout.js";
   import { defaultPulseIndex } from "./pulseLayout.js";
   import { isBlackKey, rowStepLayout, rowTimingOffsetQuarters } from "./phraseSchedule.js";
-  import { timingMultiplierAtIndex } from "./stepCellLayout.js";
+  import { timingMultiplierAtIndex, stepTimingMultiplierQuarterStep } from "./stepCellLayout.js";
   import { scaledPx } from "./uiScale.svelte.js";
 
   /**
@@ -54,22 +54,31 @@
   const baseKeyboardWidthPx = 54;
   const baseRulerHeightPx = 24;
   const minimumVisibleSemitones = 12;
+  const durationSnapFractions = [0, 0.25, 0.5, 0.75, 1];
 
   /** @type {HTMLElement | null} */
   let gridElement = $state(null);
   /** @type {HTMLElement | null} */
   let verticalScrollElement = $state(null);
   let viewportHeightPx = $state(0);
+  let gridViewportWidthPx = $state(0);
   let drag = $state(null);
 
-  let pxPerQuarter = $derived(scaledPx(basePxPerQuarter));
-  let keyboardWidthPx = $derived(scaledPx(baseKeyboardWidthPx));
-  let rulerHeightPx = $derived(scaledPx(baseRulerHeightPx));
   let rowLayout = $derived(rowStepLayout(stepTimingMultiplier, pulseIndex, stepSkipped));
   let offsetQuarters = $derived(rowTimingOffsetQuarters(rowTimingOffset, pulseIndex));
   let leftPaddingQuarters = $derived(Math.max(0, -offsetQuarters));
   let rowLengthQuarters = $derived(Math.max(loopBraceSnapQuarters, rowLayout.cycleLengthQuarters));
-  let rollWidthPx = $derived(Math.max(1, (rowLengthQuarters + Math.abs(offsetQuarters)) * pxPerQuarter));
+  let timelineQuarters = $derived(rowLengthQuarters + Math.abs(offsetQuarters));
+  let pxPerQuarter = $derived.by(() => {
+    const floor = scaledPx(basePxPerQuarter);
+
+    if (gridViewportWidthPx <= 0 || timelineQuarters <= 0) return floor;
+
+    return Math.max(floor, gridViewportWidthPx / timelineQuarters);
+  });
+  let rollWidthPx = $derived(Math.max(1, timelineQuarters * pxPerQuarter));
+  let keyboardWidthPx = $derived(scaledPx(baseKeyboardWidthPx));
+  let rulerHeightPx = $derived(scaledPx(baseRulerHeightPx));
   let visiblePitchRange = $derived.by(() => {
     let minMidi = 60;
     let maxMidi = 72;
@@ -101,15 +110,24 @@
   let pitchRows = $derived(Array.from({ length: pitchSpan }, (_, index) => visiblePitchRange.maxMidi - index));
   let stepNotes = $derived.by(() => {
     return notes.map((midi, step) => {
-      const stepLength = rowLayout.stepLengthQuarters[step] ?? timingMultiplierAtIndex(stepTimingMultiplier[step]) ?? 1;
-      const duration = Math.max(0.05, stepLength * Math.min(1, Math.max(0.05, stepDurationFraction[step] ?? 1)));
-      const start = (rowLayout.stepStartQuarters[step] ?? 0) + offsetQuarters + leftPaddingQuarters;
-      const previewFraction = drag?.mode === "resize" && drag.row === row && drag.step === step
-        ? drag.previewFraction
-        : null;
-      const displayDuration = previewFraction === null
-        ? duration
-        : Math.max(0.05, stepLength * previewFraction);
+      const displayStep =
+        drag?.mode === "move" && drag.step === step ? drag.targetStep : step;
+      const stepLength =
+        rowLayout.stepLengthQuarters[displayStep] ??
+        timingMultiplierAtIndex(stepTimingMultiplier[displayStep]) ??
+        1;
+      const start =
+        (rowLayout.stepStartQuarters[displayStep] ?? 0) + offsetQuarters + leftPaddingQuarters;
+      const previewFraction =
+        drag?.mode === "resize" && drag.step === step ? drag.previewFraction : null;
+      const duration = Math.max(
+        stepTimingMultiplierQuarterStep,
+        stepLength * Math.min(1, Math.max(stepTimingMultiplierQuarterStep / stepLength, stepDurationFraction[step] ?? 1)),
+      );
+      const displayDuration =
+        previewFraction === null
+          ? duration
+          : Math.max(stepTimingMultiplierQuarterStep, stepLength * previewFraction);
 
       return {
         step,
@@ -127,8 +145,15 @@
   /** @param {HTMLElement} node */
   function gridAttachment(node) {
     gridElement = node;
+    gridViewportWidthPx = node.clientWidth;
+
+    const resizeObserver = new ResizeObserver(() => {
+      gridViewportWidthPx = node.clientWidth;
+    });
+    resizeObserver.observe(node);
 
     return () => {
+      resizeObserver.disconnect();
       if (gridElement === node) gridElement = null;
     };
   }
@@ -172,18 +197,35 @@
   }
 
   /** @param {number} beat */
-  function stepAtBeat(beat) {
-    if (stepNotes.length === 0) return -1;
+  function snapBeatToQuarterGrid(beat) {
+    return Math.round(beat / stepTimingMultiplierQuarterStep) * stepTimingMultiplierQuarterStep;
+  }
+
+  /** @param {number} beat */
+  function stepAtDisplayBeat(beat) {
+    const beatInCycle = snapBeatToQuarterGrid(beat) - offsetQuarters - leftPaddingQuarters;
+
+    for (let step = 0; step < rowLayout.stepStartQuarters.length; step += 1) {
+      const start = rowLayout.stepStartQuarters[step] ?? 0;
+      const length = rowLayout.stepLengthQuarters[step] ?? 1;
+
+      if (beatInCycle >= start && beatInCycle < start + length) {
+        return step;
+      }
+    }
+
+    if (rowLayout.stepStartQuarters.length === 0) return -1;
 
     let bestStep = 0;
     let bestDistance = Number.POSITIVE_INFINITY;
 
-    for (const note of stepNotes) {
-      const distance = Math.abs(note.start - beat);
+    for (let step = 0; step < rowLayout.stepStartQuarters.length; step += 1) {
+      const start = rowLayout.stepStartQuarters[step] ?? 0;
+      const distance = Math.abs(start - beatInCycle);
 
       if (distance < bestDistance) {
         bestDistance = distance;
-        bestStep = note.step;
+        bestStep = step;
       }
     }
 
@@ -205,9 +247,27 @@
     return Math.min(127, Math.max(0, baseMidi + deltaRows));
   }
 
-  /** @param {number} value */
-  function clampDurationFraction(value) {
-    return Math.min(1, Math.max(0.05, value));
+  /** @param {number} value @param {number} stepLength */
+  function clampDurationFraction(value, stepLength) {
+    const minFraction = Math.min(1, stepTimingMultiplierQuarterStep / stepLength);
+
+    return Math.min(1, Math.max(minFraction, value));
+  }
+
+  /** @param {number} fraction */
+  function snapDurationFraction(fraction) {
+    return durationSnapFractions.reduce((closest, snapValue) =>
+      Math.abs(snapValue - fraction) < Math.abs(closest - fraction) ? snapValue : closest,
+    );
+  }
+
+  /** @param {number} endBeat @param {number} startBeat @param {number} stepLength */
+  function durationFractionFromSnappedEnd(endBeat, startBeat, stepLength) {
+    const minEnd = startBeat + stepTimingMultiplierQuarterStep;
+    const snappedEnd = Math.max(minEnd, snapBeatToQuarterGrid(endBeat));
+    const rawFraction = (snappedEnd - startBeat) / stepLength;
+
+    return snapDurationFraction(clampDurationFraction(rawFraction, stepLength));
   }
 
   /** @param {PointerEvent} event @param {any} note @param {"move" | "resize"} mode */
@@ -223,6 +283,7 @@
       step: note.step,
       startY: event.clientY,
       startBeat: beatFromPointer(event),
+      baseStartBeat: note.start,
       baseMidi: note.midi,
       baseFraction: stepDurationFraction[note.step] ?? 1,
       previewMidi: note.midi,
@@ -242,7 +303,7 @@
 
     if (drag.mode === "move") {
       const nextMidi = midiFromPointerDelta(event, drag.baseMidi, drag.startY);
-      const targetStep = stepAtBeat(beatFromPointer(event));
+      const targetStep = stepAtDisplayBeat(beatFromPointer(event));
 
       drag.previewMidi = nextMidi;
       drag.targetStep = targetStep < 0 ? drag.step : targetStep;
@@ -250,9 +311,12 @@
       return;
     }
 
-    const beatDelta = beatFromPointer(event) - drag.startBeat;
     const stepLength = stepNotes[drag.step]?.stepLength ?? 1;
-    drag.previewFraction = clampDurationFraction(drag.baseFraction + beatDelta / stepLength);
+    drag.previewFraction = durationFractionFromSnappedEnd(
+      beatFromPointer(event),
+      drag.baseStartBeat,
+      stepLength,
+    );
   }
 
   /** @param {PointerEvent} event */
@@ -277,13 +341,6 @@
     }
 
     await onDurationChange(row, finished.step, finished.previewFraction);
-  }
-
-  /** @param {PointerEvent} event */
-  function closeOnBackgroundPointerDown(event) {
-    if (event.target !== event.currentTarget) return;
-
-    onClose();
   }
 </script>
 
@@ -355,7 +412,6 @@
             role="group"
             aria-label="Focused row piano roll"
             style:height="{rollHeightPx}px"
-            onpointerdown={closeOnBackgroundPointerDown}
           >
             {#each pitchRows as midi (midi)}
               <div
