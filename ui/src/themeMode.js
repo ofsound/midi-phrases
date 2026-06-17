@@ -1,6 +1,21 @@
 export const themeModes = ["light", "dark", "alt"];
 export const defaultThemeMode = "dark";
 
+/** @type {Record<(typeof themeModes)[number], string>} */
+export const themeModeTitles = {
+  light: "Light theme",
+  dark: "Dark theme",
+  alt: "Alt theme",
+};
+
+/** @param {unknown} current */
+export function nextThemeMode(current) {
+  const mode = isThemeMode(current) ? current : defaultThemeMode;
+  const index = themeModes.indexOf(mode);
+
+  return themeModes[(index + 1) % themeModes.length];
+}
+
 const themeModeStorageKey = "midi-phrases-theme-mode";
 
 /** @param {unknown} value */

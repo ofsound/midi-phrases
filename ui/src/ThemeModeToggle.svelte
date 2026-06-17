@@ -1,42 +1,35 @@
 <script>
-  const themeModeOptions = [
-    { value: "light", label: "L", title: "Light theme" },
-    { value: "dark", label: "D", title: "Dark theme" },
-    { value: "alt", label: "A", title: "Alt theme" },
-  ];
+  import ThemeAltIcon from "./ThemeAltIcon.svelte";
+  import ThemeMoonIcon from "./ThemeMoonIcon.svelte";
+  import ThemeSunIcon from "./ThemeSunIcon.svelte";
+  import { nextThemeMode, themeModeTitles } from "./themeMode.js";
 
   let {
     value = "dark",
     onValueChange = () => {},
   } = $props();
 
-  /** @param {string} next */
-  function selectThemeMode(next) {
-    if (next !== value) {
-      onValueChange(next);
-    }
+  let title = $derived(themeModeTitles[value] ?? themeModeTitles.dark);
+  let nextTitle = $derived(themeModeTitles[nextThemeMode(value)] ?? themeModeTitles.light);
+
+  function cycleThemeMode() {
+    onValueChange(nextThemeMode(value));
   }
 </script>
 
-<div
-  role="group"
-  aria-label="Theme mode"
-  class="flex h-5 shrink-0 items-center rounded-sm border border-border-subtle bg-field p-0.5"
+<button
+  type="button"
+  aria-label={title}
+  title="{title} · click for {nextTitle.toLowerCase()}"
+  data-cursor="pointer"
+  class="flex h-5 w-5 shrink-0 items-center justify-center border-0 bg-transparent p-0 text-text-muted outline-none transition-colors hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
+  onclick={cycleThemeMode}
 >
-  {#each themeModeOptions as option (option.value)}
-    {@const selected = value === option.value}
-    <button
-      type="button"
-      aria-pressed={selected}
-      aria-label={option.title}
-      title={option.title}
-      data-cursor="pointer"
-      class="flex h-4 w-4 items-center justify-center rounded-[2px] text-[9px] leading-none font-bold transition-[background-color,color,box-shadow] outline-none focus-visible:ring-1 focus-visible:ring-focus-ring {selected
-        ? 'bg-control-primary text-control-primary-text shadow-[0_0_8px_color-mix(in_srgb,var(--color-control-primary)_45%,transparent)]'
-        : 'text-text-faint hover:bg-control-ghost-hover hover:text-text-secondary'}"
-      onclick={() => selectThemeMode(option.value)}
-    >
-      {option.label}
-    </button>
-  {/each}
-</div>
+  {#if value === "light"}
+    <ThemeSunIcon class="pointer-events-none h-5 w-5" />
+  {:else if value === "dark"}
+    <ThemeMoonIcon class="pointer-events-none h-5 w-5" />
+  {:else}
+    <ThemeAltIcon class="pointer-events-none h-5 w-5" />
+  {/if}
+</button>
