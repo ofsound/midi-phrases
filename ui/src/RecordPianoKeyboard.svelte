@@ -8,13 +8,13 @@
     recordPianoMidiRange,
     recordPianoRangeLabel,
   } from "./pianoKeyboardLayout.js";
+  import { isChromaticScaleMode, isMidiInScale } from "./scaleUtils.js";
 
-  
-  
-  
   /**
    * @typedef {Object} Props
    * @property {number} [row]
+   * @property {number} [scaleRoot]
+   * @property {number} [scaleModeIndex]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {Set<number>} [heldKeys]
    * @property {(midi: number) => void} [onNotePress]
@@ -23,10 +23,15 @@
   /** @type {Props} */
   let {
     row = 0,
+    scaleRoot = 0,
+    scaleModeIndex = 0,
     accent = emeraldRowAccent,
     heldKeys = new Set(),
     onNotePress = () => {}
   } = $props();
+
+  const scaleToneMarkerClass =
+    "pointer-events-none mb-1 h-2 w-2 shrink-0 rounded-full bg-accent shadow-[0_0_6px_rgba(52,211,153,0.8)]";
 
   /** Default view: three octave-up steps from the bottom (starts ~C1, not C-2). */
   let octaveOffset = $state(3);
@@ -37,14 +42,20 @@
   let range = $derived(recordPianoMidiRange(octaveOffset));
   let layout = $derived(buildRecordPianoKeys(range.lowest, range.highest));
   let rangeLabel = $derived(recordPianoRangeLabel(range.lowest, range.highest));
+  let chromatic = $derived(isChromaticScaleMode(scaleModeIndex));
+
+  /** @param {number} midi */
+  function isKeyUsable(midi) {
+    return chromatic || isMidiInScale(midi, scaleRoot, scaleModeIndex);
+  }
 
   function isKeyHeld(midi) {
-    return heldKeys.has(midi) || pointerHeldKeys.has(midi);
+    return isKeyUsable(midi) && (heldKeys.has(midi) || pointerHeldKeys.has(midi));
   }
 
   /** @param {number} midi */
   function pressKey(midi) {
-    if (pointerHeldKeys.has(midi)) return;
+    if (!isKeyUsable(midi) || pointerHeldKeys.has(midi)) return;
 
     pointerHeldKeys.add(midi);
     onNotePress(midi);
@@ -117,19 +128,25 @@
     <div class="relative flex min-h-0 flex-1 touch-none select-none">
       <div class="relative z-0 flex h-full min-h-[10rem] w-full">
         {#each layout.whites as { midi } (midi)}
+          {@const usable = isKeyUsable(midi)}
           <button
             type="button"
-            data-cursor="pointer"
-            class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end border-r border-b border-border/80 transition-[filter,background-color] duration-75 last:border-r-0 hover:brightness-105 active:brightness-95 {isKeyHeld(
-              midi,
-            )
+            data-cursor={usable ? "pointer" : "default"}
+            class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end border-r border-b border-border/80 transition-[filter,background-color,opacity] duration-75 last:border-r-0 {usable
+              ? 'hover:brightness-105 active:brightness-95'
+              : 'pointer-events-none opacity-35'} {isKeyHeld(midi)
               ? accent.pianoNoteActive
               : 'bg-gradient-to-b from-input to-surface-muted hover:from-surface hover:to-surface-subtle'}"
             aria-label={midiToNoteName(midi)}
-            onpointerdown={(event) => onWhitePointerDown(event, midi)}
-            onpointerup={(event) => onWhitePointerUp(event, midi)}
-            onpointercancel={(event) => onWhitePointerUp(event, midi)}
+            aria-disabled={!usable}
+            disabled={!usable}
+            onpointerdown={usable ? (event) => onWhitePointerDown(event, midi) : undefined}
+            onpointerup={usable ? (event) => onWhitePointerUp(event, midi) : undefined}
+            onpointercancel={usable ? (event) => onWhitePointerUp(event, midi) : undefined}
           >
+            {#if usable && !isKeyHeld(midi)}
+              <span class={scaleToneMarkerClass}></span>
+            {/if}
             {#if midi % 12 === 0}
               <span
                 class="pointer-events-none mb-1 text-[11px] font-bold leading-none text-text-inverse tabular-nums"
@@ -143,37 +160,56 @@
 
       <div class="pointer-events-none absolute inset-0 z-10">
         {#each layout.blacks as { midi, centerPercent, widthPercent } (midi)}
+          {@const usable = isKeyUsable(midi)}
           <button
             type="button"
-            data-cursor="pointer"
-            class="pointer-events-auto absolute top-0 z-10 h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 rounded-b-md border border-border-subtle/80 shadow-md transition-[filter,background-color] duration-75 active:brightness-110 {isKeyHeld(
-              midi,
-            )
+            data-cursor={usable ? "pointer" : "default"}
+            class="{usable
+              ? 'pointer-events-auto'
+              : 'pointer-events-none opacity-35'} absolute top-0 z-10 flex h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md border border-border-subtle/80 pb-1 shadow-md transition-[filter,background-color,opacity] duration-75 {usable
+              ? 'active:brightness-110 hover:from-surface-subtle hover:to-surface'
+              : ''} {isKeyHeld(midi)
               ? accent.pianoNoteActive
-              : 'bg-gradient-to-b from-surface-subtle to-app hover:from-surface-subtle hover:to-surface'}"
+              : 'bg-gradient-to-b from-surface-subtle to-app'}"
             style:left="{centerPercent}%"
             style:width="{widthPercent}%"
             aria-label={midiToNoteName(midi)}
-            onpointerdown={(event) => {
-              event.preventDefault();
-              event.currentTarget.setPointerCapture(event.pointerId);
-              pressKey(midi);
-            }}
-            onpointerup={(event) => {
-              event.currentTarget.releasePointerCapture(event.pointerId);
-              releaseKey(midi);
-            }}
-            onpointercancel={(event) => {
-              event.currentTarget.releasePointerCapture(event.pointerId);
-              releaseKey(midi);
-            }}
-          ></button>
+            aria-disabled={!usable}
+            disabled={!usable}
+            onpointerdown={usable
+              ? (event) => {
+                  event.preventDefault();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  pressKey(midi);
+                }
+              : undefined}
+            onpointerup={usable
+              ? (event) => {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                  releaseKey(midi);
+                }
+              : undefined}
+            onpointercancel={usable
+              ? (event) => {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                  releaseKey(midi);
+                }
+              : undefined}
+          >
+            {#if usable && !isKeyHeld(midi)}
+              <span class={scaleToneMarkerClass}></span>
+            {/if}
+          </button>
         {/each}
       </div>
     </div>
   </div>
 
   <p class="mt-2 shrink-0 text-center text-[11px] text-text-faint">
-    Click keys or play MIDI · each note adds a 1× step · chords at the same instant are ignored
+    {#if chromatic}
+      Click keys or play MIDI · each note adds a 1× step · chords at the same instant are ignored
+    {:else}
+      Click scale keys or play MIDI · off-scale notes are ignored · chords at the same instant are ignored
+    {/if}
   </p>
 </section>

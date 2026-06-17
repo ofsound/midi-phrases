@@ -14,6 +14,8 @@
    * @property {number} [probability]
    * @property {number} [cycle]
    * @property {number} [cycleMask]
+   * @property {number} [scaleRoot]
+   * @property {number} [scaleModeIndex]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {(midi: number) => void | Promise<void>} [onNoteChange]
    * @property {(value: number) => void | Promise<void>} [onVelocityChange]
@@ -31,6 +33,8 @@
     probability = 100,
     cycle = 1,
     cycleMask = 1,
+    scaleRoot = 0,
+    scaleModeIndex = 0,
     accent = emeraldRowAccent,
     onNoteChange = () => {},
     onVelocityChange = () => {},
@@ -47,6 +51,8 @@
     <StepInspectorKeyboard
       {note}
       {stepKey}
+      {scaleRoot}
+      {scaleModeIndex}
       {accent}
       onNoteChange={onNoteChange}
     />

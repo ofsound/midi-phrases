@@ -96,6 +96,7 @@
     defaultScaleModeIndex,
     defaultScaleRoot,
     isChromaticScaleMode,
+    isMidiInScale,
     keyCenters,
     scaleModes,
     scaleName,
@@ -2394,7 +2395,11 @@
   async function commitRecordedNote(midi) {
     if (recordingRow === null) return;
 
-    const note = clampPhraseNote(midi);
+    if (!isChromaticScaleMode(scaleModeIndex) && !isMidiInScale(midi, scaleRoot, scaleModeIndex)) {
+      return;
+    }
+
+    const note = Math.min(127, Math.max(0, Math.round(midi)));
 
     if (grid[recordingRow].length >= maxPhraseStepsPerRow) {
       return;
@@ -2522,7 +2527,12 @@
         recordingKeysHeld = new Set(
           keys
             .map((value) => Number.parseInt(String(value), 10))
-            .filter((midi) => !Number.isNaN(midi)),
+            .filter(
+              (midi) =>
+                !Number.isNaN(midi) &&
+                (isChromaticScaleMode(scaleModeIndex) ||
+                  isMidiInScale(midi, scaleRoot, scaleModeIndex)),
+            ),
         );
       } catch {
         // Native bridge unavailable during teardown.
@@ -2541,6 +2551,9 @@
         const midi = Number.parseInt(String(raw), 10);
 
         if (Number.isNaN(midi)) continue;
+        if (!isChromaticScaleMode(scaleModeIndex) && !isMidiInScale(midi, scaleRoot, scaleModeIndex)) {
+          continue;
+        }
 
         applyRecordedNoteToUiRow(recordingRow, midi);
         recordingCapturedNotes = true;
@@ -3648,6 +3661,8 @@
         probability={activeStepInspector.probability}
         cycle={activeStepInspector.cycle}
         cycleMask={activeStepInspector.cycleMask}
+        {scaleRoot}
+        {scaleModeIndex}
         accent={rowAccentFor(activeStepInspector.row, rowColorsEnabled)}
         onNoteChange={(midi) =>
           commitPhraseNoteValue(activeStepInspector.row, activeStepInspector.step, midi)}
@@ -3662,6 +3677,8 @@
     {:else if recordingRow !== null}
       <RecordPianoKeyboard
         row={recordingRow}
+        {scaleRoot}
+        {scaleModeIndex}
         accent={rowAccentFor(recordingRow, rowColorsEnabled)}
         heldKeys={recordingKeysHeld}
         onNotePress={onRecordPianoNotePress}

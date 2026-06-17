@@ -3576,6 +3576,18 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (drained.isEmpty());
         CHECK (testPlugin.getPhraseRowStepCount (0) == 7);
 
+        testPlugin.setPatternScale (0, 1); // C major
+        testPlugin.setPhraseRowRecording (0);
+
+        processNoteOns ({ 60, 61, 64 });
+        drained = testPlugin.drainPhraseRowRecordedNotes();
+        REQUIRE (drained.size() == 2);
+        CHECK (drained[0] == 60);
+        CHECK (drained[1] == 64);
+        CHECK (testPlugin.getPhraseRowStepCount (0) == 9);
+        CHECK (testPlugin.getPhraseNote (0, 7) == 60);
+        CHECK (testPlugin.getPhraseNote (0, 8) == 64);
+
         testPlugin.setPhraseRowRecording (1);
         CHECK (testPlugin.getPhraseRowRecording() == 1);
     }

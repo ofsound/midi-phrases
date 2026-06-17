@@ -3449,14 +3449,20 @@ int PluginProcessor::getPhraseRowRecording() const
 
 void PluginProcessor::enqueueRecordedNote (const int midiNote)
 {
+    const auto clamped = juce::jlimit (0, 127, midiNote);
+    const auto& pattern = modelPattern (getViewPatternSlot());
+
+    if (clampScaleModeIndex (pattern.scaleModeIndex) != defaultScaleModeIndex
+        && ! pitchClassInScale (clamped, pattern.scaleRoot, pattern.scaleModeIndex))
+        return;
+
     const auto write = recordQueueWrite.load (std::memory_order_relaxed);
     const auto read = recordQueueRead.load (std::memory_order_acquire);
 
     if (write - read >= recordQueueCapacity)
         return;
 
-    recordQueueNotes[static_cast<size_t> (write % recordQueueCapacity)] =
-        juce::jlimit (0, 127, midiNote);
+    recordQueueNotes[static_cast<size_t> (write % recordQueueCapacity)] = clamped;
     recordQueueWrite.store (write + 1, std::memory_order_release);
 }
 
@@ -3546,7 +3552,14 @@ void PluginProcessor::injectPhraseRowRecordedNote (const int midiNote)
     if (row < 0)
         return;
 
-    appendRecordedNoteToModelRow (row, midiNote);
+    const auto clamped = juce::jlimit (0, 127, midiNote);
+    const auto& pattern = modelPattern (getViewPatternSlot());
+
+    if (clampScaleModeIndex (pattern.scaleModeIndex) != defaultScaleModeIndex
+        && ! pitchClassInScale (clamped, pattern.scaleRoot, pattern.scaleModeIndex))
+        return;
+
+    appendRecordedNoteToModelRow (row, clamped);
 }
 
 void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages)

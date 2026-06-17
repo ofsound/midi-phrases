@@ -8,11 +8,14 @@
     stepInspectorMidiRange,
     stepInspectorOctaveOffsetForNote,
   } from "./pianoKeyboardLayout.js";
+  import { isChromaticScaleMode, isMidiInScale } from "./scaleUtils.js";
 
   /**
    * @typedef {Object} Props
    * @property {number} [note]
    * @property {string} [stepKey]
+   * @property {number} [scaleRoot]
+   * @property {number} [scaleModeIndex]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {(midi: number) => void | Promise<void>} [onNoteChange]
    */
@@ -21,9 +24,14 @@
   let {
     note = 60,
     stepKey = "",
+    scaleRoot = 0,
+    scaleModeIndex = 0,
     accent = emeraldRowAccent,
     onNoteChange = () => {},
   } = $props();
+
+  const scaleToneMarkerClass =
+    "pointer-events-none mb-1 h-2 w-2 shrink-0 rounded-full bg-accent shadow-[0_0_6px_rgba(52,211,153,0.8)]";
 
   const whiteKeyClass =
     "relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end border-r border-b border-border-strong/70 pb-1 transition-[filter] duration-75 last:border-r-0 hover:brightness-105 active:brightness-95 bg-gradient-to-b from-input to-surface-muted hover:from-surface hover:to-surface-subtle";
@@ -51,6 +59,12 @@
       blackKeyWidthRatio: scalePreviewBlackKeyWidthRatio,
     }),
   );
+  let chromatic = $derived(isChromaticScaleMode(scaleModeIndex));
+
+  /** @param {number} midi */
+  function isKeyInteractive(midi) {
+    return chromatic || isMidiInScale(midi, scaleRoot, scaleModeIndex);
+  }
 
   /** @param {number} midi */
   function isSelectedNote(midi) {
@@ -59,7 +73,7 @@
 
   /** @param {number} midi */
   function selectNote(midi) {
-    if (midi === note) return;
+    if (!isKeyInteractive(midi) || midi === note) return;
 
     onNoteChange(midi);
   }
@@ -104,17 +118,24 @@
   >
     <div class="relative z-0 flex h-full w-full">
       {#each layout.whites as { midi } (midi)}
+        {@const interactive = isKeyInteractive(midi)}
+        {@const selected = isSelectedNote(midi)}
         <button
           type="button"
-          data-cursor="pointer"
-          class={whiteKeyClass}
+          data-cursor={interactive ? "pointer" : "default"}
+          class="{whiteKeyClass} {interactive || selected ? '' : 'pointer-events-none opacity-35'}"
           aria-label={midiToNoteName(midi)}
-          aria-pressed={isSelectedNote(midi)}
-          onpointerdown={(event) => onKeyPointerDown(event, midi)}
-          onpointerup={onKeyPointerUp}
-          onpointercancel={onKeyPointerUp}
+          aria-pressed={selected}
+          aria-disabled={!interactive}
+          disabled={!interactive}
+          onpointerdown={interactive ? (event) => onKeyPointerDown(event, midi) : undefined}
+          onpointerup={interactive ? onKeyPointerUp : undefined}
+          onpointercancel={interactive ? onKeyPointerUp : undefined}
         >
-          {#if isSelectedNote(midi)}
+          {#if interactive && !selected}
+            <span class={scaleToneMarkerClass}></span>
+          {/if}
+          {#if selected}
             <span class={selectedNoteLabelClass}>{midiToNoteName(midi)}</span>
           {/if}
         </button>
@@ -123,19 +144,26 @@
 
     <div class="pointer-events-none absolute inset-0 z-10">
       {#each layout.blacks as { midi, centerPercent, widthPercent } (midi)}
+        {@const interactive = isKeyInteractive(midi)}
+        {@const selected = isSelectedNote(midi)}
         <button
           type="button"
-          data-cursor="pointer"
-          class={blackKeyClass}
+          data-cursor={interactive ? "pointer" : "default"}
+          class="{blackKeyClass} {interactive || selected ? '' : 'pointer-events-none opacity-35'}"
           style:left="{centerPercent}%"
           style:width="{widthPercent}%"
           aria-label={midiToNoteName(midi)}
-          aria-pressed={isSelectedNote(midi)}
-          onpointerdown={(event) => onKeyPointerDown(event, midi)}
-          onpointerup={onKeyPointerUp}
-          onpointercancel={onKeyPointerUp}
+          aria-pressed={selected}
+          aria-disabled={!interactive}
+          disabled={!interactive}
+          onpointerdown={interactive ? (event) => onKeyPointerDown(event, midi) : undefined}
+          onpointerup={interactive ? onKeyPointerUp : undefined}
+          onpointercancel={interactive ? onKeyPointerUp : undefined}
         >
-          {#if isSelectedNote(midi)}
+          {#if interactive && !selected}
+            <span class={scaleToneMarkerClass}></span>
+          {/if}
+          {#if selected}
             <span class={selectedNoteLabelClass}>{midiToNoteName(midi)}</span>
           {/if}
         </button>
