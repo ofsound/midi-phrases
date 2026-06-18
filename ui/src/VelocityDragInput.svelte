@@ -122,6 +122,7 @@
 </script>
 
 <div
+  data-step-velocity
   data-cursor="vertical-drag"
   class="inline-flex touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {muted
     ? 'text-text-muted'

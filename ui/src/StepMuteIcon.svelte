@@ -14,6 +14,8 @@
 
 <style>
   .step-mute-icon {
+    transform: scale(0.68);
+    transform-origin: center;
     mask-image: var(--step-mute-icon);
     -webkit-mask-image: var(--step-mute-icon);
     mask-size: contain;

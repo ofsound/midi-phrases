@@ -1,21 +1,24 @@
 export const uiDesignWidthPx = 1670;
 export const uiDesignHeightPluginPx = 980;
 export const uiDesignHeightStandalonePx = 1044;
-export const uiMinScale = 0.7;
+export const uiMinScale = 0.5;
 export const uiMaxScale = 1;
+export const uiMinScalePercent = 50;
+export const uiMaxScalePercent = 100;
 export const uiBaseFontSizePx = 16;
 export const uiScaleStorageKey = "midiPhrasesUiScalePreset";
 
-export const uiScalePresetOptions = [
-  { value: "70", label: "70", scale: 0.7, minWidthPx: 1050, minHeightPluginPx: 620, minHeightStandalonePx: 660 },
-  { value: "80", label: "80", scale: 0.8, minWidthPx: 1200, minHeightPluginPx: 700, minHeightStandalonePx: 744 },
-  { value: "90", label: "90", scale: 0.9, minWidthPx: 1350, minHeightPluginPx: 790, minHeightStandalonePx: 836 },
-  { value: "100", label: "100", scale: 1, minWidthPx: 1500, minHeightPluginPx: 875, minHeightStandalonePx: 935 },
+const uiScaleMinimumSizeAnchors = [
+  { percent: 50, widthPx: 750, pluginHeightPx: 460, standaloneHeightPx: 492 },
+  { percent: 70, widthPx: 1050, pluginHeightPx: 620, standaloneHeightPx: 660 },
+  { percent: 80, widthPx: 1200, pluginHeightPx: 700, standaloneHeightPx: 744 },
+  { percent: 90, widthPx: 1350, pluginHeightPx: 790, standaloneHeightPx: 836 },
+  { percent: 100, widthPx: 1500, pluginHeightPx: 875, standaloneHeightPx: 935 },
 ];
 
 export const uiScaleState = $state({
   scale: 1,
-  presetValue: "100",
+  percent: 100,
   widthPx: uiDesignWidthPx,
   heightPx: uiDesignHeightPluginPx,
   standaloneTransportAvailable: false,
@@ -27,10 +30,14 @@ function clamp(value, min, max) {
 }
 
 /** @param {string | number | null | undefined} value */
-export function uiScalePresetForValue(value) {
-  const normalized = String(value ?? "");
+export function normalizeUiScalePercent(value) {
+  if (value === null || value === undefined || value === "") return uiMaxScalePercent;
 
-  return uiScalePresetOptions.find((option) => option.value === normalized) ?? uiScalePresetOptions.at(-1);
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) return uiMaxScalePercent;
+
+  return clamp(Math.round(parsed), uiMinScalePercent, uiMaxScalePercent);
 }
 
 /**
@@ -53,38 +60,54 @@ export function applyUiScaleToDocument(scale) {
   root.style.setProperty("--mp-ui-scale", String(scale));
 }
 
-export function storedUiScalePreset() {
-  if (typeof localStorage === "undefined") return "100";
+export function storedUiScalePercent() {
+  if (typeof localStorage === "undefined") return uiMaxScalePercent;
 
-  return uiScalePresetForValue(localStorage.getItem(uiScaleStorageKey))?.value ?? "100";
+  return normalizeUiScalePercent(localStorage.getItem(uiScaleStorageKey));
 }
 
 /**
- * @param {string | number} presetValue
+ * @param {string | number} percentValue
  * @param {{ persist?: boolean }} [options]
  */
-export function setUiScalePreset(presetValue, { persist = true } = {}) {
-  const preset = uiScalePresetForValue(presetValue);
-  const scale = clamp(preset.scale, uiMinScale, uiMaxScale);
+export function setUiScalePercent(percentValue, { persist = true } = {}) {
+  const percent = normalizeUiScalePercent(percentValue);
+  const scale = clamp(percent / 100, uiMinScale, uiMaxScale);
 
-  uiScaleState.presetValue = preset.value;
+  uiScaleState.percent = percent;
   uiScaleState.scale = scale;
   applyUiScaleToDocument(scale);
 
   if (persist && typeof localStorage !== "undefined") {
-    localStorage.setItem(uiScaleStorageKey, preset.value);
+    localStorage.setItem(uiScaleStorageKey, String(percent));
   }
 
-  return preset;
+  return percent;
+}
+
+/** @param {number} percent @param {'widthPx' | 'pluginHeightPx' | 'standaloneHeightPx'} key */
+function interpolatedMinimumSize(percent, key) {
+  const upperIndex = uiScaleMinimumSizeAnchors.findIndex((anchor) => anchor.percent >= percent);
+
+  if (upperIndex <= 0) return uiScaleMinimumSizeAnchors[0][key];
+
+  const lower = uiScaleMinimumSizeAnchors[upperIndex - 1];
+  const upper = uiScaleMinimumSizeAnchors[upperIndex];
+  const progress = (percent - lower.percent) / (upper.percent - lower.percent);
+
+  return Math.round(lower[key] + (upper[key] - lower[key]) * progress);
 }
 
 /** @param {{ standaloneTransportAvailable?: boolean }} [params] */
 export function currentUiScaleMinimumSize({ standaloneTransportAvailable = uiScaleState.standaloneTransportAvailable } = {}) {
-  const preset = uiScalePresetForValue(uiScaleState.presetValue);
+  const percent = normalizeUiScalePercent(uiScaleState.percent);
 
   return {
-    widthPx: preset.minWidthPx,
-    heightPx: standaloneTransportAvailable ? preset.minHeightStandalonePx : preset.minHeightPluginPx,
+    widthPx: interpolatedMinimumSize(percent, "widthPx"),
+    heightPx: interpolatedMinimumSize(
+      percent,
+      standaloneTransportAvailable ? "standaloneHeightPx" : "pluginHeightPx",
+    ),
   };
 }
 

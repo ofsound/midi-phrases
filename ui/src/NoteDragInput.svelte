@@ -164,6 +164,7 @@
 </script>
 
 <div
+  data-step-note
   data-cursor="vertical-drag"
   class="inline-flex min-w-0 touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {minimal
     ? 'text-control-primary-text'

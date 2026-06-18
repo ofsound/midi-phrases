@@ -10,8 +10,10 @@
   class={className}
   aria-hidden="true"
 >
-  <path
-    fill="currentColor"
-    d="M3 9 10 9 10 4 21 12 10 20 10 15 3 15Z"
-  />
+  <g transform="translate(12 12) scale(0.68) translate(-12 -12)">
+    <path
+      fill="currentColor"
+      d="M3 9 10 9 10 4 21 12 10 20 10 15 3 15Z"
+    />
+  </g>
 </svg>

@@ -83,7 +83,7 @@
   import StretchToFitToggle from "./StretchToFitToggle.svelte";
   import FullscreenIcon from "./FullscreenIcon.svelte";
   import MidiPhrasesLogo from "./MidiPhrasesLogo.svelte";
-  import UiScaleToggle from "./UiScaleToggle.svelte";
+  import UiScaleDragInput from "./UiScaleDragInput.svelte";
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
@@ -116,10 +116,9 @@
   import { applyThemeMode, defaultThemeMode, storedThemeMode } from "./themeMode.js";
   import {
     currentUiScaleMinimumSize,
-    setUiScalePreset,
+    setUiScalePercent,
     setUiViewportSize,
-    storedUiScalePreset,
-    uiScalePresetOptions,
+    storedUiScalePercent,
     uiScaleState,
   } from "./uiScale.svelte.js";
 
@@ -327,8 +326,8 @@
     await getNativeFunction("setEditorScaleMinimum")(minimumSize.widthPx, minimumSize.heightPx);
   }
 
-  function setExplicitUiScalePreset(next) {
-    setUiScalePreset(next);
+  function setExplicitUiScalePercent(next) {
+    setUiScalePercent(next);
     void syncEditorScaleMinimumToNative();
   }
 
@@ -3938,7 +3937,7 @@
 
   onMount(() => {
     themeMode = applyThemeMode(storedThemeMode(), { persist: false });
-    setUiScalePreset(storedUiScalePreset(), { persist: false });
+    setUiScalePercent(storedUiScalePercent(), { persist: false });
     let scaleFrameId = 0;
 
     const updateUiScale = () => {
@@ -4191,7 +4190,6 @@
           </div>
         </div>
         <BulkStepEditControls
-          className="border-l border-border-subtle pl-3"
           accent={interfaceAccent}
           requireSelection={false}
           totalStepCount={selectableStepCount}
@@ -4217,7 +4215,7 @@
           onTransposePreview={previewBulkTransposeSemitones}
           onTransposeCommit={commitBulkTransposeSemitones}
         />
-        <div class="flex shrink-0 items-end gap-1 border-l border-border-subtle pl-3">
+        <div class="flex shrink-0 items-end gap-1">
           <button
             type="button"
             aria-label="Undo"
@@ -4281,10 +4279,9 @@
             }}
           />
           <ThemeModeToggle value={themeMode} onValueChange={setThemeMode} />
-          <UiScaleToggle
-            value={uiScaleState.presetValue}
-            options={uiScalePresetOptions}
-            onValueChange={setExplicitUiScalePreset}
+          <UiScaleDragInput
+            value={uiScaleState.percent}
+            onValueChange={setExplicitUiScalePercent}
           />
           <button
             type="button"
@@ -4326,7 +4323,7 @@
           >
             <div
               data-row-header={row}
-              class="relative flex shrink-0 self-stretch items-center border-r border-border-subtle pr-6 {row <
+              class="relative -ml-6 flex shrink-0 self-stretch items-center border-r border-border-subtle pl-6 pr-6 {row <
               grid.length - 1
                 ? 'border-b'
                 : ''}"
@@ -4417,6 +4414,7 @@
               activeGates={activeGates[row]}
               selectedStepIds={selectedStepIdsByRow[row]}
               stepInspectionActive={activeStepInspector !== null || activeRowPianoRollEditor !== null}
+              stepInspectorOpen={activeStepInspector !== null}
               stretchToFit={stretchStepsToFit}
               fitGridColumns={compactGridLayout.totalColumns}
               fitGridStartColumn={compactGridLayout.rowStartColumns[row]}
@@ -4640,7 +4638,7 @@
     {/if}
     </div>
     <div class="-mx-6 w-[calc(100%+3rem)] shrink-0">
-      <div class="h-10 shrink-0 bg-app" role="presentation" aria-hidden="true"></div>
+      <div class="h-[calc(2.5rem*0.33)] shrink-0 bg-app" role="presentation" aria-hidden="true"></div>
       <div class="mp-honeycomb-rail relative z-20 flex h-20 items-center justify-center overflow-x-auto px-6">
       <div class="flex min-w-max items-center gap-8">
         <div class="flex items-center gap-2">

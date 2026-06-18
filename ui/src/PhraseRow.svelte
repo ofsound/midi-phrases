@@ -109,6 +109,7 @@
    * @property {{ index: number, label: string }[]} [timingMultiplierOptions]
    * @property {string[]} [selectedStepIds]
    * @property {boolean} [stepInspectionActive]
+   * @property {boolean} [stepInspectorOpen]
    * @property {boolean} [stretchToFit]
    * @property {number} [fitGridColumns]
    * @property {number} [fitGridStartColumn]
@@ -160,6 +161,7 @@
     timingMultiplierOptions = [],
     selectedStepIds = [],
     stepInspectionActive = false,
+    stepInspectorOpen = false,
     stretchToFit = false,
     fitGridColumns = 1,
     fitGridStartColumn = 0,
@@ -457,6 +459,12 @@
       return;
     }
 
+    if (
+      target.closest("[data-step-duration], [data-step-note], [data-step-velocity]")
+    ) {
+      return;
+    }
+
     const stepId = stepIds[step];
 
     if (!target.closest("button, input, textarea, select, [role='slider']")) return;
@@ -541,6 +549,58 @@
     event.preventDefault();
     event.stopPropagation();
     void onInspectStep(row, step, stepIds[step]);
+  }
+
+  /** @param {MouseEvent} event */
+  function shouldIgnoreFullStepInspectorInteraction(event) {
+    const target = event.target;
+
+    if (!(target instanceof Element)) return true;
+
+    return Boolean(
+      target.closest(
+        "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-no-inspect], [data-insert-slot], [data-remove-button], [data-multiplier-resize]",
+      ),
+    );
+  }
+
+  /** @param {MouseEvent} event @param {number} step */
+  function retargetOpenStepInspector(event, step) {
+    const stepId = stepIds[step];
+
+    if (
+      !stepInspectorOpen ||
+      stepInspectorInteractionDisabled ||
+      event.defaultPrevented ||
+      event.shiftKey ||
+      inspectedStepId === stepId ||
+      shouldIgnoreFullStepInspectorInteraction(event)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    void onInspectStep(row, step, stepId);
+  }
+
+  /** @param {MouseEvent} event @param {number} step */
+  function openFullStepInspector(event, step) {
+    const stepId = stepIds[step];
+
+    if (
+      stepInspectorInteractionDisabled ||
+      event.defaultPrevented ||
+      event.shiftKey ||
+      inspectedStepId === stepId ||
+      shouldIgnoreFullStepInspectorInteraction(event)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    void onInspectStep(row, step, stepId);
   }
 
   /** @param {PointerEvent} event */
@@ -1344,6 +1404,8 @@
       {#if reorderDisabled}
         <div class="relative flex w-max shrink-0 items-stretch overflow-visible">
           {#each stepIds as stepId, step (stepId)}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               data-bulk-step-cell
               data-step-row={row}
@@ -1355,6 +1417,8 @@
               style:margin-left={step === 0
                 ? `${stepCellPaddingPx()}px`
                 : `${stepInsertZoneWidthPx()}px`}
+              onclick={(event) => retargetOpenStepInspector(event, step)}
+              ondblclick={(event) => openFullStepInspector(event, step)}
             >
               <div class="pointer-events-auto h-full overflow-visible">
                 {@render stepCell(step, false)}
@@ -1385,6 +1449,8 @@
                 ? `${stepCellPaddingPx()}px`
                 : `${stepInsertZoneWidthPx()}px`}
               aria-hidden={isShadowItem(item) ? true : undefined}
+              onclick={(event) => layout.step >= 0 && retargetOpenStepInspector(event, layout.step)}
+              ondblclick={(event) => layout.step >= 0 && openFullStepInspector(event, layout.step)}
             >
               {#if isShadowItem(item)}
                 <div class="shrink-0" style={fixedFlexStyle(layout.cellWidth)}></div>
