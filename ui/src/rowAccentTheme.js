@@ -23,9 +23,9 @@
  *   pianoNoteActive: string,
  * }} RowAccent */
 
-/** Default row accent — palette tokens live in semantic-theme.generated.css. */
+/** Global interface accent — intentionally distinct from any row palette. */
 /** @type {RowAccent} */
-export const emeraldRowAccent = {
+export const interfaceAccent = {
   borderActive: "border-accent",
   borderFocus: "border-accent-strong",
   borderFocusVisible: "",
@@ -48,6 +48,33 @@ export const emeraldRowAccent = {
   selectionBorder: "border-accent/55",
   pianoNoteIdle: "border-accent/20 bg-accent/85 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-text)_12%,transparent)]",
   pianoNoteActive: "border-link-hover/90 bg-link-hover shadow-accent-piano-active",
+};
+
+/** Row 1 accent — palette tokens live in semantic-theme.generated.css. */
+/** @type {RowAccent} */
+export const emeraldRowAccent = {
+  borderActive: "border-row-accent-1",
+  borderFocus: "border-row-accent-1-strong",
+  borderFocusVisible: "",
+  cellFocusWithinBorder: "",
+  ringFocus: "",
+  ringFocusWithWidth: "",
+  insertZoneFocus: "focus-visible:ring-1 focus-visible:ring-row-accent-1-strong",
+  controlFocus: "focus:border-row-accent-1-strong focus:ring-1 focus:ring-row-accent-1-strong",
+  textAccent: "text-row-accent-1",
+  textAccentStrong: "text-row-accent-1-strong",
+  textAccentLight: "text-row-accent-1-soft",
+  textAccentFocus: "focus-visible:text-row-accent-1-soft",
+  bgAccent: "bg-row-accent-1",
+  bgAccentStrong: "bg-row-accent-1-strong",
+  dragBorder: "border-row-accent-1",
+  dragShadow: "shadow-[0_0_10px_color-mix(in_srgb,var(--color-row-accent-1)_40%,transparent)]",
+  playbackGlow: "shadow-[0_0_14px_color-mix(in_srgb,var(--color-row-accent-1)_55%,transparent)]",
+  selectionShell: "shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-row-accent-1)_55%,transparent),0_0_8px_color-mix(in_srgb,var(--color-row-accent-1)_18%,transparent)]",
+  selectionRing: "ring-1 ring-row-accent-1/28",
+  selectionBorder: "border-row-accent-1/55",
+  pianoNoteIdle: "border-row-accent-1-soft/25 bg-row-accent-1-strong/85 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-text)_12%,transparent)]",
+  pianoNoteActive: "border-row-accent-1-soft/90 bg-row-accent-1-soft shadow-[0_0_12px_color-mix(in_srgb,var(--color-row-accent-1)_65%,transparent)]",
 };
 
 /** Rows 2-4 (1-based): alternate row accents when row colors are enabled. */

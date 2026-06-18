@@ -103,7 +103,7 @@ export function scalePreviewMidiRange(scaleRoot) {
 }
 
 /** Octaves visible in the step inspector keyboard. */
-export const stepInspectorPianoOctaves = 2;
+export const stepInspectorPianoOctaves = 3;
 
 export const stepInspectorPianoSemitones = stepInspectorPianoOctaves * 12;
 
@@ -123,14 +123,10 @@ export function stepInspectorMidiRange(octaveOffset) {
   return { lowest, highest };
 }
 
-/** Octave offset so `noteMidi` fits in the two-octave window when possible. */
+/** Octave offset that centers `noteMidi` in the inspector keyboard window when possible. */
 export function stepInspectorOctaveOffsetForNote(noteMidi) {
   const note = Math.min(127, Math.max(0, Math.round(noteMidi)));
-  let offset = Math.floor(note / 12);
+  const idealOffset = (note - (stepInspectorPianoSemitones - 1) / 2) / 12;
 
-  if (note > offset * 12 + stepInspectorPianoSemitones - 1) {
-    offset = Math.floor((note - (stepInspectorPianoSemitones - 1)) / 12);
-  }
-
-  return clampStepInspectorOctaveOffset(offset);
+  return clampStepInspectorOctaveOffset(Math.round(idealOffset));
 }

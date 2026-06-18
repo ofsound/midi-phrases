@@ -87,12 +87,10 @@
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
-    phraseBeatGuideGlobalLeftPx,
-    phraseBeatGuideTopPx,
     phraseGridVisualOffsetCompensationPx,
   } from "./phraseRowLayout.js";
   import {
-    emeraldRowAccent,
+    interfaceAccent,
     rowAccentFor,
     rowMutedOverlayClasses,
     rowMuteControlClasses,
@@ -1074,7 +1072,7 @@
     });
   }
 
-  /** UI-only; shifts phrase rows and beat-one guide when any row has a negative offset. */
+  /** UI-only; shifts phrase rows when any row has a negative offset. */
   let phraseVisualOffsetCompensationPx = $derived(phraseGridVisualOffsetCompensationPx(
     rowTimingOffset,
   ));
@@ -4117,7 +4115,7 @@
         <div class="flex flex-col items-start gap-1">
           <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
           <PulseNoteButtonGroup
-            accent={emeraldRowAccent}
+            accent={interfaceAccent}
             value={pulseIndex}
             onValueChange={applyPulseIndex}
           />
@@ -4129,7 +4127,7 @@
               <StepNumberDragInput
                 boxed
                 compact
-                accent={emeraldRowAccent}
+                accent={interfaceAccent}
                 value={swingPercent}
                 min={0}
                 max={100}
@@ -4145,7 +4143,7 @@
               <span class="text-xs font-semibold leading-none text-text-muted">Sub</span>
               <DiscreteDragSelect
                 compact
-                accent={emeraldRowAccent}
+                accent={interfaceAccent}
                 options={swingSubdivisionOptions}
                 value={swingSubdivisionIndex}
                 resetValue={1}
@@ -4161,7 +4159,7 @@
             <StepNumberDragInput
               boxed
               compact
-              accent={emeraldRowAccent}
+              accent={interfaceAccent}
               value={velocityHumanizePercent}
               min={0}
               max={100}
@@ -4178,7 +4176,7 @@
             <StepNumberDragInput
               boxed
               compact
-              accent={emeraldRowAccent}
+              accent={interfaceAccent}
               value={timingHumanizePercent}
               min={0}
               max={100}
@@ -4194,7 +4192,7 @@
         </div>
         <BulkStepEditControls
           className="border-l border-border-subtle pl-3"
-          accent={emeraldRowAccent}
+          accent={interfaceAccent}
           requireSelection={false}
           totalStepCount={selectableStepCount}
           {selectedStepCount}
@@ -4275,7 +4273,7 @@
             }}
           />
           <ColorsToggle
-            accent={emeraldRowAccent}
+            accent={interfaceAccent}
             enabled={rowColorsEnabled}
             onChange={async (next) => {
               rowColorsEnabled = next;
@@ -4311,13 +4309,6 @@
     <div class="w-full shrink-0">
       <div data-phrase-grid-field class="relative flex flex-col">
         <div
-          class="pointer-events-none absolute bottom-0 z-0 w-px bg-surface-subtle/70"
-          style:left="{phraseBeatGuideGlobalLeftPx(phraseVisualOffsetCompensationPx)}px"
-          style:top="{phraseBeatGuideTopPx()}px"
-          aria-hidden="true"
-          title="Beat one"
-        ></div>
-        <div
           data-phrase-grid-marquee-zone="top"
           class="h-6 shrink-0"
           role="presentation"
@@ -4335,7 +4326,7 @@
           >
             <div
               data-row-header={row}
-              class="relative flex shrink-0 self-stretch items-center border-border-subtle pr-6 {row <
+              class="relative flex shrink-0 self-stretch items-center border-r border-border-subtle pr-6 {row <
               grid.length - 1
                 ? 'border-b'
                 : ''}"
