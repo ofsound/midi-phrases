@@ -895,7 +895,7 @@
 
 </script>
 
-<section class="flex min-h-0 w-full flex-1 flex-col gap-2 bg-app/90 px-6 py-4">
+<section class="flex min-h-0 w-full flex-1 flex-col gap-2">
   <div class="grid shrink-0 grid-cols-[1fr_auto_1fr] items-end gap-3">
     <div class="flex min-w-0 items-baseline gap-3">
       <span class="text-xs font-semibold uppercase tracking-widest {rowAccent.textAccent}">
@@ -967,7 +967,7 @@
   </div>
 
   <div
-    class="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-app/80"
+    class="flex h-0 min-h-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-app/80"
     role="group"
     aria-label="Monophonic piano roll"
     onpointerdown={onBulkSelectPointerDown}

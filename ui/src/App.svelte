@@ -1163,32 +1163,6 @@
         selectedStepKeys.add(key);
       }
     }
-
-    normalizeRowPianoRollBulkSelection();
-  }
-
-  /** @param {number} row */
-  function allStepKeysForRow(row) {
-    return new Set((stepIds[row] ?? []).map((stepId) => stepSelectionKey(row, stepId)));
-  }
-
-  function normalizeRowPianoRollBulkSelection() {
-    const editor = activeRowPianoRollEditor;
-    if (editor === null) return;
-
-    const row = editor.row;
-    const rowStepIds = stepIds[row] ?? [];
-    if (rowStepIds.length === 0) return;
-
-    const hasRowSelection = rowStepIds.some((stepId) =>
-      selectedStepKeys.has(stepSelectionKey(row, stepId)),
-    );
-
-    if (!hasRowSelection) {
-      for (const stepId of rowStepIds) {
-        selectedStepKeys.add(stepSelectionKey(row, stepId));
-      }
-    }
   }
 
   function bulkEditLocations() {
@@ -1406,7 +1380,7 @@
 
     inspectedStep = null;
     rowPianoRollStep = { row, stepId };
-    setSelectedStepKeys(allStepKeysForRow(row));
+    setSelectedStepKeys(new Set([stepSelectionKey(row, stepId)]));
     syncBulkControlsFromSelection();
   }
 
