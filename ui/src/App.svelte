@@ -1314,6 +1314,8 @@
       step,
       note: grid[row][step],
       velocity: stepVelocity[row][step] ?? 127,
+      durationFraction: stepDurationFraction[row][step] ?? defaultStepDurationFraction,
+      timingMultiplierIndex: stepTimingMultiplier[row][step] ?? defaultStepTimingMultiplierIndex,
       probability: stepProbability[row][step] ?? 100,
       cycle: stepCycle[row][step] ?? 1,
       cycleMask: stepCycleOffset[row][step] ?? defaultStepCycleMask,
@@ -4521,6 +4523,8 @@
         step={activeStepInspector.step}
         note={activeStepInspector.note}
         velocity={activeStepInspector.velocity}
+        durationFraction={activeStepInspector.durationFraction}
+        timingMultiplierIndex={activeStepInspector.timingMultiplierIndex}
         probability={activeStepInspector.probability}
         cycle={activeStepInspector.cycle}
         cycleMask={activeStepInspector.cycleMask}
@@ -4531,6 +4535,18 @@
           commitPhraseNoteValue(activeStepInspector.row, activeStepInspector.step, midi)}
         onVelocityChange={(value) =>
           setStepVelocity(activeStepInspector.row, activeStepInspector.step, value)}
+        onDurationChange={(percent) =>
+          selectStepDurationFraction(
+            activeStepInspector.row,
+            activeStepInspector.step,
+            percent / 100,
+          )}
+        onTimingMultiplierChange={(index) =>
+          selectStepTimingMultiplier(
+            activeStepInspector.row,
+            activeStepInspector.step,
+            index,
+          )}
         onProbabilityChange={(value) =>
           setStepProbability(activeStepInspector.row, activeStepInspector.step, value)}
         onCyclePatternCommit={(nextCycle, nextMask) =>

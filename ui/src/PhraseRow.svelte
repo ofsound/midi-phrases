@@ -551,11 +551,15 @@
     void onInspectStep(row, step, stepIds[step]);
   }
 
-  /** @param {MouseEvent} event */
+  /** @param {MouseEvent | PointerEvent} event */
   function shouldIgnoreFullStepInspectorInteraction(event) {
     const target = event.target;
 
     if (!(target instanceof Element)) return true;
+
+    if (target.closest("[data-step-header]")) {
+      return shouldIgnoreStepHeaderInspectorInteraction(event);
+    }
 
     return Boolean(
       target.closest(
@@ -564,7 +568,7 @@
     );
   }
 
-  /** @param {MouseEvent} event @param {number} step */
+  /** @param {MouseEvent | PointerEvent} event @param {number} step */
   function retargetOpenStepInspector(event, step) {
     const stepId = stepIds[step];
 
@@ -584,6 +588,19 @@
     void onInspectStep(row, step, stepId);
   }
 
+  /** @param {MouseEvent | PointerEvent} event */
+  function shouldIgnoreStepHeaderInspectorInteraction(event) {
+    const target = event.target;
+
+    if (!(target instanceof Element)) return true;
+
+    return Boolean(
+      target.closest(
+        "button, [data-remove-button], [data-multiplier-resize]",
+      ),
+    );
+  }
+
   /** @param {MouseEvent} event @param {number} step */
   function openFullStepInspector(event, step) {
     const stepId = stepIds[step];
@@ -592,7 +609,7 @@
       stepInspectorInteractionDisabled ||
       event.defaultPrevented ||
       event.shiftKey ||
-      inspectedStepId === stepId ||
+      (stepInspectorOpen && inspectedStepId === stepId) ||
       shouldIgnoreFullStepInspectorInteraction(event)
     ) {
       return;
@@ -945,11 +962,13 @@
   </span>
 {/snippet}
 
-{#snippet stepHeaderTimingArea(stepDimmed, multiplierLabel, reorderEnabled)}
+{#snippet stepHeaderTimingArea(step, stepDimmed, multiplierLabel, reorderEnabled)}
   {#if reorderEnabled}
     <div
       use:dragHandle
       use:preventTabFocus
+      role="button"
+      tabindex="0"
       aria-label="Drag to reorder step"
       data-cursor="grab"
       data-no-inspect
@@ -958,6 +977,7 @@
       class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
         ? 'opacity-80'
         : 'opacity-60'}"
+      onpointerup={(event) => retargetOpenStepInspector(event, step)}
     >
       {@render stepHeaderMultiplierLabel(stepDimmed, multiplierLabel)}
     </div>
@@ -1122,17 +1142,19 @@
       >
         {#if reorderEnabled}
           <div
+            data-step-header
             class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
           >
             {@render stepHeaderRemoveButton(step, stepDimmed)}
-            {@render stepHeaderTimingArea(stepDimmed, multiplierLabel, true)}
+            {@render stepHeaderTimingArea(step, stepDimmed, multiplierLabel, true)}
           </div>
         {:else}
           <div
+            data-step-header
             class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
           >
             {@render stepHeaderRemoveButton(step, stepDimmed)}
-            {@render stepHeaderTimingArea(stepDimmed, multiplierLabel, false)}
+            {@render stepHeaderTimingArea(step, stepDimmed, multiplierLabel, false)}
           </div>
         {/if}
 

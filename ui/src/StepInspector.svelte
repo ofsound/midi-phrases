@@ -4,6 +4,12 @@
   import ContinuousSlider from "./ContinuousSlider.svelte";
   import StepInspectorKeyboard from "./StepInspectorKeyboard.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
+  import {
+    formatTimingMultiplierLabel,
+    defaultStepTimingMultiplierIndex,
+    stepTimingMultiplierCount,
+    timingMultiplierAtIndex,
+  } from "./stepCellLayout.js";
 
   /**
    * @typedef {Object} Props
@@ -11,6 +17,8 @@
    * @property {number} [step]
    * @property {number} [note]
    * @property {number} [velocity]
+   * @property {number} [durationFraction]
+   * @property {number} [timingMultiplierIndex]
    * @property {number} [probability]
    * @property {number} [cycle]
    * @property {number} [cycleMask]
@@ -19,6 +27,8 @@
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {(midi: number) => void | Promise<void>} [onNoteChange]
    * @property {(value: number) => void | Promise<void>} [onVelocityChange]
+   * @property {(value: number) => void | Promise<void>} [onDurationChange]
+   * @property {(value: number) => void | Promise<void>} [onTimingMultiplierChange]
    * @property {(value: number) => void | Promise<void>} [onProbabilityChange]
    * @property {(cycle: number, cycleMask: number) => void | Promise<void>} [onCyclePatternCommit]
    * @property {() => void} [onClose]
@@ -30,6 +40,8 @@
     step = 0,
     note = 60,
     velocity = 127,
+    durationFraction = 1,
+    timingMultiplierIndex = defaultStepTimingMultiplierIndex,
     probability = 100,
     cycle = 1,
     cycleMask = 1,
@@ -38,12 +50,15 @@
     accent = emeraldRowAccent,
     onNoteChange = () => {},
     onVelocityChange = () => {},
+    onDurationChange = () => {},
+    onTimingMultiplierChange = () => {},
     onProbabilityChange = () => {},
     onCyclePatternCommit = () => {},
     onClose = () => {},
   } = $props();
 
   let stepKey = $derived(`${row}:${step}`);
+  let durationPercent = $derived(Math.round(Math.min(1, Math.max(0, durationFraction)) * 100));
 </script>
 
 <section class="flex min-h-0 w-full flex-1 flex-col gap-2 bg-app/90 px-6 py-4">
@@ -83,7 +98,27 @@
       {accent}
       onNoteChange={onNoteChange}
     />
-    <div class="flex h-full w-[12rem] min-w-[9rem] shrink-0 items-center">
+    <div class="flex h-full w-[12rem] min-w-[9rem] shrink-0 flex-col justify-center gap-3">
+      <ContinuousSlider
+        label="Multiplier"
+        value={timingMultiplierIndex}
+        min={0}
+        max={stepTimingMultiplierCount - 1}
+        ariaLabel="Step timing multiplier"
+        fullWidth={true}
+        formatDisplay={(index) =>
+          formatTimingMultiplierLabel(timingMultiplierAtIndex(index))}
+        onValueChange={onTimingMultiplierChange}
+      />
+      <ContinuousSlider
+        label="Duration"
+        value={durationPercent}
+        min={0}
+        max={100}
+        ariaLabel="Step duration"
+        fullWidth={true}
+        onValueChange={onDurationChange}
+      />
       <ContinuousSlider
         label="Velocity"
         value={velocity}

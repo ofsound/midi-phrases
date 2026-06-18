@@ -9,6 +9,7 @@
    * @property {number} [min]
    * @property {number} [max]
    * @property {string} [ariaLabel]
+   * @property {(value: number) => string} [formatDisplay]
    * @property {(value: number) => void | Promise<void>} [onValueChange]
    */
 
@@ -20,6 +21,7 @@
     min = 0,
     max = 127,
     ariaLabel = "Slider",
+    formatDisplay = undefined,
     onValueChange = () => {}
   } = $props();
 
@@ -29,7 +31,9 @@
 
   let range = $derived(Math.max(0, max - min));
   let thumbPercent = $derived(range > 0 ? ((value - min) / range) * 100 : 0);
-  let displayValue = $derived(String(Math.round(value)));
+  let displayValue = $derived(
+    formatDisplay ? formatDisplay(value) : String(Math.round(value)),
+  );
 
   /** @param {HTMLDivElement} node */
   function trackAttachment(node) {
