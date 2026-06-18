@@ -1400,6 +1400,25 @@
     syncBulkControlsFromSelection();
   }
 
+  /** @param {number} row */
+  async function openRowPianoRollFromHeader(row) {
+    const rowStepIds = stepIds[row] ?? [];
+    if (rowStepIds.length === 0) return;
+
+    const focusedStepId =
+      activeRowPianoRollEditor?.row === row
+        ? activeRowPianoRollEditor.stepId
+        : activeStepInspector?.row === row
+          ? inspectedStep?.stepId
+          : null;
+    const stepId = focusedStepId && rowStepIds.includes(focusedStepId)
+      ? focusedStepId
+      : rowStepIds[0];
+    const step = rowStepIds.indexOf(stepId);
+
+    await openRowPianoRollEditor(row, step, stepId);
+  }
+
   function selectAllStepsForBulkEdit() {
     setSelectedStepKeys(new Set(allSelectableStepKeys()));
     syncBulkControlsFromSelection();
@@ -4313,52 +4332,74 @@
               ? 'opacity-50'
               : ''}"
           >
-            <div class="relative flex shrink-0 items-center gap-1">
-              {#if rowMuted[row]}
-                <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
-              {/if}
+            <div
+              data-row-header={row}
+              class="relative flex shrink-0 self-stretch items-center border-border-subtle pr-6 {row <
+              grid.length - 1
+                ? 'border-b'
+                : ''}"
+            >
               <button
                 type="button"
-                aria-label={rowMuted[row] ? "Turn row on" : "Turn row off"}
-                aria-pressed={!rowMuted[row]}
-                data-cursor="pointer"
-                class="{rowMuteControlClasses} {rowMuted[row]
-                  ? rowPowerToggleOffClasses
-                  : rowAccent.textAccent}"
-                onclick={(event) => toggleRowMute(row, event.shiftKey)}
-                title="Shift-click to solo row"
-              >
-                <RowDisableIcon class="h-6 w-6" />
-              </button>
-              <button
-                type="button"
-                aria-label={recordingRow === row ? "Stop row recording" : "Record row from MIDI"}
-                aria-pressed={recordingRow === row}
-                data-cursor="pointer"
-                class="{rowActionIconControlClasses} transition-colors {rowMuted[row]
-                  ? 'text-text-faint hover:text-danger'
-                  : recordingRow === row
-                    ? 'text-danger'
-                    : 'text-text-faint hover:text-danger'}"
-                onclick={() => toggleRowRecording(row)}
-                title={recordingRow === row
-                  ? "Stop recording (notes fill this row as 1× steps)"
-                  : "Record row from MIDI keyboard (first note replaces row)"}
-              >
-                <RowRecordIcon
-                  class="pointer-events-none h-6 w-6"
-                  recording={recordingRow === row}
-                />
-              </button>
-              <BipolarKnob
-                accent={rowAccent}
-                options={timingOffsetOptions}
-                value={rowTimingOffset[row]}
-                resetValue={defaultRowTimingOffsetIndex}
-                ariaLabel="Row timing offset"
-                muted={rowMuted[row]}
-                onValueChange={(offsetIndex) => selectRowTimingOffset(row, offsetIndex)}
-              />
+                aria-label={`Edit row ${row + 1} in piano roll`}
+                aria-pressed={activeRowPianoRollEditor?.row === row}
+                disabled={stepIds[row].length === 0}
+                data-cursor={stepIds[row].length > 0 ? "pointer" : undefined}
+                class="absolute inset-0 z-0 border-0 bg-surface/25 p-0 outline-none transition-colors hover:bg-surface/55 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-focus-ring disabled:cursor-default disabled:opacity-60"
+                onclick={() => openRowPianoRollFromHeader(row)}
+                title={stepIds[row].length > 0
+                  ? `Edit row ${row + 1} in the monophonic piano roll`
+                  : `Add a step to row ${row + 1} to edit it in the piano roll`}
+              ></button>
+              <div class="pointer-events-none relative z-10 flex items-center gap-1 px-1">
+                {#if rowMuted[row]}
+                  <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
+                {/if}
+                <button
+                  type="button"
+                  aria-label={rowMuted[row] ? "Turn row on" : "Turn row off"}
+                  aria-pressed={!rowMuted[row]}
+                  data-cursor="pointer"
+                  class="pointer-events-auto {rowMuteControlClasses} {rowMuted[row]
+                    ? rowPowerToggleOffClasses
+                    : rowAccent.textAccent}"
+                  onclick={(event) => toggleRowMute(row, event.shiftKey)}
+                  title="Shift-click to solo row"
+                >
+                  <RowDisableIcon class="h-6 w-6" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={recordingRow === row ? "Stop row recording" : "Record row from MIDI"}
+                  aria-pressed={recordingRow === row}
+                  data-cursor="pointer"
+                  class="pointer-events-auto {rowActionIconControlClasses} transition-colors {rowMuted[row]
+                    ? 'text-text-faint hover:text-danger'
+                    : recordingRow === row
+                      ? 'text-danger'
+                      : 'text-text-faint hover:text-danger'}"
+                  onclick={() => toggleRowRecording(row)}
+                  title={recordingRow === row
+                    ? "Stop recording (notes fill this row as 1× steps)"
+                    : "Record row from MIDI keyboard (first note replaces row)"}
+                >
+                  <RowRecordIcon
+                    class="pointer-events-none h-6 w-6"
+                    recording={recordingRow === row}
+                  />
+                </button>
+                <div class="pointer-events-auto">
+                  <BipolarKnob
+                    accent={rowAccent}
+                    options={timingOffsetOptions}
+                    value={rowTimingOffset[row]}
+                    resetValue={defaultRowTimingOffsetIndex}
+                    ariaLabel="Row timing offset"
+                    muted={rowMuted[row]}
+                    onValueChange={(offsetIndex) => selectRowTimingOffset(row, offsetIndex)}
+                  />
+                </div>
+              </div>
             </div>
             <PhraseRow
               {row}
