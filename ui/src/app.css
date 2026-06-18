@@ -188,7 +188,8 @@
     filter: none;
   }
 
-  .combination-mode-rail {
+  .combination-mode-rail,
+  .mp-honeycomb-rail {
     isolation: isolate;
     --combination-rail-hex-size: 9.9px 12.86px;
     background-color: var(--color-shell);
@@ -199,7 +200,8 @@
     border-bottom: 2px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   }
 
-  .combination-mode-rail::before {
+  .combination-mode-rail::before,
+  .mp-honeycomb-rail::before {
     content: "";
     position: absolute;
     inset: 0;

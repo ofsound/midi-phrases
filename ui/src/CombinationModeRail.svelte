@@ -88,7 +88,7 @@
   } = $props();
 </script>
 
-<div class="combination-mode-rail relative z-20 my-4">
+<div class="mp-honeycomb-rail relative z-20 my-4">
   <div class="combination-mode-rail-layout">
     <div class="combination-mode-group" role="group" aria-label="Combination modes">
       {#each combinationModes as mode, index (mode.index)}

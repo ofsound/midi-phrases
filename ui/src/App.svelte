@@ -1180,6 +1180,12 @@
   }
 
   /** @param {number} row @param {number} step @param {string} stepId */
+  function prepareStepSelection(row, step, stepId) {
+    setSelectedStepKeys(new Set([stepSelectionKey(row, stepId)]));
+    syncBulkControlsFromSelection();
+  }
+
+  /** @param {number} row @param {number} step @param {string} stepId */
   async function openRowPianoRollEditor(row, step, stepId) {
     if (recordingRow !== null) {
       await finishRowRecording();
@@ -3721,37 +3727,38 @@
 
 <main {@attach appRootAttachment} class="flex h-full flex-col overflow-hidden px-6 pt-3 transition-[filter,opacity] duration-150 {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}">
   <div class="shrink-0 -mx-6">
-  {#if standaloneTransportAvailable}
-    <div class="flex items-center justify-end gap-2 px-6 pb-3">
-      <button
-        type="button"
-        aria-label={standalonePlaying ? "Stop standalone transport" : "Start standalone transport"}
-        aria-keyshortcuts="Space"
-        title="Toggle transport (Space)"
-        aria-pressed={standalonePlaying}
-        data-cursor="pointer"
-        class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring {standalonePlaying
-          ? 'border-accent-strong bg-accent-strong text-control-primary-text'
-          : 'mp-control-gradient border-border text-text hover:border-border-strong'}"
-        onclick={toggleStandaloneTransport}
-      >
-        {standalonePlaying ? "Stop" : "Play"}
-      </button>
-      <label class="flex items-center gap-1.5 text-xs font-medium uppercase text-text-muted">
-        BPM
-        <input
-          type="number"
-          min="20"
-          max="300"
-          step="1"
-          value={Math.round(standaloneTempoBpm)}
-          class="mp-control-gradient h-8 w-[4.5rem] rounded-md border border-border px-2 text-sm font-semibold text-text outline-none focus:border-focus-ring focus:ring-1 focus:ring-focus-ring"
-          onchange={setStandaloneTempoFromInput}
-        />
-      </label>
-    </div>
-  {/if}
-  <header class="flex items-end gap-3 px-6 pb-3">
+    {#if standaloneTransportAvailable}
+      <div class="flex items-center justify-end gap-2 px-6 pb-2">
+        <button
+          type="button"
+          aria-label={standalonePlaying ? "Stop standalone transport" : "Start standalone transport"}
+          aria-keyshortcuts="Space"
+          title="Toggle transport (Space)"
+          aria-pressed={standalonePlaying}
+          data-cursor="pointer"
+          class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring {standalonePlaying
+            ? 'border-accent-strong bg-accent-strong text-control-primary-text'
+            : 'mp-control-gradient border-border text-text hover:border-border-strong'}"
+          onclick={toggleStandaloneTransport}
+        >
+          {standalonePlaying ? "Stop" : "Play"}
+        </button>
+        <label class="flex items-center gap-1.5 text-xs font-medium uppercase text-text-muted">
+          BPM
+          <input
+            type="number"
+            min="20"
+            max="300"
+            step="1"
+            value={Math.round(standaloneTempoBpm)}
+            class="mp-control-gradient h-8 w-[4.5rem] rounded-md border border-border px-2 text-sm font-semibold text-text outline-none focus:border-focus-ring focus:ring-1 focus:ring-focus-ring"
+            onchange={setStandaloneTempoFromInput}
+          />
+        </label>
+      </div>
+    {/if}
+    <div class="mp-honeycomb-rail relative z-20">
+  <header class="flex items-end gap-3 px-6 pb-3 pt-3">
     <div class="relative z-30 flex shrink-0 -translate-y-3 items-end gap-5">
       <div class="flex flex-col items-start gap-0">
         <div class="flex items-start gap-1.5">
@@ -3966,6 +3973,7 @@
     </div>
 
   </header>
+    </div>
   </div>
 
   <section class="flex min-h-0 flex-1 flex-col">
@@ -4088,6 +4096,7 @@
               onStepMuteChange={setStepMuted}
               onStepSkipChange={setStepSkipped}
               onInspectStep={openStepInspector}
+              onPrepareStepSelection={prepareStepSelection}
               onEditRowPianoRoll={openRowPianoRollEditor}
               onBulkSelectPointerDown={beginStepMarqueeSelection}
               onBulkSelectBackgroundDoubleClick={selectAllStepsForBulkEdit}
@@ -4264,7 +4273,7 @@
     </div>
     <div class="-mx-6 w-[calc(100%+3rem)] shrink-0">
       <div class="h-10 shrink-0 bg-app" role="presentation" aria-hidden="true"></div>
-      <div class="combination-mode-rail relative z-20 flex h-20 items-center justify-center overflow-x-auto px-6">
+      <div class="mp-honeycomb-rail relative z-20 flex h-20 items-center justify-center overflow-x-auto px-6">
       <div class="flex min-w-max items-center gap-8">
         <div class="flex items-center gap-2">
           <span class="text-sm font-semibold leading-none text-text-muted">Patterns:</span>

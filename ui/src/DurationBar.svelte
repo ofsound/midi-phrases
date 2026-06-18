@@ -137,6 +137,7 @@
 <div class="flex min-w-0 w-full flex-col">
   <div
     {@attach trackAttachment}
+    data-step-duration
     data-cursor="pointer"
     class="duration-track relative h-3.5 touch-none select-none overflow-hidden outline-none {accent.ringFocusWithWidth} {muted
       ? 'bg-surface-muted'

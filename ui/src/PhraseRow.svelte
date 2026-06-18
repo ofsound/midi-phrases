@@ -120,6 +120,7 @@
    * @property {(row: number, step: number, muted: boolean) => void | Promise<void>} [onStepMuteChange]
    * @property {(row: number, step: number, skipped: boolean) => void | Promise<void>} [onStepSkipChange]
    * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onInspectStep]
+   * @property {(row: number, step: number, stepId: string) => void} [onPrepareStepSelection]
    * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onEditRowPianoRoll]
    * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
    * @property {(event: PointerEvent) => void} [onBulkSelectBackgroundDoubleClick]
@@ -165,6 +166,7 @@
     onStepMuteChange = () => {},
     onStepSkipChange = () => {},
     onInspectStep = () => {},
+    onPrepareStepSelection = () => {},
     onEditRowPianoRoll = () => {},
     onBulkSelectPointerDown = () => {},
     onBulkSelectBackgroundDoubleClick = () => {},
@@ -418,6 +420,39 @@
   /** @param {PointerEvent} event */
   function stopPointerPropagation(event) {
     event.stopPropagation();
+  }
+
+  /** @param {PointerEvent} event @param {number} step */
+  function handleStepControlPointerDown(event, step) {
+    if (stepInspectorInteractionDisabled || event.button !== 0) return;
+
+    const target = event.target;
+
+    if (!(target instanceof Element)) return;
+
+    if (
+      target.closest(
+        "[data-remove-button], [data-insert-slot], [data-multiplier-resize], [data-no-inspect], [data-step-inspector-toggle], [aria-label='Drag to reorder step']",
+      )
+    ) {
+      return;
+    }
+
+    const stepId = stepIds[step];
+
+    if (target.closest("[data-step-duration]")) {
+      void onEditRowPianoRoll(row, step, stepId);
+      return;
+    }
+
+    if (!target.closest("button, input, textarea, select, [role='slider']")) return;
+
+    if (
+      (stepInspectionActive && inspectedStepId !== stepId) ||
+      !selectedStepIdSet.has(stepId)
+    ) {
+      onPrepareStepSelection(row, step, stepId);
+    }
   }
 
   /** @param {MouseEvent} event @param {number} step */
@@ -785,6 +820,7 @@
   {/if}
   <button
     type="button"
+    data-no-inspect
     data-cursor="pointer"
     aria-label="Edit row in piano roll"
     disabled={stepInspectorInteractionDisabled}
@@ -859,6 +895,7 @@
       />
       <button
         type="button"
+        data-step-inspector-toggle
         data-cursor="pointer"
         aria-label={isInspected ? "Close step inspector" : "Open step inspector"}
         aria-pressed={isInspected}
@@ -899,6 +936,7 @@
       </div>
       <button
         type="button"
+        data-step-inspector-toggle
         data-cursor="pointer"
         aria-label={isInspected ? "Close step inspector" : "Open step inspector"}
         aria-pressed={isInspected}
@@ -940,7 +978,10 @@
     )} {(isStepSelected || stepInspectorHighlighted) && !isDragging ? accent.selectionShell : ''}"
     onclick={(event) => openStepFromCellBackground(event, step)}
   >
-    <div class="relative z-0 h-full min-h-0 w-full min-w-0 {stepInspectionMuted ? 'pointer-events-none select-none' : ''}">
+    <div
+      class="relative z-0 h-full min-h-0 w-full min-w-0"
+      onpointerdowncapture={(event) => handleStepControlPointerDown(event, step)}
+    >
       <div
         class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-150 {stepCellSurfaceClass(
           stepDimmed,
@@ -1031,21 +1072,7 @@
         aria-hidden="true"
       ></div>
     {/if}
-    {#if stepInspectionMuted}
-      <button
-        type="button"
-        data-cursor="pointer"
-        aria-label="Edit row in piano roll"
-        disabled={stepInspectorInteractionDisabled}
-        class="absolute inset-0 z-[80] rounded-lg border-0 bg-transparent p-0 outline-none focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 {accent.ringFocusWithWidth}"
-        onclick={(event) => {
-          onEditRowPianoRoll(row, step, stepIds[step]);
-          event.currentTarget.blur();
-        }}
-      ></button>
-    {:else}
-      {@render multiplierResizeHandle(step)}
-    {/if}
+    {@render multiplierResizeHandle(step)}
   </div>
 {/snippet}
 
