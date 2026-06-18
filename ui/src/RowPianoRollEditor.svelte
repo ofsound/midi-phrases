@@ -1,6 +1,7 @@
 <script>
   import { onDestroy } from "svelte";
   import { midiToNoteName } from "./midiNoteNames.js";
+  import { fittedPitchRangeForNotes } from "./pianoRollViewport.js";
   import { defaultPulseIndex } from "./pulseLayout.js";
   import { isBlackKey } from "./phraseSchedule.js";
   import { durationFractionFromRailX } from "./rowPianoRollDuration.js";
@@ -135,7 +136,6 @@
   const basePxPerQuarter = 28;
   const baseKeyboardWidthPx = 44;
   const baseRulerHeightPx = 28;
-  const minimumVisibleSemitones = 12;
 
   /** @type {HTMLElement | null} */
   let gridElement = $state(null);
@@ -197,31 +197,11 @@
   let rulerHeightPx = $derived(scaledPx(baseRulerHeightPx));
   let measureLines = $derived(measureLineQuarters(rollLengthQuarters));
   let beatLines = $derived(beatLineQuarters(rollLengthQuarters));
-  let visiblePitchRange = $derived.by(() => {
-    let minMidi = 60;
-    let maxMidi = 72;
-
-    if (notes.length > 0) {
-      minMidi = Math.min(...notes);
-      maxMidi = Math.max(...notes);
-    }
-
-    minMidi = Math.max(0, minMidi - 2);
-    maxMidi = Math.min(127, maxMidi + 2);
-
-    const span = maxMidi - minMidi + 1;
-    if (span < minimumVisibleSemitones) {
-      const extra = minimumVisibleSemitones - span;
-      minMidi = Math.max(0, minMidi - Math.floor(extra / 2));
-      maxMidi = Math.min(127, maxMidi + Math.ceil(extra / 2));
-    }
-
-    return { minMidi, maxMidi };
-  });
+  let visiblePitchRange = $derived(fittedPitchRangeForNotes(notes));
   let pitchSpan = $derived(visiblePitchRange.maxMidi - visiblePitchRange.minMidi + 1);
   let rowHeightPx = $derived(
     viewportHeightPx > 0
-      ? Math.min(scaledPx(22), Math.max(scaledPx(13), viewportHeightPx / pitchSpan))
+      ? Math.min(scaledPx(22), viewportHeightPx / pitchSpan)
       : scaledPx(16),
   );
   let rollHeightPx = $derived(pitchSpan * rowHeightPx);

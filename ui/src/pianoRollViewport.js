@@ -22,21 +22,21 @@ function expandMidiRange(minMidi, maxMidi, minimumSemitones) {
   return { minMidi: low, maxMidi: high };
 }
 
-/** @param {{ midi: number }[]} scheduled */
-export function fittedPitchRangeForSchedule(scheduled) {
-  if (scheduled.length === 0) {
+/** @param {number[]} notes */
+export function fittedPitchRangeForNotes(notes) {
+  if (notes.length === 0) {
     return {
       minMidi: pianoRollFallbackMinMidi,
       maxMidi: pianoRollFallbackMaxMidi,
     };
   }
 
-  let minMidi = scheduled[0].midi;
-  let maxMidi = scheduled[0].midi;
+  let minMidi = notes[0];
+  let maxMidi = notes[0];
 
-  for (const note of scheduled) {
-    minMidi = Math.min(minMidi, note.midi);
-    maxMidi = Math.max(maxMidi, note.midi);
+  for (const note of notes) {
+    minMidi = Math.min(minMidi, note);
+    maxMidi = Math.max(maxMidi, note);
   }
 
   return expandMidiRange(
@@ -44,4 +44,9 @@ export function fittedPitchRangeForSchedule(scheduled) {
     Math.min(127, maxMidi + pianoRollPitchPaddingSemitones),
     pianoRollMinimumVisibleSemitones,
   );
+}
+
+/** @param {{ midi: number }[]} scheduled */
+export function fittedPitchRangeForSchedule(scheduled) {
+  return fittedPitchRangeForNotes(scheduled.map((note) => note.midi));
 }
