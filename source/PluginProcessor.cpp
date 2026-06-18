@@ -824,6 +824,7 @@ void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
     pattern.shimmerDelayMultiplierIndex = defaultStepTimingMultiplierIndex;
     pattern.shimmerFeedbackPercent = defaultShimmerFeedbackPercent;
     pattern.shimmerMixPercent = defaultShimmerMixPercent;
+    pattern.sequencer.combinationModeMask = 0;
 
     for (int row = 0; row < phraseRowCount; ++row)
     {

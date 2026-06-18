@@ -2044,6 +2044,39 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (reloaded.getPatternScaleModeIndex (0) == PluginProcessor::defaultScaleModeIndex);
     }
 
+    SECTION ("clearPatternSlot resets per-pattern state")
+    {
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, true);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+        testPlugin.setPatternNoteBandpass (48, 84);
+        testPlugin.setPatternVelocityTiltPivotMidi (72);
+        testPlugin.setPatternVelocityTiltAmount (40);
+        testPlugin.setPatternOctavizerDown8vaEnabled (true);
+        testPlugin.setPatternOctavizerUp8vaEnabled (true);
+        testPlugin.setPatternShimmerEnabled (true);
+        testPlugin.setLoopBraceEnabled (true);
+        testPlugin.setLoopBraceStartQuarters (2.0);
+        testPlugin.setLoopBraceEndQuarters (6.0);
+
+        testPlugin.clearPatternSlot (0);
+
+        CHECK (testPlugin.getPatternCombinationModeMask (0) == 0);
+        CHECK (testPlugin.getPatternNoteBandpassLow (0) == PluginProcessor::defaultNoteBandpassLowMidi);
+        CHECK (testPlugin.getPatternNoteBandpassHigh (0) == PluginProcessor::defaultNoteBandpassHighMidi);
+        CHECK (testPlugin.getPatternVelocityTiltPivotMidi (0)
+               == PluginProcessor::defaultVelocityTiltPivotMidi);
+        CHECK (testPlugin.getPatternVelocityTiltAmount (0) == PluginProcessor::defaultVelocityTiltAmount);
+        CHECK_FALSE (testPlugin.isPatternOctavizerDown8vaEnabled (0));
+        CHECK_FALSE (testPlugin.isPatternOctavizerUp8vaEnabled (0));
+        CHECK_FALSE (testPlugin.isPatternShimmerEnabled (0));
+        CHECK_FALSE (testPlugin.isPatternLoopBraceEnabled (0));
+        CHECK (testPlugin.getPatternLoopBraceStartQuarters (0)
+               == Catch::Approx (PluginProcessor::defaultLoopBraceStartQuarters));
+        CHECK (testPlugin.getPatternLoopBraceEndQuarters (0)
+               == Catch::Approx (PluginProcessor::defaultLoopBraceEndQuarters));
+    }
+
     SECTION ("insert step after scale change outputs key-center pitch")
     {
         testPlugin.prepareToPlay (44100.0, 512);

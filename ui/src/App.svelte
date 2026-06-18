@@ -3179,7 +3179,10 @@
   function loadRowColorsFromInitialisation() {
     const init = unwrapJuceInit("rowColorsEnabled");
 
-    rowColorsEnabled = init === true || init === 1 || init === "1";
+    if (init === null) return;
+
+    const raw = Array.isArray(init) ? init[0] : init;
+    rowColorsEnabled = Boolean(Number.parseInt(String(raw), 10));
   }
 
   function loadCombinationModesFromInitialisation() {
