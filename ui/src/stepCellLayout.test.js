@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  compactStepShellPaddingPercent,
+  compactStepShellTrailingPaddingPercent,
   longestRowQuarterGridColumns,
   quarterGridColumnsForMultiplierIndex,
+  stepCellPaddingPx,
+  stepCellQuarterGridWidthPx,
+  stepDisplayWidthPx,
 } from "./stepCellLayout.js";
 
 describe("longestRowQuarterGridColumns", () => {
@@ -22,6 +27,32 @@ describe("longestRowQuarterGridColumns", () => {
   it("normalizes invalid multiplier indices consistently", () => {
     expect(longestRowQuarterGridColumns([[Number.NaN]])).toBe(
       quarterGridColumnsForMultiplierIndex(Number.NaN),
+    );
+  });
+});
+
+describe("compact stretch-to-fit shell spacing", () => {
+  it("matches full-size shell insets for a 1x step", () => {
+    const multiplierIndex = 3;
+    const columns = quarterGridColumnsForMultiplierIndex(multiplierIndex);
+    const spanPx = columns * stepCellQuarterGridWidthPx();
+    const paddingPx = stepCellPaddingPx();
+
+    expect(compactStepShellPaddingPercent(multiplierIndex)).toBeCloseTo(
+      (paddingPx / spanPx) * 100,
+    );
+    expect(100 - compactStepShellPaddingPercent(multiplierIndex) * 2).toBeCloseTo(
+      (stepDisplayWidthPx(multiplierIndex) / spanPx) * 100,
+    );
+  });
+
+  it("uses the shorter trailing inset on the last step shell", () => {
+    const multiplierIndex = 1;
+    const spanPx =
+      quarterGridColumnsForMultiplierIndex(multiplierIndex) * stepCellQuarterGridWidthPx();
+
+    expect(compactStepShellTrailingPaddingPercent(multiplierIndex)).toBeCloseTo(
+      ((stepCellPaddingPx() * 2) / 3 / spanPx) * 100,
     );
   });
 });

@@ -179,6 +179,41 @@ export function longestRowQuarterGridColumns(rows) {
   );
 }
 
+/** Total quarter-grid columns occupied by a row's steps. */
+export function rowQuarterGridColumns(multiplierIndices) {
+  return multiplierIndices.reduce(
+    (sum, index) => sum + quarterGridColumnsForMultiplierIndex(index),
+    0,
+  );
+}
+
+/**
+ * Horizontal inset for a stretch-to-fit step shell, as a percent of its grid span.
+ * Matches {@link stepCellPaddingPx} on each side of {@link stepDisplayWidthPx}.
+ *
+ * @param {number} multiplierIndex
+ */
+export function compactStepShellPaddingPercent(multiplierIndex) {
+  const columns = quarterGridColumnsForMultiplierIndex(multiplierIndex);
+  const spanPx = columns * stepCellQuarterGridWidthPx();
+
+  return (stepCellPaddingPx() / spanPx) * 100;
+}
+
+/**
+ * Trailing inset after the last stretch-to-fit step shell.
+ * Matches the phrase row end tail padding (two-thirds of {@link stepCellPaddingPx}).
+ *
+ * @param {number} multiplierIndex
+ */
+export function compactStepShellTrailingPaddingPercent(multiplierIndex) {
+  const columns = quarterGridColumnsForMultiplierIndex(multiplierIndex);
+  const spanPx = columns * stepCellQuarterGridWidthPx();
+  const trailingPx = stepCellPaddingPx() * (2 / 3);
+
+  return (trailingPx / spanPx) * 100;
+}
+
 /**
  * Per-cell display widths (N×W − 2P). Gaps between cells are separate margins.
  *

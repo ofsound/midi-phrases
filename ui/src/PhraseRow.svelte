@@ -40,6 +40,8 @@
     multiplierIndexFromWidth,
     multiplierLabelForIndex,
     quarterGridColumnsForMultiplierIndex,
+    compactStepShellPaddingPercent,
+    compactStepShellTrailingPaddingPercent,
     rowGridWidthPx,
     insertSlotLeftPxAtGridBoundaryPx,
     rowStepLayoutsPx,
@@ -1155,6 +1157,8 @@
 {#snippet compactStepCell(step, stepId)}
   {@const isStepSelected = selectedStepIdSet.has(stepId)}
   {@const gridColumns = quarterGridColumnsForMultiplierIndex(stepTimingMultiplier[step])}
+  {@const shellPaddingPercent = compactStepShellPaddingPercent(stepTimingMultiplier[step])}
+  {@const trailingPaddingPercent = compactStepShellTrailingPaddingPercent(stepTimingMultiplier[step])}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -1163,26 +1167,32 @@
     data-step-id={stepId}
     data-step-index={step}
     data-step-selected={isStepSelected ? true : undefined}
-    class="relative min-w-0 overflow-hidden rounded-md {accent.bgAccent} {isStepSelected
-      ? 'ring-1 ring-inset ring-text/60'
-      : ''}"
+    class="relative min-w-0"
     style:grid-column="span {gridColumns}"
     onclick={(event) => openStepFromCellBackground(event, step)}
     onpointerdowncapture={(event) => handleStepControlPointerDown(event, step)}
   >
-    <div class="flex h-9 min-w-0 items-center justify-center overflow-hidden px-1">
-      <NoteDragInput
-        {accent}
-        minimal
-        value={notes[step]}
-        resetValue={defaultStepNote}
-        ariaLabel="Step note"
-        stepValue={stepNoteValue}
-        deferCommit={true}
-        onGestureStart={() => onStepBulkGestureStart(row, step)}
-        onValuePreview={(midi) => onNotePreview(row, step, midi)}
-        onValueCommit={(midi) => onNoteCommit(row, step, midi)}
-      />
+    <div
+      class="overflow-hidden rounded-md {accent.bgAccent} {isStepSelected
+        ? 'ring-1 ring-inset ring-text/60'
+        : ''}"
+      style:margin-left="{shellPaddingPercent}%"
+      style:margin-right="{step === stepIds.length - 1 ? trailingPaddingPercent : shellPaddingPercent}%"
+    >
+      <div class="flex h-9 min-w-0 items-center justify-center overflow-hidden px-1">
+        <NoteDragInput
+          {accent}
+          minimal
+          value={notes[step]}
+          resetValue={defaultStepNote}
+          ariaLabel="Step note"
+          stepValue={stepNoteValue}
+          deferCommit={true}
+          onGestureStart={() => onStepBulkGestureStart(row, step)}
+          onValuePreview={(midi) => onNotePreview(row, step, midi)}
+          onValueCommit={(midi) => onNoteCommit(row, step, midi)}
+        />
+      </div>
     </div>
   </div>
 {/snippet}
@@ -1211,7 +1221,7 @@
       {@render largeAddStepButton("Add first step", 0)}
     </div>
   {:else if stretchToFit}
-    <div class="grid min-w-0 flex-1 gap-x-0.5" style={compactGridStyle}>
+    <div class="grid min-w-0 flex-1" style={compactGridStyle}>
       {#each stepIds as stepId, step (stepId)}
         {@render compactStepCell(step, stepId)}
       {/each}
