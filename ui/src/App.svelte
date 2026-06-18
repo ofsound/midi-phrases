@@ -3586,7 +3586,7 @@
         return;
       }
 
-      if (event.key === " ") {
+      if (event.code === "Space" || event.key === " ") {
         const active = document.activeElement;
 
         if (active instanceof HTMLElement && active.getAttribute("role") === "slider") {
@@ -3597,10 +3597,12 @@
 
         if (
           standaloneTransportAvailable &&
+          !event.repeat &&
           !scaleDialogOpen &&
           !(active instanceof HTMLInputElement) &&
           !(active instanceof HTMLTextAreaElement) &&
           !(active instanceof HTMLSelectElement) &&
+          !(active instanceof HTMLButtonElement) &&
           !(active instanceof HTMLElement && active.isContentEditable)
         ) {
           event.preventDefault();
@@ -3643,6 +3645,8 @@
       <button
         type="button"
         aria-label={standalonePlaying ? "Stop standalone transport" : "Start standalone transport"}
+        aria-keyshortcuts="Space"
+        title="Toggle transport (Space)"
         aria-pressed={standalonePlaying}
         data-cursor="pointer"
         class="h-8 min-w-16 rounded-md border px-3 text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring {standalonePlaying
