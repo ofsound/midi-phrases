@@ -14,6 +14,10 @@
    * @property {number} [max]
    * @property {any} [resetValue] - Velocity restored on double-click; omit to disable reset.
    * @property {string} [ariaLabel]
+   * @property {boolean} [deferCommit] - Preview while dragging; commit on release.
+   * @property {() => void} [onGestureStart] - Called at drag start when {@link deferCommit} is true.
+   * @property {(value: number) => void} [onValuePreview] - Lightweight preview while dragging.
+   * @property {(value: number) => void | Promise<void>} [onValueCommit] - Final commit on release.
    * @property {(value: number) => void | Promise<void>} [onValueChange]
    */
 
@@ -26,6 +30,10 @@
     max = 127,
     resetValue = undefined,
     ariaLabel = "Velocity",
+    deferCommit = false,
+    onGestureStart = undefined,
+    onValuePreview = undefined,
+    onValueCommit = undefined,
     onValueChange = () => {}
   } = $props();
 
@@ -47,6 +55,30 @@
     return clampVelocity(dragStartValue + steps);
   }
 
+  /** @param {number} next */
+  function schedulePreview(next) {
+    if (next === value) return;
+
+    if (!deferCommit || !onValuePreview) {
+      onValueChange(next);
+      return;
+    }
+
+    onValuePreview(next);
+  }
+
+  /** @param {number} next */
+  function applyValue(next) {
+    if (deferCommit && onValueCommit) {
+      onGestureStart?.();
+      onValuePreview?.(next);
+      onValueCommit(next);
+      return;
+    }
+
+    onValueChange(next);
+  }
+
   /** @param {PointerEvent} event */
   function onPointerDown(event) {
     absorbPointerDragFocus(event);
@@ -54,19 +86,26 @@
     dragging = true;
     dragStartY = event.clientY;
     dragStartValue = value;
+
+    if (deferCommit) {
+      onGestureStart?.();
+    }
   }
 
   /** @param {PointerEvent} event */
   function onPointerMove(event) {
     if (!dragging) return;
 
-    const next = velocityFromDrag(event.clientY);
-
-    if (next !== value) onValueChange(next);
+    schedulePreview(velocityFromDrag(event.clientY));
   }
 
   /** @param {PointerEvent} event */
   function onPointerUp(event) {
+    if (deferCommit && onValueCommit) {
+      const finalValue = velocityFromDrag(event.clientY);
+      onValueCommit(finalValue);
+    }
+
     dragging = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
     releasePointerDragFocus(event);
@@ -78,7 +117,7 @@
 
     event.preventDefault();
 
-    if (value !== resetValue) onValueChange(resetValue);
+    if (value !== resetValue) applyValue(resetValue);
   }
 </script>
 
@@ -106,11 +145,11 @@
     if (event.key === "ArrowUp") {
       event.preventDefault();
 
-      if (value < max) onValueChange(value + 1);
+      if (value < max) applyValue(value + 1);
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
 
-      if (value > min) onValueChange(value - 1);
+      if (value > min) applyValue(value - 1);
     }
   }}
 >

@@ -114,9 +114,12 @@
    * @property {(row: number, step: number) => void | Promise<void>} [onDuplicateStep]
    * @property {(row: number, step: number, midi: number) => void} [onNotePreview]
    * @property {(row: number, step: number, midi: number) => void | Promise<void>} [onNoteCommit]
+   * @property {(row: number, step: number) => void} [onStepBulkGestureStart]
    * @property {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} [onMultiplierChange]
-   * @property {(row: number, step: number, fraction: number) => void | Promise<void>} [onDurationChange]
-   * @property {(row: number, step: number, value: number) => void | Promise<void>} [onVelocityChange]
+   * @property {(row: number, step: number, fraction: number) => void} [onDurationPreview]
+   * @property {(row: number, step: number, fraction: number) => void | Promise<void>} [onDurationCommit]
+   * @property {(row: number, step: number, value: number) => void} [onVelocityPreview]
+   * @property {(row: number, step: number, value: number) => void | Promise<void>} [onVelocityCommit]
    * @property {(row: number, step: number, muted: boolean) => void | Promise<void>} [onStepMuteChange]
    * @property {(row: number, step: number, skipped: boolean) => void | Promise<void>} [onStepSkipChange]
    * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onInspectStep]
@@ -160,9 +163,12 @@
     onDuplicateStep = () => {},
     onNotePreview = () => {},
     onNoteCommit = () => {},
+    onStepBulkGestureStart = () => {},
     onMultiplierChange = () => {},
-    onDurationChange = () => {},
-    onVelocityChange = () => {},
+    onDurationPreview = () => {},
+    onDurationCommit = () => {},
+    onVelocityPreview = () => {},
+    onVelocityCommit = () => {},
     onStepMuteChange = () => {},
     onStepSkipChange = () => {},
     onInspectStep = () => {},
@@ -1021,7 +1027,10 @@
               velocity={stepVelocity[step]}
               resetValue={defaultStepDurationFraction}
               ariaLabel="Step duration fraction"
-              onValueChange={(fraction) => onDurationChange(row, step, fraction)}
+              deferCommit={true}
+              onGestureStart={() => onStepBulkGestureStart(row, step)}
+              onValuePreview={(fraction) => onDurationPreview(row, step, fraction)}
+              onValueCommit={(fraction) => onDurationCommit(row, step, fraction)}
             />
           </div>
           <div class="flex min-w-0 items-center">
@@ -1034,6 +1043,7 @@
                 ariaLabel="Step note"
                 stepValue={stepNoteValue}
                 deferCommit={true}
+                onGestureStart={() => onStepBulkGestureStart(row, step)}
                 onValuePreview={(midi) => onNotePreview(row, step, midi)}
                 onValueCommit={(midi) => onNoteCommit(row, step, midi)}
               />
@@ -1043,7 +1053,10 @@
                 value={stepVelocity[step]}
                 resetValue={defaultStepVelocity}
                 ariaLabel="Step velocity"
-                onValueChange={(value) => onVelocityChange(row, step, value)}
+                deferCommit={true}
+                onGestureStart={() => onStepBulkGestureStart(row, step)}
+                onValuePreview={(value) => onVelocityPreview(row, step, value)}
+                onValueCommit={(value) => onVelocityCommit(row, step, value)}
               />
             </div>
             <div class="min-h-5 min-w-4 flex-1 touch-none" role="presentation"></div>

@@ -151,6 +151,10 @@
     background-color: var(--color-accent);
   }
 
+  .mp-pattern-clear-armed {
+    animation: mp-pattern-clear-blink 0.18s ease-in-out infinite alternate;
+  }
+
   @keyframes mp-slot-copy-blink {
     from {
       background-color: var(--color-accent);
@@ -163,11 +167,26 @@
     }
   }
 
+  @keyframes mp-pattern-clear-blink {
+    from {
+      opacity: 1;
+    }
+
+    to {
+      opacity: 0.3;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .mp-slot-copy-source {
       animation: none;
       background-color: color-mix(in srgb, black 38%, var(--color-accent));
       background-image: none;
+    }
+
+    .mp-pattern-clear-armed {
+      animation: none;
+      opacity: 0.65;
     }
   }
 

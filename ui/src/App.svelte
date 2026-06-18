@@ -108,6 +108,7 @@
     keyCenters,
     scaleModes,
     scaleName,
+    scaleDegreeDelta,
     snapMidiToScale,
     transposeMidiByScaleDegrees,
   } from "./scaleUtils.js";
@@ -228,6 +229,7 @@
   let activePatternSlot = $state(0);
   let viewPatternSlot = $state(0);
   let patternCopySource = $state(-1);
+  let patternClearArmed = $state(false);
   let activeLoopSlot = $state(-1);
   let loopSlotAssigned = $state(Array.from({ length: 8 }, () => false));
   let loopSlotPattern = Array.from({ length: 8 }, () => 0);
@@ -782,9 +784,13 @@
     return copyTarget ? `${base} mp-slot-copy-target` : base;
   }
 
-  function clearPatternButtonClasses(enabled) {
+  function clearPatternButtonClasses(enabled, armed = false) {
     return `flex h-[2.1rem] w-[2.1rem] items-center justify-center border-0 bg-transparent transition-colors outline-none focus:ring-1 focus:ring-focus-ring ${
-      enabled ? "text-danger hover:text-danger" : "text-text-faint"
+      armed
+        ? "mp-pattern-clear-armed text-danger"
+        : enabled
+          ? "text-danger hover:text-danger"
+          : "text-text-faint"
     }`;
   }
 
@@ -814,19 +820,209 @@
     return snapMidiToScale(clamped, scaleRoot, scaleModeIndex);
   }
 
+  function multiSelectLocationsForEditedStep(row, step) {
+    let locations = selectedStepLocations();
+
+    if (activeRowPianoRollEditor?.row === row) {
+      locations = locations.filter((location) => location.row === row);
+    }
+
+    if (locations.length <= 1) {
+      return null;
+    }
+
+    const editedStepId = stepIds[row]?.[step];
+
+    if (!editedStepId) {
+      return null;
+    }
+
+    const editedKey = stepSelectionKey(row, editedStepId);
+
+    if (!locations.some((location) => location.key === editedKey)) {
+      return null;
+    }
+
+    return locations;
+  }
+
+  function beginPhraseStepBulkGesture(row, step) {
+    if (multiSelectLocationsForEditedStep(row, step)) {
+      beginBulkEditGesture();
+    }
+  }
+
+  function transposeDeltaForEditedNote(baselineMidi, newMidi) {
+    const baseline = Math.min(127, Math.max(0, Math.round(baselineMidi)));
+    const target = clampPhraseNote(newMidi);
+
+    if (isChromaticScaleMode(scaleModeIndex)) {
+      return target - baseline;
+    }
+
+    return scaleDegreeDelta(baseline, target, scaleRoot, scaleModeIndex);
+  }
+
   function previewPhraseNoteValue(row, step, midi) {
+    const locations = multiSelectLocationsForEditedStep(row, step);
     const note = clampPhraseNote(midi);
-    grid[row][step] = note;
-    void pushNote(row, step);
+
+    if (!locations) {
+      grid[row][step] = note;
+      void pushNote(row, step);
+      return;
+    }
+
+    if (!bulkEditGestureBefore) {
+      beginBulkEditGesture();
+    }
+
+    if (!bulkTransposeBaselineByKey) {
+      bulkTransposeBaselineByKey = new SvelteMap();
+
+      for (const { row: editRow, step: editStep, key } of locations) {
+        bulkTransposeBaselineByKey.set(key, grid[editRow][editStep]);
+      }
+    }
+
+    const editedKey = stepSelectionKey(row, stepIds[row][step]);
+    const editedBaseline = bulkTransposeBaselineByKey.get(editedKey) ?? grid[row][step];
+    const delta = transposeDeltaForEditedNote(editedBaseline, note);
+    bulkTransposeSemitones = clampTransposeSemitones(delta);
+
+    for (const { row: editRow, step: editStep, key } of locations) {
+      const baseline = bulkTransposeBaselineByKey.get(key) ?? grid[editRow][editStep];
+      grid[editRow][editStep] = clampPhraseNote(stepNoteByCurrentScale(baseline, bulkTransposeSemitones));
+    }
+
+    queueBulkPreviewSync(locations, pushNote);
   }
 
   async function commitPhraseNoteValue(row, step, midi) {
-    const note = clampPhraseNote(midi);
+    const locations = multiSelectLocationsForEditedStep(row, step);
 
-    await commitHistory("Change note", async () => {
-      grid[row][step] = note;
-      await pushNote(row, step);
+    if (!locations) {
+      const note = clampPhraseNote(midi);
+
+      await commitHistory("Change note", async () => {
+        grid[row][step] = note;
+        await pushNote(row, step);
+      });
+      return;
+    }
+
+    previewPhraseNoteValue(row, step, midi);
+
+    await commitBulkEditGesture("Bulk transpose", async () => {
+      await pushRowsForSelectedLocations(locations);
     });
+
+    bulkTransposeSemitones = 0;
+  }
+
+  function previewPhraseStepDuration(row, step, fraction) {
+    const locations = multiSelectLocationsForEditedStep(row, step);
+    const clampedFraction = Math.min(1, Math.max(0, fraction));
+
+    if (!locations) {
+      stepDurationFraction[row][step] = clampedFraction;
+      void pushStepDurationFraction(row, step);
+      return;
+    }
+
+    if (!bulkEditGestureBefore) {
+      beginBulkEditGesture();
+    }
+
+    ensureBulkDurationBaseline(locations);
+
+    const editedKey = stepSelectionKey(row, stepIds[row][step]);
+    const editedBaseline =
+      bulkDurationBaselineByKey?.get(editedKey) ??
+      (stepDurationFraction[row][step] ?? defaultStepDurationFraction) * 100;
+    const delta = clampedFraction * 100 - editedBaseline;
+    bulkDurationPercent = delta;
+
+    for (const { row: editRow, step: editStep, key } of locations) {
+      const baseline = bulkDurationBaselineByKey?.get(key) ?? 100;
+      stepDurationFraction[editRow][editStep] = clampStepDurationPercent(baseline + delta) / 100;
+    }
+
+    queueBulkPreviewSync(locations, pushStepDurationFraction);
+  }
+
+  async function commitPhraseStepDuration(row, step, fraction) {
+    const locations = multiSelectLocationsForEditedStep(row, step);
+
+    if (!locations) {
+      await commitHistory("Change duration", async () => {
+        stepDurationFraction[row][step] = Math.min(1, Math.max(0, fraction));
+        await pushStepDurationFraction(row, step);
+      });
+      return;
+    }
+
+    previewPhraseStepDuration(row, step, fraction);
+
+    await commitBulkEditGesture("Bulk duration", async () => {
+      await pushRowsForSelectedLocations(locations);
+    });
+
+    bulkDurationPercent = 0;
+  }
+
+  function previewPhraseStepVelocity(row, step, value) {
+    const locations = multiSelectLocationsForEditedStep(row, step);
+    const clampedVelocity = Math.min(127, Math.max(0, value));
+
+    if (!locations) {
+      stepVelocity[row][step] = clampedVelocity;
+      void pushStepVelocity(row, step);
+      return;
+    }
+
+    if (!bulkEditGestureBefore) {
+      beginBulkEditGesture();
+    }
+
+    ensureBulkVelocityBaseline(locations);
+
+    const editedKey = stepSelectionKey(row, stepIds[row][step]);
+    const editedBaseline =
+      bulkVelocityBaselineByKey?.get(editedKey) ??
+      ((stepVelocity[row][step] ?? defaultStepVelocity) / 127) * 100;
+    const delta = (clampedVelocity / 127) * 100 - editedBaseline;
+    bulkVelocityPercent = delta;
+
+    for (const { row: editRow, step: editStep, key } of locations) {
+      const baseline =
+        bulkVelocityBaselineByKey?.get(key) ?? (defaultStepVelocity / 127) * 100;
+      stepVelocity[editRow][editStep] = Math.round(
+        (clampStepVelocityPercent(baseline + delta) / 100) * 127,
+      );
+    }
+
+    queueBulkPreviewSync(locations, pushStepVelocity);
+  }
+
+  async function commitPhraseStepVelocity(row, step, value) {
+    const locations = multiSelectLocationsForEditedStep(row, step);
+
+    if (!locations) {
+      await commitHistory("Change velocity", async () => {
+        stepVelocity[row][step] = Math.min(127, Math.max(0, value));
+        await pushStepVelocity(row, step);
+      });
+      return;
+    }
+
+    previewPhraseStepVelocity(row, step, value);
+
+    await commitBulkEditGesture("Bulk velocity", async () => {
+      await pushRowsForSelectedLocations(locations);
+    });
+
+    bulkVelocityPercent = 0;
   }
 
   /** @param {number} row @param {{ step: number, midi: number }[]} updates */
@@ -886,14 +1082,14 @@
   );
   let selectedStepCount = $derived(selectedStepKeysForGrid.size);
   let selectableStepCount = $derived(stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0));
-  let selectedStepReverseAvailable = $derived.by(() => {
-    const selectedByRow = new SvelteMap();
-
-    for (const { row } of selectedStepLocations()) {
-      selectedByRow.set(row, (selectedByRow.get(row) ?? 0) + 1);
+  let bulkReverseAvailable = $derived.by(() => {
+    for (const locations of bulkEditLocationsGroupedByRow().values()) {
+      if (locations.length > 1) {
+        return true;
+      }
     }
 
-    return [...selectedByRow.values()].some((count) => count > 1);
+    return false;
   });
   let rowPianoRollBulkStepCount = $derived.by(() => {
     const editor = activeRowPianoRollEditor;
@@ -996,8 +1192,24 @@
 
   function bulkEditLocations() {
     const editor = activeRowPianoRollEditor;
+
     if (editor === null) {
-      return selectedStepLocations();
+      const selected = selectedStepLocations();
+
+      if (selected.length > 0) {
+        return selected;
+      }
+
+      const locations = [];
+
+      for (let row = 0; row < stepIds.length; row += 1) {
+        for (let step = 0; step < (stepIds[row]?.length ?? 0); step += 1) {
+          const stepId = stepIds[row][step];
+          locations.push({ row, step, key: stepSelectionKey(row, stepId) });
+        }
+      }
+
+      return locations;
     }
 
     const row = editor.row;
@@ -2499,17 +2711,11 @@
   }
 
   async function selectStepDurationFraction(row, step, fraction) {
-    await commitHistory("Change duration", async () => {
-      stepDurationFraction[row][step] = Math.min(1, Math.max(0, fraction));
-      await pushStepDurationFraction(row, step);
-    });
+    await commitPhraseStepDuration(row, step, fraction);
   }
 
   async function setStepVelocity(row, step, value) {
-    await commitHistory("Change velocity", async () => {
-      stepVelocity[row][step] = Math.min(127, Math.max(0, value));
-      await pushStepVelocity(row, step);
-    });
+    await commitPhraseStepVelocity(row, step, value);
   }
 
   function clampBulkRelativePercent(value) {
@@ -3481,11 +3687,27 @@
   }
 
   function beginPatternCopy(slot) {
+    cancelPatternClearArmed();
     patternCopySource = Math.min(7, Math.max(0, slot));
   }
 
   function cancelPatternCopy() {
     patternCopySource = -1;
+  }
+
+  function cancelPatternClearArmed() {
+    patternClearArmed = false;
+  }
+
+  async function handleClearPatternClick() {
+    if (patternClearArmed) {
+      cancelPatternClearArmed();
+      await clearSelectedPatternSlot();
+      return;
+    }
+
+    cancelPatternCopy();
+    patternClearArmed = true;
   }
 
   async function copyPatternToSlot(slot) {
@@ -3523,6 +3745,7 @@
     if (!nativeFunctionAvailable("deactivatePatternOutput")) return;
 
     cancelPatternCopy();
+    cancelPatternClearArmed();
     activePatternSlot = -1;
     activeLoopSlot = -1;
     loopBraceEnabled = false;
@@ -3548,6 +3771,7 @@
     if (!nativeFunctionAvailable("clearPatternSlot")) return;
 
     cancelPatternCopy();
+    cancelPatternClearArmed();
     const slot = activePatternSlot >= 0 ? activePatternSlot : viewPatternSlot;
     const state = await getNativeFunction("clearPatternSlot")(slot);
     assignPatternState(state, activePatternSlot >= 0);
@@ -3623,6 +3847,26 @@
 
   loadInitialStateFromJuce();
 
+  $effect(() => {
+    if (!patternClearArmed) return;
+
+    const handlePointerDown = (event) => {
+      const target = event.target;
+
+      if (target instanceof Element && target.closest("[data-pattern-clear]")) {
+        return;
+      }
+
+      cancelPatternClearArmed();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  });
+
   onMount(() => {
     themeMode = applyThemeMode(storedThemeMode(), { persist: false });
     setUiScalePreset(storedUiScalePreset(), { persist: false });
@@ -3655,6 +3899,12 @@
     void refreshEditorFullscreenState();
 
     const handleKeydown = (event) => {
+      if (event.key === "Escape" && patternClearArmed) {
+        event.preventDefault();
+        cancelPatternClearArmed();
+        return;
+      }
+
       if (event.key === "Escape" && inspectedStep !== null) {
         event.preventDefault();
         closeStepInspector();
@@ -3876,8 +4126,10 @@
         <BulkStepEditControls
           className="border-l border-border-subtle pl-3"
           accent={emeraldRowAccent}
+          requireSelection={false}
+          totalStepCount={selectableStepCount}
           {selectedStepCount}
-          reverseAvailable={selectedStepReverseAvailable}
+          reverseAvailable={bulkReverseAvailable}
           durationPercent={bulkDurationPercent}
           velocityPercent={bulkVelocityPercent}
           transposeSemitones={bulkTransposeSemitones}
@@ -4090,9 +4342,12 @@
               onDuplicateStep={duplicateStep}
               onNotePreview={previewPhraseNoteValue}
               onNoteCommit={commitPhraseNoteValue}
+              onStepBulkGestureStart={beginPhraseStepBulkGesture}
               onMultiplierChange={selectStepTimingMultiplier}
-              onDurationChange={selectStepDurationFraction}
-              onVelocityChange={setStepVelocity}
+              onDurationPreview={previewPhraseStepDuration}
+              onDurationCommit={commitPhraseStepDuration}
+              onVelocityPreview={previewPhraseStepVelocity}
+              onVelocityCommit={commitPhraseStepVelocity}
               onStepMuteChange={setStepMuted}
               onStepSkipChange={setStepSkipped}
               onInspectStep={openStepInspector}
@@ -4201,7 +4456,9 @@
         onShapeVelocitiesCommit={commitPhraseRowVelocityShape}
         onStepMove={movePhraseStepFromPianoRoll}
         onStepResize={selectStepTimingMultiplier}
-        onDurationCommit={selectStepDurationFraction}
+        onDurationPreview={previewPhraseStepDuration}
+        onDurationCommit={commitPhraseStepDuration}
+        onStepBulkGestureStart={beginPhraseStepBulkGesture}
         onOpenAdvancedInspector={openStepInspector}
         onInsertStep={insertStep}
         onBulkSelectPointerDown={beginStepMarqueeSelection}
@@ -4305,11 +4562,12 @@
             </div>
             <button
               type="button"
-              aria-label="Clear selected pattern"
-              title="Clear pattern shown in the grid"
+              data-pattern-clear
+              aria-label={patternClearArmed ? "Confirm clear pattern" : "Clear selected pattern"}
+              title={patternClearArmed ? "Click again to clear" : "Clear pattern shown in the grid"}
               data-cursor="pointer"
-              class={clearPatternButtonClasses(true)}
-              onclick={clearSelectedPatternSlot}
+              class={clearPatternButtonClasses(true, patternClearArmed)}
+              onclick={handleClearPatternClick}
             >
               <RemoveXIcon class="pointer-events-none h-4 w-4" />
             </button>

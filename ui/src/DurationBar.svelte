@@ -17,6 +17,10 @@
    * @property {number} [velocity]
    * @property {any} [resetValue] - Duration fraction restored on double-click; omit to disable reset.
    * @property {string} [ariaLabel]
+   * @property {boolean} [deferCommit] - Preview while dragging; commit on release.
+   * @property {() => void} [onGestureStart] - Called at drag start when {@link deferCommit} is true.
+   * @property {(value: number) => void} [onValuePreview] - Lightweight preview while dragging.
+   * @property {(value: number) => void | Promise<void>} [onValueCommit] - Final commit on release.
    * @property {(value: number) => void | Promise<void>} [onValueChange]
    */
 
@@ -29,6 +33,10 @@
     velocity = 127,
     resetValue = undefined,
     ariaLabel = "Step duration",
+    deferCommit = false,
+    onGestureStart = undefined,
+    onValuePreview = undefined,
+    onValueCommit = undefined,
     onValueChange = () => {}
   } = $props();
 
@@ -97,6 +105,23 @@
 
     if (Math.abs(next - value) < 0.0001) return;
 
+    if (deferCommit && onValuePreview) {
+      onValuePreview(next);
+      return;
+    }
+
+    onValueChange(next);
+  }
+
+  /** @param {number} next */
+  function applyValue(next) {
+    if (deferCommit && onValueCommit) {
+      onGestureStart?.();
+      onValuePreview?.(next);
+      onValueCommit(next);
+      return;
+    }
+
     onValueChange(next);
   }
 
@@ -107,6 +132,11 @@
     absorbPointerDragFocus(event);
     trackEl?.setPointerCapture(event.pointerId);
     dragging = true;
+
+    if (deferCommit) {
+      onGestureStart?.();
+    }
+
     updateFromClientX(event.clientX, event.shiftKey);
   }
 
@@ -119,6 +149,12 @@
 
   /** @param {PointerEvent} event */
   function onTrackPointerUp(event) {
+    if (deferCommit && onValueCommit && dragging) {
+      const next = fractionFromClientX(event.clientX);
+
+      onValueCommit(next);
+    }
+
     dragging = false;
     trackEl?.releasePointerCapture(event.pointerId);
     releasePointerDragFocus(event);
@@ -130,7 +166,7 @@
 
     event.preventDefault();
 
-    if (Math.abs(value - resetValue) > 0.0001) onValueChange(resetValue);
+    if (Math.abs(value - resetValue) > 0.0001) applyValue(resetValue);
   }
 </script>
 
@@ -160,11 +196,11 @@
       if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
         event.preventDefault();
 
-        if (value > 0) onValueChange(event.shiftKey ? nextSnapValue(-1) : clampFraction(value - 0.05));
+        if (value > 0) applyValue(event.shiftKey ? nextSnapValue(-1) : clampFraction(value - 0.05));
       } else if (event.key === "ArrowRight" || event.key === "ArrowUp") {
         event.preventDefault();
 
-        if (value < 1) onValueChange(event.shiftKey ? nextSnapValue(1) : clampFraction(value + 0.05));
+        if (value < 1) applyValue(event.shiftKey ? nextSnapValue(1) : clampFraction(value + 0.05));
       }
     }}
   >

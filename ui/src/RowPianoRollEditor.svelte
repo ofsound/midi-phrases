@@ -58,6 +58,8 @@
    * @property {(row: number, fromStep: number, toStep: number) => void | Promise<void>} [onStepMove]
    * @property {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} [onStepResize]
    * @property {(row: number, step: number, fraction: number) => void | Promise<void>} [onDurationCommit]
+   * @property {(row: number, step: number, fraction: number) => void} [onDurationPreview]
+   * @property {(row: number, step: number) => void} [onStepBulkGestureStart]
    * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onOpenAdvancedInspector]
    * @property {(row: number, updates: { step: number, midi: number }[]) => void | Promise<void>} [onShapeNotesCommit]
    * @property {(row: number, updates: { step: number, velocity: number }[]) => void | Promise<void>} [onShapeVelocitiesCommit]
@@ -104,6 +106,8 @@
     onStepMove = () => {},
     onStepResize = () => {},
     onDurationCommit = () => {},
+    onDurationPreview = () => {},
+    onStepBulkGestureStart = () => {},
     onOpenAdvancedInspector = () => {},
     onInsertStep = () => {},
     onShapeNotesCommit = () => {},
@@ -505,6 +509,7 @@
     };
 
     void onInspectStep(row, note.step, note.stepId);
+    onStepBulkGestureStart(row, note.step);
   }
 
   /** @param {PointerEvent} event */
@@ -760,6 +765,7 @@
     };
 
     void onInspectStep(row, note.step, note.stepId);
+    onStepBulkGestureStart(row, note.step);
   }
 
   /** @param {PointerEvent} event */
@@ -779,6 +785,7 @@
     }
 
     drag = { ...drag, previewFraction, didDrag };
+    onDurationPreview(row, drag.step, previewFraction);
   }
 
   /** @param {PointerEvent} event */
