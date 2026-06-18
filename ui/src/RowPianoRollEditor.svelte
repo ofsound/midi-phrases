@@ -635,8 +635,7 @@
   /** @param {PointerEvent} event @param {any} note */
   function beginStepResize(event, note) {
     if (event.shiftKey) {
-      event.preventDefault();
-      event.stopPropagation();
+      onBulkSelectPointerDown(event);
       return;
     }
 
@@ -943,7 +942,12 @@
     </div>
   </div>
 
-  <div class="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-app/80">
+  <div
+    class="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-app/80"
+    role="group"
+    aria-label="Monophonic piano roll"
+    onpointerdown={onBulkSelectPointerDown}
+  >
     <div
       class="shrink-0 border-r border-border-subtle bg-surface/90"
       style:width="{keyboardWidthPx}px"
@@ -995,7 +999,7 @@
             aria-label="Focused row piano roll"
             style:height="{rollHeightPx}px"
             data-cursor={shapeDrawMode ? "crosshair" : undefined}
-            onpointerdown={shapeDrawMode ? beginShapeDraw : onBulkSelectPointerDown}
+            onpointerdown={shapeDrawMode ? beginShapeDraw : undefined}
             onpointermove={shapeDrawMode ? moveShapeDraw : undefined}
             onpointerup={shapeDrawMode ? endShapeDraw : undefined}
             onpointercancel={shapeDrawMode ? endShapeDraw : undefined}
@@ -1053,6 +1057,8 @@
 
             {#each stepNotes as note (note.stepId)}
               {@const selected = selectedStepIdSet.has(note.stepId)}
+              {@const inspected = inspectedStepId === note.stepId}
+              {@const highlighted = selected || inspected}
               {@const playbackActive = note.active && !note.muted}
               {@const displayMidi = drag?.mode === "move" && drag.step === note.step ? drag.previewMidi : note.midi}
               {@const displayLabel = shapeDrawMode === "velocity" ? note.velocity : midiToNoteName(displayMidi)}
@@ -1065,7 +1071,7 @@
                   : ''} {playbackActive ? rowAccent.playbackGlow : ''}"
                 role="group"
                 aria-label={`Step ${note.step + 1}`}
-                title="Shift-click or Shift-drag to set duration · Double-click for advanced settings"
+                title="Shift-click to toggle selection · Double-click for advanced settings"
                 style:left="{note.leftPx}px"
                 style:top="{pitchTopPx(displayMidi) + 1}px"
                 style:width="{note.fullStepWidthPx}px"
@@ -1081,7 +1087,7 @@
                     ? `${rowAccent.borderActive} opacity-100`
                     : `${rowAccent.textAccent} ${note.muted
                         ? 'opacity-25'
-                        : selected
+                        : highlighted
                           ? 'opacity-90'
                           : 'opacity-50'}`}"
                   aria-hidden="true"
@@ -1089,10 +1095,10 @@
                 <button
                   type="button"
                   data-cursor="grab"
-                  aria-label={`Move ${midiToNoteName(note.midi)} step ${note.step + 1}; Shift-drag to set duration`}
+                  aria-label={`Move ${midiToNoteName(note.midi)} step ${note.step + 1}; Shift-click to toggle selection`}
                   aria-pressed={selected}
-                  title="Drag to move · Shift-click or Shift-drag to set duration · Double-click for advanced settings"
-                  class="absolute top-0 left-0 flex h-full items-center rounded-sm border px-1 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {selected
+                  title="Drag to move · Shift-click to toggle selection · Double-click for advanced settings"
+                  class="absolute top-0 left-0 flex h-full items-center rounded-sm border px-1 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {highlighted
                     || playbackActive
                     ? rowAccent.pianoNoteActive
                     : rowAccent.pianoNoteIdle} {note.muted ? 'opacity-35' : ''}"
