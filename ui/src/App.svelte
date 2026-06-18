@@ -895,6 +895,17 @@
 
     return [...selectedByRow.values()].some((count) => count > 1);
   });
+  let rowPianoRollBulkStepCount = $derived.by(() => {
+    const editor = activeRowPianoRollEditor;
+    if (editor === null) return 0;
+
+    const row = editor.row;
+    const selected = selectedStepIdsByRow[row]?.length ?? 0;
+    const total = stepIds[row]?.length ?? 0;
+
+    return selected > 0 ? selected : total;
+  });
+  let rowPianoRollBulkReverseAvailable = $derived(rowPianoRollBulkStepCount > 1);
   let marqueeLeft = $derived(marqueeSelection
     ? Math.min(marqueeSelection.startX, marqueeSelection.currentX)
     : 0);
@@ -955,6 +966,81 @@
         selectedStepKeys.add(key);
       }
     }
+
+    normalizeRowPianoRollBulkSelection();
+  }
+
+  /** @param {number} row */
+  function allStepKeysForRow(row) {
+    return new Set((stepIds[row] ?? []).map((stepId) => stepSelectionKey(row, stepId)));
+  }
+
+  function normalizeRowPianoRollBulkSelection() {
+    const editor = activeRowPianoRollEditor;
+    if (editor === null) return;
+
+    const row = editor.row;
+    const rowStepIds = stepIds[row] ?? [];
+    if (rowStepIds.length === 0) return;
+
+    const hasRowSelection = rowStepIds.some((stepId) =>
+      selectedStepKeys.has(stepSelectionKey(row, stepId)),
+    );
+
+    if (!hasRowSelection) {
+      for (const stepId of rowStepIds) {
+        selectedStepKeys.add(stepSelectionKey(row, stepId));
+      }
+    }
+  }
+
+  function bulkEditLocations() {
+    const editor = activeRowPianoRollEditor;
+    if (editor === null) {
+      return selectedStepLocations();
+    }
+
+    const row = editor.row;
+    const rowStepIds = stepIds[row] ?? [];
+    const locations = [];
+
+    for (const key of selectedStepKeysForGrid) {
+      if (rowFromStepSelectionKey(key) !== row) continue;
+
+      const stepId = key.substring(key.indexOf(":") + 1);
+      const step = rowStepIds.indexOf(stepId);
+
+      if (step >= 0) {
+        locations.push({ row, step, key });
+      }
+    }
+
+    if (locations.length === 0) {
+      for (let step = 0; step < rowStepIds.length; step += 1) {
+        const stepId = rowStepIds[step];
+        locations.push({ row, step, key: stepSelectionKey(row, stepId) });
+      }
+    }
+
+    return locations;
+  }
+
+  function bulkEditLocationsByPosition() {
+    return bulkEditLocations().sort((left, right) =>
+      left.row === right.row ? left.step - right.step : left.row - right.row,
+    );
+  }
+
+  function bulkEditLocationsGroupedByRow() {
+    const groups = new SvelteMap();
+
+    for (const location of bulkEditLocationsByPosition()) {
+      const rowLocations = groups.get(location.row) ?? [];
+      rowLocations.push(location);
+      groups.set(location.row, rowLocations);
+    }
+
+    return groups;
   }
 
   function selectedStepLocations() {
@@ -1099,15 +1185,10 @@
       await finishRowRecording();
     }
 
-    const openingRow = rowPianoRollStep?.row !== row;
-
     inspectedStep = null;
     rowPianoRollStep = { row, stepId };
-
-    if (openingRow) {
-      setSelectedStepKeys(new Set(stepIds[row].map((id) => stepSelectionKey(row, id))));
-      syncBulkControlsFromSelection();
-    }
+    setSelectedStepKeys(allStepKeysForRow(row));
+    syncBulkControlsFromSelection();
   }
 
   function selectAllStepsForBulkEdit() {
@@ -2307,7 +2388,7 @@
   }
 
   async function shuffleSelectedSteps() {
-    const locations = selectedStepLocationsByPosition();
+    const locations = bulkEditLocationsByPosition();
 
     if (locations.length <= 1) return;
 
@@ -2328,7 +2409,7 @@
   }
 
   async function randomizeSelectedStepOctaves() {
-    const locations = selectedStepLocationsByPosition();
+    const locations = bulkEditLocations();
 
     if (locations.length === 0) return;
 
@@ -2347,7 +2428,7 @@
   }
 
   async function randomizeSelectedStepLengths() {
-    const locations = selectedStepLocationsByPosition();
+    const locations = bulkEditLocationsByPosition();
 
     if (locations.length === 0 || randomStepTimingMultiplierIndices.length === 0) return;
 
@@ -2366,7 +2447,7 @@
   }
 
   async function reverseSelectedStepsByRow() {
-    const groups = [...selectedStepLocationsGroupedByRow().entries()]
+    const groups = [...bulkEditLocationsGroupedByRow().entries()]
       .filter(([, locations]) => locations.length > 1);
 
     if (groups.length === 0) return;
@@ -2518,7 +2599,7 @@
 
   function previewBulkDurationPercent(value) {
     const clamped = clampBulkRelativePercent(value);
-    const locations = selectedStepLocations();
+    const locations = bulkEditLocations();
 
     if (locations.length === 0) return;
 
@@ -2535,7 +2616,7 @@
 
   async function commitBulkDurationPercent(value) {
     const clamped = clampBulkRelativePercent(value);
-    const locations = selectedStepLocations();
+    const locations = bulkEditLocations();
 
     if (locations.length === 0) {
       resetBulkEditGesture();
@@ -2553,7 +2634,7 @@
 
   function previewBulkVelocityPercent(value) {
     const clamped = clampBulkRelativePercent(value);
-    const locations = selectedStepLocations();
+    const locations = bulkEditLocations();
 
     if (locations.length === 0) return;
 
@@ -2570,7 +2651,7 @@
 
   async function commitBulkVelocityPercent(value) {
     const clamped = clampBulkRelativePercent(value);
-    const locations = selectedStepLocations();
+    const locations = bulkEditLocations();
 
     if (locations.length === 0) {
       resetBulkEditGesture();
@@ -2588,7 +2669,7 @@
 
   function previewBulkTransposeSemitones(value) {
     const clamped = clampTransposeSemitones(value);
-    const locations = selectedStepLocations();
+    const locations = bulkEditLocations();
 
     if (locations.length === 0) return;
 
@@ -2612,7 +2693,7 @@
 
   async function commitBulkTransposeSemitones(value) {
     const clamped = clampTransposeSemitones(value);
-    const locations = selectedStepLocations();
+    const locations = bulkEditLocations();
 
     if (locations.length === 0) {
       resetBulkEditGesture();
@@ -4118,7 +4199,7 @@
         bulkVelocityPercent={bulkVelocityPercent}
         bulkTransposeSemitones={bulkTransposeSemitones}
         bulkPitchAriaLabel={bulkPitchAriaLabel}
-        bulkReverseAvailable={selectedStepReverseAvailable}
+        bulkReverseAvailable={rowPianoRollBulkReverseAvailable}
         onBulkReverse={reverseSelectedStepsByRow}
         onBulkShuffle={shuffleSelectedSteps}
         onBulkRandomizeOctaves={randomizeSelectedStepOctaves}

@@ -883,6 +883,8 @@
     </div>
     <BulkStepEditControls
       accent={rowAccent}
+      requireSelection={false}
+      totalStepCount={stepIds.length}
       selectedStepCount={selectedStepIds.length}
       reverseAvailable={bulkReverseAvailable}
       durationPercent={bulkDurationPercent}

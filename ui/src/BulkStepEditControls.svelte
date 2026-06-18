@@ -11,6 +11,8 @@
    * @property {string} [className]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {number} [selectedStepCount]
+   * @property {number} [totalStepCount]
+   * @property {boolean} [requireSelection]
    * @property {boolean} [reverseAvailable]
    * @property {number} [durationPercent]
    * @property {number} [velocityPercent]
@@ -34,6 +36,8 @@
     className = "",
     accent = emeraldRowAccent,
     selectedStepCount = 0,
+    totalStepCount = 0,
+    requireSelection = true,
     reverseAvailable = false,
     durationPercent = 0,
     velocityPercent = 0,
@@ -51,6 +55,10 @@
     onTransposePreview = () => {},
     onTransposeCommit = () => {},
   } = $props();
+
+  let effectiveStepCount = $derived(
+    requireSelection || selectedStepCount > 0 ? selectedStepCount : totalStepCount,
+  );
 
   function actionButtonClasses(enabled = true) {
     return `flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
@@ -86,9 +94,9 @@
         type="button"
         aria-label="Shuffle selected steps"
         title="Shuffle selected steps across rows"
-        disabled={selectedStepCount <= 1}
+        disabled={effectiveStepCount <= 1}
         data-cursor="pointer"
-        class={actionButtonClasses(selectedStepCount > 1)}
+        class={actionButtonClasses(effectiveStepCount > 1)}
         onclick={onShuffle}
       >
         <RowRandomizeOrderIcon class="pointer-events-none h-5 w-5" />
@@ -97,9 +105,9 @@
         type="button"
         aria-label="Randomize selected step octaves"
         title="Randomize selected step octaves"
-        disabled={selectedStepCount === 0}
+        disabled={effectiveStepCount === 0}
         data-cursor="pointer"
-        class={actionButtonClasses(selectedStepCount > 0)}
+        class={actionButtonClasses(effectiveStepCount > 0)}
         onclick={onRandomizeOctaves}
       >
         <RowRandomizeOctaveIcon class="pointer-events-none h-5 w-5" />
@@ -108,9 +116,9 @@
         type="button"
         aria-label="Randomize selected step lengths"
         title="Randomize selected step lengths"
-        disabled={selectedStepCount === 0}
+        disabled={effectiveStepCount === 0}
         data-cursor="pointer"
-        class={actionButtonClasses(selectedStepCount > 0)}
+        class={actionButtonClasses(effectiveStepCount > 0)}
         onclick={onRandomizeLengths}
       >
         <RowRandomizeLengthIcon class="pointer-events-none h-5 w-5" />
@@ -130,7 +138,7 @@
       resetValue={0}
       formatValue={formatSignedValue}
       ariaLabel="Bulk step relative duration percent"
-      disabled={selectedStepCount === 0}
+      disabled={effectiveStepCount === 0}
       {onGestureStart}
       onValuePreview={onDurationPreview}
       onValueCommit={onDurationCommit}
@@ -149,7 +157,7 @@
       resetValue={0}
       formatValue={formatSignedValue}
       ariaLabel="Bulk step relative velocity percent"
-      disabled={selectedStepCount === 0}
+      disabled={effectiveStepCount === 0}
       {onGestureStart}
       onValuePreview={onVelocityPreview}
       onValueCommit={onVelocityCommit}
@@ -168,7 +176,7 @@
       resetValue={0}
       formatValue={formatSignedValue}
       ariaLabel={pitchAriaLabel}
-      disabled={selectedStepCount === 0}
+      disabled={effectiveStepCount === 0}
       {onGestureStart}
       onValuePreview={onTransposePreview}
       onValueCommit={onTransposeCommit}
