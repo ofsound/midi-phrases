@@ -1,5 +1,4 @@
 <script>
-  import ProbabilityDragInput from "./ProbabilityDragInput.svelte";
   import CyclePatternEditor from "./CyclePatternEditor.svelte";
   import ContinuousSlider from "./ContinuousSlider.svelte";
   import StepInspectorKeyboard from "./StepInspectorKeyboard.svelte";
@@ -61,36 +60,75 @@
   let durationPercent = $derived(Math.round(Math.min(1, Math.max(0, durationFraction)) * 100));
 </script>
 
-<section class="flex min-h-0 w-full flex-1 flex-col gap-2 bg-app/90 px-6 py-4">
-  <div class="grid min-h-0 flex-1 grid-cols-3 gap-4">
-    <div class="flex min-h-0 flex-col justify-between rounded-md border border-border-subtle bg-surface/80 p-4">
-      <span class="text-xs font-semibold uppercase tracking-widest text-text-muted">Probability</span>
-      <div class="step-inspector-value mt-4 {accent.textAccent}">
-        <ProbabilityDragInput
-          {accent}
-          value={probability}
-          resetValue={100}
-          ariaLabel="Step probability"
-          onValueChange={onProbabilityChange}
-        />
-      </div>
+<section class="flex min-h-0 w-full flex-1 gap-3 bg-app/90 px-6 py-4">
+  <aside class="flex w-[13.5rem] shrink-0 flex-col gap-3 py-1">
+    <div class="flex min-w-0 w-full flex-col gap-1">
+      <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>
+      <CyclePatternEditor
+        compact
+        {accent}
+        {cycle}
+        {cycleMask}
+        ariaLabel="Step cycle pattern"
+        onPatternCommit={onCyclePatternCommit}
+      />
     </div>
-    <div class="col-span-2 flex min-h-0 flex-col rounded-md border border-border-subtle bg-surface/80 p-4">
-      <span class="mb-4 text-xs font-semibold uppercase tracking-widest text-text-muted">Cycle</span>
-      <div class="flex min-h-0 flex-1 items-center">
-        <CyclePatternEditor
-          {accent}
-          {cycle}
-          {cycleMask}
-          ariaLabel="Step cycle pattern"
-          onPatternCommit={onCyclePatternCommit}
-        />
-      </div>
-    </div>
-  </div>
 
-  <div class="flex min-h-0 flex-1 items-center gap-4">
+    <ContinuousSlider
+      label="Probability"
+      value={probability}
+      min={0}
+      max={100}
+      ariaLabel="Step probability"
+      fullWidth={true}
+      formatDisplay={(value) => `${Math.round(value)}%`}
+      onValueChange={onProbabilityChange}
+    />
+    <ContinuousSlider
+      label="Multiplier"
+      value={timingMultiplierIndex}
+      min={0}
+      max={stepTimingMultiplierCount - 1}
+      ariaLabel="Step timing multiplier"
+      fullWidth={true}
+      formatDisplay={(index) =>
+        formatTimingMultiplierLabel(timingMultiplierAtIndex(index))}
+      onValueChange={onTimingMultiplierChange}
+    />
+    <ContinuousSlider
+      label="Duration"
+      value={durationPercent}
+      min={0}
+      max={100}
+      ariaLabel="Step duration"
+      fullWidth={true}
+      onValueChange={onDurationChange}
+    />
+    <ContinuousSlider
+      label="Velocity"
+      value={velocity}
+      min={1}
+      max={127}
+      ariaLabel="Step velocity"
+      fullWidth={true}
+      onValueChange={onVelocityChange}
+    />
+    <button
+      type="button"
+      data-cursor="pointer"
+      aria-label="Close step inspector"
+      class="flex h-8 w-full shrink-0 items-center justify-center rounded-md border border-border bg-surface text-lg leading-none text-text-muted transition-colors outline-none hover:border-border-strong hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
+      onclick={onClose}
+    >
+      X
+    </button>
+  </aside>
+
+  <div
+    class="flex h-full min-h-0 min-w-0 flex-1 items-center overflow-hidden rounded-xl border border-border-subtle bg-app/80 px-2"
+  >
     <StepInspectorKeyboard
+      embedded
       {note}
       {stepKey}
       {scaleRoot}
@@ -98,52 +136,5 @@
       {accent}
       onNoteChange={onNoteChange}
     />
-    <div class="flex h-full w-[12rem] min-w-[9rem] shrink-0 flex-col justify-center gap-3">
-      <ContinuousSlider
-        label="Multiplier"
-        value={timingMultiplierIndex}
-        min={0}
-        max={stepTimingMultiplierCount - 1}
-        ariaLabel="Step timing multiplier"
-        fullWidth={true}
-        formatDisplay={(index) =>
-          formatTimingMultiplierLabel(timingMultiplierAtIndex(index))}
-        onValueChange={onTimingMultiplierChange}
-      />
-      <ContinuousSlider
-        label="Duration"
-        value={durationPercent}
-        min={0}
-        max={100}
-        ariaLabel="Step duration"
-        fullWidth={true}
-        onValueChange={onDurationChange}
-      />
-      <ContinuousSlider
-        label="Velocity"
-        value={velocity}
-        min={1}
-        max={127}
-        ariaLabel="Step velocity"
-        fullWidth={true}
-        onValueChange={onVelocityChange}
-      />
-    </div>
-    <button
-      type="button"
-      data-cursor="pointer"
-      aria-label="Close step inspector"
-      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-lg leading-none text-text-muted transition-colors outline-none hover:border-border-strong hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
-      onclick={onClose}
-    >
-      X
-    </button>
   </div>
 </section>
-
-<style>
-  .step-inspector-value :global([role="slider"] span) {
-    font-size: 2.25rem;
-    font-weight: 600;
-  }
-</style>

@@ -18,6 +18,7 @@
    * @property {number} [scaleRoot]
    * @property {number} [scaleModeIndex]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {boolean} [embedded]
    * @property {(midi: number) => void | Promise<void>} [onNoteChange]
    */
 
@@ -28,6 +29,7 @@
     scaleRoot = 0,
     scaleModeIndex = 0,
     accent = emeraldRowAccent,
+    embedded = false,
     onNoteChange = () => {},
   } = $props();
 
@@ -104,6 +106,12 @@
   function onKeyPointerUp(event) {
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
+
+  let keyboardSurfaceClass = $derived(
+    embedded
+      ? "relative flex h-full min-h-12 min-w-0 flex-1 touch-none select-none overflow-hidden"
+      : "relative flex h-full min-h-12 min-w-0 flex-1 touch-none select-none overflow-hidden rounded-lg border border-border-subtle bg-app/80",
+  );
 </script>
 
 <div class="flex h-full min-h-0 min-w-0 flex-1 items-center gap-2">
@@ -119,7 +127,7 @@
   </button>
 
   <div
-    class="relative flex h-full min-h-12 min-w-0 flex-1 touch-none select-none overflow-hidden rounded-lg border border-border-subtle bg-app/80"
+    class={keyboardSurfaceClass}
     role="group"
     aria-label="Step note keyboard"
   >

@@ -16,6 +16,7 @@
    * @property {number} [cycle]
    * @property {number} [cycleMask]
    * @property {string} [ariaLabel]
+   * @property {boolean} [compact]
    * @property {(cycle: number, cycleMask: number) => void | Promise<void>} [onPatternCommit]
    */
 
@@ -25,6 +26,7 @@
     cycle = 1,
     cycleMask = 1,
     ariaLabel = "Step cycle pattern",
+    compact = false,
     onPatternCommit = () => {},
   } = $props();
 
@@ -109,11 +111,25 @@
     releasePointerDragFocus(event);
     onPatternCommit(draftCycle, draftMask);
   }
+
+  let shellClass = $derived(
+    compact
+      ? "relative min-w-0 rounded-md border border-border bg-surface/60 p-0.5"
+      : "relative min-w-0 rounded-md border border-border bg-surface/60 p-1",
+  );
+  let gridClass = $derived(compact ? "grid grid-cols-8 gap-0.5" : "grid grid-cols-8 gap-1");
+  let cellClass = $derived(compact ? "cycle-cell relative z-[1] h-5 rounded-sm border" : "cycle-cell relative z-[1] h-8 rounded-sm border");
+  let handleClass = $derived(
+    compact
+      ? "cycle-handle pointer-events-auto z-10 flex h-5 w-2.5 translate-x-1/2 touch-none select-none items-center justify-center rounded-sm border border-border bg-surface text-text-muted shadow-sm outline-none hover:border-border-strong hover:text-text"
+      : "cycle-handle pointer-events-auto z-10 flex h-8 w-3.5 translate-x-1/2 touch-none select-none items-center justify-center rounded-sm border border-border bg-surface text-text-muted shadow-sm outline-none hover:border-border-strong hover:text-text",
+  );
+  let overlayInsetClass = $derived(compact ? "pointer-events-none absolute inset-0.5 grid grid-cols-8 gap-0.5" : "pointer-events-none absolute inset-1 grid grid-cols-8 gap-1");
 </script>
 
 <div class="flex min-h-0 w-full min-w-0 flex-col" role="group" aria-label={ariaLabel}>
-  <div class="relative min-w-0 rounded-md border border-border bg-surface/60 p-1">
-    <div class="grid grid-cols-8 gap-1">
+  <div class={shellClass}>
+    <div class={gridClass}>
       {#each Array.from({length: maxCyclePatternCells}, (_, index) => index) as index (index)}
         {@const inPattern = index < draftCycle}
         {@const active = inPattern && isCycleCellActive(draftCycle, draftMask, index)}
@@ -121,7 +137,7 @@
           type="button"
           bind:this={cellRefs[index]}
           data-cursor="pointer"
-          class="cycle-cell relative z-[1] h-8 rounded-sm border transition-colors outline-none {inPattern
+          class="{cellClass} transition-colors outline-none {inPattern
             ? active
               ? `${accent.dragBorder} ${accent.bgAccent}`
               : 'border-border bg-surface-raised/80 hover:border-border-strong'
@@ -139,7 +155,7 @@
     </div>
 
     <div
-      class="pointer-events-none absolute inset-1 grid grid-cols-8 gap-1"
+      class={overlayInsetClass}
       aria-hidden="true"
     >
       <div
@@ -148,7 +164,7 @@
       >
         <div
           data-cursor="horizontal-drag"
-          class="cycle-handle pointer-events-auto z-10 flex h-8 w-3.5 translate-x-1/2 touch-none select-none items-center justify-center rounded-sm border border-border bg-surface text-text-muted shadow-sm outline-none hover:border-border-strong hover:text-text {accent.ringFocusWithWidth} {draggingLength
+          class="{handleClass} {accent.ringFocusWithWidth} {draggingLength
             ? `${accent.dragBorder} ${accent.dragShadow}`
             : ''}"
           role="slider"
@@ -165,8 +181,8 @@
           title="Drag horizontally to set cycle length"
         >
           <span class="flex gap-0.5" aria-hidden="true">
-            <span class="block h-2.5 w-px bg-current"></span>
-            <span class="block h-2.5 w-px bg-current"></span>
+            <span class="block {compact ? 'h-2 w-px' : 'h-2.5 w-px'} bg-current"></span>
+            <span class="block {compact ? 'h-2 w-px' : 'h-2.5 w-px'} bg-current"></span>
           </span>
         </div>
       </div>
