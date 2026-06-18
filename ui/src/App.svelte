@@ -80,6 +80,7 @@
   import ColorsToggle from "./ColorsToggle.svelte";
   import ThemeModeToggle from "./ThemeModeToggle.svelte";
   import FullscreenIcon from "./FullscreenIcon.svelte";
+  import MidiPhrasesLogo from "./MidiPhrasesLogo.svelte";
   import UiScaleToggle from "./UiScaleToggle.svelte";
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
@@ -4017,10 +4018,8 @@
           </p>
         </div>
         <div class="flex h-8 items-end">
-          <h1
-            class="whitespace-nowrap text-3xl font-semibold leading-none tracking-normal text-text translate-y-0.5"
-          >
-            {pluginName}
+          <h1 class="translate-y-0.5 whitespace-nowrap leading-none" aria-label={pluginName}>
+            <MidiPhrasesLogo name={pluginName} />
           </h1>
         </div>
       </div>
