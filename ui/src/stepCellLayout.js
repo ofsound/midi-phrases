@@ -179,6 +179,36 @@ export function longestRowQuarterGridColumns(rows) {
   );
 }
 
+/** Timing offset expressed in the same quarter-grid columns used by step spans. */
+export function rowTimingOffsetQuarterGridColumns(offsetIndex) {
+  return durationToQuarterGridSteps(timingOffsetValues[offsetIndex] ?? 0);
+}
+
+/**
+ * Shared compact-grid layout for every row. Timing offsets are normalized into
+ * grid columns so all rows retain one horizontal scale.
+ *
+ * @param {number[][]} rows
+ * @param {number[]} timingOffsetIndices
+ */
+export function compactPhraseGridLayout(rows, timingOffsetIndices) {
+  const rawStartColumns = rows.map((row, index) =>
+    row.length > 0
+      ? rowTimingOffsetQuarterGridColumns(timingOffsetIndices[index])
+      : 0,
+  );
+  const firstColumn = Math.min(0, ...rawStartColumns);
+  const rowStartColumns = rawStartColumns.map((start) => start - firstColumn);
+  const totalColumns = Math.max(
+    1,
+    ...rows.map(
+      (row, index) => rowStartColumns[index] + rowQuarterGridColumns(row),
+    ),
+  );
+
+  return { totalColumns, rowStartColumns };
+}
+
 /** Total quarter-grid columns occupied by a row's steps. */
 export function rowQuarterGridColumns(multiplierIndices) {
   return multiplierIndices.reduce(

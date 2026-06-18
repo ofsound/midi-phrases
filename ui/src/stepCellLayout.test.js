@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   compactStepShellPaddingPercent,
   compactStepShellTrailingPaddingPercent,
+  compactPhraseGridLayout,
   longestRowQuarterGridColumns,
   quarterGridColumnsForMultiplierIndex,
   stepCellPaddingPx,
@@ -54,5 +55,29 @@ describe("compact stretch-to-fit shell spacing", () => {
     expect(compactStepShellTrailingPaddingPercent(multiplierIndex)).toBeCloseTo(
       ((stepCellPaddingPx() * 2) / 3 / spanPx) * 100,
     );
+  });
+});
+
+describe("compactPhraseGridLayout", () => {
+  it("uses one scale for row spans and positive timing offsets", () => {
+    const layout = compactPhraseGridLayout(
+      [
+        [4, 3, 2],
+        [0, 3, 5, 7],
+        [4],
+        [],
+      ],
+      [3, 4, 3, 3],
+    );
+
+    expect(layout.rowStartColumns).toEqual([0, 1, 0, 0]);
+    expect(layout.totalColumns).toBe(20);
+  });
+
+  it("normalizes negative offsets without changing relative alignment", () => {
+    const layout = compactPhraseGridLayout([[3], [3]], [0, 3]);
+
+    expect(layout.rowStartColumns).toEqual([0, 3]);
+    expect(layout.totalColumns).toBe(7);
   });
 });

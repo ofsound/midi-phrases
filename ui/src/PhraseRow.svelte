@@ -10,6 +10,8 @@
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import StepMuteToggle from "./StepMuteToggle.svelte";
   import StepSkipToggle from "./StepSkipToggle.svelte";
+  import StepMutedOverlay from "./StepMutedOverlay.svelte";
+  import { compactStepVelocityOpacity } from "./compactStepVisuals.js";
   import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { preventTabFocus } from "./preventTabFocus.js";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
@@ -108,6 +110,7 @@
    * @property {boolean} [stepInspectionActive]
    * @property {boolean} [stretchToFit]
    * @property {number} [fitGridColumns]
+   * @property {number} [fitGridStartColumn]
    * @property {string | null} [inspectedStepId]
    * @property {string | null} [stepInspectorHighlightedId]
    * @property {(value: number, delta: number) => number} [stepNoteValue]
@@ -159,6 +162,7 @@
     stepInspectionActive = false,
     stretchToFit = false,
     fitGridColumns = 1,
+    fitGridStartColumn = 0,
     inspectedStepId = null,
     stepInspectorHighlightedId = null,
     stepNoteValue = (value, delta) => value + delta,
@@ -1156,6 +1160,9 @@
 
 {#snippet compactStepCell(step, stepId)}
   {@const isStepSelected = selectedStepIdSet.has(stepId)}
+  {@const stepIsMuted = stepMuted[step]}
+  {@const stepIsSkipped = stepSkipped[step]}
+  {@const velocityOpacity = compactStepVelocityOpacity(stepVelocity[step], stepIsSkipped)}
   {@const gridColumns = quarterGridColumnsForMultiplierIndex(stepTimingMultiplier[step])}
   {@const shellPaddingPercent = compactStepShellPaddingPercent(stepTimingMultiplier[step])}
   {@const trailingPaddingPercent = compactStepShellTrailingPaddingPercent(stepTimingMultiplier[step])}
@@ -1168,24 +1175,56 @@
     data-step-index={step}
     data-step-selected={isStepSelected ? true : undefined}
     class="relative min-w-0"
-    style:grid-column="span {gridColumns}"
+    style:grid-column={step === 0
+      ? `${fitGridStartColumn + 1} / span ${gridColumns}`
+      : `span ${gridColumns}`}
     onclick={(event) => openStepFromCellBackground(event, step)}
     onpointerdowncapture={(event) => handleStepControlPointerDown(event, step)}
   >
     <div
-      class="overflow-hidden rounded-md {accent.bgAccent} {isStepSelected
-        ? 'ring-1 ring-inset ring-text/60'
-        : ''}"
+      class="relative overflow-hidden rounded-md bg-surface transition-[box-shadow,filter] duration-75 {activeGates[step]
+        ? accent.playbackGlow
+        : ''} {isStepSelected
+        ? 'brightness-75 saturate-75'
+        : activeGates[step]
+          ? 'brightness-125'
+          : ''}"
       style:margin-left="{shellPaddingPercent}%"
       style:margin-right="{step === stepIds.length - 1 ? trailingPaddingPercent : shellPaddingPercent}%"
     >
-      <div class="flex h-9 min-w-0 items-center justify-center overflow-hidden px-1">
+      <div
+        class="pointer-events-none absolute inset-0 transition-[background-color,opacity] duration-75 {activeGates[step]
+          ? accent.bgAccentStrong
+          : accent.bgAccent}"
+        style:opacity={activeGates[step] ? 1 : velocityOpacity}
+        aria-hidden="true"
+      ></div>
+      {#if stepIsSkipped}
+        <div
+          class="compact-step-skipped-overlay pointer-events-none absolute inset-0 z-20"
+          aria-hidden="true"
+        ></div>
+      {/if}
+      {#if stepIsMuted}
+        <StepMutedOverlay active={true} />
+      {/if}
+      {#if isStepSelected}
+        <div
+          class="pointer-events-none absolute inset-0 z-40 rounded-md border-[3px] border-text"
+          aria-hidden="true"
+        ></div>
+      {/if}
+      <div
+        class="relative z-10 flex h-9 min-w-0 items-center justify-center overflow-hidden px-1 transition-opacity duration-75 {stepIsSkipped
+          ? 'opacity-45'
+          : ''}"
+      >
         <NoteDragInput
           {accent}
           minimal
           value={notes[step]}
           resetValue={defaultStepNote}
-          ariaLabel="Step note"
+          ariaLabel={`Step note${stepIsSkipped ? ", skipped" : stepIsMuted ? ", muted" : ""}`}
           stepValue={stepNoteValue}
           deferCommit={true}
           onGestureStart={() => onStepBulkGestureStart(row, step)}
@@ -1197,11 +1236,24 @@
   </div>
 {/snippet}
 
+<style>
+  .compact-step-skipped-overlay {
+    background: linear-gradient(
+      to bottom right,
+      transparent calc(50% - 1px),
+      color-mix(in srgb, var(--color-text) 72%, transparent) calc(50% - 1px),
+      color-mix(in srgb, var(--color-text) 72%, transparent) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    );
+  }
+</style>
+
 <div
   class="flex min-w-0 flex-1 overflow-hidden"
   role="presentation"
-  style:padding-left="{rowTimingOffsetShiftPx(timingOffsetIndex) +
-    timingOffsetVisualCompensationPx}px"
+  style:padding-left={stretchToFit
+    ? "0px"
+    : `${rowTimingOffsetShiftPx(timingOffsetIndex) + timingOffsetVisualCompensationPx}px`}
   onpointerdown={handleBulkSelectPointerDown}
 >
   <div

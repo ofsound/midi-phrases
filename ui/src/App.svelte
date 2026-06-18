@@ -40,7 +40,7 @@
     maxPhraseStepsPerRow,
     findSingleMove,
     insertStepTimingMultiplierOptions,
-    longestRowQuarterGridColumns,
+    compactPhraseGridLayout,
     stepTimingMultiplierCount,
     timingMultiplierOptions,
   } from "./stepCellLayout.js";
@@ -151,7 +151,9 @@
   /** @type {number[][]} */
   let stepTimingMultiplier = $state(defaultStepTimingMultiplierGrid());
   let stretchStepsToFit = $state(false);
-  let fitGridColumns = $derived(longestRowQuarterGridColumns(stepTimingMultiplier));
+  let compactGridLayout = $derived(
+    compactPhraseGridLayout(stepTimingMultiplier, rowTimingOffset),
+  );
   /** @type {number[][]} */
   let stepVelocity = $state(defaultStepVelocityGrid());
   /** @type {boolean[][]} */
@@ -4305,7 +4307,8 @@
               selectedStepIds={selectedStepIdsByRow[row]}
               stepInspectionActive={activeStepInspector !== null || activeRowPianoRollEditor !== null}
               stretchToFit={stretchStepsToFit}
-              {fitGridColumns}
+              fitGridColumns={compactGridLayout.totalColumns}
+              fitGridStartColumn={compactGridLayout.rowStartColumns[row]}
               inspectedStepId={
                 activeStepInspector !== null && inspectedStep?.row === row
                   ? inspectedStep.stepId
