@@ -1337,6 +1337,10 @@
     };
   });
 
+  let rowPianoRollCurrentStepFocusVisible = $derived(
+    activeRowPianoRollEditor !== null && stretchStepsToFit,
+  );
+
   function closeStepInspector() {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -1357,6 +1361,8 @@
     }
 
     rowPianoRollStep = null;
+    setSelectedStepKeys(new Set());
+    syncBulkControlsFromSelection();
 
     queueMicrotask(() => {
       if (document.activeElement instanceof HTMLElement) {
@@ -1387,15 +1393,21 @@
     syncBulkControlsFromSelection();
   }
 
-  /** @param {number} row @param {number} step @param {string} stepId */
-  async function openRowPianoRollEditor(row, step, stepId) {
+  /** @param {number} row @param {number} step @param {string} stepId @param {{ selectStep?: boolean }} [options] */
+  async function openRowPianoRollEditor(row, step, stepId, { selectStep = true } = {}) {
     if (recordingRow !== null) {
       await finishRowRecording();
     }
 
     inspectedStep = null;
     rowPianoRollStep = { row, stepId };
-    setSelectedStepKeys(new Set([stepSelectionKey(row, stepId)]));
+
+    if (selectStep) {
+      setSelectedStepKeys(new Set([stepSelectionKey(row, stepId)]));
+    } else {
+      setSelectedStepKeys(new Set());
+    }
+
     syncBulkControlsFromSelection();
   }
 
@@ -1416,7 +1428,7 @@
       : rowStepIds[0];
     const step = rowStepIds.indexOf(stepId);
 
-    await openRowPianoRollEditor(row, step, stepId);
+    await openRowPianoRollEditor(row, step, stepId, { selectStep: false });
   }
 
   function selectAllStepsForBulkEdit() {
@@ -4415,7 +4427,7 @@
               stepCycleOffset={stepCycleOffset[row]}
               activeGates={activeGates[row]}
               selectedStepIds={selectedStepIdsByRow[row]}
-              stepInspectionActive={activeStepInspector !== null || activeRowPianoRollEditor !== null}
+              stepInspectionActive={activeStepInspector !== null || rowPianoRollCurrentStepFocusVisible}
               stepInspectorOpen={activeStepInspector !== null}
               stretchToFit={stretchStepsToFit}
               fitGridColumns={compactGridLayout.totalColumns}
@@ -4423,7 +4435,7 @@
               inspectedStepId={
                 activeStepInspector !== null && inspectedStep?.row === row
                   ? inspectedStep.stepId
-                  : activeRowPianoRollEditor !== null && activeRowPianoRollEditor.row === row
+                  : rowPianoRollCurrentStepFocusVisible && activeRowPianoRollEditor?.row === row
                     ? activeRowPianoRollEditor.stepId
                     : null
               }
@@ -4566,10 +4578,15 @@
         activeGates={activeGates[activeRowPianoRollEditor.row]}
         rowTimingOffset={rowTimingOffset[activeRowPianoRollEditor.row]}
         {pulseIndex}
-        inspectedStepId={activeRowPianoRollEditor.stepId}
+        inspectedStepId={rowPianoRollCurrentStepFocusVisible
+          ? activeRowPianoRollEditor.stepId
+          : null}
         selectedStepIds={selectedStepIdsByRow[activeRowPianoRollEditor.row]}
         accent={rowAccentFor(activeRowPianoRollEditor.row, rowColorsEnabled)}
-        onInspectStep={openRowPianoRollEditor}
+        onInspectStep={(row, step, stepId) =>
+          openRowPianoRollEditor(row, step, stepId, {
+            selectStep: stretchStepsToFit,
+          })}
         onNotePreview={previewPhraseNoteValue}
         onNoteCommit={commitPhraseNoteValue}
         onShapeNotesCommit={commitPhraseRowNoteShape}
