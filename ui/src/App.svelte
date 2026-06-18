@@ -1098,6 +1098,16 @@
 
     return false;
   });
+  let bulkSkipActive = $derived.by(() => {
+    const locations = bulkEditLocations();
+
+    return locations.length > 0 && locations.every(({ row, step }) => stepSkipped[row][step]);
+  });
+  let bulkMuteActive = $derived.by(() => {
+    const locations = bulkEditLocations();
+
+    return locations.length > 0 && locations.every(({ row, step }) => stepMuted[row][step]);
+  });
   let rowPianoRollBulkStepCount = $derived.by(() => {
     const editor = activeRowPianoRollEditor;
     if (editor === null) return 0;
@@ -1533,6 +1543,12 @@
     beginStepMarqueeSelection(event);
   }
 
+  const phraseStepMarqueeBlockSelector =
+    "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-bulk-step-cell], [data-no-marquee], [data-no-long-press], [data-insert-slot], [data-remove-button], [data-multiplier-resize]";
+
+  const compactStepMarqueeBlockSelector =
+    "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-no-marquee], [data-no-long-press], [data-insert-slot], [data-remove-button], [data-multiplier-resize]";
+
   /** @param {PointerEvent} event */
   function beginStepMarqueeSelection(event) {
     if (event.button !== 0 || marqueeSelection) return;
@@ -1542,6 +1558,8 @@
     if (!(target instanceof Element)) return;
 
     const stepCell = target.closest("[data-bulk-step-cell]");
+    const compactStepCell =
+      stepCell instanceof HTMLElement && stepCell.hasAttribute("data-compact-step-cell");
 
     if (event.shiftKey && stepCell instanceof HTMLElement) {
       if (toggleStepSelectionFromCellElement(stepCell)) {
@@ -1551,11 +1569,11 @@
       return;
     }
 
-    if (
-      target.closest(
-        "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-bulk-step-cell], [data-no-marquee], [data-no-long-press], [data-insert-slot], [data-remove-button], [data-multiplier-resize]",
-      )
-    ) {
+    const marqueeBlockSelector = compactStepCell
+      ? compactStepMarqueeBlockSelector
+      : phraseStepMarqueeBlockSelector;
+
+    if (target.closest(marqueeBlockSelector)) {
       return;
     }
 
@@ -2936,6 +2954,58 @@
     });
   }
 
+  async function toggleBulkStepSkip() {
+    const locations = bulkEditLocations();
+
+    if (locations.length === 0) return;
+
+    const nextSkipped = !locations.every(({ row, step }) => stepSkipped[row][step]);
+
+    await commitHistory(nextSkipped ? "Skip selected steps" : "Unskip selected steps", async () => {
+      for (const { row, step } of locations) {
+        stepSkipped[row][step] = nextSkipped;
+        let clearedMute = false;
+
+        if (nextSkipped && stepMuted[row][step]) {
+          stepMuted[row][step] = false;
+          clearedMute = true;
+        }
+
+        await pushStepSkipped(row, step);
+
+        if (clearedMute) {
+          await pushStepMuted(row, step);
+        }
+      }
+    });
+  }
+
+  async function toggleBulkStepMute() {
+    const locations = bulkEditLocations();
+
+    if (locations.length === 0) return;
+
+    const nextMuted = !locations.every(({ row, step }) => stepMuted[row][step]);
+
+    await commitHistory(nextMuted ? "Mute selected steps" : "Unmute selected steps", async () => {
+      for (const { row, step } of locations) {
+        stepMuted[row][step] = nextMuted;
+        let clearedSkip = false;
+
+        if (nextMuted && stepSkipped[row][step]) {
+          stepSkipped[row][step] = false;
+          clearedSkip = true;
+        }
+
+        await pushStepMuted(row, step);
+
+        if (clearedSkip) {
+          await pushStepSkipped(row, step);
+        }
+      }
+    });
+  }
+
   async function setStepProbability(row, step, probability) {
     await commitHistory("Change probability", async () => {
       stepProbability[row][step] = Math.min(100, Math.max(0, probability));
@@ -4109,6 +4179,8 @@
           totalStepCount={selectableStepCount}
           {selectedStepCount}
           reverseAvailable={bulkReverseAvailable}
+          skipActive={bulkSkipActive}
+          muteActive={bulkMuteActive}
           durationPercent={bulkDurationPercent}
           velocityPercent={bulkVelocityPercent}
           transposeSemitones={bulkTransposeSemitones}
@@ -4117,6 +4189,8 @@
           onShuffle={shuffleSelectedSteps}
           onRandomizeOctaves={randomizeSelectedStepOctaves}
           onRandomizeLengths={randomizeSelectedStepLengths}
+          onToggleSkip={toggleBulkStepSkip}
+          onToggleMute={toggleBulkStepMute}
           onGestureStart={beginBulkEditGesture}
           onDurationPreview={previewBulkDurationPercent}
           onDurationCommit={commitBulkDurationPercent}
@@ -4306,6 +4380,7 @@
               activeGates={activeGates[row]}
               selectedStepIds={selectedStepIdsByRow[row]}
               stepInspectionActive={activeStepInspector !== null || activeRowPianoRollEditor !== null}
+              stepInspectorOpen={activeStepInspector !== null}
               stretchToFit={stretchStepsToFit}
               fitGridColumns={compactGridLayout.totalColumns}
               fitGridStartColumn={compactGridLayout.rowStartColumns[row]}
@@ -4463,10 +4538,14 @@
         bulkTransposeSemitones={bulkTransposeSemitones}
         bulkPitchAriaLabel={bulkPitchAriaLabel}
         bulkReverseAvailable={rowPianoRollBulkReverseAvailable}
+        bulkSkipActive={bulkSkipActive}
+        bulkMuteActive={bulkMuteActive}
         onBulkReverse={reverseSelectedStepsByRow}
         onBulkShuffle={shuffleSelectedSteps}
         onBulkRandomizeOctaves={randomizeSelectedStepOctaves}
         onBulkRandomizeLengths={randomizeSelectedStepLengths}
+        onBulkToggleSkip={toggleBulkStepSkip}
+        onBulkToggleMute={toggleBulkStepMute}
         onBulkGestureStart={beginBulkEditGesture}
         onBulkDurationPreview={previewBulkDurationPercent}
         onBulkDurationCommit={commitBulkDurationPercent}

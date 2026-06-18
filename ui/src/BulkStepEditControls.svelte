@@ -3,7 +3,9 @@
   import RowRandomizeOctaveIcon from "./RowRandomizeOctaveIcon.svelte";
   import RowRandomizeOrderIcon from "./RowRandomizeOrderIcon.svelte";
   import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
+  import StepMuteIcon from "./StepMuteIcon.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
+  import StepSkipIcon from "./StepSkipIcon.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
   /**
@@ -14,6 +16,8 @@
    * @property {number} [totalStepCount]
    * @property {boolean} [requireSelection]
    * @property {boolean} [reverseAvailable]
+   * @property {boolean} [skipActive]
+   * @property {boolean} [muteActive]
    * @property {number} [durationPercent]
    * @property {number} [velocityPercent]
    * @property {number} [transposeSemitones]
@@ -22,6 +26,8 @@
    * @property {() => void | Promise<void>} [onShuffle]
    * @property {() => void | Promise<void>} [onRandomizeOctaves]
    * @property {() => void | Promise<void>} [onRandomizeLengths]
+   * @property {() => void | Promise<void>} [onToggleSkip]
+   * @property {() => void | Promise<void>} [onToggleMute]
    * @property {() => void} [onGestureStart]
    * @property {(value: number) => void} [onDurationPreview]
    * @property {(value: number) => void | Promise<void>} [onDurationCommit]
@@ -39,6 +45,8 @@
     totalStepCount = 0,
     requireSelection = true,
     reverseAvailable = false,
+    skipActive = false,
+    muteActive = false,
     durationPercent = 0,
     velocityPercent = 0,
     transposeSemitones = 0,
@@ -47,6 +55,8 @@
     onShuffle = () => {},
     onRandomizeOctaves = () => {},
     onRandomizeLengths = () => {},
+    onToggleSkip = () => {},
+    onToggleMute = () => {},
     onGestureStart = () => {},
     onDurationPreview = () => {},
     onDurationCommit = () => {},
@@ -64,6 +74,16 @@
     return `flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
         ? "mp-control-gradient border-border text-text-secondary hover:border-border-strong hover:text-text"
+        : "mp-control-gradient-muted border-border-subtle text-text-faint"
+    }`;
+  }
+
+  function toggleActionButtonClasses(enabled = true, active = false) {
+    return `flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
+      enabled
+        ? active
+          ? "mp-control-gradient border-border-strong text-text shadow-sm"
+          : "mp-control-gradient border-border text-text-secondary hover:border-border-strong hover:text-text"
         : "mp-control-gradient-muted border-border-subtle text-text-faint"
     }`;
   }
@@ -122,6 +142,30 @@
         onclick={onRandomizeLengths}
       >
         <RowRandomizeLengthIcon class="pointer-events-none h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        aria-label={skipActive ? "Unskip selected steps" : "Skip selected steps"}
+        title={skipActive ? "Unskip selected steps" : "Skip selected steps in sequence"}
+        aria-pressed={skipActive}
+        disabled={effectiveStepCount === 0}
+        data-cursor="pointer"
+        class={toggleActionButtonClasses(effectiveStepCount > 0, skipActive)}
+        onclick={onToggleSkip}
+      >
+        <StepSkipIcon class="pointer-events-none h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        aria-label={muteActive ? "Unmute selected steps" : "Mute selected steps"}
+        title={muteActive ? "Unmute selected steps" : "Mute selected steps"}
+        aria-pressed={muteActive}
+        disabled={effectiveStepCount === 0}
+        data-cursor="pointer"
+        class={toggleActionButtonClasses(effectiveStepCount > 0, muteActive)}
+        onclick={onToggleMute}
+      >
+        <StepMuteIcon class="pointer-events-none h-5 w-5" />
       </button>
     </div>
   </div>

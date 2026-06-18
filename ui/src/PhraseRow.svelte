@@ -33,6 +33,7 @@
     phraseRowEndAddStepInsetPx,
     phraseRowEndStepTailPaddingPx,
     phraseRowMinHeightPx,
+    phraseStepCellMinHeightPx,
   } from "./phraseRowLayout.js";
   import {
     defaultStepTimingMultiplierIndex,
@@ -108,6 +109,7 @@
    * @property {{ index: number, label: string }[]} [timingMultiplierOptions]
    * @property {string[]} [selectedStepIds]
    * @property {boolean} [stepInspectionActive]
+   * @property {boolean} [stepInspectorOpen]
    * @property {boolean} [stretchToFit]
    * @property {number} [fitGridColumns]
    * @property {number} [fitGridStartColumn]
@@ -160,6 +162,7 @@
     timingMultiplierOptions = [],
     selectedStepIds = [],
     stepInspectionActive = false,
+    stepInspectorOpen = false,
     stretchToFit = false,
     fitGridColumns = 1,
     fitGridStartColumn = 0,
@@ -193,6 +196,7 @@
   const removeBlockMs = 500;
   const backgroundDoubleClickIntervalMs = 400;
   const backgroundDoubleClickMaxDistancePx = 16;
+  const compactStepOpenDelayMs = 250;
   const draggedElementId = "dnd-action-dragged-el";
 
   /** @type {{ id: string }[]} */
@@ -219,6 +223,8 @@
   let lastBulkBackgroundPointerDownTime = 0;
   let lastBulkBackgroundPointerDownX = 0;
   let lastBulkBackgroundPointerDownY = 0;
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let pendingCompactStepOpenTimer = null;
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
   let resizeListenerEntries = [];
   const resizeCapture = { capture: true };
@@ -472,19 +478,101 @@
     }
   }
 
-  /** @param {MouseEvent} event @param {number} step */
-  function openStepFromCellBackground(event, step) {
-    if (stepInspectorInteractionDisabled || event.defaultPrevented) return;
-    if (!(event.target instanceof Element)) return;
+  /** @param {PointerEvent} event @param {number} step */
+  function handleCompactStepPointerDown(event, step) {
+    if (!stretchToFit) {
+      handleStepControlPointerDown(event, step);
+      return;
+    }
+
+    if (stepInspectorInteractionDisabled || event.button !== 0) return;
+
+    const target = event.target;
+
+    if (!(target instanceof Element)) return;
+
     if (
-      event.target.closest(
-        "button, input, select, textarea, [role='slider'], [data-no-inspect], [data-no-long-press], [data-no-marquee]",
+      target.closest(
+        "[data-remove-button], [data-insert-slot], [data-multiplier-resize], [data-no-inspect], [data-step-inspector-toggle], [aria-label='Drag to reorder step']",
       )
     ) {
       return;
     }
 
-    onEditRowPianoRoll(row, step, stepIds[step]);
+    if (event.shiftKey) {
+      onBulkSelectPointerDown(event);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    handleStepControlPointerDown(event, step);
+  }
+
+  function clearPendingCompactStepOpen() {
+    if (!pendingCompactStepOpenTimer) return;
+
+    clearTimeout(pendingCompactStepOpenTimer);
+    pendingCompactStepOpenTimer = null;
+  }
+
+  /** @param {MouseEvent} event */
+  function shouldOpenStepFromCellBackground(event) {
+    if (stepInspectorInteractionDisabled || event.defaultPrevented) return false;
+    if (stretchToFit && event.shiftKey) return false;
+    if (!(event.target instanceof Element)) return false;
+
+    return !event.target.closest(
+      "button, input, select, textarea, [role='slider'], [data-no-inspect], [data-no-long-press], [data-no-marquee]",
+    );
+  }
+
+  /** @param {MouseEvent} event @param {number} step */
+  function openStepFromCellBackground(event, step) {
+    if (!shouldOpenStepFromCellBackground(event)) return;
+
+    if (stretchToFit) {
+      clearPendingCompactStepOpen();
+
+      if (stepInspectorOpen) {
+        const stepId = stepIds[step];
+
+        if (stepInspectorHighlightedId !== null && stepId === stepInspectorHighlightedId) {
+          void onEditRowPianoRoll(row, step, stepId);
+          return;
+        }
+
+        void onInspectStep(row, step, stepId);
+        return;
+      }
+
+      pendingCompactStepOpenTimer = setTimeout(() => {
+        pendingCompactStepOpenTimer = null;
+        void onEditRowPianoRoll(row, step, stepIds[step]);
+      }, compactStepOpenDelayMs);
+      return;
+    }
+
+    void onEditRowPianoRoll(row, step, stepIds[step]);
+  }
+
+  /** @param {MouseEvent} event @param {number} step */
+  function openCompactStepInspector(event, step) {
+    if (stepInspectorInteractionDisabled) return;
+    if (!(event.target instanceof Element)) return;
+
+    if (
+      event.target.closest(
+        "[data-no-inspect], [data-no-long-press], [data-no-marquee]",
+      )
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    clearPendingCompactStepOpen();
+    void onInspectStep(row, step, stepIds[step]);
   }
 
   /** @param {MouseEvent} event @param {number} step */
@@ -1170,6 +1258,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     data-bulk-step-cell
+    data-compact-step-cell
     data-step-row={row}
     data-step-id={stepId}
     data-step-index={step}
@@ -1178,8 +1267,10 @@
     style:grid-column={step === 0
       ? `${fitGridStartColumn + 1} / span ${gridColumns}`
       : `span ${gridColumns}`}
+    title="Double-click for advanced settings"
     onclick={(event) => openStepFromCellBackground(event, step)}
-    onpointerdowncapture={(event) => handleStepControlPointerDown(event, step)}
+    ondblclick={(event) => openCompactStepInspector(event, step)}
+    onpointerdowncapture={(event) => handleCompactStepPointerDown(event, step)}
   >
     <div
       class="relative overflow-hidden rounded-md bg-surface transition-[box-shadow,filter] duration-75 {activeGates[step]
@@ -1191,6 +1282,7 @@
           : ''}"
       style:margin-left="{shellPaddingPercent}%"
       style:margin-right="{step === stepIds.length - 1 ? trailingPaddingPercent : shellPaddingPercent}%"
+      style:height="{phraseStepCellMinHeightPx()}px"
     >
       <div
         class="pointer-events-none absolute inset-0 transition-[background-color,opacity] duration-75 {activeGates[step]
@@ -1215,7 +1307,7 @@
         ></div>
       {/if}
       <div
-        class="relative z-10 flex h-9 min-w-0 items-center justify-center overflow-hidden px-1 transition-opacity duration-75 {stepIsSkipped
+        class="relative z-10 flex h-full min-w-0 items-center justify-center overflow-hidden px-1 transition-opacity duration-75 {stepIsSkipped
           ? 'opacity-45'
           : ''}"
       >
@@ -1262,11 +1354,11 @@
     aria-hidden="true"
   ></div>
   <div
-    class="flex min-w-0 flex-1 items-stretch {stretchToFit
-      ? 'overflow-hidden py-2 pr-2'
-      : 'overflow-x-auto pt-2 pr-2 pb-2'}"
+    class="flex min-w-0 flex-1 items-stretch pt-2 pr-2 pb-2 {stretchToFit
+      ? 'overflow-hidden'
+      : 'overflow-x-auto'}"
     role="presentation"
-    style:min-height={stretchToFit ? undefined : `${phraseRowMinHeightPx()}px`}
+    style:min-height="{phraseRowMinHeightPx()}px"
   >
   {#if isEmptyRow}
     <div class="relative flex shrink-0 items-center" style:padding-left="{phraseRowEndAddStepInsetPx()}px">

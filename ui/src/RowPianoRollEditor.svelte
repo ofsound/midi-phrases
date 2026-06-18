@@ -72,10 +72,14 @@
    * @property {number} [bulkTransposeSemitones]
    * @property {string} [bulkPitchAriaLabel]
    * @property {boolean} [bulkReverseAvailable]
+   * @property {boolean} [bulkSkipActive]
+   * @property {boolean} [bulkMuteActive]
    * @property {() => void | Promise<void>} [onBulkReverse]
    * @property {() => void | Promise<void>} [onBulkShuffle]
    * @property {() => void | Promise<void>} [onBulkRandomizeOctaves]
    * @property {() => void | Promise<void>} [onBulkRandomizeLengths]
+   * @property {() => void | Promise<void>} [onBulkToggleSkip]
+   * @property {() => void | Promise<void>} [onBulkToggleMute]
    * @property {() => void} [onBulkGestureStart]
    * @property {(value: number) => void} [onBulkDurationPreview]
    * @property {(value: number) => void | Promise<void>} [onBulkDurationCommit]
@@ -120,10 +124,14 @@
     bulkTransposeSemitones = 0,
     bulkPitchAriaLabel = "Bulk step pitch semitones",
     bulkReverseAvailable = false,
+    bulkSkipActive = false,
+    bulkMuteActive = false,
     onBulkReverse = () => {},
     onBulkShuffle = () => {},
     onBulkRandomizeOctaves = () => {},
     onBulkRandomizeLengths = () => {},
+    onBulkToggleSkip = () => {},
+    onBulkToggleMute = () => {},
     onBulkGestureStart = () => {},
     onBulkDurationPreview = () => {},
     onBulkDurationCommit = () => {},
@@ -909,6 +917,8 @@
       totalStepCount={stepIds.length}
       selectedStepCount={selectedStepIds.length}
       reverseAvailable={bulkReverseAvailable}
+      skipActive={bulkSkipActive}
+      muteActive={bulkMuteActive}
       durationPercent={bulkDurationPercent}
       velocityPercent={bulkVelocityPercent}
       transposeSemitones={bulkTransposeSemitones}
@@ -917,6 +927,8 @@
       onShuffle={onBulkShuffle}
       onRandomizeOctaves={onBulkRandomizeOctaves}
       onRandomizeLengths={onBulkRandomizeLengths}
+      onToggleSkip={onBulkToggleSkip}
+      onToggleMute={onBulkToggleMute}
       onGestureStart={onBulkGestureStart}
       onDurationPreview={onBulkDurationPreview}
       onDurationCommit={onBulkDurationCommit}
@@ -1109,11 +1121,11 @@
                 ondblclick={(event) => openAdvancedInspector(event, note)}
               >
                 <div
-                  class="pointer-events-none absolute inset-0 rounded-sm border {playbackActive
-                    ? `${rowAccent.borderActive} opacity-70`
-                    : highlighted
-                      ? `${rowAccent.borderActive} opacity-40`
-                      : `border-piano-roll-beat-line ${note.muted ? 'opacity-50' : 'opacity-80'}`}"
+                  class="pointer-events-none absolute inset-0 rounded-sm border-2 {playbackActive || highlighted
+                    ? rowAccent.borderActive
+                    : rowAccent.selectionBorder} {note.muted && !playbackActive && !highlighted
+                    ? 'opacity-50'
+                    : 'opacity-95'}"
                   aria-hidden="true"
                 ></div>
                 <button
