@@ -1,5 +1,5 @@
 export const pianoRollPitchPaddingSemitones = 2;
-export const pianoRollMinimumVisibleSemitones = 12;
+export const pianoRollMinimumVisibleSemitones = 5;
 export const pianoRollFallbackMinMidi = 48;
 export const pianoRollFallbackMaxMidi = 72;
 
