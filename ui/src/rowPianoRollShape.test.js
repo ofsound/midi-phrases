@@ -9,6 +9,7 @@ import {
   rollLengthQuartersForCycle,
   shapeNoteUpdatesFromStroke,
   shapeVelocityUpdatesFromStroke,
+  insertStepIndexFromRollX,
   stepAtRollX,
   stepSlotCenterXPx,
   velocityFromRollY,
@@ -86,6 +87,29 @@ describe("stepAtRollX", () => {
     expect(stepAtRollX(0, slots, pxPerQuarter)).toBe(0);
     expect(stepAtRollX(stepSlotCenterXPx(slots[1], pxPerQuarter), slots, pxPerQuarter)).toBe(1);
     expect(stepAtRollX(10_000, slots, pxPerQuarter)).toBe(3);
+  });
+});
+
+describe("insertStepIndexFromRollX", () => {
+  it("inserts before the step under the click and appends past row content", () => {
+    const { slots } = buildRowRollTimeline([5, 3, 7, 15], [], 1, 3);
+    const pxPerQuarter = 28;
+    const lastSlot = slots[slots.length - 1];
+    const contentEndPx = (lastSlot.startQuarters + lastSlot.lengthQuarters) * pxPerQuarter;
+
+    expect(insertStepIndexFromRollX(0, slots, pxPerQuarter)).toBe(0);
+    expect(
+      insertStepIndexFromRollX(stepSlotCenterXPx(slots[1], pxPerQuarter), slots, pxPerQuarter),
+    ).toBe(1);
+    expect(insertStepIndexFromRollX(contentEndPx - 1, slots, pxPerQuarter)).toBe(3);
+    expect(insertStepIndexFromRollX(contentEndPx, slots, pxPerQuarter)).toBe(4);
+    expect(insertStepIndexFromRollX(10_000, slots, pxPerQuarter)).toBe(4);
+  });
+
+  it("returns index 0 for an empty row", () => {
+    const { slots } = buildRowRollTimeline([], [], 1, 3);
+
+    expect(insertStepIndexFromRollX(40, slots, 28)).toBe(0);
   });
 });
 

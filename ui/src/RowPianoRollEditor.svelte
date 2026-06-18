@@ -4,6 +4,7 @@
   import { defaultPulseIndex } from "./pulseLayout.js";
   import { isBlackKey } from "./phraseSchedule.js";
   import { durationFractionFromRailX } from "./rowPianoRollDuration.js";
+  import { doubleClick } from "./doubleClickAction.js";
   import {
     emeraldRowAccent,
     toggleIconActiveClasses,
@@ -11,6 +12,7 @@
   } from "./rowAccentTheme.js";
   import {
     beatLineQuarters,
+    insertStepIndexFromRollX,
     measureLineQuarters,
     rollLengthQuartersForCycle,
     shapeNoteUpdatesFromStroke,
@@ -29,6 +31,7 @@
   import BulkStepEditControls from "./BulkStepEditControls.svelte";
   import {
     defaultStepTimingMultiplierIndex,
+    maxPhraseStepsPerRow,
     stepTimingMultiplierCount,
   } from "./stepCellLayout.js";
   import { scaledPx } from "./uiScale.svelte.js";
@@ -59,6 +62,7 @@
    * @property {(row: number, updates: { step: number, midi: number }[]) => void | Promise<void>} [onShapeNotesCommit]
    * @property {(row: number, updates: { step: number, velocity: number }[]) => void | Promise<void>} [onShapeVelocitiesCommit]
    * @property {() => void} [onClose]
+   * @property {(row: number, step: number, multiplierIndex?: number) => void | Promise<void>} [onInsertStep]
    * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
    * @property {number} [bulkDurationPercent]
    * @property {number} [bulkVelocityPercent]
@@ -101,6 +105,7 @@
     onStepResize = () => {},
     onDurationCommit = () => {},
     onOpenAdvancedInspector = () => {},
+    onInsertStep = () => {},
     onShapeNotesCommit = () => {},
     onShapeVelocitiesCommit = () => {},
     onClose = () => {},
@@ -867,6 +872,38 @@
     cancelDurationDrag(event);
   }
 
+  /** @param {PointerEvent} event */
+  function shouldIgnoreRollInsertDoubleClick(event) {
+    const target = event.target;
+
+    if (!(target instanceof Element)) return true;
+
+    return Boolean(
+      target.closest(
+        "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-bulk-step-cell]",
+      ),
+    );
+  }
+
+  /** @param {PointerEvent} event */
+  function handleRollBackgroundDoubleClick(event) {
+    if (shapeDrawMode || drag || stepIds.length >= maxPhraseStepsPerRow) return;
+
+    const insertStep = insertStepIndexFromRollX(
+      rollXFromPointer(event),
+      timeline.slots,
+      pxPerQuarter,
+    );
+
+    void onInsertStep(row, insertStep, defaultStepTimingMultiplierIndex);
+  }
+
+  let rollInsertDoubleClickOptions = $derived({
+    disabled: Boolean(shapeDrawMode),
+    shouldIgnore: shouldIgnoreRollInsertDoubleClick,
+    onDoubleClick: handleRollBackgroundDoubleClick,
+  });
+
   onDestroy(() => {
     flushPendingDurationClick();
   });
@@ -1001,6 +1038,8 @@
             aria-label="Focused row piano roll"
             style:height="{rollHeightPx}px"
             data-cursor={shapeDrawMode ? "crosshair" : undefined}
+            use:doubleClick={rollInsertDoubleClickOptions}
+            title="Double-click empty grid space to insert a step"
             onpointerdown={shapeDrawMode ? beginShapeDraw : undefined}
             onpointermove={shapeDrawMode ? moveShapeDraw : undefined}
             onpointerup={shapeDrawMode ? endShapeDraw : undefined}

@@ -88,6 +88,34 @@ export function stepAtRollX(xPx, slots, pxPerQuarter) {
 }
 
 /**
+ * Insert index for a new step from a piano-roll x position.
+ * Clicks within an existing step's time span insert before that step;
+ * clicks at or past the end of row content append at the phrase end.
+ *
+ * @param {number} xPx
+ * @param {RowRollStepSlot[]} slots
+ * @param {number} pxPerQuarter
+ */
+export function insertStepIndexFromRollX(xPx, slots, pxPerQuarter) {
+  if (slots.length === 0 || pxPerQuarter <= 0) return 0;
+
+  const quarters = Math.max(0, xPx / pxPerQuarter);
+  const lastSlot = slots[slots.length - 1];
+  const contentEndQuarters = lastSlot.startQuarters + lastSlot.lengthQuarters;
+
+  if (quarters >= contentEndQuarters) return slots.length;
+
+  for (let index = 0; index < slots.length; index += 1) {
+    const slot = slots[index];
+    const endQuarters = slot.startQuarters + slot.lengthQuarters;
+
+    if (quarters < endQuarters) return slot.step;
+  }
+
+  return slots.length;
+}
+
+/**
  * @param {RowRollStepSlot} slot
  * @param {number} pxPerQuarter
  */

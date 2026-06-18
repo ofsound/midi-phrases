@@ -4203,6 +4203,7 @@
         onStepResize={selectStepTimingMultiplier}
         onDurationCommit={selectStepDurationFraction}
         onOpenAdvancedInspector={openStepInspector}
+        onInsertStep={insertStep}
         onBulkSelectPointerDown={beginStepMarqueeSelection}
         bulkDurationPercent={bulkDurationPercent}
         bulkVelocityPercent={bulkVelocityPercent}
