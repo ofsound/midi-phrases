@@ -4421,7 +4421,6 @@
               activeGates={activeGates[row]}
               selectedStepIds={selectedStepIdsByRow[row]}
               stepInspectionActive={activeStepInspector !== null || activeRowPianoRollEditor !== null}
-              stepInspectorOpen={activeStepInspector !== null}
               stretchToFit={stretchStepsToFit}
               fitGridColumns={compactGridLayout.totalColumns}
               fitGridStartColumn={compactGridLayout.rowStartColumns[row]}
@@ -4457,7 +4456,6 @@
               onStepSkipChange={setStepSkipped}
               onInspectStep={openStepInspector}
               onPrepareStepSelection={prepareStepSelection}
-              onEditRowPianoRoll={openRowPianoRollEditor}
               onBulkSelectPointerDown={beginStepMarqueeSelection}
               onBulkSelectBackgroundDoubleClick={selectAllStepsForBulkEdit}
               onDismissPhraseBackground={dismissPhraseEditingFocus}

@@ -109,7 +109,6 @@
    * @property {{ index: number, label: string }[]} [timingMultiplierOptions]
    * @property {string[]} [selectedStepIds]
    * @property {boolean} [stepInspectionActive]
-   * @property {boolean} [stepInspectorOpen]
    * @property {boolean} [stretchToFit]
    * @property {number} [fitGridColumns]
    * @property {number} [fitGridStartColumn]
@@ -134,7 +133,6 @@
    * @property {(row: number, step: number, skipped: boolean) => void | Promise<void>} [onStepSkipChange]
    * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onInspectStep]
    * @property {(row: number, step: number, stepId: string) => void} [onPrepareStepSelection]
-   * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onEditRowPianoRoll]
    * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
    * @property {(event: PointerEvent) => void} [onBulkSelectBackgroundDoubleClick]
    * @property {() => void} [onDismissPhraseBackground]
@@ -162,7 +160,6 @@
     timingMultiplierOptions = [],
     selectedStepIds = [],
     stepInspectionActive = false,
-    stepInspectorOpen = false,
     stretchToFit = false,
     fitGridColumns = 1,
     fitGridStartColumn = 0,
@@ -187,7 +184,6 @@
     onStepSkipChange = () => {},
     onInspectStep = () => {},
     onPrepareStepSelection = () => {},
-    onEditRowPianoRoll = () => {},
     onBulkSelectPointerDown = () => {},
     onBulkSelectBackgroundDoubleClick = () => {},
     onDismissPhraseBackground = () => {},
@@ -196,7 +192,6 @@
   const removeBlockMs = 500;
   const backgroundDoubleClickIntervalMs = 400;
   const backgroundDoubleClickMaxDistancePx = 16;
-  const compactStepOpenDelayMs = 250;
   const draggedElementId = "dnd-action-dragged-el";
 
   /** @type {{ id: string }[]} */
@@ -223,8 +218,9 @@
   let lastBulkBackgroundPointerDownTime = 0;
   let lastBulkBackgroundPointerDownX = 0;
   let lastBulkBackgroundPointerDownY = 0;
-  /** @type {ReturnType<typeof setTimeout> | null} */
-  let pendingCompactStepOpenTimer = null;
+  /** @type {{ pointerId: number, startX: number, startY: number, moved: boolean } | null} */
+  let compactStepPointerGesture = null;
+  let suppressCompactStepClick = false;
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
   let resizeListenerEntries = [];
   const resizeCapture = { capture: true };
@@ -463,11 +459,6 @@
 
     const stepId = stepIds[step];
 
-    if (target.closest("[data-step-duration]")) {
-      void onEditRowPianoRoll(row, step, stepId);
-      return;
-    }
-
     if (!target.closest("button, input, textarea, select, [role='slider']")) return;
 
     if (
@@ -499,7 +490,16 @@
       return;
     }
 
+    suppressCompactStepClick = false;
+    compactStepPointerGesture = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+
     if (event.shiftKey) {
+      compactStepPointerGesture = null;
       onBulkSelectPointerDown(event);
       event.preventDefault();
       event.stopPropagation();
@@ -509,79 +509,38 @@
     handleStepControlPointerDown(event, step);
   }
 
-  function clearPendingCompactStepOpen() {
-    if (!pendingCompactStepOpenTimer) return;
+  /** @param {PointerEvent} event */
+  function handleCompactStepPointerMove(event) {
+    if (!compactStepPointerGesture || compactStepPointerGesture.pointerId !== event.pointerId) return;
 
-    clearTimeout(pendingCompactStepOpenTimer);
-    pendingCompactStepOpenTimer = null;
-  }
+    const deltaX = event.clientX - compactStepPointerGesture.startX;
+    const deltaY = event.clientY - compactStepPointerGesture.startY;
 
-  /** @param {MouseEvent} event */
-  function shouldOpenStepFromCellBackground(event) {
-    if (stepInspectorInteractionDisabled || event.defaultPrevented) return false;
-    if (stretchToFit && event.shiftKey) return false;
-    if (!(event.target instanceof Element)) return false;
-
-    return !event.target.closest(
-      "button, input, select, textarea, [role='slider'], [data-no-inspect], [data-no-long-press], [data-no-marquee]",
-    );
-  }
-
-  /** @param {MouseEvent} event @param {number} step */
-  function openStepFromCellBackground(event, step) {
-    if (!shouldOpenStepFromCellBackground(event)) return;
-
-    if (stretchToFit) {
-      clearPendingCompactStepOpen();
-
-      if (stepInspectorOpen) {
-        const stepId = stepIds[step];
-
-        if (stepInspectorHighlightedId !== null && stepId === stepInspectorHighlightedId) {
-          void onEditRowPianoRoll(row, step, stepId);
-          return;
-        }
-
-        void onInspectStep(row, step, stepId);
-        return;
-      }
-
-      pendingCompactStepOpenTimer = setTimeout(() => {
-        pendingCompactStepOpenTimer = null;
-        void onEditRowPianoRoll(row, step, stepIds[step]);
-      }, compactStepOpenDelayMs);
-      return;
+    if (Math.hypot(deltaX, deltaY) >= 4) {
+      compactStepPointerGesture.moved = true;
     }
+  }
 
-    void onEditRowPianoRoll(row, step, stepIds[step]);
+  /** @param {PointerEvent} event */
+  function handleCompactStepPointerEnd(event) {
+    if (!compactStepPointerGesture || compactStepPointerGesture.pointerId !== event.pointerId) return;
+
+    suppressCompactStepClick = compactStepPointerGesture.moved;
+    compactStepPointerGesture = null;
   }
 
   /** @param {MouseEvent} event @param {number} step */
   function openCompactStepInspector(event, step) {
-    if (stepInspectorInteractionDisabled) return;
-    if (!(event.target instanceof Element)) return;
-
-    if (
-      event.target.closest(
-        "[data-no-inspect], [data-no-long-press], [data-no-marquee]",
-      )
-    ) {
+    if (suppressCompactStepClick) {
+      suppressCompactStepClick = false;
       return;
     }
 
+    if (stepInspectorInteractionDisabled || event.defaultPrevented || event.shiftKey) return;
+
     event.preventDefault();
     event.stopPropagation();
-    clearPendingCompactStepOpen();
     void onInspectStep(row, step, stepIds[step]);
-  }
-
-  /** @param {MouseEvent} event @param {number} step */
-  function openRowPianoRollFromStepHeader(event, step) {
-    event.stopPropagation();
-
-    if (stepInspectorInteractionDisabled) return;
-
-    onEditRowPianoRoll(row, step, stepIds[step]);
   }
 
   /** @param {PointerEvent} event */
@@ -914,7 +873,7 @@
   </button>
 {/snippet}
 
-{#snippet stepHeaderTimingArea(step, stepDimmed, multiplierLabel, reorderEnabled)}
+{#snippet stepHeaderTimingArea(_step, stepDimmed, multiplierLabel, reorderEnabled)}
   {#if reorderEnabled}
     <div
       use:dragHandle
@@ -926,16 +885,11 @@
       class="flex h-5 w-4 shrink-0 items-center justify-center opacity-50"
     ></div>
   {/if}
-  <button
-    type="button"
+  <div
     data-no-inspect
-    data-cursor="pointer"
-    aria-label="Edit row in piano roll"
-    disabled={stepInspectorInteractionDisabled}
-    class="flex min-h-5 min-w-0 flex-1 items-center justify-end border-0 bg-transparent p-0 outline-none disabled:pointer-events-none disabled:opacity-50 {stepDimmed
+    class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
       ? 'opacity-80'
-      : 'opacity-60'} {accent.ringFocusWithWidth}"
-    onclick={(event) => openRowPianoRollFromStepHeader(event, step)}
+      : 'opacity-60'}"
   >
     <span
       data-multiplier-label
@@ -946,7 +900,7 @@
     >
       {multiplierLabel}
     </span>
-  </button>
+  </div>
 {/snippet}
 
 {#snippet multiplierResizeHandle(step)}
@@ -1075,8 +1029,6 @@
   {@const stepInspectionMuted = stepInspectionActive && !isInspectedStep}
   {@const stepInspectionFocused = stepInspectionActive && isInspectedStep}
   {@const stepInspectorHighlighted = stepInspectorHighlightedId === stepIds[step]}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="relative h-full w-full min-w-0 overflow-visible rounded-lg transition-[opacity,box-shadow] duration-150 {stepInspectionMuted
       ? 'opacity-[0.78]'
@@ -1084,7 +1036,6 @@
       activeGates[step],
       stepDimmed,
     )} {(isStepSelected || stepInspectorHighlighted) && !isDragging ? accent.selectionShell : ''}"
-    onclick={(event) => openStepFromCellBackground(event, step)}
   >
     <div
       class="relative z-0 h-full min-h-0 w-full min-w-0"
@@ -1267,10 +1218,12 @@
     style:grid-column={step === 0
       ? `${fitGridStartColumn + 1} / span ${gridColumns}`
       : `span ${gridColumns}`}
-    title="Double-click for advanced settings"
-    onclick={(event) => openStepFromCellBackground(event, step)}
-    ondblclick={(event) => openCompactStepInspector(event, step)}
+    title="Click for advanced settings"
+    onclick={(event) => openCompactStepInspector(event, step)}
     onpointerdowncapture={(event) => handleCompactStepPointerDown(event, step)}
+    onpointermovecapture={handleCompactStepPointerMove}
+    onpointerupcapture={handleCompactStepPointerEnd}
+    onpointercancelcapture={handleCompactStepPointerEnd}
   >
     <div
       class="relative overflow-hidden rounded-md bg-surface transition-[box-shadow,filter] duration-75 {activeGates[step]
