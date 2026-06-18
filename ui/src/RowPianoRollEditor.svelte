@@ -200,9 +200,7 @@
   let visiblePitchRange = $derived(fittedPitchRangeForNotes(notes));
   let pitchSpan = $derived(visiblePitchRange.maxMidi - visiblePitchRange.minMidi + 1);
   let rowHeightPx = $derived(
-    viewportHeightPx > 0
-      ? Math.min(scaledPx(22), viewportHeightPx / pitchSpan)
-      : scaledPx(16),
+    viewportHeightPx > 0 ? viewportHeightPx / pitchSpan : scaledPx(16),
   );
   let rollHeightPx = $derived(pitchSpan * rowHeightPx);
   let pitchRows = $derived(Array.from({ length: pitchSpan }, (_, index) => visiblePitchRange.maxMidi - index));
