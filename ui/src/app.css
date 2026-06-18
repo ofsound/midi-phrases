@@ -143,7 +143,10 @@
 
   .mp-control-gradient:not(:disabled):hover,
   .mp-control-gradient[data-mp-hover] {
-    filter: brightness(1.08);
+    /* Keep header controls on the same compositing layer while hovered. Applying
+       filter to the whole control can move thin SVG strokes by a device pixel in
+       WKWebView as it re-rasterizes the button. */
+    background-color: color-mix(in srgb, var(--color-field) 92%, var(--color-text));
   }
 
   .mp-slot-copy-source {

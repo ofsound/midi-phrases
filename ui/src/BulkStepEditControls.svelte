@@ -71,7 +71,7 @@
   );
 
   function actionButtonClasses(enabled = true) {
-    return `flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
+    return `flex h-8 w-8 shrink-0 items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
         ? "mp-control-gradient border-border text-text-secondary hover:border-border-strong hover:text-text"
         : "mp-control-gradient-muted border-border-subtle text-text-faint"
@@ -79,7 +79,7 @@
   }
 
   function toggleActionButtonClasses(enabled = true, active = false) {
-    return `flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
+    return `flex h-8 w-8 shrink-0 items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
         ? active
           ? "mp-control-gradient border-border-strong text-text shadow-sm"

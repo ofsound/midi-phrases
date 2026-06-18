@@ -1405,12 +1405,13 @@
     const rowStepIds = stepIds[row] ?? [];
     if (rowStepIds.length === 0) return;
 
+    if (activeRowPianoRollEditor?.row === row) {
+      closeRowPianoRollEditor();
+      return;
+    }
+
     const focusedStepId =
-      activeRowPianoRollEditor?.row === row
-        ? activeRowPianoRollEditor.stepId
-        : activeStepInspector?.row === row
-          ? inspectedStep?.stepId
-          : null;
+      activeStepInspector?.row === row ? inspectedStep?.stepId : null;
     const stepId = focusedStepId && rowStepIds.includes(focusedStepId)
       ? focusedStepId
       : rowStepIds[0];
@@ -4080,9 +4081,9 @@
     <div class="mp-honeycomb-rail relative z-20">
   <header class="flex items-end gap-3 px-6 pb-3 pt-3">
     <div class="relative z-30 flex shrink-0 -translate-y-3 items-end gap-5">
-      <div class="flex flex-col items-start gap-0">
+      <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">
-          <p class="text-base font-semibold uppercase leading-none tracking-widest text-accent">
+          <p class="text-sm font-bold uppercase leading-none tracking-widest text-accent">
             ofsound
           </p>
         </div>
@@ -4341,15 +4342,19 @@
             >
               <button
                 type="button"
-                aria-label={`Edit row ${row + 1} in piano roll`}
+                aria-label={activeRowPianoRollEditor?.row === row
+                  ? `Close row ${row + 1} piano roll editor`
+                  : `Edit row ${row + 1} in piano roll`}
                 aria-pressed={activeRowPianoRollEditor?.row === row}
                 disabled={stepIds[row].length === 0}
                 data-cursor={stepIds[row].length > 0 ? "pointer" : undefined}
                 class="absolute inset-0 z-0 border-0 bg-surface/25 p-0 outline-none transition-colors hover:bg-surface/55 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-focus-ring disabled:cursor-default disabled:opacity-60"
                 onclick={() => openRowPianoRollFromHeader(row)}
-                title={stepIds[row].length > 0
-                  ? `Edit row ${row + 1} in the monophonic piano roll`
-                  : `Add a step to row ${row + 1} to edit it in the piano roll`}
+                title={activeRowPianoRollEditor?.row === row
+                  ? "Show the full piano roll"
+                  : stepIds[row].length > 0
+                    ? `Edit row ${row + 1} in the monophonic piano roll`
+                    : `Add a step to row ${row + 1} to edit it in the piano roll`}
               ></button>
               <div class="pointer-events-none relative z-10 flex items-center gap-1 px-1">
                 {#if rowMuted[row]}

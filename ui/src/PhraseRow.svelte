@@ -873,34 +873,44 @@
   </button>
 {/snippet}
 
-{#snippet stepHeaderTimingArea(_step, stepDimmed, multiplierLabel, reorderEnabled)}
+{#snippet stepHeaderMultiplierLabel(stepDimmed, multiplierLabel)}
+  <span
+    data-multiplier-label
+    class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
+      stepDimmed,
+    )}"
+    aria-hidden="true"
+  >
+    {multiplierLabel}
+  </span>
+{/snippet}
+
+{#snippet stepHeaderTimingArea(stepDimmed, multiplierLabel, reorderEnabled)}
   {#if reorderEnabled}
     <div
       use:dragHandle
       use:preventTabFocus
       aria-label="Drag to reorder step"
       data-cursor="grab"
+      data-no-inspect
       data-no-marquee
       data-no-long-press
-      class="flex h-5 w-4 shrink-0 items-center justify-center opacity-50"
-    ></div>
-  {/if}
-  <div
-    data-no-inspect
-    class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
-      ? 'opacity-80'
-      : 'opacity-60'}"
-  >
-    <span
-      data-multiplier-label
-      class="pointer-events-none font-sans text-xs leading-none font-semibold tabular-nums {stepHeaderLabelClass(
-        stepDimmed,
-      )}"
-      aria-hidden="true"
+      class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
+        ? 'opacity-80'
+        : 'opacity-60'}"
     >
-      {multiplierLabel}
-    </span>
-  </div>
+      {@render stepHeaderMultiplierLabel(stepDimmed, multiplierLabel)}
+    </div>
+  {:else}
+    <div
+      data-no-inspect
+      class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
+        ? 'opacity-80'
+        : 'opacity-60'}"
+    >
+      {@render stepHeaderMultiplierLabel(stepDimmed, multiplierLabel)}
+    </div>
+  {/if}
 {/snippet}
 
 {#snippet multiplierResizeHandle(step)}
@@ -1055,14 +1065,14 @@
             class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
           >
             {@render stepHeaderRemoveButton(step, stepDimmed)}
-            {@render stepHeaderTimingArea(step, stepDimmed, multiplierLabel, true)}
+            {@render stepHeaderTimingArea(stepDimmed, multiplierLabel, true)}
           </div>
         {:else}
           <div
             class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
           >
             {@render stepHeaderRemoveButton(step, stepDimmed)}
-            {@render stepHeaderTimingArea(step, stepDimmed, multiplierLabel, false)}
+            {@render stepHeaderTimingArea(stepDimmed, multiplierLabel, false)}
           </div>
         {/if}
 
