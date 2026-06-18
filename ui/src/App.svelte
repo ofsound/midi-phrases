@@ -255,7 +255,7 @@
   let velocityHumanizePercent = $state(0);
   let timingHumanizePercent = $state(0);
   let swingSubdivisionIndex = $state(1);
-  let rowColorsEnabled = $state(false);
+  let rowColorsEnabled = $state(true);
   let themeMode = $state(defaultThemeMode);
   let undoStack = $state([]);
   let redoStack = $state([]);
@@ -4001,7 +4001,13 @@
         ></div>
         {#each grid as _row, row (row)}
           {@const rowAccent = rowAccentFor(row, rowColorsEnabled)}
-          <div class="relative z-10 flex min-w-0 shrink-0 items-center gap-1">
+          {@const rowPianoRollFocusMuted =
+            activeRowPianoRollEditor !== null && activeRowPianoRollEditor.row !== row}
+          <div
+            class="relative z-10 flex min-w-0 shrink-0 items-center gap-1 transition-opacity duration-150 {rowPianoRollFocusMuted
+              ? 'opacity-50'
+              : ''}"
+          >
             <div class="relative flex shrink-0 items-center gap-1">
               {#if rowMuted[row]}
                 <div class={rowMutedOverlayClasses} aria-hidden="true"></div>

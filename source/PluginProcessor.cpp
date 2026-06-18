@@ -5610,7 +5610,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         static_cast<int> (state.getProperty ("timingHumanizePercent", defaultTimingHumanizePercent)));
     setSwingSubdivisionIndex (
         static_cast<int> (state.getProperty ("swingSubdivisionIndex", defaultSwingSubdivisionIndex)));
-    setRowColorsEnabled (static_cast<int> (state.getProperty ("rowColorsEnabled", 0)) != 0);
+    setRowColorsEnabled (static_cast<int> (state.getProperty ("rowColorsEnabled", 1)) != 0);
 
     const auto storedPatternSlot = static_cast<int> (state.getProperty ("currentPatternSlot", 0));
     lastViewPatternSlot = clampPatternSlot (

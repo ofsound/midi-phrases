@@ -91,7 +91,7 @@
     shimmerDelayMultiplierIndex = 3,
     shimmerFeedbackPercent = 70,
     shimmerMixPercent = 100,
-    rowColorsEnabled = false,
+    rowColorsEnabled = true,
     lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
     loopEnabled = false,
     loopStart = 0,

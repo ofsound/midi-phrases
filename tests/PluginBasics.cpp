@@ -1124,13 +1124,13 @@ TEST_CASE ("Plugin instance", "[instance]")
 
     SECTION ("row color UI state")
     {
-        CHECK_FALSE (testPlugin.isRowColorsEnabled());
-
-        testPlugin.setRowColorsEnabled (true);
         CHECK (testPlugin.isRowColorsEnabled());
 
         testPlugin.setRowColorsEnabled (false);
         CHECK_FALSE (testPlugin.isRowColorsEnabled());
+
+        testPlugin.setRowColorsEnabled (true);
+        CHECK (testPlugin.isRowColorsEnabled());
     }
 
     SECTION ("combination modes are pattern state")
