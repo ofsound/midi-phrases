@@ -40,6 +40,7 @@
     maxPhraseStepsPerRow,
     findSingleMove,
     insertStepTimingMultiplierOptions,
+    longestRowQuarterGridColumns,
     stepTimingMultiplierCount,
     timingMultiplierOptions,
   } from "./stepCellLayout.js";
@@ -79,6 +80,7 @@
   import PulseNoteButtonGroup from "./PulseNoteButtonGroup.svelte";
   import ColorsToggle from "./ColorsToggle.svelte";
   import ThemeModeToggle from "./ThemeModeToggle.svelte";
+  import StretchToFitToggle from "./StretchToFitToggle.svelte";
   import FullscreenIcon from "./FullscreenIcon.svelte";
   import MidiPhrasesLogo from "./MidiPhrasesLogo.svelte";
   import UiScaleToggle from "./UiScaleToggle.svelte";
@@ -148,6 +150,8 @@
   let stepDurationFraction = $state(defaultStepDurationGrid());
   /** @type {number[][]} */
   let stepTimingMultiplier = $state(defaultStepTimingMultiplierGrid());
+  let stretchStepsToFit = $state(false);
+  let fitGridColumns = $derived(longestRowQuarterGridColumns(stepTimingMultiplier));
   /** @type {number[][]} */
   let stepVelocity = $state(defaultStepVelocityGrid());
   /** @type {boolean[][]} */
@@ -4168,6 +4172,12 @@
           </button>
         </div>
         <div class="ml-auto flex shrink-0 items-end gap-1.5 pl-3">
+          <StretchToFitToggle
+            enabled={stretchStepsToFit}
+            onChange={(enabled) => {
+              stretchStepsToFit = enabled;
+            }}
+          />
           <ColorsToggle
             accent={emeraldRowAccent}
             enabled={rowColorsEnabled}
@@ -4294,6 +4304,8 @@
               activeGates={activeGates[row]}
               selectedStepIds={selectedStepIdsByRow[row]}
               stepInspectionActive={activeStepInspector !== null || activeRowPianoRollEditor !== null}
+              stretchToFit={stretchStepsToFit}
+              {fitGridColumns}
               inspectedStepId={
                 activeStepInspector !== null && inspectedStep?.row === row
                   ? inspectedStep.stepId

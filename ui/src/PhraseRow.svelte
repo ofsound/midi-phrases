@@ -39,6 +39,7 @@
     minMultiplierCellWidthPx,
     multiplierIndexFromWidth,
     multiplierLabelForIndex,
+    quarterGridColumnsForMultiplierIndex,
     rowGridWidthPx,
     insertSlotLeftPxAtGridBoundaryPx,
     rowStepLayoutsPx,
@@ -103,6 +104,8 @@
    * @property {{ index: number, label: string }[]} [timingMultiplierOptions]
    * @property {string[]} [selectedStepIds]
    * @property {boolean} [stepInspectionActive]
+   * @property {boolean} [stretchToFit]
+   * @property {number} [fitGridColumns]
    * @property {string | null} [inspectedStepId]
    * @property {string | null} [stepInspectorHighlightedId]
    * @property {(value: number, delta: number) => number} [stepNoteValue]
@@ -152,6 +155,8 @@
     timingMultiplierOptions = [],
     selectedStepIds = [],
     stepInspectionActive = false,
+    stretchToFit = false,
+    fitGridColumns = 1,
     inspectedStepId = null,
     stepInspectorHighlightedId = null,
     stepNoteValue = (value, delta) => value + delta,
@@ -792,6 +797,9 @@
       gapBefore: index > 0,
     };
   }));
+  let compactGridStyle = $derived(
+    `grid-template-columns: repeat(${Math.max(1, fitGridColumns)}, minmax(0, 1fr));`,
+  );
 </script>
 
 {#snippet stepHeaderRemoveButton(step, dimmed)}
@@ -1144,6 +1152,41 @@
   </div>
 {/snippet}
 
+{#snippet compactStepCell(step, stepId)}
+  {@const isStepSelected = selectedStepIdSet.has(stepId)}
+  {@const gridColumns = quarterGridColumnsForMultiplierIndex(stepTimingMultiplier[step])}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    data-bulk-step-cell
+    data-step-row={row}
+    data-step-id={stepId}
+    data-step-index={step}
+    data-step-selected={isStepSelected ? true : undefined}
+    class="relative min-w-0 overflow-hidden rounded-md {accent.bgAccent} {isStepSelected
+      ? 'ring-1 ring-inset ring-text/60'
+      : ''}"
+    style:grid-column="span {gridColumns}"
+    onclick={(event) => openStepFromCellBackground(event, step)}
+    onpointerdowncapture={(event) => handleStepControlPointerDown(event, step)}
+  >
+    <div class="flex h-9 min-w-0 items-center justify-center overflow-hidden px-1">
+      <NoteDragInput
+        {accent}
+        minimal
+        value={notes[step]}
+        resetValue={defaultStepNote}
+        ariaLabel="Step note"
+        stepValue={stepNoteValue}
+        deferCommit={true}
+        onGestureStart={() => onStepBulkGestureStart(row, step)}
+        onValuePreview={(midi) => onNotePreview(row, step, midi)}
+        onValueCommit={(midi) => onNoteCommit(row, step, midi)}
+      />
+    </div>
+  </div>
+{/snippet}
+
 <div
   class="flex min-w-0 flex-1 overflow-hidden"
   role="presentation"
@@ -1157,13 +1200,21 @@
     aria-hidden="true"
   ></div>
   <div
-    class="flex min-w-0 flex-1 items-stretch overflow-x-auto pt-2 pr-2 pb-2"
+    class="flex min-w-0 flex-1 items-stretch {stretchToFit
+      ? 'overflow-hidden py-2 pr-2'
+      : 'overflow-x-auto pt-2 pr-2 pb-2'}"
     role="presentation"
-    style:min-height="{phraseRowMinHeightPx()}px"
+    style:min-height={stretchToFit ? undefined : `${phraseRowMinHeightPx()}px`}
   >
   {#if isEmptyRow}
     <div class="relative flex shrink-0 items-center" style:padding-left="{phraseRowEndAddStepInsetPx()}px">
       {@render largeAddStepButton("Add first step", 0)}
+    </div>
+  {:else if stretchToFit}
+    <div class="grid min-w-0 flex-1 gap-x-0.5" style={compactGridStyle}>
+      {#each stepIds as stepId, step (stepId)}
+        {@render compactStepCell(step, stepId)}
+      {/each}
     </div>
   {:else}
     <div

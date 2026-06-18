@@ -13,6 +13,7 @@
    * @property {string} [ariaLabel]
    * @property {(value: number, delta: number) => number} [stepValue]
    * @property {boolean} [deferCommit] - Preview while dragging; commit on release.
+   * @property {boolean} [minimal] - High-contrast note-only presentation for compact cells.
    * @property {() => void} [onGestureStart] - Called at drag start when {@link deferCommit} is true.
    * @property {(value: number) => void} [onValuePreview] - Lightweight preview while dragging.
    * @property {(value: number) => void | Promise<void>} [onValueCommit] - Final commit on release.
@@ -28,6 +29,7 @@
     ariaLabel = "Note",
     stepValue = (current, delta) => current + delta,
     deferCommit = false,
+    minimal = false,
     onGestureStart = undefined,
     onValuePreview = undefined,
     onValueCommit = undefined,
@@ -163,11 +165,13 @@
 
 <div
   data-cursor="vertical-drag"
-  class="inline-flex touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {muted
-    ? 'text-text-muted'
-    : dragging
-      ? accent.textAccentLight
-      : 'text-text'}"
+  class="inline-flex min-w-0 touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {minimal
+    ? 'text-control-primary-text'
+    : muted
+      ? 'text-text-muted'
+      : dragging
+        ? accent.textAccentLight
+        : 'text-text'}"
   role="slider"
   aria-label={ariaLabel}
   aria-valuemin={0}
@@ -193,5 +197,7 @@
     }
   }}
 >
-  <span class="font-sans text-sm leading-none font-bold tabular-nums">{displayName}</span>
+  <span class="truncate font-sans leading-none font-bold tabular-nums {minimal ? 'text-xs' : 'text-sm'}"
+    >{displayName}</span
+  >
 </div>

@@ -169,6 +169,16 @@ export function rowGridWidthPx(multiplierIndices) {
   return totalColumns * stepCellQuarterGridWidthPx();
 }
 
+/** Number of quarter-grid columns in the longest row. */
+export function longestRowQuarterGridColumns(rows) {
+  return Math.max(
+    1,
+    ...rows.map((row) =>
+      row.reduce((sum, index) => sum + quarterGridColumnsForMultiplierIndex(index), 0),
+    ),
+  );
+}
+
 /**
  * Per-cell display widths (N×W − 2P). Gaps between cells are separate margins.
  *
