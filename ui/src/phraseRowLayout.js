@@ -33,6 +33,13 @@ export function phraseRowInterRowGapPx() {
   return scaledPx(basePhraseRowInterRowGapPx);
 }
 
+/** Matches App phrase-grid top/bottom marquee zones (`h-6`). */
+export const basePhraseGridOuterPaddingPx = 24;
+
+export function phraseGridOuterPaddingPx() {
+  return scaledPx(basePhraseGridOuterPaddingPx);
+}
+
 /**
  * Minimum front-face step cell height (header h-5, body, footer h-5, border-2).
  * Keeps zero-step rows the same band height as rows with steps.
@@ -188,7 +195,7 @@ export function phraseBeatGuideVerticalOverhangPx() {
  */
 export function phraseBeatGuideTopPx() {
   return (
-    phraseRowInterRowGapPx() +
+    phraseGridOuterPaddingPx() +
     phraseRowScrollPaddingTopPx() -
     phraseBeatGuideVerticalOverhangPx()
   );

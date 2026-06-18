@@ -4229,7 +4229,7 @@
 
   <section class="flex min-h-0 flex-1 flex-col">
     <div class="w-full shrink-0">
-      <div class="relative flex flex-col">
+      <div data-phrase-grid-field class="relative flex flex-col">
         <div
           class="pointer-events-none absolute bottom-0 z-0 w-px bg-surface-subtle/70"
           style:left="{phraseBeatGuideGlobalLeftPx(phraseVisualOffsetCompensationPx)}px"
@@ -4238,7 +4238,8 @@
           title="Beat one"
         ></div>
         <div
-          class="h-2 shrink-0"
+          data-phrase-grid-marquee-zone="top"
+          class="h-6 shrink-0"
           role="presentation"
           aria-hidden="true"
           onpointerdown={handleRowGapBulkSelectPointerDown}
@@ -4366,6 +4367,13 @@
             ></div>
           {/if}
         {/each}
+        <div
+          data-phrase-grid-marquee-zone="bottom"
+          class="h-6 shrink-0"
+          role="presentation"
+          aria-hidden="true"
+          onpointerdown={handleRowGapBulkSelectPointerDown}
+        ></div>
       </div>
     </div>
 
