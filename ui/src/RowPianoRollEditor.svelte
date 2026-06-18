@@ -42,6 +42,7 @@
    * @property {number[]} [stepVelocity]
    * @property {boolean[]} [stepMuted]
    * @property {boolean[]} [stepSkipped]
+   * @property {boolean[]} [activeGates]
    * @property {number} [rowTimingOffset]
    * @property {number} [pulseIndex]
    * @property {string | null} [inspectedStepId]
@@ -68,6 +69,7 @@
     stepVelocity = [],
     stepMuted = [],
     stepSkipped = [],
+    activeGates = [],
     rowTimingOffset = 3,
     pulseIndex = defaultPulseIndex,
     inspectedStepId = null,
@@ -227,6 +229,7 @@
         ),
         velocity: shapePreviewVelocity ?? stepVelocity[step] ?? 100,
         muted: stepMuted[step] || stepSkipped[step],
+        active: activeGates[step] ?? false,
       };
     });
   });
@@ -992,10 +995,13 @@
 
             {#each stepNotes as note (note.stepId)}
               {@const selected = inspectedStepId === note.stepId}
+              {@const playbackActive = note.active && !note.muted}
               {@const displayMidi = drag?.mode === "move" && drag.step === note.step ? drag.previewMidi : note.midi}
               {@const displayLabel = shapeDrawMode === "velocity" ? note.velocity : midiToNoteName(displayMidi)}
               <div
-                class="absolute z-20 {shapeDrawMode ? 'pointer-events-none' : ''}"
+                class="absolute z-20 transition-[opacity,box-shadow] duration-150 {shapeDrawMode
+                  ? 'pointer-events-none'
+                  : ''} {playbackActive ? rowAccent.playbackGlow : ''}"
                 role="group"
                 aria-label={`Step ${note.step + 1}`}
                 title="Shift-click or Shift-drag to set duration · Double-click for advanced settings"
@@ -1010,11 +1016,13 @@
                 ondblclick={(event) => openAdvancedInspector(event, note)}
               >
                 <div
-                  class="pointer-events-none absolute inset-0 rounded-sm border border-current {rowAccent.textAccent} {note.muted
-                    ? 'opacity-25'
-                    : selected
-                      ? 'opacity-90'
-                      : 'opacity-50'}"
+                  class="pointer-events-none absolute inset-0 rounded-sm border {playbackActive
+                    ? `${rowAccent.borderActive} opacity-100`
+                    : `${rowAccent.textAccent} ${note.muted
+                        ? 'opacity-25'
+                        : selected
+                          ? 'opacity-90'
+                          : 'opacity-50'}`}"
                   aria-hidden="true"
                 ></div>
                 <button
@@ -1024,6 +1032,7 @@
                   aria-pressed={selected}
                   title="Drag to move · Shift-click or Shift-drag to set duration · Double-click for advanced settings"
                   class="absolute top-0 left-0 flex h-full items-center rounded-sm border px-1 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {selected
+                    || playbackActive
                     ? rowAccent.pianoNoteActive
                     : rowAccent.pianoNoteIdle} {note.muted ? 'opacity-35' : ''}"
                   style:width="{note.durationWidthPx}px"

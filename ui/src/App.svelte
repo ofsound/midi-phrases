@@ -4188,6 +4188,7 @@
         stepVelocity={stepVelocity[activeRowPianoRollEditor.row]}
         stepMuted={stepMuted[activeRowPianoRollEditor.row]}
         stepSkipped={stepSkipped[activeRowPianoRollEditor.row]}
+        activeGates={activeGates[activeRowPianoRollEditor.row]}
         rowTimingOffset={rowTimingOffset[activeRowPianoRollEditor.row]}
         {pulseIndex}
         inspectedStepId={activeRowPianoRollEditor.stepId}
