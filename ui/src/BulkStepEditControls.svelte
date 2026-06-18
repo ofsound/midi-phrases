@@ -11,6 +11,7 @@
   /**
    * @typedef {Object} Props
    * @property {string} [className]
+   * @property {"stacked" | "inline" | "sidebar"} [layout]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {number} [selectedStepCount]
    * @property {number} [totalStepCount]
@@ -40,6 +41,7 @@
   /** @type {Props} */
   let {
     className = "",
+    layout = "stacked",
     accent = emeraldRowAccent,
     selectedStepCount = 0,
     totalStepCount = 0,
@@ -93,12 +95,38 @@
 
     return rounded > 0 ? `+${rounded}` : String(rounded);
   }
+  let inlineLayout = $derived(layout === "inline");
+  let sidebarLayout = $derived(layout === "sidebar");
+  let inlineLabels = $derived(inlineLayout || sidebarLayout);
+  let groupClass = $derived(
+    inlineLabels ? "flex items-center gap-1.5" : "flex flex-col items-start gap-1",
+  );
+  let operationGroupClass = $derived(
+    sidebarLayout
+      ? "flex w-full flex-col items-start gap-1.5"
+      : groupClass,
+  );
+  let operationButtonsClass = $derived(
+    sidebarLayout ? "flex w-full flex-wrap items-center gap-1" : "flex items-center gap-1",
+  );
+  let labelClass = $derived(
+    `text-xs font-semibold leading-none text-text-muted${inlineLabels ? " shrink-0" : ""}`,
+  );
+  /** @param {string} text */
+  function labelText(text) {
+    return inlineLabels ? `${text}:` : text;
+  }
+  let rootClass = $derived(
+    sidebarLayout
+      ? `flex w-full flex-col gap-3 items-stretch ${className}`
+      : `flex gap-2 ${inlineLayout ? "items-center" : "items-end"} ${className}`,
+  );
 </script>
 
-<div class="flex items-end gap-2 {className}" data-no-marquee>
-  <div class="flex flex-col items-start gap-1">
-    <span class="text-xs font-semibold leading-none text-text-muted">Operation</span>
-    <div class="flex items-center gap-1">
+<div class={rootClass} data-no-marquee>
+  <div class={operationGroupClass}>
+    <span class={labelClass}>{labelText("Operation")}</span>
+    <div class={operationButtonsClass}>
       <button
         type="button"
         aria-label="Reverse selected steps by row"
@@ -169,8 +197,8 @@
       </button>
     </div>
   </div>
-  <div class="flex flex-col items-start gap-1">
-    <span class="text-xs font-semibold leading-none text-text-muted">Dur %</span>
+  <div class={groupClass}>
+    <span class={labelClass}>{labelText("Dur %")}</span>
     <StepNumberDragInput
       boxed
       compact
@@ -188,8 +216,8 @@
       onValueCommit={onDurationCommit}
     />
   </div>
-  <div class="flex flex-col items-start gap-1">
-    <span class="text-xs font-semibold leading-none text-text-muted">Vel %</span>
+  <div class={groupClass}>
+    <span class={labelClass}>{labelText("Vel %")}</span>
     <StepNumberDragInput
       boxed
       compact
@@ -207,8 +235,8 @@
       onValueCommit={onVelocityCommit}
     />
   </div>
-  <div class="flex flex-col items-start gap-1">
-    <span class="text-xs font-semibold leading-none text-text-muted">Pitch</span>
+  <div class={groupClass}>
+    <span class={labelClass}>{labelText("Pitch")}</span>
     <StepNumberDragInput
       boxed
       compact

@@ -4090,7 +4090,7 @@
       </div>
     {/if}
     <div class="mp-honeycomb-rail relative z-20">
-  <header class="flex items-end gap-3 px-6 pb-3 pt-3">
+  <header class="flex items-end gap-3 px-6 pb-3 pt-6">
     <div class="relative z-30 flex shrink-0 -translate-y-3 items-end gap-5">
       <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">

@@ -903,15 +903,17 @@
 
 </script>
 
-<section class="flex min-h-0 w-full flex-1 flex-col gap-2">
-  <div class="grid shrink-0 grid-cols-[1fr_auto_1fr] items-end gap-3">
-    <div class="flex min-w-0 items-baseline gap-3">
+<section class="flex min-h-0 w-full flex-1 gap-3">
+  <aside class="flex w-[13.5rem] shrink-0 flex-col gap-3 py-1">
+    <div class="flex min-w-0 flex-col gap-1">
       <span class="text-xs font-semibold uppercase tracking-widest {rowAccent.textAccent}">
         Row {row + 1}
       </span>
-      <span class="truncate text-xs text-text-faint">monophonic piano roll</span>
+      <span class="text-xs text-text-faint">monophonic piano roll</span>
     </div>
+
     <BulkStepEditControls
+      layout="sidebar"
       accent={rowAccent}
       requireSelection={false}
       totalStepCount={stepIds.length}
@@ -937,14 +939,15 @@
       onTransposePreview={onBulkTransposePreview}
       onTransposeCommit={onBulkTransposeCommit}
     />
-    <div class="flex shrink-0 items-center justify-self-end gap-2">
+
+    <div class="flex flex-col gap-2">
       <button
         type="button"
         data-cursor="pointer"
         aria-label="Draw note shape across steps"
         aria-pressed={noteShapeDrawActive}
         title="Draw a freeform line to set step pitches"
-        class={shapeDrawButtonClasses("note")}
+        class={`${shapeDrawButtonClasses("note")} w-full justify-center`}
         onclick={() => toggleShapeDrawMode("note")}
       >
         <RowShapeDrawIcon
@@ -958,7 +961,7 @@
         aria-label="Draw velocity shape across steps"
         aria-pressed={velocityShapeDrawActive}
         title="Draw a freeform line to set step velocities"
-        class={shapeDrawButtonClasses("velocity")}
+        class={`${shapeDrawButtonClasses("velocity")} w-full justify-center`}
         onclick={() => toggleShapeDrawMode("velocity")}
       >
         <RowShapeDrawIcon
@@ -970,16 +973,16 @@
         type="button"
         data-cursor="pointer"
         aria-label="Close row piano roll"
-        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-lg leading-none text-text-muted transition-colors outline-none hover:border-border-strong hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
+        class="flex h-8 w-full shrink-0 items-center justify-center rounded-md border border-border bg-surface text-lg leading-none text-text-muted transition-colors outline-none hover:border-border-strong hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
         onclick={onClose}
       >
         X
       </button>
     </div>
-  </div>
+  </aside>
 
   <div
-    class="flex h-0 min-h-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-app/80"
+    class="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-subtle bg-app/80"
     role="group"
     aria-label="Monophonic piano roll"
     onpointerdown={onBulkSelectPointerDown}
