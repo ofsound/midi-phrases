@@ -1086,12 +1086,10 @@
               >
                 <div
                   class="pointer-events-none absolute inset-0 rounded-sm border {playbackActive
-                    ? `${rowAccent.borderActive} opacity-100`
-                    : `${rowAccent.textAccent} ${note.muted
-                        ? 'opacity-25'
-                        : highlighted
-                          ? 'opacity-90'
-                          : 'opacity-50'}`}"
+                    ? `${rowAccent.borderActive} opacity-70`
+                    : highlighted
+                      ? `${rowAccent.borderActive} opacity-40`
+                      : `border-piano-roll-beat-line ${note.muted ? 'opacity-50' : 'opacity-80'}`}"
                   aria-hidden="true"
                 ></div>
                 <button
