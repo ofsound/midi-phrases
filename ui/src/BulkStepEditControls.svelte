@@ -1,0 +1,177 @@
+<script>
+  import RowRandomizeLengthIcon from "./RowRandomizeLengthIcon.svelte";
+  import RowRandomizeOctaveIcon from "./RowRandomizeOctaveIcon.svelte";
+  import RowRandomizeOrderIcon from "./RowRandomizeOrderIcon.svelte";
+  import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
+  import StepNumberDragInput from "./StepNumberDragInput.svelte";
+  import { emeraldRowAccent } from "./rowAccentTheme.js";
+
+  /**
+   * @typedef {Object} Props
+   * @property {string} [className]
+   * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {number} [selectedStepCount]
+   * @property {boolean} [reverseAvailable]
+   * @property {number} [durationPercent]
+   * @property {number} [velocityPercent]
+   * @property {number} [transposeSemitones]
+   * @property {string} [pitchAriaLabel]
+   * @property {() => void | Promise<void>} [onReverse]
+   * @property {() => void | Promise<void>} [onShuffle]
+   * @property {() => void | Promise<void>} [onRandomizeOctaves]
+   * @property {() => void | Promise<void>} [onRandomizeLengths]
+   * @property {() => void} [onGestureStart]
+   * @property {(value: number) => void} [onDurationPreview]
+   * @property {(value: number) => void | Promise<void>} [onDurationCommit]
+   * @property {(value: number) => void} [onVelocityPreview]
+   * @property {(value: number) => void | Promise<void>} [onVelocityCommit]
+   * @property {(value: number) => void} [onTransposePreview]
+   * @property {(value: number) => void | Promise<void>} [onTransposeCommit]
+   */
+
+  /** @type {Props} */
+  let {
+    className = "",
+    accent = emeraldRowAccent,
+    selectedStepCount = 0,
+    reverseAvailable = false,
+    durationPercent = 0,
+    velocityPercent = 0,
+    transposeSemitones = 0,
+    pitchAriaLabel = "Bulk step pitch semitones",
+    onReverse = () => {},
+    onShuffle = () => {},
+    onRandomizeOctaves = () => {},
+    onRandomizeLengths = () => {},
+    onGestureStart = () => {},
+    onDurationPreview = () => {},
+    onDurationCommit = () => {},
+    onVelocityPreview = () => {},
+    onVelocityCommit = () => {},
+    onTransposePreview = () => {},
+    onTransposeCommit = () => {},
+  } = $props();
+
+  function actionButtonClasses(enabled = true) {
+    return `flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
+      enabled
+        ? "mp-control-gradient border-border text-text-secondary hover:border-border-strong hover:text-text"
+        : "mp-control-gradient-muted border-border-subtle text-text-faint"
+    }`;
+  }
+
+  function formatSignedValue(value) {
+    const rounded = Math.round(value);
+
+    return rounded > 0 ? `+${rounded}` : String(rounded);
+  }
+</script>
+
+<div class="flex items-end gap-2 {className}" data-no-marquee>
+  <div class="flex flex-col items-start gap-1">
+    <span class="text-xs font-semibold leading-none text-text-muted">Operation</span>
+    <div class="flex items-center gap-1">
+      <button
+        type="button"
+        aria-label="Reverse selected steps by row"
+        title="Reverse selected steps by row"
+        disabled={!reverseAvailable}
+        data-cursor="pointer"
+        class={actionButtonClasses(reverseAvailable)}
+        onclick={onReverse}
+      >
+        <RowReverseOrderIcon class="pointer-events-none h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        aria-label="Shuffle selected steps"
+        title="Shuffle selected steps across rows"
+        disabled={selectedStepCount <= 1}
+        data-cursor="pointer"
+        class={actionButtonClasses(selectedStepCount > 1)}
+        onclick={onShuffle}
+      >
+        <RowRandomizeOrderIcon class="pointer-events-none h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        aria-label="Randomize selected step octaves"
+        title="Randomize selected step octaves"
+        disabled={selectedStepCount === 0}
+        data-cursor="pointer"
+        class={actionButtonClasses(selectedStepCount > 0)}
+        onclick={onRandomizeOctaves}
+      >
+        <RowRandomizeOctaveIcon class="pointer-events-none h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        aria-label="Randomize selected step lengths"
+        title="Randomize selected step lengths"
+        disabled={selectedStepCount === 0}
+        data-cursor="pointer"
+        class={actionButtonClasses(selectedStepCount > 0)}
+        onclick={onRandomizeLengths}
+      >
+        <RowRandomizeLengthIcon class="pointer-events-none h-5 w-5" />
+      </button>
+    </div>
+  </div>
+  <div class="flex flex-col items-start gap-1">
+    <span class="text-xs font-semibold leading-none text-text-muted">Dur %</span>
+    <StepNumberDragInput
+      boxed
+      compact
+      deferCommit
+      {accent}
+      value={durationPercent}
+      min={-100}
+      max={100}
+      resetValue={0}
+      formatValue={formatSignedValue}
+      ariaLabel="Bulk step relative duration percent"
+      disabled={selectedStepCount === 0}
+      {onGestureStart}
+      onValuePreview={onDurationPreview}
+      onValueCommit={onDurationCommit}
+    />
+  </div>
+  <div class="flex flex-col items-start gap-1">
+    <span class="text-xs font-semibold leading-none text-text-muted">Vel %</span>
+    <StepNumberDragInput
+      boxed
+      compact
+      deferCommit
+      {accent}
+      value={velocityPercent}
+      min={-100}
+      max={100}
+      resetValue={0}
+      formatValue={formatSignedValue}
+      ariaLabel="Bulk step relative velocity percent"
+      disabled={selectedStepCount === 0}
+      {onGestureStart}
+      onValuePreview={onVelocityPreview}
+      onValueCommit={onVelocityCommit}
+    />
+  </div>
+  <div class="flex flex-col items-start gap-1">
+    <span class="text-xs font-semibold leading-none text-text-muted">Pitch</span>
+    <StepNumberDragInput
+      boxed
+      compact
+      deferCommit
+      {accent}
+      value={transposeSemitones}
+      min={-48}
+      max={48}
+      resetValue={0}
+      formatValue={formatSignedValue}
+      ariaLabel={pitchAriaLabel}
+      disabled={selectedStepCount === 0}
+      {onGestureStart}
+      onValuePreview={onTransposePreview}
+      onValueCommit={onTransposeCommit}
+    />
+  </div>
+</div>

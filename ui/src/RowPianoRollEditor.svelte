@@ -26,6 +26,7 @@
     timingMultiplierIndexAfterRollResize,
   } from "./rowPianoRollTimeline.js";
   import RowShapeDrawIcon from "./RowShapeDrawIcon.svelte";
+  import BulkStepEditControls from "./BulkStepEditControls.svelte";
   import {
     defaultStepTimingMultiplierIndex,
     stepTimingMultiplierCount,
@@ -46,6 +47,7 @@
    * @property {number} [rowTimingOffset]
    * @property {number} [pulseIndex]
    * @property {string | null} [inspectedStepId]
+   * @property {string[]} [selectedStepIds]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onInspectStep]
    * @property {(row: number, step: number, midi: number) => void} [onNotePreview]
@@ -57,6 +59,23 @@
    * @property {(row: number, updates: { step: number, midi: number }[]) => void | Promise<void>} [onShapeNotesCommit]
    * @property {(row: number, updates: { step: number, velocity: number }[]) => void | Promise<void>} [onShapeVelocitiesCommit]
    * @property {() => void} [onClose]
+   * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
+   * @property {number} [bulkDurationPercent]
+   * @property {number} [bulkVelocityPercent]
+   * @property {number} [bulkTransposeSemitones]
+   * @property {string} [bulkPitchAriaLabel]
+   * @property {boolean} [bulkReverseAvailable]
+   * @property {() => void | Promise<void>} [onBulkReverse]
+   * @property {() => void | Promise<void>} [onBulkShuffle]
+   * @property {() => void | Promise<void>} [onBulkRandomizeOctaves]
+   * @property {() => void | Promise<void>} [onBulkRandomizeLengths]
+   * @property {() => void} [onBulkGestureStart]
+   * @property {(value: number) => void} [onBulkDurationPreview]
+   * @property {(value: number) => void | Promise<void>} [onBulkDurationCommit]
+   * @property {(value: number) => void} [onBulkVelocityPreview]
+   * @property {(value: number) => void | Promise<void>} [onBulkVelocityCommit]
+   * @property {(value: number) => void} [onBulkTransposePreview]
+   * @property {(value: number) => void | Promise<void>} [onBulkTransposeCommit]
    */
 
   /** @type {Props} */
@@ -73,6 +92,7 @@
     rowTimingOffset = 3,
     pulseIndex = defaultPulseIndex,
     inspectedStepId = null,
+    selectedStepIds = [],
     accent,
     onInspectStep = () => {},
     onNotePreview = () => {},
@@ -84,6 +104,23 @@
     onShapeNotesCommit = () => {},
     onShapeVelocitiesCommit = () => {},
     onClose = () => {},
+    onBulkSelectPointerDown = () => {},
+    bulkDurationPercent = 0,
+    bulkVelocityPercent = 0,
+    bulkTransposeSemitones = 0,
+    bulkPitchAriaLabel = "Bulk step pitch semitones",
+    bulkReverseAvailable = false,
+    onBulkReverse = () => {},
+    onBulkShuffle = () => {},
+    onBulkRandomizeOctaves = () => {},
+    onBulkRandomizeLengths = () => {},
+    onBulkGestureStart = () => {},
+    onBulkDurationPreview = () => {},
+    onBulkDurationCommit = () => {},
+    onBulkVelocityPreview = () => {},
+    onBulkVelocityCommit = () => {},
+    onBulkTransposePreview = () => {},
+    onBulkTransposeCommit = () => {},
   } = $props();
 
   const basePxPerQuarter = 28;
@@ -107,6 +144,7 @@
   let rowAccent = $derived(accent ?? emeraldRowAccent);
   let noteShapeDrawActive = $derived(shapeDrawMode === "note");
   let velocityShapeDrawActive = $derived(shapeDrawMode === "velocity");
+  let selectedStepIdSet = $derived(new Set(selectedStepIds));
 
   let displayedTimingMultipliers = $derived.by(() => {
     if (drag?.mode === "resize") {
@@ -428,7 +466,7 @@
   /** @param {PointerEvent} event @param {any} note */
   function beginNoteDrag(event, note) {
     if (event.shiftKey) {
-      beginDurationDrag(event, note);
+      onBulkSelectPointerDown(event);
       return;
     }
 
@@ -806,7 +844,7 @@
   function beginOutlineDurationDrag(event, note) {
     if (!event.shiftKey || event.target !== event.currentTarget) return;
 
-    beginDurationDrag(event, note, /** @type {HTMLElement} */ (event.currentTarget));
+    onBulkSelectPointerDown(event);
   }
 
   /** @param {PointerEvent} event */
@@ -837,14 +875,34 @@
 </script>
 
 <section class="flex min-h-0 w-full flex-1 flex-col gap-2 bg-app/90 px-6 py-4">
-  <div class="flex shrink-0 items-center justify-between gap-3">
+  <div class="grid shrink-0 grid-cols-[1fr_auto_1fr] items-end gap-3">
     <div class="flex min-w-0 items-baseline gap-3">
       <span class="text-xs font-semibold uppercase tracking-widest {rowAccent.textAccent}">
         Row {row + 1}
       </span>
       <span class="truncate text-xs text-text-faint">monophonic piano roll</span>
     </div>
-    <div class="flex shrink-0 items-center gap-2">
+    <BulkStepEditControls
+      accent={rowAccent}
+      selectedStepCount={selectedStepIds.length}
+      reverseAvailable={bulkReverseAvailable}
+      durationPercent={bulkDurationPercent}
+      velocityPercent={bulkVelocityPercent}
+      transposeSemitones={bulkTransposeSemitones}
+      pitchAriaLabel={bulkPitchAriaLabel}
+      onReverse={onBulkReverse}
+      onShuffle={onBulkShuffle}
+      onRandomizeOctaves={onBulkRandomizeOctaves}
+      onRandomizeLengths={onBulkRandomizeLengths}
+      onGestureStart={onBulkGestureStart}
+      onDurationPreview={onBulkDurationPreview}
+      onDurationCommit={onBulkDurationCommit}
+      onVelocityPreview={onBulkVelocityPreview}
+      onVelocityCommit={onBulkVelocityCommit}
+      onTransposePreview={onBulkTransposePreview}
+      onTransposeCommit={onBulkTransposeCommit}
+    />
+    <div class="flex shrink-0 items-center justify-self-end gap-2">
       <button
         type="button"
         data-cursor="pointer"
@@ -937,7 +995,7 @@
             aria-label="Focused row piano roll"
             style:height="{rollHeightPx}px"
             data-cursor={shapeDrawMode ? "crosshair" : undefined}
-            onpointerdown={shapeDrawMode ? beginShapeDraw : undefined}
+            onpointerdown={shapeDrawMode ? beginShapeDraw : onBulkSelectPointerDown}
             onpointermove={shapeDrawMode ? moveShapeDraw : undefined}
             onpointerup={shapeDrawMode ? endShapeDraw : undefined}
             onpointercancel={shapeDrawMode ? endShapeDraw : undefined}
@@ -994,11 +1052,14 @@
             {/if}
 
             {#each stepNotes as note (note.stepId)}
-              {@const selected = inspectedStepId === note.stepId}
+              {@const selected = selectedStepIdSet.has(note.stepId)}
               {@const playbackActive = note.active && !note.muted}
               {@const displayMidi = drag?.mode === "move" && drag.step === note.step ? drag.previewMidi : note.midi}
               {@const displayLabel = shapeDrawMode === "velocity" ? note.velocity : midiToNoteName(displayMidi)}
               <div
+                data-bulk-step-cell
+                data-step-row={row}
+                data-step-id={note.stepId}
                 class="absolute z-20 transition-[opacity,box-shadow] duration-150 {shapeDrawMode
                   ? 'pointer-events-none'
                   : ''} {playbackActive ? rowAccent.playbackGlow : ''}"

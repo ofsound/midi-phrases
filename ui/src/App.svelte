@@ -24,11 +24,8 @@
     normalizeEditorCyclePattern,
   } from "./cyclePattern.js";
   import RowDisableIcon from "./RowDisableIcon.svelte";
-  import RowRandomizeLengthIcon from "./RowRandomizeLengthIcon.svelte";
-  import RowRandomizeOctaveIcon from "./RowRandomizeOctaveIcon.svelte";
-  import RowRandomizeOrderIcon from "./RowRandomizeOrderIcon.svelte";
   import RowRecordIcon from "./RowRecordIcon.svelte";
-  import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
+  import BulkStepEditControls from "./BulkStepEditControls.svelte";
   import ScaleModeDialog from "./ScaleModeDialog.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
   import PhraseRow from "./PhraseRow.svelte";
@@ -799,14 +796,6 @@
     }`;
   }
 
-  function bulkActionIconButtonClasses(enabled = true) {
-    return `flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
-      enabled
-        ? "mp-control-gradient border-border text-text-secondary hover:border-border-strong hover:text-text"
-        : "mp-control-gradient-muted border-border-subtle text-text-faint"
-    }`;
-  }
-
   function stepNoteByCurrentScale(value, delta) {
     const base = Math.min(127, Math.max(0, Math.round(value)));
     const steps = Math.round(delta);
@@ -1110,8 +1099,15 @@
       await finishRowRecording();
     }
 
+    const openingRow = rowPianoRollStep?.row !== row;
+
     inspectedStep = null;
     rowPianoRollStep = { row, stepId };
+
+    if (openingRow) {
+      setSelectedStepKeys(new Set(stepIds[row].map((id) => stepSelectionKey(row, id))));
+      syncBulkControlsFromSelection();
+    }
   }
 
   function selectAllStepsForBulkEdit() {
@@ -2439,18 +2435,6 @@
     const parsed = Number.parseInt(String(value), 10);
 
     return Number.isNaN(parsed) ? 0 : Math.min(48, Math.max(-48, parsed));
-  }
-
-  function formatSemitoneValue(value) {
-    const rounded = Math.round(value);
-
-    return rounded > 0 ? `+${rounded}` : String(rounded);
-  }
-
-  function formatRelativePercent(value) {
-    const rounded = Math.round(value);
-
-    return rounded > 0 ? `+${rounded}` : String(rounded);
   }
 
   function clampStepDurationPercent(value) {
@@ -3797,114 +3781,27 @@
           </div>
           </div>
         </div>
-        <div class="flex items-end gap-2 border-l border-border-subtle pl-3">
-          <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-text-muted">Operation</span>
-            <div class="flex items-center gap-1">
-              <button
-                type="button"
-                aria-label="Reverse selected steps by row"
-                title="Reverse selected steps by row"
-                disabled={!selectedStepReverseAvailable}
-                data-cursor="pointer"
-                class={bulkActionIconButtonClasses(selectedStepReverseAvailable)}
-                onclick={reverseSelectedStepsByRow}
-              >
-                <RowReverseOrderIcon class="pointer-events-none h-5 w-5" />
-              </button>
-              <button
-                type="button"
-                aria-label="Shuffle selected steps"
-                title="Shuffle selected steps across rows"
-                disabled={selectedStepCount <= 1}
-                data-cursor="pointer"
-                class={bulkActionIconButtonClasses(selectedStepCount > 1)}
-                onclick={shuffleSelectedSteps}
-              >
-                <RowRandomizeOrderIcon class="pointer-events-none h-5 w-5" />
-              </button>
-              <button
-                type="button"
-                aria-label="Randomize selected step octaves"
-                title="Randomize selected step octaves"
-                disabled={selectedStepCount === 0}
-                data-cursor="pointer"
-                class={bulkActionIconButtonClasses(selectedStepCount > 0)}
-                onclick={randomizeSelectedStepOctaves}
-              >
-                <RowRandomizeOctaveIcon class="pointer-events-none h-5 w-5" />
-              </button>
-              <button
-                type="button"
-                aria-label="Randomize selected step lengths"
-                title="Randomize selected step lengths"
-                disabled={selectedStepCount === 0}
-                data-cursor="pointer"
-                class={bulkActionIconButtonClasses(selectedStepCount > 0)}
-                onclick={randomizeSelectedStepLengths}
-              >
-                <RowRandomizeLengthIcon class="pointer-events-none h-5 w-5" />
-              </button>
-            </div>
-          </div>
-          <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-text-muted">Dur %</span>
-            <StepNumberDragInput
-              boxed
-              compact
-              deferCommit
-              accent={emeraldRowAccent}
-              value={bulkDurationPercent}
-              min={-100}
-              max={100}
-              resetValue={0}
-              formatValue={formatRelativePercent}
-              ariaLabel="Bulk step relative duration percent"
-              disabled={selectedStepCount === 0}
-              onGestureStart={beginBulkEditGesture}
-              onValuePreview={previewBulkDurationPercent}
-              onValueCommit={commitBulkDurationPercent}
-            />
-          </div>
-          <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-text-muted">Vel %</span>
-            <StepNumberDragInput
-              boxed
-              compact
-              deferCommit
-              accent={emeraldRowAccent}
-              value={bulkVelocityPercent}
-              min={-100}
-              max={100}
-              resetValue={0}
-              formatValue={formatRelativePercent}
-              ariaLabel="Bulk step relative velocity percent"
-              disabled={selectedStepCount === 0}
-              onGestureStart={beginBulkEditGesture}
-              onValuePreview={previewBulkVelocityPercent}
-              onValueCommit={commitBulkVelocityPercent}
-            />
-          </div>
-          <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-text-muted">Pitch</span>
-            <StepNumberDragInput
-              boxed
-              compact
-              deferCommit
-              accent={emeraldRowAccent}
-              value={bulkTransposeSemitones}
-              min={-48}
-              max={48}
-              resetValue={0}
-              formatValue={formatSemitoneValue}
-              ariaLabel={bulkPitchAriaLabel}
-              disabled={selectedStepCount === 0}
-              onGestureStart={beginBulkEditGesture}
-              onValuePreview={previewBulkTransposeSemitones}
-              onValueCommit={commitBulkTransposeSemitones}
-            />
-          </div>
-        </div>
+        <BulkStepEditControls
+          className="border-l border-border-subtle pl-3"
+          accent={emeraldRowAccent}
+          {selectedStepCount}
+          reverseAvailable={selectedStepReverseAvailable}
+          durationPercent={bulkDurationPercent}
+          velocityPercent={bulkVelocityPercent}
+          transposeSemitones={bulkTransposeSemitones}
+          pitchAriaLabel={bulkPitchAriaLabel}
+          onReverse={reverseSelectedStepsByRow}
+          onShuffle={shuffleSelectedSteps}
+          onRandomizeOctaves={randomizeSelectedStepOctaves}
+          onRandomizeLengths={randomizeSelectedStepLengths}
+          onGestureStart={beginBulkEditGesture}
+          onDurationPreview={previewBulkDurationPercent}
+          onDurationCommit={commitBulkDurationPercent}
+          onVelocityPreview={previewBulkVelocityPercent}
+          onVelocityCommit={commitBulkVelocityPercent}
+          onTransposePreview={previewBulkTransposeSemitones}
+          onTransposeCommit={commitBulkTransposeSemitones}
+        />
         <div class="flex shrink-0 items-end gap-1 border-l border-border-subtle pl-3">
           <button
             type="button"
@@ -4201,6 +4098,7 @@
         rowTimingOffset={rowTimingOffset[activeRowPianoRollEditor.row]}
         {pulseIndex}
         inspectedStepId={activeRowPianoRollEditor.stepId}
+        selectedStepIds={selectedStepIdsByRow[activeRowPianoRollEditor.row]}
         accent={rowAccentFor(activeRowPianoRollEditor.row, rowColorsEnabled)}
         onInspectStep={openRowPianoRollEditor}
         onNotePreview={previewPhraseNoteValue}
@@ -4211,6 +4109,23 @@
         onStepResize={selectStepTimingMultiplier}
         onDurationCommit={selectStepDurationFraction}
         onOpenAdvancedInspector={openStepInspector}
+        onBulkSelectPointerDown={beginStepMarqueeSelection}
+        bulkDurationPercent={bulkDurationPercent}
+        bulkVelocityPercent={bulkVelocityPercent}
+        bulkTransposeSemitones={bulkTransposeSemitones}
+        bulkPitchAriaLabel={bulkPitchAriaLabel}
+        bulkReverseAvailable={selectedStepReverseAvailable}
+        onBulkReverse={reverseSelectedStepsByRow}
+        onBulkShuffle={shuffleSelectedSteps}
+        onBulkRandomizeOctaves={randomizeSelectedStepOctaves}
+        onBulkRandomizeLengths={randomizeSelectedStepLengths}
+        onBulkGestureStart={beginBulkEditGesture}
+        onBulkDurationPreview={previewBulkDurationPercent}
+        onBulkDurationCommit={commitBulkDurationPercent}
+        onBulkVelocityPreview={previewBulkVelocityPercent}
+        onBulkVelocityCommit={commitBulkVelocityPercent}
+        onBulkTransposePreview={previewBulkTransposeSemitones}
+        onBulkTransposeCommit={commitBulkTransposeSemitones}
         onClose={closeRowPianoRollEditor}
       />
     {:else if recordingRow !== null}
