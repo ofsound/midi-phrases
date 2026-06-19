@@ -4,7 +4,9 @@ import {
   precedingStepResizeForNoteDrag,
   timingMultiplierIndexAfterRollResize,
 } from "./rowPianoRollTimeline.js";
-import { defaultStepTimingMultiplierIndex } from "./stepCellLayout.js";
+import {
+  defaultStepTimingMultiplierIndex,
+} from "./stepCellLayout.js";
 
 export const compactStepMoveThresholdPx = 4;
 

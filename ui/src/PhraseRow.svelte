@@ -1609,9 +1609,10 @@
   {@const stepDimmed = muted || stepIsSkipped}
   {@const velocityOpacity = compactStepVelocityOpacity(stepVelocity[step], stepIsSkipped)}
   {@const durationFillPercent = compactStepDurationFillPercent(stepDurationFraction[step], stepIsMuted)}
-  {@const gridColumns = quarterGridColumnsForMultiplierIndex(multiplierIndexForDataStep(step))}
-  {@const shellPaddingPercent = compactStepShellPaddingPercent(multiplierIndexForDataStep(step))}
-  {@const trailingPaddingPercent = compactStepShellTrailingPaddingPercent(multiplierIndexForDataStep(step))}
+  {@const stepMultiplierIndex = layoutTimingMultipliers[step] ?? defaultStepTimingMultiplierIndex}
+  {@const gridColumns = quarterGridColumnsForMultiplierIndex(stepMultiplierIndex)}
+  {@const shellPaddingPercent = compactStepShellPaddingPercent(stepMultiplierIndex)}
+  {@const trailingPaddingPercent = compactStepShellTrailingPaddingPercent(stepMultiplierIndex)}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -1766,6 +1767,10 @@
     filter: brightness(1.1);
   }
 
+  :global(.compact-step-grid-dragging) > * {
+    transition: none !important;
+  }
+
   .compact-step-skipped-overlay {
     background: linear-gradient(
       to bottom right,
@@ -1802,7 +1807,11 @@
       {@render largeAddStepButton("Add first step", 0)}
     </div>
   {:else if stretchToFit}
-    <div class="grid min-w-0 flex-1" style={compactGridStyle} {@attach compactGridAttachment}>
+    <div
+      class="grid min-w-0 flex-1 {compactStepDrag ? 'compact-step-grid-dragging' : ''}"
+      style={compactGridStyle}
+      {@attach compactGridAttachment}
+    >
       {#each compactStepsToRender as { step, stepId } (stepId)}
         {@render compactStepCell(step, stepId)}
       {/each}
