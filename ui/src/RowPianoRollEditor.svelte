@@ -1094,6 +1094,40 @@
               </div>
             {/if}
 
+            <!-- Draggable step boundary vertical lines -->
+            {#each stepNotes as note, index (note.stepId + '-boundary')}
+              {#if index > 0}
+                <div
+                  role="presentation"
+                  class="step-boundary-interactive-zone absolute top-0 bottom-0 z-25 flex items-center justify-center touch-none select-none cursor-ew-resize w-4 -ml-2"
+                  style:left="{note.leftPx}px"
+                  onpointerdown={(event) => beginStepResize(event, note, "start")}
+                  onpointermove={moveStepResize}
+                  onpointerup={endStepResize}
+                  onpointercancel={cancelStepResize}
+                >
+                  <div
+                    class="step-boundary-line pointer-events-none w-[1px] h-full bg-text/10 transition-all duration-100 opacity-20"
+                  ></div>
+                </div>
+              {/if}
+              {#if index === stepNotes.length - 1}
+                <div
+                  role="presentation"
+                  class="step-boundary-interactive-zone absolute top-0 bottom-0 z-25 flex items-center justify-center touch-none select-none cursor-ew-resize w-4 -ml-2"
+                  style:left="{note.leftPx + note.fullStepWidthPx}px"
+                  onpointerdown={(event) => beginStepResize(event, note, "end")}
+                  onpointermove={moveStepResize}
+                  onpointerup={endStepResize}
+                  onpointercancel={cancelStepResize}
+                >
+                  <div
+                    class="step-boundary-line pointer-events-none w-[1px] h-full bg-text/10 transition-all duration-100 opacity-20"
+                  ></div>
+                </div>
+              {/if}
+            {/each}
+
             {#each stepNotes as note (note.stepId)}
               {@const selected = selectedStepIdSet.has(note.stepId)}
               {@const inspected = inspectedStepId === note.stepId}
@@ -1196,3 +1230,12 @@
     </div>
   </div>
 </section>
+
+<style>
+  .step-boundary-interactive-zone:hover .step-boundary-line {
+    background-color: var(--color-accent);
+    box-shadow: 0 0 6px var(--color-accent), 0 0 2px var(--color-accent);
+    width: 2px;
+    opacity: 1;
+  }
+</style>
