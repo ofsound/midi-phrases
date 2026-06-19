@@ -7,6 +7,7 @@
    * @property {any} value
    * @property {string} [label]
    * @property {boolean} [fullWidth]
+   * @property {boolean} [large]
    * @property {number} [min]
    * @property {number} [max]
    * @property {string} [ariaLabel]
@@ -22,6 +23,7 @@
     value,
     label = "",
     fullWidth = false,
+    large = false,
     min = 0,
     max = 127,
     ariaLabel = "Slider",
@@ -98,20 +100,20 @@
   }
 </script>
 
-<div class="flex flex-col gap-1 {fullWidth ? 'min-w-0 w-full' : 'w-[10.5rem]'}">
+<div class="flex flex-col {large ? 'gap-2' : 'gap-1'} {fullWidth ? 'min-w-0 w-full' : 'w-[10.5rem]'}">
   <div class="flex items-center justify-between gap-2">
     {#if label}
-      <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">{label}</span>
+      <span class="font-medium uppercase tracking-wide text-text-muted {large ? 'text-[11px]' : 'text-[9px]'}">{label}</span>
     {:else}
       <span></span>
     {/if}
-    <span class="font-mono text-[10px] tabular-nums {accent.textAccent}">{displayValue}</span>
+    <span class="font-mono tabular-nums {large ? 'text-sm' : 'text-[10px]'} {accent.textAccent}">{displayValue}</span>
   </div>
 
   <div
     {@attach trackAttachment}
     data-cursor="pointer"
-    class="relative h-5 touch-none select-none"
+    class="relative {large ? 'h-8' : 'h-5'} touch-none select-none"
     role="slider"
     aria-label={ariaLabel}
     aria-valuemin={min}
@@ -145,7 +147,7 @@
       }
     }}
   >
-    <div class="compact-slider-track absolute inset-x-0 top-1/2 -translate-y-1/2">
+    <div class="compact-slider-track {large ? 'large-slider-track' : ''} absolute inset-x-0 top-1/2 -translate-y-1/2">
       <div
         class="compact-slider-range h-full {accent.bgAccent} {dragging ? '' : 'transition-[width] duration-75'}"
         style:width="{thumbPercent}%"
@@ -153,7 +155,7 @@
     </div>
 
     <div
-      class="compact-slider-thumb absolute top-1/2 -translate-x-1/2 -translate-y-1/2 {dragging
+      class="compact-slider-thumb {large ? 'large-slider-thumb' : ''} absolute top-1/2 -translate-x-1/2 -translate-y-1/2 {dragging
         ? `${accent.dragBorder} ${accent.dragShadow}`
         : 'border-border-subtle'} {dragging
         ? ''
@@ -209,5 +211,15 @@
     transform: translateX(50%);
     background: color-mix(in srgb, var(--color-text) 45%, transparent);
     box-shadow: 1px 0 0 color-mix(in srgb, var(--color-app) 19%, transparent);
+  }
+
+  .compact-slider-track.large-slider-track {
+    height: 0.55rem;
+  }
+
+  .compact-slider-thumb.large-slider-thumb {
+    width: 0.65rem;
+    height: 1.55rem;
+    border-radius: 3px;
   }
 </style>

@@ -71,87 +71,101 @@
 </script>
 
 <section class="flex min-h-0 w-full flex-1 bg-app/90">
-  <aside class="flex w-[13.5rem] shrink-0 flex-col gap-3 border-r border-border-subtle px-6 py-4">
-    <div class="flex min-w-0 w-full flex-col gap-1">
-      <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>
-      <CyclePatternEditor
-        compact
-        {accent}
-        {cycle}
-        {cycleMask}
-        playbackKey={stepKey}
-        playbackTriggerCount={cycleTriggerCount}
-        ariaLabel="Step cycle pattern"
-        onGestureStart={onCycleGestureStart}
-        onPatternPreview={onCyclePatternPreview}
-        onPatternCommit={onCyclePatternCommit}
-      />
-    </div>
-
-    <ContinuousSlider
-      {accent}
-      label="Probability"
-      value={probability}
-      min={0}
-      max={100}
-      ariaLabel="Step probability"
-      fullWidth={true}
-      formatDisplay={(value) => `${Math.round(value)}%`}
-      onGestureStart={onProbabilityGestureStart}
-      onValueChange={onProbabilityPreview}
-      onValueCommit={onProbabilityCommit}
-    />
-    <ContinuousSlider
-      {accent}
-      label="Multiplier"
-      value={timingMultiplierIndex}
-      min={0}
-      max={stepTimingMultiplierCount - 1}
-      ariaLabel="Step timing multiplier"
-      fullWidth={true}
-      formatDisplay={(index) =>
-        formatTimingMultiplierLabel(timingMultiplierAtIndex(index))}
-      onValueChange={onTimingMultiplierChange}
-    />
-    <ContinuousSlider
-      {accent}
-      label="Duration"
-      value={durationPercent}
-      min={0}
-      max={100}
-      ariaLabel="Step duration"
-      fullWidth={true}
-      onValueChange={onDurationChange}
-    />
-    <ContinuousSlider
-      {accent}
-      label="Velocity"
-      value={velocity}
-      min={1}
-      max={127}
-      ariaLabel="Step velocity"
-      fullWidth={true}
-      onValueChange={onVelocityChange}
-    />
+  <aside class="relative flex w-[13.5rem] shrink-0 border-r border-border-subtle px-6 py-2">
     <button
       type="button"
       data-cursor="pointer"
       aria-label="Close step inspector"
-      class="flex h-8 w-full shrink-0 items-center justify-center rounded-md border border-border bg-surface text-lg leading-none text-text-muted transition-colors outline-none hover:border-border-strong hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
+      class="absolute top-1 left-1 z-10 flex h-5 w-5 items-center justify-center rounded-sm border border-border bg-surface text-sm leading-none text-text-muted transition-colors outline-none hover:border-border-strong hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
       onclick={onClose}
+      title="Close step inspector"
     >
       X
     </button>
+
+    <div class="flex min-h-0 w-full flex-1 flex-col justify-between">
+      <ContinuousSlider
+        large
+        {accent}
+        label="Multiplier"
+        value={timingMultiplierIndex}
+        min={0}
+        max={stepTimingMultiplierCount - 1}
+        ariaLabel="Step timing multiplier"
+        fullWidth={true}
+        formatDisplay={(index) =>
+          formatTimingMultiplierLabel(timingMultiplierAtIndex(index))}
+        onValueChange={onTimingMultiplierChange}
+      />
+      <ContinuousSlider
+        large
+        {accent}
+        label="Duration"
+        value={durationPercent}
+        min={0}
+        max={100}
+        ariaLabel="Step duration"
+        fullWidth={true}
+        onValueChange={onDurationChange}
+      />
+      <ContinuousSlider
+        large
+        {accent}
+        label="Velocity"
+        value={velocity}
+        min={1}
+        max={127}
+        ariaLabel="Step velocity"
+        fullWidth={true}
+        onValueChange={onVelocityChange}
+      />
+    </div>
   </aside>
 
-  <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-    <StepInspectorKeyboard
-      {note}
-      {stepKey}
-      {scaleRoot}
-      {scaleModeIndex}
-      {accent}
-      onNoteChange={onNoteChange}
-    />
+  <div class="grid min-h-0 min-w-0 flex-1 grid-rows-[33%_55%] content-between overflow-hidden">
+    <div class="grid min-h-0 min-w-0 grid-cols-2 divide-x divide-border-subtle border-b border-border-subtle bg-surface/15">
+      <div class="flex min-h-0 min-w-0 flex-col justify-center gap-1 px-5">
+        <span class="text-[11px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>
+        <CyclePatternEditor
+          {accent}
+          {cycle}
+          {cycleMask}
+          playbackKey={stepKey}
+          playbackTriggerCount={cycleTriggerCount}
+          ariaLabel="Step cycle pattern"
+          onGestureStart={onCycleGestureStart}
+          onPatternPreview={onCyclePatternPreview}
+          onPatternCommit={onCyclePatternCommit}
+        />
+      </div>
+
+      <div class="flex min-h-0 min-w-0 items-center px-5">
+        <ContinuousSlider
+          large
+          {accent}
+          label="Probability"
+          value={probability}
+          min={0}
+          max={100}
+          ariaLabel="Step probability"
+          fullWidth={true}
+          formatDisplay={(value) => `${Math.round(value)}%`}
+          onGestureStart={onProbabilityGestureStart}
+          onValueChange={onProbabilityPreview}
+          onValueCommit={onProbabilityCommit}
+        />
+      </div>
+    </div>
+
+    <div class="flex min-h-0 min-w-0 overflow-hidden border-t border-border-subtle">
+      <StepInspectorKeyboard
+        {note}
+        {stepKey}
+        {scaleRoot}
+        {scaleModeIndex}
+        {accent}
+        onNoteChange={onNoteChange}
+      />
+    </div>
   </div>
 </section>

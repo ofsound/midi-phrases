@@ -173,8 +173,8 @@
           class="{cellClass} transition-colors outline-none {inPattern
             ? active
               ? `${accent.dragBorder} ${accent.bgAccent}`
-              : 'border-border bg-surface-raised/80 hover:border-border-strong'
-            : 'border-border/40 bg-app/50 opacity-50 hover:border-border hover:opacity-80'}"
+              : 'border-border-strong bg-surface-subtle shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-text)_8%,transparent)] hover:border-text-muted'
+            : 'border-border/20 bg-app/30 opacity-30 hover:border-border hover:bg-surface/60 hover:opacity-80'}"
           aria-label={inPattern
             ? `Cycle step ${index + 1}, ${active ? "on" : "off"}`
             : `Cycle step ${index + 1}, extend pattern`}
