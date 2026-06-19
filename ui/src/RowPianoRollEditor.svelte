@@ -13,6 +13,7 @@
     beatLineQuarters,
     insertStepIndexFromRollX,
     measureLineQuarters,
+    midiFromPitchDragDelta,
     rollLengthQuartersForCycle,
     shapeNoteUpdatesFromStroke,
     shapeVelocityUpdatesFromStroke,
@@ -454,7 +455,7 @@
   function midiFromPointerDelta(event, baseMidi, startY) {
     const deltaRows = Math.round((startY - event.clientY) / rowHeightPx);
 
-    return Math.min(127, Math.max(0, baseMidi + deltaRows));
+    return midiFromPitchDragDelta(baseMidi, deltaRows, scaleRoot, scaleModeIndex);
   }
 
   /** @param {PointerEvent} event @param {any} note */

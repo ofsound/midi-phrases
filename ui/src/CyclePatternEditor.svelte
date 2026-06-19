@@ -17,6 +17,8 @@
    * @property {number} [cycleMask]
    * @property {string} [ariaLabel]
    * @property {boolean} [compact]
+   * @property {() => void} [onGestureStart]
+   * @property {(cycle: number, cycleMask: number) => void | Promise<void>} [onPatternPreview]
    * @property {(cycle: number, cycleMask: number) => void | Promise<void>} [onPatternCommit]
    */
 
@@ -27,11 +29,29 @@
     cycleMask = 1,
     ariaLabel = "Step cycle pattern",
     compact = false,
+    onGestureStart = () => {},
+    onPatternPreview = () => {},
     onPatternCommit = () => {},
   } = $props();
 
   /** @type {Array<HTMLButtonElement | undefined>} */
   const cellRefs = Array.from({length: maxCyclePatternCells}, () => undefined);
+
+  /**
+   * @param {number} index
+   * @returns {import('svelte/attachments').Attachment<HTMLButtonElement>}
+   */
+  function registerCell(index) {
+    return (element) => {
+      cellRefs[index] = element;
+
+      return () => {
+        if (cellRefs[index] === element) {
+          cellRefs[index] = undefined;
+        }
+      };
+    };
+  }
 
   let draftCycle = $state(1);
   let draftMask = $state(1);
@@ -47,15 +67,12 @@
     draftMask = next.mask;
   });
 
-  /** @param {number} nextCycle @param {number} nextMask @param {boolean} [commit] */
-  function applyDraft(nextCycle, nextMask, commit = false) {
+  /** @param {number} nextCycle @param {number} nextMask */
+  function applyDraft(nextCycle, nextMask) {
     const next = normalizeEditorCyclePattern(nextCycle, nextMask);
     draftCycle = next.cycle;
     draftMask = next.mask;
-
-    if (commit) {
-      onPatternCommit(next.cycle, next.mask);
-    }
+    onPatternPreview(next.cycle, next.mask);
   }
 
   /** @param {number} clientX */
@@ -68,6 +85,7 @@
 
     draftCycle = next.cycle;
     draftMask = next.mask;
+    onPatternPreview(next.cycle, next.mask);
   }
 
   /** @param {number} index */
@@ -75,12 +93,16 @@
     if (draggingLength) return;
 
     if (index >= draftCycle) {
-      applyDraft(index + 1, draftMask, true);
+      onGestureStart();
+      applyDraft(index + 1, draftMask);
+      onPatternCommit(draftCycle, draftMask);
       return;
     }
 
     const next = toggleCycleCell(draftCycle, draftMask, index);
-    applyDraft(next.cycle, next.mask, true);
+    onGestureStart();
+    applyDraft(next.cycle, next.mask);
+    onPatternCommit(draftCycle, draftMask);
   }
 
   /** @param {PointerEvent} event */
@@ -89,6 +111,7 @@
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
 
+    onGestureStart();
     draggingLength = true;
     dragPointerId = event.pointerId;
     applyLengthFromClientX(event.clientX);
@@ -135,7 +158,7 @@
         {@const active = inPattern && isCycleCellActive(draftCycle, draftMask, index)}
         <button
           type="button"
-          bind:this={cellRefs[index]}
+          {@attach registerCell(index)}
           data-cursor="pointer"
           class="{cellClass} transition-colors outline-none {inPattern
             ? active

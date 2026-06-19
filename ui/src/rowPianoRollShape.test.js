@@ -5,6 +5,7 @@ import {
   beatLineQuarters,
   interpolateShapeYAtX,
   measureLineQuarters,
+  midiFromPitchDragDelta,
   midiFromRollY,
   rollLengthQuartersForCycle,
   shapeNoteUpdatesFromStroke,
@@ -21,6 +22,18 @@ describe("midiFromRollY", () => {
     expect(midiFromRollY(0, 16, 72)).toBe(72);
     expect(midiFromRollY(16, 16, 72)).toBe(71);
     expect(midiFromRollY(32.4, 16, 72)).toBe(70);
+  });
+});
+
+describe("midiFromPitchDragDelta", () => {
+  it("never returns an out-of-scale preview note", () => {
+    expect(midiFromPitchDragDelta(60, 1, 0, 1)).toBe(60);
+    expect(midiFromPitchDragDelta(60, 2, 0, 1)).toBe(62);
+    expect(midiFromPitchDragDelta(64, 1, 0, 1)).toBe(65);
+  });
+
+  it("remains chromatic in chromatic mode", () => {
+    expect(midiFromPitchDragDelta(60, 1, 0, 0)).toBe(61);
   });
 });
 

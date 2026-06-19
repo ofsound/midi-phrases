@@ -28,7 +28,11 @@
    * @property {(value: number) => void | Promise<void>} [onVelocityChange]
    * @property {(value: number) => void | Promise<void>} [onDurationChange]
    * @property {(value: number) => void | Promise<void>} [onTimingMultiplierChange]
-   * @property {(value: number) => void | Promise<void>} [onProbabilityChange]
+   * @property {() => void} [onProbabilityGestureStart]
+   * @property {(value: number) => void | Promise<void>} [onProbabilityPreview]
+   * @property {(value: number) => void | Promise<void>} [onProbabilityCommit]
+   * @property {() => void} [onCycleGestureStart]
+   * @property {(cycle: number, cycleMask: number) => void | Promise<void>} [onCyclePatternPreview]
    * @property {(cycle: number, cycleMask: number) => void | Promise<void>} [onCyclePatternCommit]
    * @property {() => void} [onClose]
    */
@@ -51,7 +55,11 @@
     onVelocityChange = () => {},
     onDurationChange = () => {},
     onTimingMultiplierChange = () => {},
-    onProbabilityChange = () => {},
+    onProbabilityGestureStart = () => {},
+    onProbabilityPreview = () => {},
+    onProbabilityCommit = () => {},
+    onCycleGestureStart = () => {},
+    onCyclePatternPreview = () => {},
     onCyclePatternCommit = () => {},
     onClose = () => {},
   } = $props();
@@ -70,6 +78,8 @@
         {cycle}
         {cycleMask}
         ariaLabel="Step cycle pattern"
+        onGestureStart={onCycleGestureStart}
+        onPatternPreview={onCyclePatternPreview}
         onPatternCommit={onCyclePatternCommit}
       />
     </div>
@@ -83,7 +93,9 @@
       ariaLabel="Step probability"
       fullWidth={true}
       formatDisplay={(value) => `${Math.round(value)}%`}
-      onValueChange={onProbabilityChange}
+      onGestureStart={onProbabilityGestureStart}
+      onValueChange={onProbabilityPreview}
+      onValueCommit={onProbabilityCommit}
     />
     <ContinuousSlider
       {accent}

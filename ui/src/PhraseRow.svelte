@@ -38,6 +38,7 @@
   import {
     defaultStepTimingMultiplierIndex,
     insertStepTimingMultiplierOptions,
+    maxPhraseStepsPerRow,
     maxMultiplierCellWidthPx,
     minMultiplierCellWidthPx,
     multiplierIndexFromWidth,
@@ -119,6 +120,7 @@
    * @property {number} [defaultStepNote]
    * @property {(row: number, orderedIds: string[]) => void} [onReorder]
    * @property {(row: number, beforeIds: string[], afterIds: string[]) => void | Promise<void>} [onMoveCommitted]
+   * @property {(targetRow: number, stepId: string, orderedTargetIds: string[]) => void | Promise<void>} [onCrossRowMove]
    * @property {(row: number, step: number) => void | Promise<void>} [onRemoveStep]
    * @property {(row: number, step: number, multiplierIndex?: number) => void | Promise<void>} [onInsertStep]
    * @property {(row: number, step: number) => void | Promise<void>} [onDuplicateStep]
@@ -171,6 +173,7 @@
     defaultStepNote = 60,
     onReorder = () => {},
     onMoveCommitted = () => {},
+    onCrossRowMove = () => {},
     onRemoveStep = () => {},
     onInsertStep = () => {},
     onDuplicateStep = () => {},
@@ -194,9 +197,8 @@
   const removeBlockMs = 500;
   const backgroundDoubleClickIntervalMs = 400;
   const backgroundDoubleClickMaxDistancePx = 16;
-  const draggedElementId = "dnd-action-dragged-el";
 
-  /** @type {{ id: string }[]} */
+  /** @type {{ id: string, multiplierIndex?: number }[]} */
   let dndItems = $state([]);
   let isDragging = $state(false);
   let removeBlocked = $state(false);
@@ -216,7 +218,6 @@
   let resizeHandleElement = null;
   let resizePointerId = -1;
   let resizeEndHandled = false;
-  let dragYLockFrameId = 0;
   let lastBulkBackgroundPointerDownTime = 0;
   let lastBulkBackgroundPointerDownX = 0;
   let lastBulkBackgroundPointerDownY = 0;
@@ -241,47 +242,14 @@
     }, removeBlockMs);
   }
 
-  function lockDraggedElementToRowY() {
-    dragYLockFrameId = 0;
-
-    if (!isDragging) return;
-
-    const draggedEl = document.getElementById(draggedElementId);
-
-    if (draggedEl) {
-      const transform = draggedEl.style.transform;
-      const match = transform.match(/^translate3d\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\)$/);
-
-      if (match && match[2] !== "0px") {
-        draggedEl.style.transform = `translate3d(${match[1]}, 0px, ${match[3]})`;
-      }
-    }
-
-    dragYLockFrameId = requestAnimationFrame(lockDraggedElementToRowY);
-  }
-
-  function startDragYLock() {
-    stopDragYLock();
-    lockDraggedElementToRowY();
-  }
-
-  function stopDragYLock() {
-    if (!dragYLockFrameId) return;
-
-    cancelAnimationFrame(dragYLockFrameId);
-    dragYLockFrameId = 0;
-  }
-
   function beginDragSession() {
     isDragging = true;
     blockRemoveTemporarily();
-    startDragYLock();
   }
 
   function endDragSession() {
     isDragging = false;
     draggedStepId = null;
-    stopDragYLock();
     clearDndZoneTransforms();
     blockRemoveTemporarily();
   }
@@ -366,7 +334,9 @@
   function handleConsider(event) {
     if (reorderDisabled) return;
 
-    if (event.detail.info.trigger === TRIGGERS.DRAG_STARTED) {
+    const trigger = event.detail.info.trigger;
+
+    if (trigger === TRIGGERS.DRAG_STARTED) {
       beginDragSession();
       idsBeforeDrag = stepIds.slice();
       draggedStepId = event.detail.info.id;
@@ -374,6 +344,12 @@
       if (document.activeElement instanceof HTMLElement) {
         document.activeElement.blur();
       }
+    } else if (trigger === TRIGGERS.DRAGGED_ENTERED) {
+      isDragging = true;
+      draggedStepId = event.detail.info.id;
+    } else if (trigger === TRIGGERS.DRAGGED_LEFT && idsBeforeDrag === null) {
+      isDragging = false;
+      draggedStepId = null;
     }
 
     dndItems = event.detail.items;
@@ -381,14 +357,30 @@
 
   /** @param {CustomEvent} event */
   async function handleFinalize(event) {
-    if (reorderDisabled) return;
-
     const trigger = event.detail.info.trigger;
+    const movedStepId = event.detail.info.id;
     const filtered = withoutShadowItems(event.detail.items);
+
+    if (trigger === TRIGGERS.DROPPED_INTO_ANOTHER) {
+      idsBeforeDrag = null;
+      endDragSession();
+      return;
+    }
 
     if (trigger === TRIGGERS.DROPPED_OUTSIDE_OF_ANY && idsBeforeDrag) {
       dndItems = idsBeforeDrag.map((id) => ({ id }));
       idsBeforeDrag = null;
+      endDragSession();
+      return;
+    }
+
+    const isCrossRowDrop = trigger === TRIGGERS.DROPPED_INTO_ZONE
+      && !stepIds.includes(movedStepId);
+
+    if (isCrossRowDrop) {
+      dndItems = filtered;
+      await onCrossRowMove(row, movedStepId, filtered.map((item) => item.id));
+      await tick();
       endDragSession();
       return;
     }
@@ -884,18 +876,22 @@
   const stepHeaderLabelClass = (dimmed) =>
     dimmed ? "text-text-muted" : "text-text-secondary";
   let isEmptyRow = $derived(stepIds.length === 0);
-  let reorderDisabled = $derived(stepIds.length <= 1);
+  let reorderDisabled = $derived(stepIds.length === 0);
   let selectedStepIdSet = $derived(new Set(selectedStepIds));
   let insertMultiplierOptions = $derived(insertStepTimingMultiplierOptions(timingMultiplierOptions));
   let stepInspectorInteractionDisabled = $derived(isDragging || removeBlocked || resizingStep >= 0);
-  let orderedStepItems = $derived(stepIds.map((id) => ({ id })));
+  let orderedStepItems = $derived(stepIds.map((id, step) => ({
+    id,
+    multiplierIndex: multiplierIndexForDataStep(step),
+  })));
   let renderedDndItems = $derived(isDragging ? dndItems : orderedStepItems);
   let dndZoneOptions = $derived({
     items: renderedDndItems,
     flipDurationMs: 0,
-    type: `phrase-row-${row}`,
-    dropFromOthersDisabled: true,
+    type: "phrase-step",
+    dropFromOthersDisabled: stepIds.length >= maxPhraseStepsPerRow,
     morphDisabled: true,
+    useCursorForDetection: true,
     zoneTabIndex: -1,
     autoAriaDisabled: true,
     dropTargetStyle: { outline: "none" },
@@ -905,7 +901,7 @@
     if (!isDragging) return null;
 
     return withoutShadowItems(dndItems).map((item) =>
-      multiplierIndexForDataStep(stepIndexFromId(item.id)),
+      item.multiplierIndex ?? multiplierIndexForDataStep(stepIndexFromId(item.id)),
     );
   });
   let layoutTimingMultipliers = $derived(
@@ -920,9 +916,11 @@
     const dataStep = isShadowItem(item)
       ? stepIndexFromId(draggedStepId ?? "")
       : stepIndexFromId(item.id);
+    const multiplierIndex = item.multiplierIndex
+      ?? (dataStep >= 0 ? multiplierIndexForDataStep(dataStep) : defaultStepTimingMultiplierIndex);
 
     return {
-      cellWidth: shellWidthPx(dataStep),
+      cellWidth: stepDisplayWidthPx(multiplierIndex),
       step: isShadowItem(item) ? -1 : dataStep,
       gapBefore: index > 0,
     };

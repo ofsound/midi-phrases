@@ -1,6 +1,22 @@
+import { snapMidiToScale } from "./scaleUtils.js";
+
 /**
  * @typedef {{ step: number, startQuarters: number, lengthQuarters: number }} RowRollStepSlot
  */
+
+/**
+ * Convert vertical pitch-drag movement to an immediately scale-constrained note.
+ *
+ * @param {number} baseMidi
+ * @param {number} deltaRows
+ * @param {number} scaleRoot
+ * @param {number} scaleModeIndex
+ */
+export function midiFromPitchDragDelta(baseMidi, deltaRows, scaleRoot, scaleModeIndex) {
+  const rawMidi = Math.min(127, Math.max(0, Math.round(baseMidi + deltaRows)));
+
+  return snapMidiToScale(rawMidi, scaleRoot, scaleModeIndex);
+}
 
 /**
  * @param {number} yPx

@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { SvelteMap, SvelteSet } from "svelte/reactivity";
   import { getNativeFunction } from "@juce/index.js";
   import {
@@ -45,6 +45,7 @@
     timingMultiplierOptions,
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
+  import { moveStepBetweenRows } from "./crossRowStepMove.js";
   import {
     clampNoteBandpass,
     defaultNoteBandpassHighMidi,
@@ -2025,6 +2026,80 @@
 
   }
 
+  /**
+   * @param {number} targetRow
+   * @param {string} stepId
+   * @param {string[]} orderedTargetIds
+   */
+  async function moveStepToRow(targetRow, stepId, orderedTargetIds) {
+    const sourceRow = stepIds.findIndex((ids) => ids.includes(stepId));
+
+    if (sourceRow < 0 || sourceRow === targetRow) return;
+    if (stepIds[targetRow]?.length >= maxPhraseStepsPerRow) return;
+
+    const before = createHistorySnapshot();
+    const selectedKeysBefore = new SvelteSet(selectedStepKeysForGrid);
+    const sourceSelectionKey = stepSelectionKey(sourceRow, stepId);
+    const wasSelected = selectedKeysBefore.delete(sourceSelectionKey);
+    const result = moveStepBetweenRows(
+      {
+        grid,
+        stepDurationFraction,
+        stepTimingMultiplier,
+        stepVelocity,
+        stepMuted,
+        stepSkipped,
+        stepProbability,
+        stepCycle,
+        stepCycleOffset,
+        activeGates,
+      },
+      stepIds,
+      sourceRow,
+      targetRow,
+      stepId,
+      orderedTargetIds,
+    );
+
+    if (!result) return;
+
+    ({
+      grid,
+      stepDurationFraction,
+      stepTimingMultiplier,
+      stepVelocity,
+      stepMuted,
+      stepSkipped,
+      stepProbability,
+      stepCycle,
+      stepCycleOffset,
+      activeGates,
+    } = result.matrices);
+    stepIds = result.stepIds;
+
+    if (inspectedStep?.stepId === stepId) {
+      inspectedStep = { row: targetRow, stepId };
+    }
+
+    if (rowPianoRollStep?.stepId === stepId) {
+      rowPianoRollStep = { row: targetRow, stepId };
+    }
+
+    const after = createHistorySnapshot();
+    pushHistoryEntry("Move step to row", before, after);
+
+    await tick();
+
+    if (wasSelected) {
+      selectedKeysBefore.add(stepSelectionKey(targetRow, stepId));
+      setSelectedStepKeys(selectedKeysBefore);
+      syncBulkControlsFromSelection();
+    }
+
+    await pushCurrentPhraseRow(sourceRow);
+    await pushCurrentPhraseRow(targetRow);
+  }
+
   /** JUCE wraps each withInitialisationData value as [payload]. */
   function unwrapJuceInit(key) {
     const raw = window.__JUCE__?.initialisationData?.[key];
@@ -2558,6 +2633,11 @@
     await setPhraseStepCycleOffset(row, step, stepCycleOffset[row][step]);
   }
 
+  async function pushStepCyclePattern(row, step) {
+    await pushStepCycle(row, step);
+    await pushStepCycleOffset(row, step);
+  }
+
 
   async function toggleRowMute(row, soloRequested = false) {
     await commitHistory(soloRequested ? "Solo row" : "Toggle row mute", async () => {
@@ -3037,31 +3117,69 @@
     });
   }
 
-  async function setStepProbability(row, step, probability) {
-    await commitHistory("Change probability", async () => {
-      stepProbability[row][step] = Math.min(100, Math.max(0, probability));
-      await pushStepProbability(row, step);
+  function inspectorEditLocations(row, step) {
+    const locations = selectedStepLocations();
+    const stepId = stepIds[row]?.[step];
+
+    if (!stepId) return [];
+
+    const key = stepSelectionKey(row, stepId);
+
+    if (!locations.some((location) => location.key === key)) {
+      locations.push({ row, step, key });
+    }
+
+    return locations;
+  }
+
+  function previewInspectorStepProbability(row, step, probability) {
+    const locations = inspectorEditLocations(row, step);
+
+    if (locations.length === 0) return;
+    if (!bulkEditGestureBefore) beginBulkEditGesture();
+
+    const nextProbability = Math.min(100, Math.max(0, probability));
+
+    for (const { row: editRow, step: editStep } of locations) {
+      stepProbability[editRow][editStep] = nextProbability;
+    }
+
+    queueBulkPreviewSync(locations, pushStepProbability);
+  }
+
+  async function commitInspectorStepProbability(row, step, probability) {
+    const locations = inspectorEditLocations(row, step);
+
+    previewInspectorStepProbability(row, step, probability);
+    await commitBulkEditGesture("Change probability", async () => {
+      await pushRowsForSelectedLocations(locations);
     });
   }
 
-  async function setStepCyclePattern(row, step, cycle, cycleMask) {
+  function previewInspectorStepCyclePattern(row, step, cycle, cycleMask) {
+    const locations = inspectorEditLocations(row, step);
+
+    if (locations.length === 0) return;
+    if (!bulkEditGestureBefore) beginBulkEditGesture();
+
     const normalized = normalizeCyclePattern(cycle, cycleMask);
     const editorNormalized = normalizeEditorCyclePattern(normalized.cycle, normalized.mask);
 
-    await commitHistory("Change cycle", async () => {
-      stepCycle[row][step] = editorNormalized.cycle;
-      stepCycleOffset[row][step] = editorNormalized.mask;
-      await pushStepCycle(row, step);
-      await pushStepCycleOffset(row, step);
+    for (const { row: editRow, step: editStep } of locations) {
+      stepCycle[editRow][editStep] = editorNormalized.cycle;
+      stepCycleOffset[editRow][editStep] = editorNormalized.mask;
+    }
+
+    queueBulkPreviewSync(locations, pushStepCyclePattern);
+  }
+
+  async function commitInspectorStepCyclePattern(row, step, cycle, cycleMask) {
+    const locations = inspectorEditLocations(row, step);
+
+    previewInspectorStepCyclePattern(row, step, cycle, cycleMask);
+    await commitBulkEditGesture("Change cycle", async () => {
+      await pushRowsForSelectedLocations(locations);
     });
-  }
-
-  async function setStepCycle(row, step, cycle) {
-    await setStepCyclePattern(row, step, cycle, stepCycleOffset[row][step] ?? defaultStepCycleMask);
-  }
-
-  async function setStepCycleMask(row, step, cycleMask) {
-    await setStepCyclePattern(row, step, stepCycle[row][step] ?? 1, cycleMask);
   }
 
   async function removeStep(row, step) {
@@ -4449,6 +4567,7 @@
               {timingMultiplierOptions}
               onReorder={reorderRowByIds}
               onMoveCommitted={commitRowMove}
+              onCrossRowMove={moveStepToRow}
               onRemoveStep={removeStep}
               onInsertStep={insertStep}
               onDuplicateStep={duplicateStep}
@@ -4559,10 +4678,26 @@
             activeStepInspector.step,
             index,
           )}
-        onProbabilityChange={(value) =>
-          setStepProbability(activeStepInspector.row, activeStepInspector.step, value)}
+        onProbabilityGestureStart={beginBulkEditGesture}
+        onProbabilityPreview={(value) =>
+          previewInspectorStepProbability(activeStepInspector.row, activeStepInspector.step, value)}
+        onProbabilityCommit={(value) =>
+          commitInspectorStepProbability(activeStepInspector.row, activeStepInspector.step, value)}
+        onCycleGestureStart={beginBulkEditGesture}
+        onCyclePatternPreview={(nextCycle, nextMask) =>
+          previewInspectorStepCyclePattern(
+            activeStepInspector.row,
+            activeStepInspector.step,
+            nextCycle,
+            nextMask,
+          )}
         onCyclePatternCommit={(nextCycle, nextMask) =>
-          setStepCyclePattern(activeStepInspector.row, activeStepInspector.step, nextCycle, nextMask)}
+          commitInspectorStepCyclePattern(
+            activeStepInspector.row,
+            activeStepInspector.step,
+            nextCycle,
+            nextMask,
+          )}
         onClose={closeStepInspector}
       />
     {:else if activeRowPianoRollEditor !== null}

@@ -13,6 +13,8 @@
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {(value: number) => string} [formatDisplay]
    * @property {(value: number) => void | Promise<void>} [onValueChange]
+   * @property {() => void} [onGestureStart]
+   * @property {(value: number) => void | Promise<void>} [onValueCommit]
    */
 
   /** @type {Props} */
@@ -25,7 +27,9 @@
     ariaLabel = "Slider",
     accent = emeraldRowAccent,
     formatDisplay = undefined,
-    onValueChange = () => {}
+    onValueChange = () => {},
+    onGestureStart = () => {},
+    onValueCommit = undefined,
   } = $props();
 
   /** @type {HTMLDivElement | null} */
@@ -71,6 +75,7 @@
     absorbPointerDragFocus(event);
     trackEl?.setPointerCapture(event.pointerId);
     dragging = true;
+    onGestureStart();
     updateFromClientX(event.clientX);
   }
 
@@ -83,9 +88,13 @@
 
   /** @param {PointerEvent} event */
   function onPointerUp(event) {
+    if (!dragging) return;
+
+    const next = valueFromClientX(event.clientX);
     dragging = false;
     trackEl?.releasePointerCapture(event.pointerId);
     releasePointerDragFocus(event);
+    onValueCommit?.(next);
   }
 </script>
 
@@ -118,11 +127,21 @@
       if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
         event.preventDefault();
 
-        if (value > min) onValueChange(value - 1);
+        if (value > min) {
+          const next = value - 1;
+          onGestureStart();
+          onValueChange(next);
+          onValueCommit?.(next);
+        }
       } else if (event.key === "ArrowRight" || event.key === "ArrowUp") {
         event.preventDefault();
 
-        if (value < max) onValueChange(value + 1);
+        if (value < max) {
+          const next = value + 1;
+          onGestureStart();
+          onValueChange(next);
+          onValueCommit?.(next);
+        }
       }
     }}
   >
