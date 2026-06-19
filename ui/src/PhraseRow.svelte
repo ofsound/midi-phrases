@@ -16,7 +16,7 @@
     compactBoundaryResizeInitialIndex,
     compactBoundaryResizeStepIndex,
     compactPreviewStepOrder,
-    compactStepMoveDominates,
+    compactStepMoveThresholdPx,
     compactTimingMultipliersDuringMove,
     previewCompactStepBoundaryResize,
     previewCompactStepMove,
@@ -160,7 +160,7 @@
    * @property {(row: number, step: number, skipped: boolean) => void | Promise<void>} [onStepSkipChange]
    * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onInspectStep]
    * @property {(row: number, step: number, stepId: string) => void} [onPrepareStepSelection]
-   * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
+   * @property {(event: PointerEvent, origin?: { clientX?: number, clientY?: number }) => void} [onBulkSelectPointerDown]
    * @property {(event: PointerEvent) => void} [onBulkSelectBackgroundDoubleClick]
    * @property {() => void} [onDismissPhraseBackground]
    */
@@ -620,7 +620,7 @@
 
     if (
       target.closest(
-        "[data-remove-button], [data-insert-slot], [data-multiplier-resize], [data-compact-step-resize], [data-no-inspect], [data-step-inspector-toggle], [aria-label='Drag to reorder step']",
+        "[data-remove-button], [data-insert-slot], [data-multiplier-resize], [data-compact-step-resize], [data-no-inspect], [data-step-inspector-toggle], [aria-label='Drag to reorder step'], [data-step-note], [data-step-velocity]",
       )
     ) {
       return;
@@ -632,6 +632,7 @@
       startX: event.clientX,
       startY: event.clientY,
       moved: false,
+      marqueeStarted: false,
       step,
     };
 
@@ -663,13 +664,21 @@
     const deltaX = event.clientX - compactStepPointerGesture.startX;
     const deltaY = event.clientY - compactStepPointerGesture.startY;
 
-    if (!compactStepPointerGesture.moved && compactStepMoveDominates(deltaX, deltaY)) {
-      beginCompactStepMove(event, compactStepPointerGesture.step);
-      moveCompactStepMove(event);
+    if (
+      !compactStepPointerGesture.marqueeStarted
+      && Math.hypot(deltaX, deltaY) >= compactStepMoveThresholdPx
+    ) {
+      compactStepPointerGesture.marqueeStarted = true;
+      compactStepPointerGesture.moved = true;
+      onBulkSelectPointerDown(event, {
+        clientX: compactStepPointerGesture.startX,
+        clientY: compactStepPointerGesture.startY,
+      });
+      compactStepPointerGesture = null;
       return;
     }
 
-    if (Math.hypot(deltaX, deltaY) >= 4) {
+    if (Math.hypot(deltaX, deltaY) >= compactStepMoveThresholdPx) {
       compactStepPointerGesture.moved = true;
     }
   }
@@ -1738,7 +1747,7 @@
     style:grid-column={step === 0
       ? `${fitGridStartColumn + 1} / span ${gridColumns}`
       : `span ${gridColumns}`}
-    title="Drag horizontally to move · click for advanced settings"
+    title="Click for advanced settings · drag to marquee-select steps"
     onclick={(event) => openCompactStepInspector(event, step)}
     onpointerdowncapture={(event) => handleCompactStepPointerDown(event, step)}
     onpointermovecapture={handleCompactStepPointerMove}

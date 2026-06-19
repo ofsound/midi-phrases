@@ -1649,8 +1649,8 @@
   const compactStepMarqueeBlockSelector =
     "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-no-marquee], [data-no-long-press], [data-insert-slot], [data-remove-button], [data-multiplier-resize]";
 
-  /** @param {PointerEvent} event */
-  function beginStepMarqueeSelection(event) {
+  /** @param {PointerEvent} event @param {{ clientX?: number, clientY?: number }} [origin] */
+  function beginStepMarqueeSelection(event, origin) {
     if (event.button !== 0 || marqueeSelection) return;
 
     const target = event.target;
@@ -1680,9 +1680,12 @@
     event.preventDefault();
     event.stopPropagation();
 
+    const startX = origin?.clientX ?? event.clientX;
+    const startY = origin?.clientY ?? event.clientY;
+
     marqueeSelection = {
-      startX: event.clientX,
-      startY: event.clientY,
+      startX,
+      startY,
       currentX: event.clientX,
       currentY: event.clientY,
       addToSelection: event.shiftKey,
