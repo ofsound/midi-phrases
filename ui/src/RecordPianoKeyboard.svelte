@@ -2,7 +2,7 @@
   import { SvelteSet } from "svelte/reactivity";
   import { midiToNoteName } from "./midiNoteNames.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
-  import { pianoBlackKeyClass, pianoBlackKeyDisabledClass, pianoBlackKeySeamMaskClass, pianoWhiteKeyClass, pianoWhiteKeyDisabledClass } from "./pianoKeyboardTheme.js";
+  import { pianoBlackKeyClass, pianoBlackKeySeamMaskClass, pianoWhiteKeyClass } from "./pianoKeyboardTheme.js";
   import {
     buildRecordPianoKeys,
     clampRecordPianoOctaveOffset,
@@ -135,12 +135,11 @@
             data-cursor={usable ? "pointer" : "default"}
             class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end transition-[filter,background-color] duration-75 last:border-r-0 {usable
               ? 'hover:brightness-[0.98] active:brightness-95'
-              : pianoWhiteKeyDisabledClass} {isKeyHeld(midi)
+              : 'pointer-events-none'} {isKeyHeld(midi)
               ? accent.pianoNoteActive
               : pianoWhiteKeyClass}"
             aria-label={midiToNoteName(midi)}
             aria-disabled={!usable}
-            disabled={!usable}
             onpointerdown={usable ? (event) => onWhitePointerDown(event, midi) : undefined}
             onpointerup={usable ? (event) => onWhitePointerUp(event, midi) : undefined}
             onpointercancel={usable ? (event) => onWhitePointerUp(event, midi) : undefined}
@@ -178,15 +177,14 @@
             type="button"
             data-cursor={usable ? "pointer" : "default"}
             class="{usable
-              ? 'pointer-events-auto'
-              : pianoBlackKeyDisabledClass} absolute top-0 z-10 flex h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1 {isKeyHeld(midi)
+              ? 'pointer-events-auto hover:brightness-110 active:brightness-125'
+              : 'pointer-events-none'} absolute top-0 z-10 flex h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1 {isKeyHeld(midi)
               ? accent.pianoNoteActive
               : pianoBlackKeyClass}"
             style:left="{centerPercent}%"
             style:width="{widthPercent}%"
             aria-label={midiToNoteName(midi)}
             aria-disabled={!usable}
-            disabled={!usable}
             onpointerdown={usable
               ? (event) => {
                   event.preventDefault();

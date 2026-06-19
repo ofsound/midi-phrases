@@ -1,7 +1,7 @@
 <script>
   import { midiToNoteName } from "./midiNoteNames.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
-  import { pianoBlackKeyClass, pianoBlackKeyDisabledClass, pianoBlackKeySeamMaskClass, pianoWhiteKeyClass, pianoWhiteKeyDisabledClass } from "./pianoKeyboardTheme.js";
+  import { pianoBlackKeyClass, pianoBlackKeySeamMaskClass, pianoWhiteKeyClass } from "./pianoKeyboardTheme.js";
   import {
     buildRecordPianoKeys,
     clampStepInspectorOctaveOffset,
@@ -35,7 +35,7 @@
     "relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end last:border-r-0";
 
   const blackKeyClass =
-    "pointer-events-auto absolute top-0 z-10 flex h-[58%] max-w-[2rem] min-w-[0.5rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md";
+    "absolute top-0 z-10 flex h-[58%] max-w-[2rem] min-w-[0.5rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md";
 
   let octaveOffset = $state(0);
   let appliedStepKey = "";
@@ -134,15 +134,12 @@
           <button
             type="button"
             data-cursor={interactive ? "pointer" : "default"}
-            class="{whiteKeyClass} {selected
-              ? accent.pianoNoteActive
-              : interactive
-                ? pianoWhiteKeyClass
-                : pianoWhiteKeyDisabledClass}"
+            class="{whiteKeyClass} {selected ? accent.pianoNoteActive : pianoWhiteKeyClass} {interactive
+              ? ''
+              : 'pointer-events-none'}"
             aria-label={midiToNoteName(midi)}
             aria-pressed={selected}
             aria-disabled={!interactive}
-            disabled={!interactive}
             onpointerdown={interactive ? (event) => onKeyPointerDown(event, midi) : undefined}
             onpointerup={interactive ? onKeyPointerUp : undefined}
             onpointercancel={interactive ? onKeyPointerUp : undefined}
@@ -169,17 +166,14 @@
           <button
             type="button"
             data-cursor={interactive ? "pointer" : "default"}
-            class="{blackKeyClass} {selected
-              ? accent.pianoNoteActive
-              : interactive
-                ? pianoBlackKeyClass
-                : pianoBlackKeyDisabledClass}"
+            class="{blackKeyClass} {selected ? accent.pianoNoteActive : pianoBlackKeyClass} {interactive
+              ? 'pointer-events-auto'
+              : 'pointer-events-none'}"
             style:left="{centerPercent}%"
             style:width="{widthPercent}%"
             aria-label={midiToNoteName(midi)}
             aria-pressed={selected}
             aria-disabled={!interactive}
-            disabled={!interactive}
             onpointerdown={interactive ? (event) => onKeyPointerDown(event, midi) : undefined}
             onpointerup={interactive ? onKeyPointerUp : undefined}
             onpointercancel={interactive ? onKeyPointerUp : undefined}
