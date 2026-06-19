@@ -4090,8 +4090,8 @@
       </div>
     {/if}
     <div class="mp-honeycomb-rail relative z-20">
-  <header class="flex items-end gap-3 px-6 pb-3 pt-6">
-    <div class="relative z-30 flex shrink-0 -translate-y-3 items-end gap-5">
+  <header class="flex items-end gap-3 px-6 pb-2 pt-3">
+    <div class="relative z-30 flex shrink-0 -translate-y-1.5 items-end gap-5">
       <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">
           <p class="text-sm font-bold uppercase leading-none tracking-widest text-accent">
@@ -4124,7 +4124,7 @@
       </button>
     </div>
 
-    <div class="relative flex min-w-0 flex-1 -translate-y-3 flex-nowrap items-end justify-start gap-x-3">
+    <div class="relative flex min-w-0 flex-1 -translate-y-1.5 flex-nowrap items-end justify-start gap-x-3">
         <div class="flex flex-col items-start gap-1">
           <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
           <PulseNoteButtonGroup
@@ -4671,8 +4671,7 @@
     {/if}
     </div>
     <div class="-mx-6 w-[calc(100%+3rem)] shrink-0">
-      <div class="h-[calc(2.5rem*0.33)] shrink-0 bg-app" role="presentation" aria-hidden="true"></div>
-      <div class="mp-honeycomb-rail relative z-20 flex h-20 items-center justify-center overflow-x-auto px-6">
+      <div class="mp-honeycomb-rail relative z-20 flex h-16 items-center justify-center overflow-x-auto px-6 py-1">
       <div class="flex min-w-max items-center gap-8">
         <div class="flex items-center gap-2">
           <span class="text-sm font-semibold leading-none text-text-muted">Patterns:</span>

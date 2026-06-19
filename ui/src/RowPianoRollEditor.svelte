@@ -8,8 +8,6 @@
   import { doubleClick } from "./doubleClickAction.js";
   import {
     emeraldRowAccent,
-    toggleIconActiveClasses,
-    toggleIconRestClasses,
   } from "./rowAccentTheme.js";
   import {
     beatLineQuarters,
@@ -64,7 +62,6 @@
    * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onOpenAdvancedInspector]
    * @property {(row: number, updates: { step: number, midi: number }[]) => void | Promise<void>} [onShapeNotesCommit]
    * @property {(row: number, updates: { step: number, velocity: number }[]) => void | Promise<void>} [onShapeVelocitiesCommit]
-   * @property {() => void} [onClose]
    * @property {(row: number, step: number, multiplierIndex?: number) => void | Promise<void>} [onInsertStep]
    * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
    * @property {number} [bulkDurationPercent]
@@ -117,7 +114,6 @@
     onInsertStep = () => {},
     onShapeNotesCommit = () => {},
     onShapeVelocitiesCommit = () => {},
-    onClose = () => {},
     onBulkSelectPointerDown = () => {},
     bulkDurationPercent = 0,
     bulkVelocityPercent = 0,
@@ -366,9 +362,9 @@
   function shapeDrawButtonClasses(mode) {
     const active = shapeDrawMode === mode;
 
-    return `flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors outline-none ${
+    return `flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-medium transition-colors outline-none ${
       active
-        ? `${rowAccent.borderActive} ${rowAccent.bgAccent}/15 ${rowAccent.textAccent}`
+        ? `${rowAccent.borderActive} ${rowAccent.bgAccentStrong} text-control-primary-text`
         : "border-border bg-surface text-text-muted hover:border-border-strong hover:text-text"
     } ${rowAccent.ringFocusWithWidth || "focus-visible:ring-1 focus-visible:ring-focus-ring"}`;
   }
@@ -905,13 +901,6 @@
 
 <section class="flex min-h-0 w-full flex-1 gap-3">
   <aside class="flex w-[13.5rem] shrink-0 flex-col gap-3 py-1">
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-xs font-semibold uppercase tracking-widest {rowAccent.textAccent}">
-        Row {row + 1}
-      </span>
-      <span class="text-xs text-text-faint">monophonic piano roll</span>
-    </div>
-
     <BulkStepEditControls
       layout="sidebar"
       accent={rowAccent}
@@ -940,20 +929,18 @@
       onTransposeCommit={onBulkTransposeCommit}
     />
 
-    <div class="flex flex-col gap-2">
+    <div class="flex gap-2">
       <button
         type="button"
         data-cursor="pointer"
-        aria-label="Draw note shape across steps"
+        aria-label="Draw phrase shape across steps"
         aria-pressed={noteShapeDrawActive}
         title="Draw a freeform line to set step pitches"
-        class={`${shapeDrawButtonClasses("note")} w-full justify-center`}
+        class={shapeDrawButtonClasses("note")}
         onclick={() => toggleShapeDrawMode("note")}
       >
-        <RowShapeDrawIcon
-          class="pointer-events-none h-4 w-4 {noteShapeDrawActive ? toggleIconActiveClasses : toggleIconRestClasses}"
-        />
-        Shape
+        <RowShapeDrawIcon class="pointer-events-none h-4 w-4 shrink-0" />
+        Phrase
       </button>
       <button
         type="button"
@@ -961,28 +948,17 @@
         aria-label="Draw velocity shape across steps"
         aria-pressed={velocityShapeDrawActive}
         title="Draw a freeform line to set step velocities"
-        class={`${shapeDrawButtonClasses("velocity")} w-full justify-center`}
+        class={shapeDrawButtonClasses("velocity")}
         onclick={() => toggleShapeDrawMode("velocity")}
       >
-        <RowShapeDrawIcon
-          class="pointer-events-none h-4 w-4 {velocityShapeDrawActive ? toggleIconActiveClasses : toggleIconRestClasses}"
-        />
-        Velocity Shape
-      </button>
-      <button
-        type="button"
-        data-cursor="pointer"
-        aria-label="Close row piano roll"
-        class="flex h-8 w-full shrink-0 items-center justify-center rounded-md border border-border bg-surface text-lg leading-none text-text-muted transition-colors outline-none hover:border-border-strong hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
-        onclick={onClose}
-      >
-        X
+        <RowShapeDrawIcon class="pointer-events-none h-4 w-4 shrink-0" />
+        Velocity
       </button>
     </div>
   </aside>
 
   <div
-    class="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-subtle bg-app/80"
+    class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-app/80"
     role="group"
     aria-label="Monophonic piano roll"
     onpointerdown={onBulkSelectPointerDown}
