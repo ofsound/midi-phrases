@@ -72,12 +72,12 @@
 </script>
 
 <section class="flex min-h-0 w-full flex-1 bg-app/90">
-  <aside class="relative flex w-[13.5rem] shrink-0 flex-col border-r border-border-subtle px-6 py-2">
+  <aside class="relative flex w-[13.5rem] shrink-0 flex-col border-r border-border-subtle py-2 pr-6 pl-0">
     <button
       type="button"
       data-cursor="pointer"
       aria-label="Close step inspector"
-      class="absolute top-2 left-2 z-10 flex h-6 w-6 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-text-muted transition-colors outline-none hover:bg-surface-raised/80 hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
+      class="absolute top-2 left-0 z-10 flex h-6 w-6 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-text-muted transition-colors outline-none hover:bg-surface-raised/80 hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
       onclick={onClose}
       title="Close step inspector"
     >

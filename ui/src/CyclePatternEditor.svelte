@@ -143,7 +143,7 @@
 
   let shellClass = $derived(
     borderless
-      ? "relative min-w-0"
+      ? "relative min-w-0 rounded-md bg-surface/60 p-1"
       : compact
         ? "relative min-w-0 rounded-md border border-border bg-surface/60 p-0.5"
         : "relative min-w-0 rounded-md border border-border bg-surface/60 p-1",
