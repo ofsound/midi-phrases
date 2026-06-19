@@ -72,7 +72,7 @@
 </script>
 
 <section class="flex min-h-0 w-full flex-1 bg-app/90">
-  <aside class="relative flex w-[13.5rem] shrink-0 flex-col border-r border-border-subtle py-2 pr-6 pl-0">
+  <aside class="relative flex w-[13.5rem] shrink-0 flex-col py-2 pr-6 pl-0">
     <button
       type="button"
       data-cursor="pointer"
@@ -123,7 +123,7 @@
     </div>
   </aside>
 
-  <div class="grid min-h-0 min-w-0 flex-1 grid-rows-[33%_55%] content-between overflow-hidden">
+  <div class="grid min-h-0 min-w-0 flex-1 grid-rows-[33%_minmax(0,1fr)] content-start gap-y-3 overflow-hidden pb-5">
     <div class="flex min-h-0 min-w-0 items-center justify-center bg-surface/15">
       <div class="grid w-[60%] min-w-0 grid-cols-2 gap-x-8">
         <div class="flex min-h-0 min-w-0 flex-col justify-center gap-1">
@@ -161,7 +161,7 @@
       </div>
     </div>
 
-    <div class="flex min-h-0 min-w-0 overflow-hidden border-t border-border-subtle">
+    <div class="flex min-h-0 min-w-0 overflow-hidden">
       <StepInspectorKeyboard
         {note}
         {stepKey}
