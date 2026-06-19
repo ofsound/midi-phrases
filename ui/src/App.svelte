@@ -4575,6 +4575,7 @@
               onNoteCommit={commitPhraseNoteValue}
               onStepBulkGestureStart={beginPhraseStepBulkGesture}
               onMultiplierChange={selectStepTimingMultiplier}
+              onStepMove={movePhraseStepFromPianoRoll}
               onDurationPreview={previewPhraseStepDuration}
               onDurationCommit={commitPhraseStepDuration}
               onVelocityPreview={previewPhraseStepVelocity}

@@ -12,6 +12,15 @@
   import StepSkipToggle from "./StepSkipToggle.svelte";
   import StepMutedOverlay from "./StepMutedOverlay.svelte";
   import { compactStepDurationFillPercent, compactStepVelocityOpacity } from "./compactStepVisuals.js";
+  import {
+    compactBoundaryResizeInitialIndex,
+    compactBoundaryResizeStepIndex,
+    compactPreviewStepOrder,
+    compactStepMoveDominates,
+    compactTimingMultipliersDuringMove,
+    previewCompactStepBoundaryResize,
+    previewCompactStepMove,
+  } from "./compactStepInteraction.js";
   import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { preventTabFocus } from "./preventTabFocus.js";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
@@ -54,7 +63,11 @@
     stepDisplayWidthPx,
     stepFooterActionSlotWidthPx,
     stepInsertZoneWidthPx,
+    stepTimingMultiplierQuarterStep,
+    stepCellQuarterGridWidthPx,
   } from "./stepCellLayout.js";
+  import { pulseQuartersForIndex } from "./pulseLayout.js";
+  import { buildRowRollTimeline } from "./rowPianoRollTimeline.js";
 
   
   
@@ -128,6 +141,7 @@
    * @property {(row: number, step: number, midi: number) => void | Promise<void>} [onNoteCommit]
    * @property {(row: number, step: number) => void} [onStepBulkGestureStart]
    * @property {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} [onMultiplierChange]
+   * @property {(row: number, fromStep: number, toStep: number) => void | Promise<void>} [onStepMove]
    * @property {(row: number, step: number, fraction: number) => void} [onDurationPreview]
    * @property {(row: number, step: number, fraction: number) => void | Promise<void>} [onDurationCommit]
    * @property {(row: number, step: number, value: number) => void} [onVelocityPreview]
@@ -181,6 +195,7 @@
     onNoteCommit = () => {},
     onStepBulkGestureStart = () => {},
     onMultiplierChange = () => {},
+    onStepMove = () => {},
     onDurationPreview = () => {},
     onDurationCommit = () => {},
     onVelocityPreview = () => {},
@@ -221,8 +236,30 @@
   let lastBulkBackgroundPointerDownTime = 0;
   let lastBulkBackgroundPointerDownX = 0;
   let lastBulkBackgroundPointerDownY = 0;
-  /** @type {{ pointerId: number, startX: number, startY: number, moved: boolean } | null} */
+  /** @type {{ pointerId: number, startX: number, startY: number, moved: boolean, step: number } | null} */
   let compactStepPointerGesture = null;
+  /** @type {HTMLDivElement | null} */
+  let compactGridElement = $state(null);
+  let compactGridWidthPx = $state(0);
+  /** @type {{
+   *   mode: "move" | "boundaryResize",
+   *   pointerId: number,
+   *   step: number,
+   *   edge?: "start" | "end",
+   *   startX: number,
+   *   startY?: number,
+   *   originalSlots?: import("./rowPianoRollShape.js").RowRollStepSlot[],
+   *   dragPxPerQuarter?: number,
+   *   previewPreviousStep?: number,
+   *   originalPreviousMultiplierIndex?: number,
+   *   previewPreviousMultiplierIndex?: number,
+   *   targetStep?: number,
+   *   initialMultiplierIndex?: number,
+   *   previewMultiplierIndex?: number,
+   *   resizePxPerQuarter?: number,
+   *   didDrag?: boolean,
+   * } | null} */
+  let compactStepDrag = $state(null);
   let suppressCompactStepClick = false;
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
   let resizeListenerEntries = [];
@@ -484,7 +521,7 @@
 
     if (
       target.closest(
-        "[data-remove-button], [data-insert-slot], [data-multiplier-resize], [data-no-inspect], [data-step-inspector-toggle], [aria-label='Drag to reorder step']",
+        "[data-remove-button], [data-insert-slot], [data-multiplier-resize], [data-compact-step-resize], [data-no-inspect], [data-step-inspector-toggle], [aria-label='Drag to reorder step']",
       )
     ) {
       return;
@@ -496,6 +533,7 @@
       startX: event.clientX,
       startY: event.clientY,
       moved: false,
+      step,
     };
 
     if (event.shiftKey) {
@@ -511,10 +549,26 @@
 
   /** @param {PointerEvent} event */
   function handleCompactStepPointerMove(event) {
+    if (compactStepDrag?.mode === "boundaryResize") {
+      moveCompactBoundaryResize(event);
+      return;
+    }
+
+    if (compactStepDrag?.mode === "move") {
+      moveCompactStepMove(event);
+      return;
+    }
+
     if (!compactStepPointerGesture || compactStepPointerGesture.pointerId !== event.pointerId) return;
 
     const deltaX = event.clientX - compactStepPointerGesture.startX;
     const deltaY = event.clientY - compactStepPointerGesture.startY;
+
+    if (!compactStepPointerGesture.moved && compactStepMoveDominates(deltaX, deltaY)) {
+      beginCompactStepMove(event, compactStepPointerGesture.step);
+      moveCompactStepMove(event);
+      return;
+    }
 
     if (Math.hypot(deltaX, deltaY) >= 4) {
       compactStepPointerGesture.moved = true;
@@ -523,6 +577,16 @@
 
   /** @param {PointerEvent} event */
   function handleCompactStepPointerEnd(event) {
+    if (compactStepDrag?.mode === "boundaryResize") {
+      void endCompactBoundaryResize(event);
+      return;
+    }
+
+    if (compactStepDrag?.mode === "move") {
+      void endCompactStepMove(event);
+      return;
+    }
+
     if (!compactStepPointerGesture || compactStepPointerGesture.pointerId !== event.pointerId) return;
 
     suppressCompactStepClick = compactStepPointerGesture.moved;
@@ -758,6 +822,7 @@
   onDestroy(() => {
     stopDragYLock();
     teardownActiveResize();
+    clearCompactStepDrag();
   });
 
   /** @param {PointerEvent} event @param {number} step */
@@ -846,6 +911,229 @@
     resizingStep = -1;
   }
 
+  function compactPxPerQuarter() {
+    const pulse = pulseQuartersForIndex(pulseIndex);
+    const quartersPerGridColumn = pulse * stepTimingMultiplierQuarterStep;
+
+    if (compactGridWidthPx > 0 && fitGridColumns > 0) {
+      const pxPerGridColumn = compactGridWidthPx / fitGridColumns;
+
+      return pxPerGridColumn / quartersPerGridColumn;
+    }
+
+    return stepCellQuarterGridWidthPx() / quartersPerGridColumn;
+  }
+
+  /** @param {number} clientX */
+  function compactRollXFromClientX(clientX) {
+    if (!compactGridElement) return 0;
+
+    const rect = compactGridElement.getBoundingClientRect();
+
+    return Math.max(0, clientX - rect.left);
+  }
+
+  /** @param {HTMLElement} node */
+  function compactGridAttachment(node) {
+    compactGridElement = node;
+    compactGridWidthPx = node.clientWidth;
+
+    const observer = new ResizeObserver(() => {
+      compactGridWidthPx = node.clientWidth;
+    });
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+
+      if (compactGridElement === node) {
+        compactGridElement = null;
+      }
+    };
+  }
+
+  function clearCompactStepDrag() {
+    compactStepDrag = null;
+    clearActiveCursor("grab");
+    clearActiveCursor("ew-resize");
+  }
+
+  /** @param {PointerEvent} event @param {number} step */
+  function beginCompactStepMove(event, step) {
+    if (!stretchToFit || stepInspectorInteractionDisabled || compactStepDrag) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const pxPerQuarter = compactPxPerQuarter();
+    const originalSlots = buildRowRollTimeline(
+      stepTimingMultiplier,
+      stepSkipped,
+      pulseIndex,
+      timingOffsetIndex,
+    ).slots.map((slot) => ({ ...slot }));
+    const previewPreviousStep = step - 1;
+    const originalPreviousMultiplierIndex =
+      previewPreviousStep >= 0
+        ? stepTimingMultiplier[previewPreviousStep] ?? defaultStepTimingMultiplierIndex
+        : defaultStepTimingMultiplierIndex;
+
+    compactStepDrag = {
+      mode: "move",
+      pointerId: event.pointerId,
+      step,
+      startX: event.clientX,
+      startY: event.clientY,
+      originalSlots,
+      dragPxPerQuarter: pxPerQuarter,
+      previewPreviousStep,
+      originalPreviousMultiplierIndex,
+      previewPreviousMultiplierIndex: originalPreviousMultiplierIndex,
+      targetStep: step,
+      didDrag: false,
+    };
+    compactStepPointerGesture = null;
+    setActiveCursor("grab");
+    onStepBulkGestureStart(row, step);
+    void onInspectStep(row, step, stepIds[step]);
+  }
+
+  /** @param {PointerEvent} event */
+  function moveCompactStepMove(event) {
+    if (!compactStepDrag || compactStepDrag.mode !== "move" || compactStepDrag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const preview = previewCompactStepMove(
+      compactStepDrag,
+      compactRollXFromClientX(event.clientX),
+      event.clientX,
+      compactStepDrag.originalSlots ?? [],
+      compactStepDrag.dragPxPerQuarter ?? compactPxPerQuarter(),
+      pulseIndex,
+    );
+
+    compactStepDrag = { ...compactStepDrag, ...preview };
+  }
+
+  /** @param {PointerEvent} event */
+  async function endCompactStepMove(event) {
+    if (!compactStepDrag || compactStepDrag.mode !== "move" || compactStepDrag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    clearActiveCursor("grab");
+
+    const finished = compactStepDrag;
+    compactStepDrag = null;
+
+    if (!finished.didDrag) return;
+
+    suppressCompactStepClick = true;
+
+    if (finished.targetStep !== finished.step) {
+      await onStepMove(row, finished.step, finished.targetStep ?? finished.step);
+    } else if (
+      (finished.previewPreviousStep ?? -1) >= 0
+      && finished.previewPreviousMultiplierIndex !== finished.originalPreviousMultiplierIndex
+    ) {
+      await onMultiplierChange(
+        row,
+        finished.previewPreviousStep ?? -1,
+        finished.previewPreviousMultiplierIndex ?? defaultStepTimingMultiplierIndex,
+      );
+    }
+  }
+
+  /** @param {PointerEvent} event @param {number} step @param {"start" | "end"} edge */
+  function beginCompactBoundaryResize(event, step, edge) {
+    if (!stretchToFit || stepInspectorInteractionDisabled || compactStepDrag) return;
+
+    const resizedStep = compactBoundaryResizeStepIndex(step, edge);
+
+    if (resizedStep < 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const initialMultiplierIndex = compactBoundaryResizeInitialIndex(
+      step,
+      edge,
+      stepTimingMultiplier,
+    );
+
+    compactStepDrag = {
+      mode: "boundaryResize",
+      pointerId: event.pointerId,
+      step: resizedStep,
+      edge,
+      startX: event.clientX,
+      initialMultiplierIndex,
+      previewMultiplierIndex: initialMultiplierIndex,
+      resizePxPerQuarter: compactPxPerQuarter(),
+    };
+    setActiveCursor("ew-resize");
+    void onInspectStep(row, step, stepIds[step]);
+  }
+
+  /** @param {PointerEvent} event */
+  function moveCompactBoundaryResize(event) {
+    if (
+      !compactStepDrag
+      || compactStepDrag.mode !== "boundaryResize"
+      || compactStepDrag.pointerId !== event.pointerId
+    ) {
+      return;
+    }
+
+    const next = previewCompactStepBoundaryResize(
+      compactStepDrag.initialMultiplierIndex ?? defaultStepTimingMultiplierIndex,
+      event.clientX - compactStepDrag.startX,
+      compactStepDrag.resizePxPerQuarter ?? compactPxPerQuarter(),
+      pulseIndex,
+    );
+
+    if (next === compactStepDrag.previewMultiplierIndex) return;
+
+    compactStepDrag = { ...compactStepDrag, previewMultiplierIndex: next };
+  }
+
+  /** @param {PointerEvent} event */
+  async function endCompactBoundaryResize(event) {
+    if (
+      !compactStepDrag
+      || compactStepDrag.mode !== "boundaryResize"
+      || compactStepDrag.pointerId !== event.pointerId
+    ) {
+      return;
+    }
+
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    clearActiveCursor("ew-resize");
+
+    const finished = compactStepDrag;
+    compactStepDrag = null;
+
+    if (finished.previewMultiplierIndex === finished.initialMultiplierIndex) return;
+
+    await onMultiplierChange(
+      row,
+      finished.step,
+      finished.previewMultiplierIndex ?? defaultStepTimingMultiplierIndex,
+    );
+  }
+
+  /** @param {PointerEvent} event */
+  function cancelCompactStepDrag(event) {
+    if (!compactStepDrag || compactStepDrag.pointerId !== event.pointerId) return;
+
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    clearCompactStepDrag();
+  }
+
   /** @param {{ id: string }} item @param {number} index */
   function layoutForItem(item, index) {
     return rowCellLayouts[index] ?? {
@@ -879,7 +1167,9 @@
   let reorderDisabled = $derived(stepIds.length === 0);
   let selectedStepIdSet = $derived(new Set(selectedStepIds));
   let insertMultiplierOptions = $derived(insertStepTimingMultiplierOptions(timingMultiplierOptions));
-  let stepInspectorInteractionDisabled = $derived(isDragging || removeBlocked || resizingStep >= 0);
+  let stepInspectorInteractionDisabled = $derived(
+    isDragging || removeBlocked || resizingStep >= 0 || compactStepDrag !== null,
+  );
   let orderedStepItems = $derived(stepIds.map((id, step) => ({
     id,
     multiplierIndex: multiplierIndexForDataStep(step),
@@ -904,8 +1194,33 @@
       item.multiplierIndex ?? multiplierIndexForDataStep(stepIndexFromId(item.id)),
     );
   });
+  let compactDragTimingMultipliers = $derived.by(() => {
+    if (!compactStepDrag) return null;
+
+    if (compactStepDrag.mode === "boundaryResize") {
+      const preview = stepTimingMultiplier.slice();
+      preview[compactStepDrag.step] =
+        compactStepDrag.previewMultiplierIndex ?? defaultStepTimingMultiplierIndex;
+
+      return preview;
+    }
+
+    return compactTimingMultipliersDuringMove(compactStepDrag, stepTimingMultiplier);
+  });
+  let compactPreviewOrder = $derived(compactPreviewStepOrder(stepIds.length, compactStepDrag));
+  let compactStepsToRender = $derived.by(() => {
+    const order = compactPreviewOrder ?? stepIds.map((_, index) => index);
+
+    return order.map((step) => ({
+      step,
+      stepId: stepIds[step],
+    }));
+  });
   let layoutTimingMultipliers = $derived(
-    resizePreviewMultipliers ?? dndPreviewMultiplierIndices ?? stepTimingMultiplier,
+    resizePreviewMultipliers
+      ?? compactDragTimingMultipliers
+      ?? dndPreviewMultiplierIndices
+      ?? stepTimingMultiplier,
   );
   let rowStepLayout = $derived(rowStepLayoutsPx(layoutTimingMultipliers));
   let rowGridSpanPx = $derived(rowGridWidthPx(layoutTimingMultipliers));
@@ -1294,9 +1609,9 @@
   {@const stepDimmed = muted || stepIsSkipped}
   {@const velocityOpacity = compactStepVelocityOpacity(stepVelocity[step], stepIsSkipped)}
   {@const durationFillPercent = compactStepDurationFillPercent(stepDurationFraction[step], stepIsMuted)}
-  {@const gridColumns = quarterGridColumnsForMultiplierIndex(stepTimingMultiplier[step])}
-  {@const shellPaddingPercent = compactStepShellPaddingPercent(stepTimingMultiplier[step])}
-  {@const trailingPaddingPercent = compactStepShellTrailingPaddingPercent(stepTimingMultiplier[step])}
+  {@const gridColumns = quarterGridColumnsForMultiplierIndex(multiplierIndexForDataStep(step))}
+  {@const shellPaddingPercent = compactStepShellPaddingPercent(multiplierIndexForDataStep(step))}
+  {@const trailingPaddingPercent = compactStepShellTrailingPaddingPercent(multiplierIndexForDataStep(step))}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -1310,7 +1625,7 @@
     style:grid-column={step === 0
       ? `${fitGridStartColumn + 1} / span ${gridColumns}`
       : `span ${gridColumns}`}
-    title="Click for advanced settings"
+    title="Drag horizontally to move · click for advanced settings"
     onclick={(event) => openCompactStepInspector(event, step)}
     onpointerdowncapture={(event) => handleCompactStepPointerDown(event, step)}
     onpointermovecapture={handleCompactStepPointerMove}
@@ -1362,6 +1677,48 @@
           aria-hidden="true"
         ></div>
       {/if}
+      {#if step > 0}
+        <button
+          type="button"
+          data-compact-step-resize
+          data-no-inspect
+          data-no-long-press
+          data-cursor="horizontal-drag"
+          aria-label={`Resize start of step ${step + 1}`}
+          title="Drag to move this boundary by resizing the preceding step"
+          disabled={stepInspectorInteractionDisabled}
+          class="group absolute top-0 -left-1.5 z-30 flex h-full w-3 touch-none items-center justify-center border-0 bg-transparent p-0 outline-none disabled:pointer-events-none disabled:opacity-50 {accent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'}"
+          onpointerdown={(event) => beginCompactBoundaryResize(event, step, "start")}
+          onpointermove={moveCompactBoundaryResize}
+          onpointerup={endCompactBoundaryResize}
+          onpointercancel={cancelCompactStepDrag}
+        >
+          <span
+            class="compact-step-resize-handle pointer-events-none {accent.bgAccentStrong}"
+            aria-hidden="true"
+          ></span>
+        </button>
+      {/if}
+      <button
+        type="button"
+        data-compact-step-resize
+        data-no-inspect
+        data-no-long-press
+        data-cursor="horizontal-drag"
+        aria-label={`Resize end of step ${step + 1}`}
+        title="Drag to resize this step"
+        disabled={stepInspectorInteractionDisabled}
+        class="group absolute top-0 -right-1.5 z-30 flex h-full w-3 touch-none items-center justify-center border-0 bg-transparent p-0 outline-none disabled:pointer-events-none disabled:opacity-50 {accent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'}"
+        onpointerdown={(event) => beginCompactBoundaryResize(event, step, "end")}
+        onpointermove={moveCompactBoundaryResize}
+        onpointerup={endCompactBoundaryResize}
+        onpointercancel={cancelCompactStepDrag}
+      >
+        <span
+          class="compact-step-resize-handle pointer-events-none {accent.bgAccentStrong}"
+          aria-hidden="true"
+        ></span>
+      </button>
       <div
         class="relative z-10 flex h-full min-w-0 items-center justify-center overflow-hidden px-1 transition-opacity duration-75 {stepIsSkipped
           ? 'opacity-45'
@@ -1390,6 +1747,23 @@
 <style>
   .compact-step-duration-fill {
     background: color-mix(in srgb, var(--color-app) 30%, transparent);
+  }
+
+  .compact-step-resize-handle {
+    height: 78%;
+    width: 0.2rem;
+    border-radius: 9999px;
+    border: 1px solid color-mix(in srgb, var(--color-text) 25%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-app) 65%, transparent);
+    transition:
+      width 75ms,
+      filter 75ms;
+  }
+
+  :global(.group:hover) .compact-step-resize-handle,
+  :global(.group[data-mp-hover]) .compact-step-resize-handle {
+    width: 0.28rem;
+    filter: brightness(1.1);
   }
 
   .compact-step-skipped-overlay {
@@ -1428,8 +1802,8 @@
       {@render largeAddStepButton("Add first step", 0)}
     </div>
   {:else if stretchToFit}
-    <div class="grid min-w-0 flex-1" style={compactGridStyle}>
-      {#each stepIds as stepId, step (stepId)}
+    <div class="grid min-w-0 flex-1" style={compactGridStyle} {@attach compactGridAttachment}>
+      {#each compactStepsToRender as { step, stepId } (stepId)}
         {@render compactStepCell(step, stepId)}
       {/each}
     </div>
