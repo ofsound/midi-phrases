@@ -41,6 +41,8 @@
     findSingleMove,
     insertStepTimingMultiplierOptions,
     compactPhraseGridLayout,
+    phraseRowsScrollContentWidthPx,
+    rowTimingOffsetShiftPx,
     stepTimingMultiplierCount,
     timingMultiplierOptions,
   } from "./stepCellLayout.js";
@@ -88,7 +90,11 @@
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
+    phraseGridOriginLeftOffsetPx,
     phraseGridVisualOffsetCompensationPx,
+    phraseRowHeaderGapPx,
+    phraseRowLeadingControlsWidthPx,
+    phraseRowScrollPaddingRightPx,
   } from "./phraseRowLayout.js";
   import {
     interfaceAccent,
@@ -149,9 +155,47 @@
   /** @type {number[][]} */
   let stepTimingMultiplier = $state(defaultStepTimingMultiplierGrid());
   let stretchStepsToFit = $state(false);
+  let phraseGridFieldWidth = $state(0);
   let compactGridLayout = $derived(
     compactPhraseGridLayout(stepTimingMultiplier, rowTimingOffset),
   );
+  let phraseRowMaxTimingPaddingPx = $derived.by(() => {
+    let maxPadding = 0;
+
+    for (const offsetIndex of rowTimingOffset) {
+      const padding = rowTimingOffsetShiftPx(offsetIndex) + phraseVisualOffsetCompensationPx;
+
+      if (padding > maxPadding) {
+        maxPadding = padding;
+      }
+    }
+
+    return maxPadding;
+  });
+  let phraseRowContentViewportWidth = $derived(
+    Math.max(
+      0,
+      phraseGridFieldWidth
+        - phraseRowLeadingControlsWidthPx()
+        - phraseRowHeaderGapPx()
+        - phraseRowMaxTimingPaddingPx
+        - phraseGridOriginLeftOffsetPx()
+        - phraseRowScrollPaddingRightPx(),
+    ),
+  );
+  let phraseStepsScrollContentWidthPx = $derived(
+    phraseRowsScrollContentWidthPx(stepTimingMultiplier, rowTimingOffset),
+  );
+  let phraseStepsContentFitScale = $derived.by(() => {
+    if (stretchStepsToFit) return 1;
+
+    const available = phraseRowContentViewportWidth;
+    const content = phraseStepsScrollContentWidthPx;
+
+    if (available <= 0 || content <= available) return 1;
+
+    return available / content;
+  });
   /** @type {number[][]} */
   let stepVelocity = $state(defaultStepVelocityGrid());
   /** @type {boolean[][]} */
@@ -299,6 +343,20 @@
 
     return () => {
       if (appRoot === node) appRoot = null;
+    };
+  }
+
+  /** @param {HTMLElement} node */
+  function phraseGridFieldAttachment(node) {
+    phraseGridFieldWidth = node.clientWidth;
+
+    const observer = new ResizeObserver(() => {
+      phraseGridFieldWidth = node.clientWidth;
+    });
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
     };
   }
   const rowGapDoubleClickIntervalMs = 400;
@@ -4436,7 +4494,7 @@
 
   <section class="flex min-h-0 flex-1 flex-col">
     <div class="w-full shrink-0">
-      <div data-phrase-grid-field class="relative flex flex-col">
+      <div data-phrase-grid-field class="relative flex flex-col" {@attach phraseGridFieldAttachment}>
         <div
           data-phrase-grid-marquee-zone="top"
           class="h-6 shrink-0"
@@ -4548,6 +4606,7 @@
               stepInspectionActive={activeStepInspector !== null || rowPianoRollCurrentStepFocusVisible}
               stepInspectorOpen={activeStepInspector !== null}
               stretchToFit={stretchStepsToFit}
+              contentFitScale={phraseStepsContentFitScale}
               fitGridColumns={compactGridLayout.totalColumns}
               fitGridStartColumn={compactGridLayout.rowStartColumns[row]}
               inspectedStepId={

@@ -5,6 +5,7 @@ import {
   compactPhraseGridLayout,
   longestRowQuarterGridColumns,
   phraseRowEndAddStepQuarterGridColumns,
+  phraseRowsScrollContentWidthPx,
   quarterGridColumnsForMultiplierIndex,
   stepCellPaddingPx,
   stepCellQuarterGridWidthPx,
@@ -56,6 +57,23 @@ describe("compact stretch-to-fit shell spacing", () => {
 
     expect(compactStepShellTrailingPaddingPercent(multiplierIndex)).toBeCloseTo(
       ((stepCellPaddingPx() * 2) / 3 / spanPx) * 100,
+    );
+  });
+});
+
+describe("phraseRowsScrollContentWidthPx", () => {
+  it("matches the shared compact grid span in px", () => {
+    const rows = [
+      [4, 3, 2],
+      [0, 3, 5, 7],
+      [4],
+      [],
+    ];
+    const offsets = [3, 4, 3, 3];
+    const layout = compactPhraseGridLayout(rows, offsets);
+
+    expect(phraseRowsScrollContentWidthPx(rows, offsets)).toBe(
+      layout.totalColumns * stepCellQuarterGridWidthPx(),
     );
   });
 });

@@ -26,6 +26,11 @@ export function phraseRowScrollPaddingBottomPx() {
   return phraseRowScrollPaddingVerticalPx() / 2;
 }
 
+/** Matches PhraseRow scroll container `pr-2`. */
+export function phraseRowScrollPaddingRightPx() {
+  return phraseRowScrollPaddingVerticalPx() / 2;
+}
+
 /** Matches App row gap spacers (`h-2`). */
 export const basePhraseRowInterRowGapPx = 8;
 

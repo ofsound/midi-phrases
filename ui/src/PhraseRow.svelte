@@ -127,6 +127,7 @@
    * @property {boolean} [stepInspectionActive]
    * @property {boolean} [stepInspectorOpen]
    * @property {boolean} [stretchToFit]
+   * @property {number} [contentFitScale]
    * @property {number} [fitGridColumns]
    * @property {number} [fitGridStartColumn]
    * @property {string | null} [inspectedStepId]
@@ -181,6 +182,7 @@
     stepInspectionActive = false,
     stepInspectorOpen = false,
     stretchToFit = false,
+    contentFitScale = 1,
     fitGridColumns = 1,
     fitGridStartColumn = 0,
     inspectedStepId = null,
@@ -310,12 +312,24 @@
 
   /** Shell width follows the step's multiplier, not its visual slot in the row grid. */
   /** @param {number} dataStep */
-  function shellWidthPx(dataStep) {
+  function logicalShellWidthPx(dataStep) {
     if (dataStep < 0) {
       return stepDisplayWidthPx(defaultStepTimingMultiplierIndex);
     }
 
     return stepDisplayWidthPx(multiplierIndexForDataStep(dataStep));
+  }
+
+  let layoutScale = $derived(stretchToFit ? 1 : Math.min(1, contentFitScale));
+
+  /** @param {number} px */
+  function layoutPx(px) {
+    return px * layoutScale;
+  }
+
+  /** @param {number} dataStep */
+  function shellWidthPx(dataStep) {
+    return layoutPx(logicalShellWidthPx(dataStep));
   }
 
   /** @param {number} dataStep */
@@ -361,7 +375,7 @@
 
   /** @param {number} leftPx */
   function insertSlotStyle(leftPx) {
-    return `left: ${leftPx}px; width: ${stepInsertZoneWidthPx()}px;`;
+    return `left: ${layoutPx(leftPx)}px; width: ${layoutPx(stepInsertZoneWidthPx())}px;`;
   }
 
   /** @param {number} boundaryPx */
@@ -743,9 +757,10 @@
   function resizeWidthFromClientX(clientX) {
     const min = minMultiplierCellWidthPx();
     const max = maxMultiplierCellWidthPx();
+    const delta = layoutScale > 0 ? (clientX - resizeStartX) / layoutScale : 0;
 
     return Math.round(
-      Math.min(max, Math.max(min, resizeStartWidth + (clientX - resizeStartX))),
+      Math.min(max, Math.max(min, resizeStartWidth + delta)),
     );
   }
 
@@ -844,7 +859,7 @@
       handle.setPointerCapture(event.pointerId);
     }
 
-    const displayWidth = shellWidthPx(step);
+    const displayWidth = logicalShellWidthPx(step);
 
     resizingStep = step;
     resizePreviewMultipliers = stepTimingMultiplier.slice();
@@ -1226,8 +1241,9 @@
   );
   let rowStepLayout = $derived(rowStepLayoutsPx(layoutTimingMultipliers));
   let rowGridSpanPx = $derived(rowGridWidthPx(layoutTimingMultipliers));
+  let scaledRowGridSpanPx = $derived(layoutPx(rowGridSpanPx));
   let trailingInsertLeftPx = $derived(insertLeftAtBoundary(rowGridSpanPx));
-  let trailingAddStepLeftPx = $derived(rowGridSpanPx + phraseRowEndAddStepInsetPx());
+  let trailingAddStepLeftPx = $derived(scaledRowGridSpanPx + layoutPx(phraseRowEndAddStepInsetPx()));
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
   let rowCellLayouts = $derived(renderedDndItems.map((item, index) => {
     const dataStep = isShadowItem(item)
@@ -1237,7 +1253,7 @@
       ?? (dataStep >= 0 ? multiplierIndexForDataStep(dataStep) : defaultStepTimingMultiplierIndex);
 
     return {
-      cellWidth: stepDisplayWidthPx(multiplierIndex),
+      cellWidth: layoutPx(stepDisplayWidthPx(multiplierIndex)),
       step: isShadowItem(item) ? -1 : dataStep,
       gapBefore: index > 0,
     };
@@ -1801,14 +1817,14 @@
     aria-hidden="true"
   ></div>
   <div
-    class="flex min-w-0 flex-1 items-stretch pt-2 pr-2 pb-2 {stretchToFit
+    class="flex min-w-0 flex-1 items-stretch pt-2 pr-2 pb-2 {stretchToFit || layoutScale < 1
       ? 'overflow-hidden'
       : 'overflow-x-auto'}"
     role="presentation"
     style:min-height="{phraseRowMinHeightPx()}px"
   >
   {#if isEmptyRow}
-    <div class="relative flex shrink-0 items-center" style:padding-left="{phraseRowEndAddStepInsetPx()}px">
+    <div class="relative flex shrink-0 items-center" style:padding-left="{layoutPx(phraseRowEndAddStepInsetPx())}px">
       {@render largeAddStepButton("Add first step", 0)}
     </div>
   {:else if stretchToFit}
@@ -1830,8 +1846,8 @@
   {:else}
     <div
       class="relative w-max min-w-0 shrink-0 self-stretch overflow-visible"
-      style:min-width="{rowGridSpanPx}px"
-      style:padding-right="{phraseRowEndStepTailPaddingPx()}px"
+      style:min-width="{scaledRowGridSpanPx}px"
+      style:padding-right="{layoutPx(phraseRowEndStepTailPaddingPx())}px"
     >
       {@render rowInsertSlots()}
 
@@ -1849,8 +1865,8 @@
               class="relative shrink-0 overflow-visible"
               style={shellStyleForStep(step)}
               style:margin-left={step === 0
-                ? `${stepCellPaddingPx()}px`
-                : `${stepInsertZoneWidthPx()}px`}
+                ? `${layoutPx(stepCellPaddingPx())}px`
+                : `${layoutPx(stepInsertZoneWidthPx())}px`}
               onclick={(event) => retargetOpenStepInspector(event, step)}
               ondblclick={(event) => openFullStepInspector(event, step)}
             >
@@ -1880,8 +1896,8 @@
               class="relative shrink-0 overflow-visible {isShadowItem(item) ? 'pointer-events-none' : ''}"
               style={fixedFlexStyle(layout.cellWidth)}
               style:margin-left={index === 0
-                ? `${stepCellPaddingPx()}px`
-                : `${stepInsertZoneWidthPx()}px`}
+                ? `${layoutPx(stepCellPaddingPx())}px`
+                : `${layoutPx(stepInsertZoneWidthPx())}px`}
               aria-hidden={isShadowItem(item) ? true : undefined}
               onclick={(event) => layout.step >= 0 && retargetOpenStepInspector(event, layout.step)}
               ondblclick={(event) => layout.step >= 0 && openFullStepInspector(event, layout.step)}

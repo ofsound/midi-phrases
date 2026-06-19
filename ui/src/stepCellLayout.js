@@ -221,6 +221,13 @@ export function compactPhraseGridLayout(rows, timingOffsetIndices) {
   return { totalColumns, rowStartColumns, addStepColumns };
 }
 
+/** Natural scroll width for the longest phrase row, including the row-end add button. */
+export function phraseRowsScrollContentWidthPx(rows, timingOffsetIndices) {
+  const { totalColumns } = compactPhraseGridLayout(rows, timingOffsetIndices);
+
+  return totalColumns * stepCellQuarterGridWidthPx();
+}
+
 /** Total quarter-grid columns occupied by a row's steps. */
 export function rowQuarterGridColumns(multiplierIndices) {
   return multiplierIndices.reduce(
