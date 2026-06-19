@@ -4452,8 +4452,7 @@
           </div>
           </div>
         </div>
-        <div class="flex flex-col items-start gap-1 px-4">
-          <span class="invisible text-xs font-semibold leading-none select-none" aria-hidden="true">View</span>
+        <div class="flex flex-col items-center justify-end px-5 pb-0.5">
           <StepViewModeToggle
             compact={stretchStepsToFit}
             accent={interfaceAccent}

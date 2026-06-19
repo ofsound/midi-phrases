@@ -1800,7 +1800,7 @@
           onpointercancel={cancelCompactStepDrag}
         >
           <span
-            class="compact-step-resize-handle pointer-events-none {accent.bgAccentStrong}"
+            class="compact-step-resize-handle pointer-events-none"
             aria-hidden="true"
           ></span>
         </button>
@@ -1821,7 +1821,7 @@
         onpointercancel={cancelCompactStepDrag}
       >
         <span
-          class="compact-step-resize-handle pointer-events-none {accent.bgAccentStrong}"
+          class="compact-step-resize-handle pointer-events-none"
           aria-hidden="true"
         ></span>
       </button>
@@ -1855,17 +1855,22 @@
     height: 78%;
     width: 0.2rem;
     border-radius: 9999px;
-    border: 1px solid color-mix(in srgb, var(--color-text) 25%, transparent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-app) 65%, transparent);
+    background-color: color-mix(in srgb, var(--color-text) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-text) 20%, transparent);
+    box-shadow: 0 0 0 1.2px var(--color-app);
     transition:
       width 75ms,
-      filter 75ms;
+      background-color 75ms,
+      border-color 75ms,
+      box-shadow 75ms;
   }
 
   :global(.group:hover) .compact-step-resize-handle,
   :global(.group[data-mp-hover]) .compact-step-resize-handle {
     width: 0.28rem;
-    filter: brightness(1.1);
+    background-color: var(--color-text);
+    border-color: var(--color-text);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--color-text) 30%, transparent), 0 0 0 1.2px var(--color-app);
   }
 
   :global(.compact-step-grid-dragging) > * {
