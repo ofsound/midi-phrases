@@ -97,9 +97,13 @@
   }
   let inlineLayout = $derived(layout === "inline");
   let sidebarLayout = $derived(layout === "sidebar");
-  let inlineLabels = $derived(inlineLayout || sidebarLayout);
+  let inlineLabels = $derived(inlineLayout);
   let groupClass = $derived(
-    inlineLabels ? "flex items-center gap-1.5" : "flex flex-col items-start gap-1",
+    sidebarLayout
+      ? "flex min-w-0 flex-col items-start gap-1"
+      : inlineLabels
+        ? "flex items-center gap-1.5"
+        : "flex flex-col items-start gap-1",
   );
   let operationGroupClass = $derived(
     sidebarLayout
@@ -120,6 +124,9 @@
     sidebarLayout
       ? `flex w-full flex-col gap-3 items-stretch ${className}`
       : `flex gap-2 ${inlineLayout ? "items-center" : "items-end"} ${className}`,
+  );
+  let parameterControlsClass = $derived(
+    sidebarLayout ? "grid w-full grid-cols-3 gap-2" : "contents",
   );
 </script>
 
@@ -197,61 +204,63 @@
       </button>
     </div>
   </div>
-  <div class={groupClass}>
-    <span class={labelClass}>{labelText("Dur %")}</span>
-    <StepNumberDragInput
-      boxed
-      compact
-      deferCommit
-      {accent}
-      value={durationPercent}
-      min={-100}
-      max={100}
-      resetValue={0}
-      formatValue={formatSignedValue}
-      ariaLabel="Bulk step relative duration percent"
-      disabled={effectiveStepCount === 0}
-      {onGestureStart}
-      onValuePreview={onDurationPreview}
-      onValueCommit={onDurationCommit}
-    />
-  </div>
-  <div class={groupClass}>
-    <span class={labelClass}>{labelText("Vel %")}</span>
-    <StepNumberDragInput
-      boxed
-      compact
-      deferCommit
-      {accent}
-      value={velocityPercent}
-      min={-100}
-      max={100}
-      resetValue={0}
-      formatValue={formatSignedValue}
-      ariaLabel="Bulk step relative velocity percent"
-      disabled={effectiveStepCount === 0}
-      {onGestureStart}
-      onValuePreview={onVelocityPreview}
-      onValueCommit={onVelocityCommit}
-    />
-  </div>
-  <div class={groupClass}>
-    <span class={labelClass}>{labelText("Pitch")}</span>
-    <StepNumberDragInput
-      boxed
-      compact
-      deferCommit
-      {accent}
-      value={transposeSemitones}
-      min={-48}
-      max={48}
-      resetValue={0}
-      formatValue={formatSignedValue}
-      ariaLabel={pitchAriaLabel}
-      disabled={effectiveStepCount === 0}
-      {onGestureStart}
-      onValuePreview={onTransposePreview}
-      onValueCommit={onTransposeCommit}
-    />
+  <div class={parameterControlsClass}>
+    <div class={groupClass}>
+      <span class={labelClass}>{labelText("Dur %")}</span>
+      <StepNumberDragInput
+        boxed
+        compact
+        deferCommit
+        {accent}
+        value={durationPercent}
+        min={-100}
+        max={100}
+        resetValue={0}
+        formatValue={formatSignedValue}
+        ariaLabel="Bulk step relative duration percent"
+        disabled={effectiveStepCount === 0}
+        {onGestureStart}
+        onValuePreview={onDurationPreview}
+        onValueCommit={onDurationCommit}
+      />
+    </div>
+    <div class={groupClass}>
+      <span class={labelClass}>{labelText("Vel %")}</span>
+      <StepNumberDragInput
+        boxed
+        compact
+        deferCommit
+        {accent}
+        value={velocityPercent}
+        min={-100}
+        max={100}
+        resetValue={0}
+        formatValue={formatSignedValue}
+        ariaLabel="Bulk step relative velocity percent"
+        disabled={effectiveStepCount === 0}
+        {onGestureStart}
+        onValuePreview={onVelocityPreview}
+        onValueCommit={onVelocityCommit}
+      />
+    </div>
+    <div class={groupClass}>
+      <span class={labelClass}>{labelText("Pitch")}</span>
+      <StepNumberDragInput
+        boxed
+        compact
+        deferCommit
+        {accent}
+        value={transposeSemitones}
+        min={-48}
+        max={48}
+        resetValue={0}
+        formatValue={formatSignedValue}
+        ariaLabel={pitchAriaLabel}
+        disabled={effectiveStepCount === 0}
+        {onGestureStart}
+        onValuePreview={onTransposePreview}
+        onValueCommit={onTransposeCommit}
+      />
+    </div>
   </div>
 </div>

@@ -75,6 +75,7 @@
     </div>
 
     <ContinuousSlider
+      {accent}
       label="Probability"
       value={probability}
       min={0}
@@ -85,6 +86,7 @@
       onValueChange={onProbabilityChange}
     />
     <ContinuousSlider
+      {accent}
       label="Multiplier"
       value={timingMultiplierIndex}
       min={0}
@@ -96,6 +98,7 @@
       onValueChange={onTimingMultiplierChange}
     />
     <ContinuousSlider
+      {accent}
       label="Duration"
       value={durationPercent}
       min={0}
@@ -105,6 +108,7 @@
       onValueChange={onDurationChange}
     />
     <ContinuousSlider
+      {accent}
       label="Velocity"
       value={velocity}
       min={1}

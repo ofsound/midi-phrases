@@ -1293,6 +1293,7 @@
   {@const isStepSelected = selectedStepIdSet.has(stepId)}
   {@const stepIsMuted = stepMuted[step]}
   {@const stepIsSkipped = stepSkipped[step]}
+  {@const stepDimmed = muted || stepIsSkipped}
   {@const velocityOpacity = compactStepVelocityOpacity(stepVelocity[step], stepIsSkipped)}
   {@const gridColumns = quarterGridColumnsForMultiplierIndex(stepTimingMultiplier[step])}
   {@const shellPaddingPercent = compactStepShellPaddingPercent(stepTimingMultiplier[step])}
@@ -1318,7 +1319,9 @@
     onpointercancelcapture={handleCompactStepPointerEnd}
   >
     <div
-      class="relative overflow-hidden rounded-md bg-surface transition-[box-shadow,filter] duration-75 {activeGates[step]
+      class="relative overflow-hidden rounded-md transition-[box-shadow,filter] duration-75 {muted
+        ? 'bg-app/95 ring-1 ring-inset ring-border-subtle/90'
+        : 'bg-surface'} {activeGates[step] && !stepDimmed
         ? accent.playbackGlow
         : ''} {isStepSelected
         ? 'brightness-75 saturate-75'
@@ -1330,10 +1333,12 @@
       style:height="{phraseStepCellMinHeightPx()}px"
     >
       <div
-        class="pointer-events-none absolute inset-0 transition-[background-color,opacity] duration-75 {activeGates[step]
-          ? accent.bgAccentStrong
-          : accent.bgAccent}"
-        style:opacity={activeGates[step] ? 1 : velocityOpacity}
+        class="pointer-events-none absolute inset-0 transition-[background-color,opacity] duration-75 {muted
+          ? 'bg-surface/70'
+          : activeGates[step]
+            ? accent.bgAccentStrong
+            : accent.bgAccent}"
+        style:opacity={muted ? 1 : activeGates[step] ? 1 : velocityOpacity}
         aria-hidden="true"
       ></div>
       {#if stepIsSkipped}
@@ -1354,11 +1359,14 @@
       <div
         class="relative z-10 flex h-full min-w-0 items-center justify-center overflow-hidden px-1 transition-opacity duration-75 {stepIsSkipped
           ? 'opacity-45'
-          : ''}"
+          : muted
+            ? 'opacity-80'
+            : ''}"
       >
         <NoteDragInput
           {accent}
           minimal
+          muted={stepDimmed}
           value={notes[step]}
           resetValue={defaultStepNote}
           ariaLabel={`Step note${stepIsSkipped ? ", skipped" : stepIsMuted ? ", muted" : ""}`}

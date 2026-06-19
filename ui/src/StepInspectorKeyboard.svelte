@@ -9,7 +9,7 @@
     stepInspectorMidiRange,
     stepInspectorOctaveOffsetForNote,
   } from "./pianoKeyboardLayout.js";
-  import { isChromaticScaleMode, isKeyCenterPitchClass, isMidiInScale } from "./scaleUtils.js";
+  import { isChromaticScaleMode, isMidiInScale, scaleName } from "./scaleUtils.js";
 
   /**
    * @typedef {Object} Props
@@ -33,24 +33,11 @@
     onNoteChange = () => {},
   } = $props();
 
-  const scaleToneMarkerClass =
-    "pointer-events-none mb-1 h-2 w-2 shrink-0 rounded-full bg-accent shadow-[0_0_6px_rgba(52,211,153,0.8)]";
-
-  const keyCenterLabelClass =
-    "pointer-events-none mb-0.5 text-[10px] font-bold leading-none text-text-inverse tabular-nums";
-
-  const keyCenterBlackLabelClass =
-    "pointer-events-none mb-0.5 text-[9px] font-bold leading-none text-text-secondary tabular-nums";
-
   const whiteKeyClass =
-    `relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end pb-1 last:border-r-0 ${pianoWhiteKeyClass}`;
+    "relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end last:border-r-0";
 
   const blackKeyClass =
-    `pointer-events-auto absolute top-0 z-10 flex h-[58%] max-w-[2rem] min-w-[0.5rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1 ${pianoBlackKeyClass}`;
-
-  const selectedNoteLabelClass = $derived(
-    `pointer-events-none max-w-full truncate text-sm font-extrabold leading-none tabular-nums ${accent.textAccentStrong}`,
-  );
+    "pointer-events-auto absolute top-0 z-10 flex h-[58%] max-w-[2rem] min-w-[0.5rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md";
 
   let octaveOffset = $state(0);
   let appliedStepKey = "";
@@ -69,6 +56,8 @@
     }),
   );
   let chromatic = $derived(isChromaticScaleMode(scaleModeIndex));
+  let currentNoteName = $derived(midiToNoteName(note));
+  let currentScaleName = $derived(scaleName(scaleRoot, scaleModeIndex));
 
   /** @param {number} midi */
   function isKeyInteractive(midi) {
@@ -126,67 +115,62 @@
     −
   </button>
 
-  <div
-    class={keyboardSurfaceClass}
-    role="group"
-    aria-label="Step note keyboard"
-  >
-    <div class="relative z-0 flex h-full w-full">
-      {#each layout.whites as { midi } (midi)}
-        {@const interactive = isKeyInteractive(midi)}
-        {@const selected = isSelectedNote(midi)}
-        <button
-          type="button"
-          data-cursor={interactive ? "pointer" : "default"}
-          class="{whiteKeyClass} {interactive || selected ? '' : 'pointer-events-none opacity-35'}"
-          aria-label={midiToNoteName(midi)}
-          aria-pressed={selected}
-          aria-disabled={!interactive}
-          disabled={!interactive}
-          onpointerdown={interactive ? (event) => onKeyPointerDown(event, midi) : undefined}
-          onpointerup={interactive ? onKeyPointerUp : undefined}
-          onpointercancel={interactive ? onKeyPointerUp : undefined}
-        >
-          {#if interactive && !selected}
-            <span class={scaleToneMarkerClass}></span>
-          {/if}
-          {#if selected}
-            <span class={selectedNoteLabelClass}>{midiToNoteName(midi)}</span>
-          {:else if isKeyCenterPitchClass(midi, scaleRoot)}
-            <span class={keyCenterLabelClass}>{midiToNoteName(midi)}</span>
-          {/if}
-        </button>
-      {/each}
+  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+    <div class="flex h-7 shrink-0 items-center justify-between gap-4 px-1 text-[9px] font-medium uppercase tracking-wider text-text-muted">
+      <span>
+        Note
+        <strong class="ml-1 font-mono text-xs font-bold tracking-normal {accent.textAccentStrong}">{currentNoteName}</strong>
+      </span>
+      <span class="min-w-0 truncate text-right">
+        Scale
+        <strong class="ml-1 text-xs font-semibold normal-case tracking-normal {accent.textAccentStrong}">{currentScaleName}</strong>
+      </span>
     </div>
 
-    <div class="pointer-events-none absolute inset-0 z-10">
-      {#each layout.blacks as { midi, centerPercent, widthPercent } (midi)}
-        {@const interactive = isKeyInteractive(midi)}
-        {@const selected = isSelectedNote(midi)}
-        <button
-          type="button"
-          data-cursor={interactive ? "pointer" : "default"}
-          class="{blackKeyClass} {interactive || selected ? '' : 'pointer-events-none opacity-35'}"
-          style:left="{centerPercent}%"
-          style:width="{widthPercent}%"
-          aria-label={midiToNoteName(midi)}
-          aria-pressed={selected}
-          aria-disabled={!interactive}
-          disabled={!interactive}
-          onpointerdown={interactive ? (event) => onKeyPointerDown(event, midi) : undefined}
-          onpointerup={interactive ? onKeyPointerUp : undefined}
-          onpointercancel={interactive ? onKeyPointerUp : undefined}
-        >
-          {#if interactive && !selected}
-            <span class={scaleToneMarkerClass}></span>
-          {/if}
-          {#if selected}
-            <span class={selectedNoteLabelClass}>{midiToNoteName(midi)}</span>
-          {:else if isKeyCenterPitchClass(midi, scaleRoot)}
-            <span class={keyCenterBlackLabelClass}>{midiToNoteName(midi)}</span>
-          {/if}
-        </button>
-      {/each}
+    <div
+      class={keyboardSurfaceClass}
+      role="group"
+      aria-label={`Step note keyboard, ${currentNoteName}, ${currentScaleName}`}
+    >
+      <div class="relative z-0 flex h-full w-full">
+        {#each layout.whites as { midi } (midi)}
+          {@const interactive = isKeyInteractive(midi)}
+          {@const selected = isSelectedNote(midi)}
+          <button
+            type="button"
+            data-cursor={interactive ? "pointer" : "default"}
+            class="{whiteKeyClass} {selected ? accent.pianoNoteActive : pianoWhiteKeyClass} {interactive || selected ? '' : 'pointer-events-none opacity-35'}"
+            aria-label={midiToNoteName(midi)}
+            aria-pressed={selected}
+            aria-disabled={!interactive}
+            disabled={!interactive}
+            onpointerdown={interactive ? (event) => onKeyPointerDown(event, midi) : undefined}
+            onpointerup={interactive ? onKeyPointerUp : undefined}
+            onpointercancel={interactive ? onKeyPointerUp : undefined}
+          ></button>
+        {/each}
+      </div>
+
+      <div class="pointer-events-none absolute inset-0 z-10">
+        {#each layout.blacks as { midi, centerPercent, widthPercent } (midi)}
+          {@const interactive = isKeyInteractive(midi)}
+          {@const selected = isSelectedNote(midi)}
+          <button
+            type="button"
+            data-cursor={interactive ? "pointer" : "default"}
+            class="{blackKeyClass} {selected ? accent.pianoNoteActive : pianoBlackKeyClass} {interactive || selected ? '' : 'pointer-events-none opacity-35'}"
+            style:left="{centerPercent}%"
+            style:width="{widthPercent}%"
+            aria-label={midiToNoteName(midi)}
+            aria-pressed={selected}
+            aria-disabled={!interactive}
+            disabled={!interactive}
+            onpointerdown={interactive ? (event) => onKeyPointerDown(event, midi) : undefined}
+            onpointerup={interactive ? onKeyPointerUp : undefined}
+            onpointercancel={interactive ? onKeyPointerUp : undefined}
+          ></button>
+        {/each}
+      </div>
     </div>
   </div>
 

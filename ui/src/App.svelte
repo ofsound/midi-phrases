@@ -4350,7 +4350,7 @@
                 aria-pressed={activeRowPianoRollEditor?.row === row}
                 disabled={stepIds[row].length === 0}
                 data-cursor={stepIds[row].length > 0 ? "pointer" : undefined}
-                class="absolute inset-0 z-0 border-0 bg-surface/25 p-0 outline-none transition-colors hover:bg-surface/55 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-focus-ring disabled:cursor-default disabled:opacity-60"
+                class="absolute inset-0 z-0 border-0 bg-surface/55 p-0 outline-none transition-colors hover:bg-surface/80 aria-pressed:bg-surface/80 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-focus-ring disabled:cursor-default disabled:opacity-60"
                 onclick={() => openRowPianoRollFromHeader(row)}
                 title={activeRowPianoRollEditor?.row === row
                   ? "Show the full piano roll"
@@ -4578,6 +4578,8 @@
         activeGates={activeGates[activeRowPianoRollEditor.row]}
         rowTimingOffset={rowTimingOffset[activeRowPianoRollEditor.row]}
         {pulseIndex}
+        {scaleRoot}
+        {scaleModeIndex}
         inspectedStepId={rowPianoRollCurrentStepFocusVisible
           ? activeRowPianoRollEditor.stepId
           : null}

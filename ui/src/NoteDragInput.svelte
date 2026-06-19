@@ -167,7 +167,9 @@
   data-step-note
   data-cursor="vertical-drag"
   class="inline-flex min-w-0 touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {minimal
-    ? 'text-control-primary-text'
+    ? muted
+      ? 'text-text-muted'
+      : 'text-white'
     : muted
       ? 'text-text-muted'
       : dragging
@@ -198,7 +200,9 @@
     }
   }}
 >
-  <span class="truncate font-sans leading-none font-bold tabular-nums {minimal ? 'text-xs' : 'text-sm'}"
+  <span class="truncate font-sans leading-none tabular-nums {minimal
+    ? 'text-lg font-black'
+    : 'text-sm font-bold'}"
     >{displayName}</span
   >
 </div>
