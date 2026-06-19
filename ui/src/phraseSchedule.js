@@ -159,6 +159,54 @@ export function stepStartInCycleForStep(stepStartQuarters, step) {
 }
 
 /**
+ * Zero-based occurrence count for a step at the current transport beat.
+ * Mirrors the trigger-count seed used by the scheduler so cycle-pattern UI can
+ * follow playback without maintaining an independent clock.
+ *
+ * @param {object} params
+ * @param {number} params.beat
+ * @param {number} params.step
+ * @param {number} params.rowTimingOffset
+ * @param {number[]} params.stepTimingMultiplier
+ * @param {boolean[]} [params.stepSkipped]
+ * @param {number} [params.pulseIndex]
+ */
+export function stepTriggerCountAtBeat({
+  beat,
+  step,
+  rowTimingOffset,
+  stepTimingMultiplier,
+  stepSkipped = [],
+  pulseIndex = defaultPulseIndex,
+}) {
+  if (beat < 0 || step < 0 || step >= stepTimingMultiplier.length || stepSkipped[step]) {
+    return -1;
+  }
+
+  const {stepStartQuarters, cycleLengthQuarters} = rowStepLayout(
+    stepTimingMultiplier,
+    pulseIndex,
+    stepSkipped,
+  );
+
+  if (cycleLengthQuarters <= 0) return -1;
+
+  const rowOffsetQuarters = rowTimingOffsetQuarters(rowTimingOffset, pulseIndex);
+  const stepStartInCycle = stepStartInCycleForStep(stepStartQuarters, step);
+  const relativeBeat = beat - stepStartInCycle - rowOffsetQuarters;
+
+  if (relativeBeat < -EPSILON) return -1;
+
+  const firstGlobalTrigger = Math.ceil(
+    (0 - stepStartInCycle - rowOffsetQuarters - EPSILON) / cycleLengthQuarters,
+  );
+  const cycleIndex = Math.floor((relativeBeat + EPSILON) / cycleLengthQuarters);
+  const triggerCount = cycleIndex - firstGlobalTrigger;
+
+  return triggerCount < 0 ? -1 : triggerCount;
+}
+
+/**
  * Deterministic MIDI schedule mirroring PluginProcessor::processBlock trigger logic.
  *
  * @param {object} params

@@ -3,8 +3,55 @@ import {
   buildPhraseSchedule,
   buildPhraseScheduleBeforeBandpass,
   buildPhraseScheduleWindowBeforeBandpass,
+  stepTriggerCountAtBeat,
 } from "./phraseSchedule.js";
 import { defaultStepTimingMultiplierIndex } from "./stepCellLayout.js";
+
+describe("stepTriggerCountAtBeat", () => {
+  const timing = [defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex];
+
+  it("advances once per full row cycle at the selected step position", () => {
+    expect(stepTriggerCountAtBeat({
+      beat: 0,
+      step: 0,
+      rowTimingOffset: 3,
+      stepTimingMultiplier: timing,
+      pulseIndex: 1,
+    })).toBe(0);
+    expect(stepTriggerCountAtBeat({
+      beat: 2,
+      step: 0,
+      rowTimingOffset: 3,
+      stepTimingMultiplier: timing,
+      pulseIndex: 1,
+    })).toBe(1);
+    expect(stepTriggerCountAtBeat({
+      beat: 5,
+      step: 1,
+      rowTimingOffset: 3,
+      stepTimingMultiplier: timing,
+      pulseIndex: 1,
+    })).toBe(2);
+  });
+
+  it("waits for a delayed row offset and ignores skipped steps", () => {
+    expect(stepTriggerCountAtBeat({
+      beat: 0,
+      step: 0,
+      rowTimingOffset: 4,
+      stepTimingMultiplier: timing,
+      pulseIndex: 1,
+    })).toBe(-1);
+    expect(stepTriggerCountAtBeat({
+      beat: 4,
+      step: 1,
+      rowTimingOffset: 3,
+      stepTimingMultiplier: timing,
+      stepSkipped: [false, true],
+      pulseIndex: 1,
+    })).toBe(-1);
+  });
+});
 
 function combinationSchedule(pulseIndex, combinationModeMask) {
   return buildPhraseScheduleBeforeBandpass({

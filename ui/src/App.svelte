@@ -76,6 +76,7 @@
     combinationModeMaskBits,
     combinationModes,
     isStepActiveAtBeat,
+    stepTriggerCountAtBeat,
     swingSubdivisionOptions,
     swingSubdivisionValues,
   } from "./phraseSchedule.js";
@@ -1379,6 +1380,14 @@
       probability: stepProbability[row][step] ?? 100,
       cycle: stepCycle[row][step] ?? 1,
       cycleMask: stepCycleOffset[row][step] ?? defaultStepCycleMask,
+      cycleTriggerCount: stepTriggerCountAtBeat({
+        beat: playbackBeat,
+        step,
+        rowTimingOffset: rowTimingOffset[row],
+        stepTimingMultiplier: stepTimingMultiplier[row],
+        stepSkipped: stepSkipped[row],
+        pulseIndex,
+      }),
     };
   });
 
@@ -4786,6 +4795,7 @@
         probability={activeStepInspector.probability}
         cycle={activeStepInspector.cycle}
         cycleMask={activeStepInspector.cycleMask}
+        cycleTriggerCount={activeStepInspector.cycleTriggerCount}
         {scaleRoot}
         {scaleModeIndex}
         accent={rowAccentFor(activeStepInspector.row, rowColorsEnabled)}

@@ -21,6 +21,7 @@
    * @property {number} [probability]
    * @property {number} [cycle]
    * @property {number} [cycleMask]
+   * @property {number} [cycleTriggerCount]
    * @property {number} [scaleRoot]
    * @property {number} [scaleModeIndex]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
@@ -48,6 +49,7 @@
     probability = 100,
     cycle = 1,
     cycleMask = 1,
+    cycleTriggerCount = -1,
     scaleRoot = 0,
     scaleModeIndex = 0,
     accent = emeraldRowAccent,
@@ -77,6 +79,8 @@
         {accent}
         {cycle}
         {cycleMask}
+        playbackKey={stepKey}
+        playbackTriggerCount={cycleTriggerCount}
         ariaLabel="Step cycle pattern"
         onGestureStart={onCycleGestureStart}
         onPatternPreview={onCyclePatternPreview}

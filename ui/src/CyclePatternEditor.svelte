@@ -17,6 +17,8 @@
    * @property {number} [cycleMask]
    * @property {string} [ariaLabel]
    * @property {boolean} [compact]
+   * @property {string} [playbackKey]
+   * @property {number} [playbackTriggerCount]
    * @property {() => void} [onGestureStart]
    * @property {(cycle: number, cycleMask: number) => void | Promise<void>} [onPatternPreview]
    * @property {(cycle: number, cycleMask: number) => void | Promise<void>} [onPatternCommit]
@@ -29,6 +31,8 @@
     cycleMask = 1,
     ariaLabel = "Step cycle pattern",
     compact = false,
+    playbackKey = "",
+    playbackTriggerCount = -1,
     onGestureStart = () => {},
     onPatternPreview = () => {},
     onPatternCommit = () => {},
@@ -148,6 +152,11 @@
       : "cycle-handle pointer-events-auto z-10 flex h-8 w-3.5 translate-x-1/2 touch-none select-none items-center justify-center rounded-sm border border-border bg-surface text-text-muted shadow-sm outline-none hover:border-border-strong hover:text-text",
   );
   let overlayInsetClass = $derived(compact ? "pointer-events-none absolute inset-0.5 grid grid-cols-8 gap-0.5" : "pointer-events-none absolute inset-1 grid grid-cols-8 gap-1");
+  let playbackPhase = $derived(
+    playbackTriggerCount < 0
+      ? -1
+      : ((playbackTriggerCount % draftCycle) + draftCycle) % draftCycle,
+  );
 </script>
 
 <div class="flex min-h-0 w-full min-w-0 flex-col" role="group" aria-label={ariaLabel}>
@@ -156,6 +165,7 @@
       {#each Array.from({length: maxCyclePatternCells}, (_, index) => index) as index (index)}
         {@const inPattern = index < draftCycle}
         {@const active = inPattern && isCycleCellActive(draftCycle, draftMask, index)}
+        {@const playbackFlashing = active && index === playbackPhase}
         <button
           type="button"
           {@attach registerCell(index)}
@@ -169,11 +179,21 @@
             ? `Cycle step ${index + 1}, ${active ? "on" : "off"}`
             : `Cycle step ${index + 1}, extend pattern`}
           aria-pressed={inPattern ? active : undefined}
+          data-cycle-playback-flash={playbackFlashing ? true : undefined}
           onpointerdown={(event) => {
             event.preventDefault();
             onCellPointerDown(index);
           }}
-        ></button>
+        >
+          {#if playbackFlashing}
+            {#key `${playbackKey}:${playbackTriggerCount}`}
+              <span
+                class="cycle-playback-pulse pointer-events-none absolute -inset-px rounded-[inherit] {accent.textAccentLight}"
+                aria-hidden="true"
+              ></span>
+            {/key}
+          {/if}
+        </button>
       {/each}
     </div>
 
@@ -212,3 +232,30 @@
     </div>
   </div>
 </div>
+
+<style>
+  .cycle-playback-pulse {
+    background: currentColor;
+    box-shadow:
+      0 0 4px currentColor,
+      0 0 10px currentColor;
+    animation: cycle-playback-blink 180ms ease-out both;
+  }
+
+  @keyframes cycle-playback-blink {
+    0% {
+      opacity: 0;
+      transform: scale(0.82);
+    }
+
+    25% {
+      opacity: 0.95;
+      transform: scale(1.06);
+    }
+
+    100% {
+      opacity: 0;
+      transform: scale(1.12);
+    }
+  }
+</style>
