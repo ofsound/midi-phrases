@@ -17,9 +17,9 @@
     shapeNoteUpdatesFromStroke,
     shapeVelocityUpdatesFromStroke,
     stepAtRollX,
-    stepSlotCenterXPx,
     velocityYInRoll,
   } from "./rowPianoRollShape.js";
+  import { snapMidiToScale } from "./scaleUtils.js";
   import {
     buildRowRollTimeline,
     precedingStepExpansionForNoteDrag,
@@ -48,6 +48,8 @@
    * @property {boolean[]} [activeGates]
    * @property {number} [rowTimingOffset]
    * @property {number} [pulseIndex]
+   * @property {number} [scaleRoot]
+   * @property {number} [scaleModeIndex]
    * @property {string | null} [inspectedStepId]
    * @property {string[]} [selectedStepIds]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
@@ -99,6 +101,8 @@
     activeGates = [],
     rowTimingOffset = 3,
     pulseIndex = defaultPulseIndex,
+    scaleRoot = 0,
+    scaleModeIndex = 0,
     inspectedStepId = null,
     selectedStepIds = [],
     accent,
@@ -208,6 +212,21 @@
   );
   let rollHeightPx = $derived(pitchSpan * rowHeightPx);
   let pitchRows = $derived(Array.from({ length: pitchSpan }, (_, index) => visiblePitchRange.maxMidi - index));
+
+  /** @param {{ x: number, y: number }[]} points */
+  function scaleConstrainedNoteUpdates(points) {
+    return shapeNoteUpdatesFromStroke(
+      points,
+      timeline.slots,
+      pxPerQuarter,
+      rowHeightPx,
+      visiblePitchRange.maxMidi,
+    ).map((update) => ({
+      ...update,
+      midi: snapMidiToScale(update.midi, scaleRoot, scaleModeIndex),
+    }));
+  }
+
   let shapePreviewByStep = $derived.by(() => {
     if (!shapeStroke || shapeStroke.points.length === 0) return null;
 
@@ -222,13 +241,7 @@
       return new Map(updates.map((update) => [update.step, update.velocity]));
     }
 
-    const updates = shapeNoteUpdatesFromStroke(
-      shapeStroke.points,
-      timeline.slots,
-      pxPerQuarter,
-      rowHeightPx,
-      visiblePitchRange.maxMidi,
-    );
+    const updates = scaleConstrainedNoteUpdates(shapeStroke.points);
     return new Map(updates.map((update) => [update.step, update.midi]));
   });
   let stepNotes = $derived.by(() => {
@@ -262,23 +275,6 @@
       };
     });
   });
-  let shapeStrokePolyline = $derived(
-    shapeStroke?.points.map((point) => `${point.x},${point.y}`).join(" ") ?? "",
-  );
-  let shapePreviewDots = $derived.by(() => {
-    if (!shapePreviewByStep) return [];
-
-    return [...shapePreviewByStep.entries()].map(([step, value]) => ({
-      step,
-      value,
-      x: stepSlotCenterXPx(timeline.slots[step], pxPerQuarter),
-      y:
-        shapeStroke?.mode === "velocity"
-          ? velocityYInRoll(value, rollHeightPx)
-          : pitchTopPx(value) + rowHeightPx / 2,
-    }));
-  });
-
   /** @param {HTMLElement} node */
   function gridAttachment(node) {
     gridElement = node;
@@ -314,6 +310,13 @@
   /** @param {number} midi */
   function pitchTopPx(midi) {
     return (visiblePitchRange.maxMidi - midi) * rowHeightPx;
+  }
+
+  /** @param {number} velocity */
+  function velocityBarHeightPx(velocity) {
+    const clamped = Math.min(127, Math.max(0, Math.round(velocity)));
+
+    return Math.max(1, (clamped / 127) * rollHeightPx);
   }
 
   /** @param {number} midi */
@@ -430,13 +433,7 @@
       return;
     }
 
-    const updates = shapeNoteUpdatesFromStroke(
-      finished.points,
-      timeline.slots,
-      pxPerQuarter,
-      rowHeightPx,
-      visiblePitchRange.maxMidi,
-    );
+    const updates = scaleConstrainedNoteUpdates(finished.points);
 
     if (updates.length === 0) return;
 
@@ -985,7 +982,7 @@
 
     <div
       {@attach gridAttachment}
-      class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
+      class="min-w-0 flex-1 overflow-x-hidden overflow-y-hidden"
     >
       <div class="relative flex h-full flex-col" style:width="{rollWidthPx}px">
         <div
@@ -1006,7 +1003,7 @@
 
         <div
           {@attach verticalScrollAttachment}
-          class="h-0 min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          class="h-0 min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
         >
           <div
             class="relative touch-none select-none"
@@ -1040,36 +1037,44 @@
               ></div>
             {/each}
             <div
-              class="pointer-events-none absolute top-0 bottom-0 border-r border-piano-roll-bar-line"
-              style:left="{rollWidthPx}px"
+              class="pointer-events-none absolute top-0 right-0 bottom-0 border-r border-piano-roll-bar-line"
               aria-hidden="true"
             ></div>
 
-            {#if shapeStroke && shapeStrokePolyline}
-              <svg
-                class="pointer-events-none absolute inset-0 z-30 overflow-visible"
-                width={rollWidthPx}
-                height={rollHeightPx}
+            {#if velocityShapeDrawActive}
+              <div
+                class="pointer-events-none absolute inset-0 z-25"
                 aria-hidden="true"
               >
-                <polyline
-                  points={shapeStrokePolyline}
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="text-link-hover/90"
-                />
-                {#each shapePreviewDots as dot (dot.step)}
-                  <circle
-                    cx={dot.x}
-                    cy={dot.y}
-                    r="3.5"
-                    class="fill-link-hover/90"
-                  />
+                <div
+                  class="absolute right-0 left-0 border-t border-dashed border-text-muted/20"
+                  style:top="{velocityYInRoll(64, rollHeightPx)}px"
+                ></div>
+                {#each stepNotes as note (note.stepId)}
+                  {@const barHeightPx = velocityBarHeightPx(note.velocity)}
+                  {@const velocityPreview =
+                    shapeStroke?.mode === "velocity" && shapePreviewByStep?.has(note.step)}
+                  <div
+                    class="absolute bottom-0"
+                    style:left="{note.leftPx}px"
+                    style:width="{note.fullStepWidthPx}px"
+                    style:height="{rollHeightPx}px"
+                  >
+                    <div
+                      class="absolute right-0 bottom-0 left-0 rounded-t-sm border-2 border-x border-t {rowAccent.borderFocus} {velocityPreview
+                        ? rowAccent.velocityBarFillPreview
+                        : rowAccent.velocityBarFill}"
+                      style:height="{barHeightPx}px"
+                    >
+                      <span
+                        class="absolute top-0.5 left-1/2 -translate-x-1/2 text-[9px] font-semibold leading-none tabular-nums {rowAccent.textAccentStrong}"
+                      >
+                        {note.velocity}
+                      </span>
+                    </div>
+                  </div>
                 {/each}
-              </svg>
+              </div>
             {/if}
 
             {#each stepNotes as note (note.stepId)}
@@ -1078,7 +1083,7 @@
               {@const highlighted = selected || inspected}
               {@const playbackActive = note.active && !note.muted}
               {@const displayMidi = drag?.mode === "move" && drag.step === note.step ? drag.previewMidi : note.midi}
-              {@const displayLabel = shapeDrawMode === "velocity" ? note.velocity : midiToNoteName(displayMidi)}
+              {@const displayLabel = midiToNoteName(displayMidi)}
               <div
                 data-bulk-step-cell
                 data-step-row={row}

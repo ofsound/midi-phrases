@@ -21,6 +21,8 @@
  *   selectionBorder: string,
  *   pianoNoteIdle: string,
  *   pianoNoteActive: string,
+ *   velocityBarFill: string,
+ *   velocityBarFillPreview: string,
  * }} RowAccent */
 
 /** Global interface accent — intentionally distinct from any row palette. */
@@ -48,6 +50,8 @@ export const interfaceAccent = {
   selectionBorder: "border-accent/55",
   pianoNoteIdle: "border-accent/20 bg-accent/85 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-text)_12%,transparent)]",
   pianoNoteActive: "border-link-hover/90 bg-link-hover shadow-accent-piano-active",
+  velocityBarFill: "bg-[color-mix(in_srgb,var(--color-accent)_32%,transparent)]",
+  velocityBarFillPreview: "bg-[color-mix(in_srgb,var(--color-accent)_56%,transparent)]",
 };
 
 /** Row 1 accent — palette tokens live in semantic-theme.generated.css. */
@@ -75,6 +79,8 @@ export const emeraldRowAccent = {
   selectionBorder: "border-row-accent-1/55",
   pianoNoteIdle: "border-row-accent-1-soft/25 bg-row-accent-1-strong/85 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-text)_12%,transparent)]",
   pianoNoteActive: "border-row-accent-1-soft/90 bg-row-accent-1-soft shadow-[0_0_12px_color-mix(in_srgb,var(--color-row-accent-1)_65%,transparent)]",
+  velocityBarFill: "bg-[color-mix(in_srgb,var(--color-row-accent-1)_32%,transparent)]",
+  velocityBarFillPreview: "bg-[color-mix(in_srgb,var(--color-row-accent-1)_56%,transparent)]",
 };
 
 /** Rows 2-4 (1-based): alternate row accents when row colors are enabled. */
@@ -103,6 +109,8 @@ export const altRowAccents = [
     selectionBorder: "border-row-accent-2/55",
     pianoNoteIdle: "border-row-accent-2-soft/25 bg-row-accent-2-strong/85 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-text)_12%,transparent)]",
     pianoNoteActive: "border-row-accent-2-soft/90 bg-row-accent-2-soft shadow-[0_0_12px_color-mix(in_srgb,var(--color-row-accent-2)_65%,transparent)]",
+    velocityBarFill: "bg-[color-mix(in_srgb,var(--color-row-accent-2)_32%,transparent)]",
+    velocityBarFillPreview: "bg-[color-mix(in_srgb,var(--color-row-accent-2)_56%,transparent)]",
   },
   {
     borderActive: "border-row-accent-3",
@@ -127,6 +135,8 @@ export const altRowAccents = [
     selectionBorder: "border-row-accent-3/55",
     pianoNoteIdle: "border-row-accent-3-soft/25 bg-row-accent-3-strong/85 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-text)_12%,transparent)]",
     pianoNoteActive: "border-row-accent-3-soft/90 bg-row-accent-3-soft shadow-[0_0_12px_color-mix(in_srgb,var(--color-row-accent-3)_65%,transparent)]",
+    velocityBarFill: "bg-[color-mix(in_srgb,var(--color-row-accent-3)_32%,transparent)]",
+    velocityBarFillPreview: "bg-[color-mix(in_srgb,var(--color-row-accent-3)_56%,transparent)]",
   },
   {
     borderActive: "border-row-accent-4",
@@ -151,6 +161,8 @@ export const altRowAccents = [
     selectionBorder: "border-row-accent-4/55",
     pianoNoteIdle: "border-row-accent-4-soft/25 bg-row-accent-4-strong/85 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-text)_12%,transparent)]",
     pianoNoteActive: "border-row-accent-4-soft/90 bg-row-accent-4-soft shadow-[0_0_12px_color-mix(in_srgb,var(--color-row-accent-4)_65%,transparent)]",
+    velocityBarFill: "bg-[color-mix(in_srgb,var(--color-row-accent-4)_32%,transparent)]",
+    velocityBarFillPreview: "bg-[color-mix(in_srgb,var(--color-row-accent-4)_56%,transparent)]",
   },
 ];
 
