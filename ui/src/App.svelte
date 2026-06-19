@@ -47,7 +47,7 @@
     timingMultiplierOptions,
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
-  import { moveStepBetweenRows } from "./crossRowStepMove.js";
+  import { duplicateStepBetweenRows, moveStepBetweenRows } from "./crossRowStepMove.js";
   import {
     clampNoteBandpass,
     defaultNoteBandpassHighMidi,
@@ -232,6 +232,7 @@
 
   /** @type {string[][]} */
   let stepIds = $state(createInitialStepIds());
+  let duplicateDragStepId = $state(null);
 
   let playbackPollFrameId = 0;
   let slotSelectionInFlight = 0;
@@ -2155,6 +2156,69 @@
     }
 
     await pushCurrentPhraseRow(sourceRow);
+    await pushCurrentPhraseRow(targetRow);
+  }
+
+  /**
+   * @param {number} targetRow
+   * @param {string} stepId
+   * @param {string[]} orderedTargetIds
+   * @param {number} [insertionIndex]
+   */
+  async function duplicateStepToDrop(targetRow, stepId, orderedTargetIds, insertionIndex) {
+    const sourceRow = stepIds.findIndex((ids) => ids.includes(stepId));
+
+    if (sourceRow < 0 || targetRow < 0 || targetRow >= stepIds.length) return;
+    if (stepIds[targetRow]?.length >= maxPhraseStepsPerRow) return;
+
+    const before = createHistorySnapshot();
+    const duplicateId = createStepId();
+    const result = duplicateStepBetweenRows(
+      {
+        grid,
+        stepDurationFraction,
+        stepTimingMultiplier,
+        stepVelocity,
+        stepMuted,
+        stepSkipped,
+        stepProbability,
+        stepCycle,
+        stepCycleOffset,
+        activeGates,
+      },
+      stepIds,
+      sourceRow,
+      targetRow,
+      stepId,
+      orderedTargetIds,
+      duplicateId,
+      insertionIndex ?? null,
+    );
+
+    if (!result) return;
+
+    ({
+      grid,
+      stepDurationFraction,
+      stepTimingMultiplier,
+      stepVelocity,
+      stepMuted,
+      stepSkipped,
+      stepProbability,
+      stepCycle,
+      stepCycleOffset,
+      activeGates,
+    } = result.matrices);
+    stepIds = result.stepIds;
+
+    const duplicateIndex = stepIds[targetRow].indexOf(duplicateId);
+    activeGates[targetRow][duplicateIndex] = false;
+
+    const after = createHistorySnapshot();
+    pushHistoryEntry("Duplicate step", before, after);
+    inspectedStep = { row: targetRow, stepId: duplicateId };
+
+    await tick();
     await pushCurrentPhraseRow(targetRow);
   }
 
@@ -4627,6 +4691,9 @@
               onReorder={reorderRowByIds}
               onMoveCommitted={commitRowMove}
               onCrossRowMove={moveStepToRow}
+              onStepDuplicateDrop={duplicateStepToDrop}
+              onDuplicateDragChange={(stepId) => duplicateDragStepId = stepId}
+              {duplicateDragStepId}
               onRemoveStep={removeStep}
               onInsertStep={insertStep}
               onDuplicateStep={duplicateStep}

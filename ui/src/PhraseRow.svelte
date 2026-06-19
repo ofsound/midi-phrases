@@ -23,7 +23,11 @@
   } from "./compactStepInteraction.js";
   import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { preventTabFocus } from "./preventTabFocus.js";
-  import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
+  import {
+    isShadowItem,
+    placementIndicatorLeftPx,
+    withoutShadowItems,
+  } from "./dndUtils.js";
   import {
     defaultStepCycle,
     defaultStepCycleMask,
@@ -137,6 +141,9 @@
    * @property {(row: number, orderedIds: string[]) => void} [onReorder]
    * @property {(row: number, beforeIds: string[], afterIds: string[]) => void | Promise<void>} [onMoveCommitted]
    * @property {(targetRow: number, stepId: string, orderedTargetIds: string[]) => void | Promise<void>} [onCrossRowMove]
+   * @property {(targetRow: number, stepId: string, orderedTargetIds: string[], insertionIndex?: number) => void | Promise<void>} [onStepDuplicateDrop]
+   * @property {(stepId: string | null) => void} [onDuplicateDragChange]
+   * @property {string | null} [duplicateDragStepId]
    * @property {(row: number, step: number) => void | Promise<void>} [onRemoveStep]
    * @property {(row: number, step: number, multiplierIndex?: number) => void | Promise<void>} [onInsertStep]
    * @property {(row: number, step: number) => void | Promise<void>} [onDuplicateStep]
@@ -192,6 +199,9 @@
     onReorder = () => {},
     onMoveCommitted = () => {},
     onCrossRowMove = () => {},
+    onStepDuplicateDrop = () => {},
+    onDuplicateDragChange = () => {},
+    duplicateDragStepId = null,
     onRemoveStep = () => {},
     onInsertStep = () => {},
     onDuplicateStep = () => {},
@@ -227,6 +237,10 @@
   let idsBeforeDrag = null;
   /** @type {string | null} */
   let draggedStepId = $state(null);
+  let draggedAsDuplicate = false;
+  let duplicateDropIndex = -1;
+  let dropIndicatorIndex = $state(-1);
+  let duplicateSourceRestoreFrame = 0;
   let resizingStep = $state(-1);
   let resizeStartX = 0;
   let resizeStartWidth = 0;
@@ -289,10 +303,35 @@
   }
 
   function endDragSession() {
+    if (duplicateSourceRestoreFrame) {
+      cancelAnimationFrame(duplicateSourceRestoreFrame);
+      duplicateSourceRestoreFrame = 0;
+    }
+
     isDragging = false;
     draggedStepId = null;
     clearDndZoneTransforms();
     blockRemoveTemporarily();
+    draggedAsDuplicate = false;
+    duplicateDropIndex = -1;
+    dropIndicatorIndex = -1;
+    onDuplicateDragChange(null);
+  }
+
+  /** @param {PointerEvent} event @param {number} step */
+  function prepareStepDrag(event, step) {
+    draggedAsDuplicate = event.altKey;
+    duplicateDropIndex = step;
+    onDuplicateDragChange(event.altKey ? stepIds[step] : null);
+  }
+
+  function restoreDuplicateSourceItems() {
+    if (!draggedAsDuplicate || !idsBeforeDrag) return;
+
+    dndItems = idsBeforeDrag.map((id, step) => ({
+      id,
+      multiplierIndex: multiplierIndexForDataStep(step),
+    }));
   }
 
   /** @param {string} stepId */
@@ -388,21 +427,46 @@
     if (reorderDisabled) return;
 
     const trigger = event.detail.info.trigger;
+    const shadowIndex = event.detail.items.findIndex(isShadowItem);
+
+    dropIndicatorIndex = shadowIndex;
 
     if (trigger === TRIGGERS.DRAG_STARTED) {
       beginDragSession();
       idsBeforeDrag = stepIds.slice();
       draggedStepId = event.detail.info.id;
+      draggedAsDuplicate = draggedAsDuplicate || duplicateDragStepId === event.detail.info.id;
+
+      if (draggedAsDuplicate) {
+        duplicateDropIndex = stepIndexFromId(event.detail.info.id);
+        duplicateSourceRestoreFrame = requestAnimationFrame(() => {
+          duplicateSourceRestoreFrame = 0;
+          restoreDuplicateSourceItems();
+        });
+      }
 
       if (document.activeElement instanceof HTMLElement) {
         document.activeElement.blur();
       }
-    } else if (trigger === TRIGGERS.DRAGGED_ENTERED) {
+    } else if (
+      trigger === TRIGGERS.DRAGGED_ENTERED
+      || trigger === TRIGGERS.DRAGGED_ENTERED_ANOTHER
+    ) {
       isDragging = true;
       draggedStepId = event.detail.info.id;
+      draggedAsDuplicate = duplicateDragStepId === event.detail.info.id;
     } else if (trigger === TRIGGERS.DRAGGED_LEFT && idsBeforeDrag === null) {
       isDragging = false;
       draggedStepId = null;
+    }
+
+    if (draggedAsDuplicate && idsBeforeDrag && trigger !== TRIGGERS.DRAG_STARTED) {
+      if (shadowIndex >= 0) {
+        duplicateDropIndex = shadowIndex;
+      }
+
+      restoreDuplicateSourceItems();
+      return;
     }
 
     dndItems = event.detail.items;
@@ -413,6 +477,7 @@
     const trigger = event.detail.info.trigger;
     const movedStepId = event.detail.info.id;
     const filtered = withoutShadowItems(event.detail.items);
+    const isDuplicateDrop = draggedAsDuplicate || duplicateDragStepId === movedStepId;
 
     if (trigger === TRIGGERS.DROPPED_INTO_ANOTHER) {
       idsBeforeDrag = null;
@@ -432,7 +497,11 @@
 
     if (isCrossRowDrop) {
       dndItems = filtered;
-      await onCrossRowMove(row, movedStepId, filtered.map((item) => item.id));
+      if (isDuplicateDrop) {
+        await onStepDuplicateDrop(row, movedStepId, filtered.map((item) => item.id));
+      } else {
+        await onCrossRowMove(row, movedStepId, filtered.map((item) => item.id));
+      }
       await tick();
       endDragSession();
       return;
@@ -450,6 +519,20 @@
 
     dndItems = filtered;
     const afterIds = filtered.map((item) => item.id);
+
+    if (isDuplicateDrop) {
+      const sourceIndex = idsBeforeDrag?.indexOf(movedStepId) ?? -1;
+
+      if (idsBeforeDrag && duplicateDropIndex >= 0 && duplicateDropIndex !== sourceIndex) {
+        dndItems = idsBeforeDrag.map((id) => ({ id }));
+        await onStepDuplicateDrop(row, movedStepId, afterIds, duplicateDropIndex);
+      }
+
+      idsBeforeDrag = null;
+      await tick();
+      endDragSession();
+      return;
+    }
 
     onReorder(row, afterIds);
 
@@ -837,6 +920,7 @@
   }
 
   onDestroy(() => {
+    if (duplicateSourceRestoreFrame) cancelAnimationFrame(duplicateSourceRestoreFrame);
     stopDragYLock();
     teardownActiveResize();
     clearCompactStepDrag();
@@ -1258,6 +1342,12 @@
       gapBefore: index > 0,
     };
   }));
+  let dropIndicatorLeftPx = $derived(placementIndicatorLeftPx(
+    rowCellLayouts.map((layout) => layout.cellWidth),
+    dropIndicatorIndex,
+    layoutPx(stepCellPaddingPx()),
+    layoutPx(stepInsertZoneWidthPx()),
+  ));
   let compactGridStyle = $derived(
     `grid-template-columns: repeat(${Math.max(1, fitGridColumns)}, minmax(0, 1fr));`,
   );
@@ -1308,9 +1398,11 @@
       data-no-inspect
       data-no-marquee
       data-no-long-press
+      title="Drag to reorder · Option-drag to duplicate"
       class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
         ? 'opacity-80'
         : 'opacity-60'}"
+      onpointerdown={(event) => prepareStepDrag(event, step)}
       onpointerup={(event) => retargetOpenStepInspector(event, step)}
     >
       {@render stepHeaderMultiplierLabel(stepDimmed, multiplierLabel)}
@@ -1801,6 +1893,18 @@
       transparent calc(50% + 1px)
     );
   }
+
+  .step-drop-indicator {
+    width: 3px;
+    transform: translateX(-50%);
+    border-radius: 9999px;
+    background: currentColor;
+    box-shadow:
+      0 0 3px currentColor,
+      0 0 8px currentColor,
+      0 0 16px color-mix(in srgb, currentColor 78%, transparent);
+    transition: left 55ms cubic-bezier(0.2, 0.75, 0.25, 1);
+  }
 </style>
 
 <div
@@ -1912,6 +2016,14 @@
             </div>
           {/each}
         </div>
+        {#if isDragging && dropIndicatorIndex >= 0}
+          <div
+            data-step-drop-indicator
+            class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
+            style:left="{dropIndicatorLeftPx}px"
+            aria-hidden="true"
+          ></div>
+        {/if}
       {/if}
 
       {@render trailingAddStep()}

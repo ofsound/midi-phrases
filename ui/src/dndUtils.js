@@ -19,3 +19,22 @@ export function sanitizeOrderedIds(orderedIds, knownIds) {
 
   return orderedIds.filter((id) => known.has(id));
 }
+
+/**
+ * Horizontal center of the insertion gap before `index`.
+ *
+ * @param {number[]} cellWidths
+ * @param {number} index
+ * @param {number} leadingInset
+ * @param {number} gap
+ */
+export function placementIndicatorLeftPx(cellWidths, index, leadingInset, gap) {
+  const clampedIndex = Math.min(cellWidths.length, Math.max(0, Math.trunc(index)));
+  let left = 0;
+
+  for (let cell = 0; cell < clampedIndex; cell += 1) {
+    left += cellWidths[cell] + (cell === 0 ? leadingInset : gap);
+  }
+
+  return left + (clampedIndex === 0 ? leadingInset : gap) / 2;
+}
