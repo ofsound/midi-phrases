@@ -124,37 +124,40 @@
   </aside>
 
   <div class="grid min-h-0 min-w-0 flex-1 grid-rows-[33%_55%] content-between overflow-hidden">
-    <div class="grid min-h-0 min-w-0 grid-cols-2 divide-x divide-border-subtle border-b border-border-subtle bg-surface/15">
-      <div class="flex min-h-0 min-w-0 flex-col justify-center gap-1 px-5">
-        <span class="text-[11px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>
-        <CyclePatternEditor
-          {accent}
-          {cycle}
-          {cycleMask}
-          playbackKey={stepKey}
-          playbackTriggerCount={cycleTriggerCount}
-          ariaLabel="Step cycle pattern"
-          onGestureStart={onCycleGestureStart}
-          onPatternPreview={onCyclePatternPreview}
-          onPatternCommit={onCyclePatternCommit}
-        />
-      </div>
+    <div class="flex min-h-0 min-w-0 items-center justify-center bg-surface/15">
+      <div class="grid w-[60%] min-w-0 grid-cols-2 gap-x-8">
+        <div class="flex min-h-0 min-w-0 flex-col justify-center gap-1">
+          <span class="text-[11px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>
+          <CyclePatternEditor
+            {accent}
+            borderless
+            {cycle}
+            {cycleMask}
+            playbackKey={stepKey}
+            playbackTriggerCount={cycleTriggerCount}
+            ariaLabel="Step cycle pattern"
+            onGestureStart={onCycleGestureStart}
+            onPatternPreview={onCyclePatternPreview}
+            onPatternCommit={onCyclePatternCommit}
+          />
+        </div>
 
-      <div class="flex min-h-0 min-w-0 items-center px-5">
-        <ContinuousSlider
-          large
-          {accent}
-          label="Probability"
-          value={probability}
-          min={0}
-          max={100}
-          ariaLabel="Step probability"
-          fullWidth={true}
-          formatDisplay={(value) => `${Math.round(value)}%`}
-          onGestureStart={onProbabilityGestureStart}
-          onValueChange={onProbabilityPreview}
-          onValueCommit={onProbabilityCommit}
-        />
+        <div class="flex min-h-0 min-w-0 items-center">
+          <ContinuousSlider
+            large
+            {accent}
+            label="Probability"
+            value={probability}
+            min={0}
+            max={100}
+            ariaLabel="Step probability"
+            fullWidth={true}
+            formatDisplay={(value) => `${Math.round(value)}%`}
+            onGestureStart={onProbabilityGestureStart}
+            onValueChange={onProbabilityPreview}
+            onValueCommit={onProbabilityCommit}
+          />
+        </div>
       </div>
     </div>
 

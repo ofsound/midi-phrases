@@ -17,6 +17,7 @@
    * @property {number} [cycleMask]
    * @property {string} [ariaLabel]
    * @property {boolean} [compact]
+   * @property {boolean} [borderless]
    * @property {string} [playbackKey]
    * @property {number} [playbackTriggerCount]
    * @property {() => void} [onGestureStart]
@@ -31,6 +32,7 @@
     cycleMask = 1,
     ariaLabel = "Step cycle pattern",
     compact = false,
+    borderless = false,
     playbackKey = "",
     playbackTriggerCount = -1,
     onGestureStart = () => {},
@@ -140,9 +142,11 @@
   }
 
   let shellClass = $derived(
-    compact
-      ? "relative min-w-0 rounded-md border border-border bg-surface/60 p-0.5"
-      : "relative min-w-0 rounded-md border border-border bg-surface/60 p-1",
+    borderless
+      ? "relative min-w-0"
+      : compact
+        ? "relative min-w-0 rounded-md border border-border bg-surface/60 p-0.5"
+        : "relative min-w-0 rounded-md border border-border bg-surface/60 p-1",
   );
   let gridClass = $derived(compact ? "grid grid-cols-8 gap-0.5" : "grid grid-cols-8 gap-1");
   let cellClass = $derived(compact ? "cycle-cell relative z-[1] h-5 rounded-sm border" : "cycle-cell relative z-[1] h-8 rounded-sm border");
