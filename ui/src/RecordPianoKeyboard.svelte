@@ -2,7 +2,7 @@
   import { SvelteSet } from "svelte/reactivity";
   import { midiToNoteName } from "./midiNoteNames.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
-  import { pianoBlackKeyClass, pianoWhiteKeyClass } from "./pianoKeyboardTheme.js";
+  import { pianoBlackKeyClass, pianoBlackKeyDisabledClass, pianoBlackKeySeamMaskClass, pianoWhiteKeyClass, pianoWhiteKeyDisabledClass } from "./pianoKeyboardTheme.js";
   import {
     buildRecordPianoKeys,
     clampRecordPianoOctaveOffset,
@@ -133,9 +133,9 @@
           <button
             type="button"
             data-cursor={usable ? "pointer" : "default"}
-            class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end transition-[filter,background-color,opacity] duration-75 last:border-r-0 {usable
+            class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end transition-[filter,background-color] duration-75 last:border-r-0 {usable
               ? 'hover:brightness-[0.98] active:brightness-95'
-              : 'pointer-events-none opacity-35'} {isKeyHeld(midi)
+              : pianoWhiteKeyDisabledClass} {isKeyHeld(midi)
               ? accent.pianoNoteActive
               : pianoWhiteKeyClass}"
             aria-label={midiToNoteName(midi)}
@@ -159,6 +159,18 @@
         {/each}
       </div>
 
+      <div class="pointer-events-none absolute inset-0">
+        {#each layout.blacks as { midi, centerPercent } (`seam-${midi}`)}
+          <div
+            class="{pianoBlackKeySeamMaskClass}"
+            style:left="calc({centerPercent}% - 1px)"
+            style:width="2px"
+            style:height="100%"
+            aria-hidden="true"
+          ></div>
+        {/each}
+      </div>
+
       <div class="pointer-events-none absolute inset-0 z-10">
         {#each layout.blacks as { midi, centerPercent, widthPercent } (midi)}
           {@const usable = isKeyUsable(midi)}
@@ -167,7 +179,7 @@
             data-cursor={usable ? "pointer" : "default"}
             class="{usable
               ? 'pointer-events-auto'
-              : 'pointer-events-none opacity-35'} absolute top-0 z-10 flex h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1 {isKeyHeld(midi)
+              : pianoBlackKeyDisabledClass} absolute top-0 z-10 flex h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1 {isKeyHeld(midi)
               ? accent.pianoNoteActive
               : pianoBlackKeyClass}"
             style:left="{centerPercent}%"

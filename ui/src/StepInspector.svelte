@@ -60,8 +60,8 @@
   let durationPercent = $derived(Math.round(Math.min(1, Math.max(0, durationFraction)) * 100));
 </script>
 
-<section class="flex min-h-0 w-full flex-1 gap-3 bg-app/90 px-6 py-4">
-  <aside class="flex w-[13.5rem] shrink-0 flex-col gap-3 py-1">
+<section class="flex min-h-0 w-full flex-1 bg-app/90">
+  <aside class="flex w-[13.5rem] shrink-0 flex-col gap-3 border-r border-border-subtle px-6 py-4">
     <div class="flex min-w-0 w-full flex-col gap-1">
       <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>
       <CyclePatternEditor
@@ -128,11 +128,8 @@
     </button>
   </aside>
 
-  <div
-    class="flex h-full min-h-0 min-w-0 flex-1 items-center overflow-hidden rounded-xl border border-border-subtle bg-app/80 px-2"
-  >
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
     <StepInspectorKeyboard
-      embedded
       {note}
       {stepKey}
       {scaleRoot}

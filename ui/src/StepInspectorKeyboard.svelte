@@ -1,7 +1,7 @@
 <script>
   import { midiToNoteName } from "./midiNoteNames.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
-  import { pianoBlackKeyClass, pianoWhiteKeyClass } from "./pianoKeyboardTheme.js";
+  import { pianoBlackKeyClass, pianoBlackKeyDisabledClass, pianoBlackKeySeamMaskClass, pianoWhiteKeyClass, pianoWhiteKeyDisabledClass } from "./pianoKeyboardTheme.js";
   import {
     buildRecordPianoKeys,
     clampStepInspectorOctaveOffset,
@@ -18,7 +18,6 @@
    * @property {number} [scaleRoot]
    * @property {number} [scaleModeIndex]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
-   * @property {boolean} [embedded]
    * @property {(midi: number) => void | Promise<void>} [onNoteChange]
    */
 
@@ -29,7 +28,6 @@
     scaleRoot = 0,
     scaleModeIndex = 0,
     accent = emeraldRowAccent,
-    embedded = false,
     onNoteChange = () => {},
   } = $props();
 
@@ -96,18 +94,15 @@
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
-  let keyboardSurfaceClass = $derived(
-    embedded
-      ? "relative flex h-full min-h-12 min-w-0 flex-1 touch-none select-none overflow-hidden"
-      : "relative flex h-full min-h-12 min-w-0 flex-1 touch-none select-none overflow-hidden rounded-lg border border-border-subtle bg-app/80",
-  );
+  let keyboardSurfaceClass =
+    "relative flex h-full min-h-0 min-w-0 flex-1 touch-none select-none overflow-hidden";
 </script>
 
-<div class="flex h-full min-h-0 min-w-0 flex-1 items-center gap-2">
+<div class="flex h-full min-h-0 min-w-0 flex-1 items-stretch gap-1 px-1">
   <button
     type="button"
     data-cursor="pointer"
-    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-base font-semibold text-text transition-colors hover:border-border-strong hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
+    class="flex w-8 shrink-0 items-center justify-center border-r border-border-subtle bg-surface/40 text-base font-semibold text-text transition-colors hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
     aria-label="Shift keyboard down one octave"
     title="Octave down"
     onclick={shiftOctaveDown}
@@ -116,7 +111,7 @@
   </button>
 
   <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-    <div class="flex h-7 shrink-0 items-center justify-between gap-4 px-1 text-[9px] font-medium uppercase tracking-wider text-text-muted">
+    <div class="flex h-8 shrink-0 items-center justify-between gap-4 border-b border-border-subtle bg-surface/30 px-3 text-[9px] font-medium uppercase tracking-wider text-text-muted">
       <span>
         Note
         <strong class="ml-1 font-mono text-xs font-bold tracking-normal {accent.textAccentStrong}">{currentNoteName}</strong>
@@ -139,7 +134,11 @@
           <button
             type="button"
             data-cursor={interactive ? "pointer" : "default"}
-            class="{whiteKeyClass} {selected ? accent.pianoNoteActive : pianoWhiteKeyClass} {interactive || selected ? '' : 'pointer-events-none opacity-35'}"
+            class="{whiteKeyClass} {selected
+              ? accent.pianoNoteActive
+              : interactive
+                ? pianoWhiteKeyClass
+                : pianoWhiteKeyDisabledClass}"
             aria-label={midiToNoteName(midi)}
             aria-pressed={selected}
             aria-disabled={!interactive}
@@ -151,6 +150,18 @@
         {/each}
       </div>
 
+      <div class="pointer-events-none absolute inset-0">
+        {#each layout.blacks as { midi, centerPercent } (`seam-${midi}`)}
+          <div
+            class="{pianoBlackKeySeamMaskClass}"
+            style:left="calc({centerPercent}% - 1px)"
+            style:width="2px"
+            style:height="100%"
+            aria-hidden="true"
+          ></div>
+        {/each}
+      </div>
+
       <div class="pointer-events-none absolute inset-0 z-10">
         {#each layout.blacks as { midi, centerPercent, widthPercent } (midi)}
           {@const interactive = isKeyInteractive(midi)}
@@ -158,7 +169,11 @@
           <button
             type="button"
             data-cursor={interactive ? "pointer" : "default"}
-            class="{blackKeyClass} {selected ? accent.pianoNoteActive : pianoBlackKeyClass} {interactive || selected ? '' : 'pointer-events-none opacity-35'}"
+            class="{blackKeyClass} {selected
+              ? accent.pianoNoteActive
+              : interactive
+                ? pianoBlackKeyClass
+                : pianoBlackKeyDisabledClass}"
             style:left="{centerPercent}%"
             style:width="{widthPercent}%"
             aria-label={midiToNoteName(midi)}
@@ -177,7 +192,7 @@
   <button
     type="button"
     data-cursor="pointer"
-    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-base font-semibold text-text transition-colors hover:border-border-strong hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
+    class="flex w-8 shrink-0 items-center justify-center border-l border-border-subtle bg-surface/40 text-base font-semibold text-text transition-colors hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
     aria-label="Shift keyboard up one octave"
     title="Octave up"
     onclick={shiftOctaveUp}
