@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  compactStepDurationFillPercent,
   compactStepMinimumVelocityOpacity,
   compactStepSkippedOpacity,
   compactStepVelocityOpacity,
@@ -20,5 +21,24 @@ describe("compactStepVelocityOpacity", () => {
 
   it("uses a distinct faint fill for skipped steps", () => {
     expect(compactStepVelocityOpacity(127, true)).toBe(compactStepSkippedOpacity);
+  });
+});
+
+describe("compactStepDurationFillPercent", () => {
+  it("maps duration fraction to a left-fill width percent", () => {
+    expect(compactStepDurationFillPercent(1)).toBe(100);
+    expect(compactStepDurationFillPercent(0.5)).toBe(50);
+    expect(compactStepDurationFillPercent(0.25)).toBe(25);
+  });
+
+  it("hides fill for muted steps and zero duration", () => {
+    expect(compactStepDurationFillPercent(0.75, true)).toBe(0);
+    expect(compactStepDurationFillPercent(0)).toBe(0);
+  });
+
+  it("clamps invalid values", () => {
+    expect(compactStepDurationFillPercent(-0.2)).toBe(0);
+    expect(compactStepDurationFillPercent(1.5)).toBe(100);
+    expect(compactStepDurationFillPercent(Number.NaN)).toBe(100);
   });
 });

@@ -18,3 +18,22 @@ export function compactStepVelocityOpacity(velocity, skipped = false) {
     (1 - compactStepMinimumVelocityOpacity) * normalizedVelocity
   );
 }
+
+/**
+ * Width percent for the read-only duration overlay in compact step cells.
+ * Matches DurationBar: muted steps show no fill.
+ *
+ * @param {number} durationFraction
+ * @param {boolean} [stepMuted]
+ */
+export function compactStepDurationFillPercent(durationFraction, stepMuted = false) {
+  if (stepMuted) return 0;
+
+  const raw = Number(durationFraction);
+  const fraction = Number.isFinite(raw)
+    ? Math.min(1, Math.max(0, raw))
+    : 1;
+  if (fraction <= 0) return 0;
+
+  return fraction * 100;
+}

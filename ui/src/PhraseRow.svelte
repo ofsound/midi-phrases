@@ -11,7 +11,7 @@
   import StepMuteToggle from "./StepMuteToggle.svelte";
   import StepSkipToggle from "./StepSkipToggle.svelte";
   import StepMutedOverlay from "./StepMutedOverlay.svelte";
-  import { compactStepVelocityOpacity } from "./compactStepVisuals.js";
+  import { compactStepDurationFillPercent, compactStepVelocityOpacity } from "./compactStepVisuals.js";
   import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { preventTabFocus } from "./preventTabFocus.js";
   import { isShadowItem, withoutShadowItems } from "./dndUtils.js";
@@ -1293,6 +1293,7 @@
   {@const stepIsSkipped = stepSkipped[step]}
   {@const stepDimmed = muted || stepIsSkipped}
   {@const velocityOpacity = compactStepVelocityOpacity(stepVelocity[step], stepIsSkipped)}
+  {@const durationFillPercent = compactStepDurationFillPercent(stepDurationFraction[step], stepIsMuted)}
   {@const gridColumns = quarterGridColumnsForMultiplierIndex(stepTimingMultiplier[step])}
   {@const shellPaddingPercent = compactStepShellPaddingPercent(stepTimingMultiplier[step])}
   {@const trailingPaddingPercent = compactStepShellTrailingPaddingPercent(stepTimingMultiplier[step])}
@@ -1339,6 +1340,13 @@
         style:opacity={muted ? 1 : activeGates[step] ? 1 : velocityOpacity}
         aria-hidden="true"
       ></div>
+      {#if durationFillPercent > 0}
+        <div
+          class="compact-step-duration-fill pointer-events-none absolute inset-y-0 left-0 z-[5]"
+          style:width="{durationFillPercent}%"
+          aria-hidden="true"
+        ></div>
+      {/if}
       {#if stepIsSkipped}
         <div
           class="compact-step-skipped-overlay pointer-events-none absolute inset-0 z-20"
@@ -1380,6 +1388,10 @@
 {/snippet}
 
 <style>
+  .compact-step-duration-fill {
+    background: color-mix(in srgb, var(--color-app) 30%, transparent);
+  }
+
   .compact-step-skipped-overlay {
     background: linear-gradient(
       to bottom right,
