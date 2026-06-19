@@ -23,6 +23,8 @@
  *   pianoNoteActive: string,
  *   velocityBarFill: string,
  *   velocityBarFillPreview: string,
+ *   durationTrackBg: string,
+ *   durationBorder: string,
  * }} RowAccent */
 
 /** Global interface accent — intentionally distinct from any row palette. */
@@ -52,6 +54,8 @@ export const interfaceAccent = {
   pianoNoteActive: "border-link-hover/90 bg-link-hover shadow-accent-piano-active",
   velocityBarFill: "bg-[color-mix(in_srgb,var(--color-accent)_32%,transparent)]",
   velocityBarFillPreview: "bg-[color-mix(in_srgb,var(--color-accent)_56%,transparent)]",
+  durationTrackBg: "bg-[color-mix(in_srgb,var(--color-accent)_16%,var(--color-surface))]",
+  durationBorder: "border border-accent",
 };
 
 /** Row 1 accent — palette tokens live in semantic-theme.generated.css. */
@@ -81,6 +85,8 @@ export const emeraldRowAccent = {
   pianoNoteActive: "border-row-accent-1-soft/90 bg-row-accent-1-soft shadow-[0_0_12px_color-mix(in_srgb,var(--color-row-accent-1)_65%,transparent)]",
   velocityBarFill: "bg-[color-mix(in_srgb,var(--color-row-accent-1)_32%,transparent)]",
   velocityBarFillPreview: "bg-[color-mix(in_srgb,var(--color-row-accent-1)_56%,transparent)]",
+  durationTrackBg: "bg-[color-mix(in_srgb,var(--color-row-accent-1)_16%,var(--color-surface))]",
+  durationBorder: "border border-row-accent-1",
 };
 
 /** Rows 2-4 (1-based): alternate row accents when row colors are enabled. */
@@ -111,6 +117,8 @@ export const altRowAccents = [
     pianoNoteActive: "border-row-accent-2-soft/90 bg-row-accent-2-soft shadow-[0_0_12px_color-mix(in_srgb,var(--color-row-accent-2)_65%,transparent)]",
     velocityBarFill: "bg-[color-mix(in_srgb,var(--color-row-accent-2)_32%,transparent)]",
     velocityBarFillPreview: "bg-[color-mix(in_srgb,var(--color-row-accent-2)_56%,transparent)]",
+    durationTrackBg: "bg-[color-mix(in_srgb,var(--color-row-accent-2)_16%,var(--color-surface))]",
+    durationBorder: "border border-row-accent-2",
   },
   {
     borderActive: "border-row-accent-3",
@@ -137,6 +145,8 @@ export const altRowAccents = [
     pianoNoteActive: "border-row-accent-3-soft/90 bg-row-accent-3-soft shadow-[0_0_12px_color-mix(in_srgb,var(--color-row-accent-3)_65%,transparent)]",
     velocityBarFill: "bg-[color-mix(in_srgb,var(--color-row-accent-3)_32%,transparent)]",
     velocityBarFillPreview: "bg-[color-mix(in_srgb,var(--color-row-accent-3)_56%,transparent)]",
+    durationTrackBg: "bg-[color-mix(in_srgb,var(--color-row-accent-3)_16%,var(--color-surface))]",
+    durationBorder: "border border-row-accent-3",
   },
   {
     borderActive: "border-row-accent-4",
@@ -163,6 +173,8 @@ export const altRowAccents = [
     pianoNoteActive: "border-row-accent-4-soft/90 bg-row-accent-4-soft shadow-[0_0_12px_color-mix(in_srgb,var(--color-row-accent-4)_65%,transparent)]",
     velocityBarFill: "bg-[color-mix(in_srgb,var(--color-row-accent-4)_32%,transparent)]",
     velocityBarFillPreview: "bg-[color-mix(in_srgb,var(--color-row-accent-4)_56%,transparent)]",
+    durationTrackBg: "bg-[color-mix(in_srgb,var(--color-row-accent-4)_16%,var(--color-surface))]",
+    durationBorder: "border border-row-accent-4",
   },
 ];
 

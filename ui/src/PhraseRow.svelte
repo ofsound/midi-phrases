@@ -1749,7 +1749,7 @@
     <div
       class="relative overflow-hidden rounded-md transition-[box-shadow,filter] duration-75 {muted
         ? 'bg-app/95 ring-1 ring-inset ring-border-subtle/90'
-        : 'bg-surface'} {activeGates[step] && !stepDimmed
+        : `${accent.durationBorder} ${accent.durationTrackBg}`} {activeGates[step] && !stepDimmed
         ? accent.playbackGlow
         : ''} {isStepSelected
         ? 'brightness-75 saturate-75'
@@ -1760,19 +1760,15 @@
       style:margin-right="{step === stepIds.length - 1 ? trailingPaddingPercent : shellPaddingPercent}%"
       style:height="{phraseStepCellMinHeightPx()}px"
     >
-      <div
-        class="pointer-events-none absolute inset-0 transition-[background-color,opacity] duration-75 {muted
-          ? 'bg-surface/70'
-          : activeGates[step]
-            ? accent.bgAccentStrong
-            : accent.bgAccent}"
-        style:opacity={muted ? 1 : activeGates[step] ? 1 : velocityOpacity}
-        aria-hidden="true"
-      ></div>
       {#if durationFillPercent > 0}
         <div
-          class="compact-step-duration-fill pointer-events-none absolute inset-y-0 left-0 z-[5]"
+          class="pointer-events-none absolute inset-y-0 left-0 z-[5] {muted
+            ? 'bg-surface-subtle'
+            : activeGates[step]
+              ? accent.bgAccentStrong
+              : accent.bgAccent}"
           style:width="{durationFillPercent}%"
+          style:opacity={muted ? 1 : velocityOpacity}
           aria-hidden="true"
         ></div>
       {/if}
@@ -1859,10 +1855,6 @@
 {/snippet}
 
 <style>
-  .compact-step-duration-fill {
-    background: color-mix(in srgb, var(--color-app) 30%, transparent);
-  }
-
   .compact-step-resize-handle {
     height: 78%;
     width: 0.2rem;

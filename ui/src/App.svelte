@@ -84,7 +84,7 @@
   import PulseNoteButtonGroup from "./PulseNoteButtonGroup.svelte";
   import ColorsToggle from "./ColorsToggle.svelte";
   import ThemeModeToggle from "./ThemeModeToggle.svelte";
-  import StretchToFitToggle from "./StretchToFitToggle.svelte";
+  import StepViewModeToggle from "./StepViewModeToggle.svelte";
   import FullscreenIcon from "./FullscreenIcon.svelte";
   import MidiPhrasesLogo from "./MidiPhrasesLogo.svelte";
   import UiScaleDragInput from "./UiScaleDragInput.svelte";
@@ -4452,6 +4452,16 @@
           </div>
           </div>
         </div>
+        <div class="flex flex-col items-start gap-1 px-4">
+          <span class="invisible text-xs font-semibold leading-none select-none" aria-hidden="true">View</span>
+          <StepViewModeToggle
+            compact={stretchStepsToFit}
+            accent={interfaceAccent}
+            onChange={(nextCompact) => {
+              stretchStepsToFit = nextCompact;
+            }}
+          />
+        </div>
         <BulkStepEditControls
           accent={interfaceAccent}
           requireSelection={false}
@@ -4527,12 +4537,6 @@
           </button>
         </div>
         <div class="ml-auto flex shrink-0 items-end gap-1.5 pl-3">
-          <StretchToFitToggle
-            enabled={stretchStepsToFit}
-            onChange={(enabled) => {
-              stretchStepsToFit = enabled;
-            }}
-          />
           <ColorsToggle
             accent={interfaceAccent}
             enabled={rowColorsEnabled}
