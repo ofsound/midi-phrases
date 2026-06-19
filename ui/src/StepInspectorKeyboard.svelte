@@ -102,7 +102,7 @@
   <button
     type="button"
     data-cursor="pointer"
-    class="flex w-8 shrink-0 items-center justify-center border-r border-border-subtle bg-surface/40 text-base font-semibold text-text transition-colors hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
+    class="flex w-8 shrink-0 items-center justify-center bg-surface/40 text-base font-semibold text-text transition-colors hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
     aria-label="Shift keyboard down one octave"
     title="Octave down"
     onclick={shiftOctaveDown}
@@ -111,7 +111,7 @@
   </button>
 
   <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-    <div class="flex h-8 shrink-0 items-center justify-between gap-4 border-b border-border-subtle bg-surface/30 px-3 text-[9px] font-medium uppercase tracking-wider text-text-muted">
+    <div class="flex h-8 shrink-0 items-center justify-between gap-4 bg-surface/30 px-3 text-[9px] font-medium uppercase tracking-wider text-text-muted">
       <span>
         Note
         <strong class="ml-1 font-mono text-xs font-bold tracking-normal {accent.textAccentStrong}">{currentNoteName}</strong>
@@ -134,7 +134,9 @@
           <button
             type="button"
             data-cursor={interactive ? "pointer" : "default"}
-            class="{whiteKeyClass} {selected ? accent.pianoNoteActive : pianoWhiteKeyClass} {interactive
+            class="{whiteKeyClass} {selected
+              ? `border-r border-b ${accent.pianoNoteActive}`
+              : pianoWhiteKeyClass} {interactive
               ? ''
               : 'pointer-events-none'}"
             aria-label={midiToNoteName(midi)}
@@ -143,7 +145,15 @@
             onpointerdown={interactive ? (event) => onKeyPointerDown(event, midi) : undefined}
             onpointerup={interactive ? onKeyPointerUp : undefined}
             onpointercancel={interactive ? onKeyPointerUp : undefined}
-          ></button>
+          >
+            {#if midi % 12 === 0}
+              <span
+                class="pointer-events-none mb-1.5 text-[11px] font-bold leading-none tabular-nums text-text-inverse"
+              >
+                {midiToNoteName(midi)}
+              </span>
+            {/if}
+          </button>
         {/each}
       </div>
 
@@ -166,7 +176,9 @@
           <button
             type="button"
             data-cursor={interactive ? "pointer" : "default"}
-            class="{blackKeyClass} {selected ? accent.pianoNoteActive : pianoBlackKeyClass} {interactive
+            class="{blackKeyClass} {selected
+              ? `border ${accent.pianoNoteActive} hover:brightness-110 active:brightness-125`
+              : pianoBlackKeyClass} {interactive
               ? 'pointer-events-auto'
               : 'pointer-events-none'}"
             style:left="{centerPercent}%"
@@ -186,7 +198,7 @@
   <button
     type="button"
     data-cursor="pointer"
-    class="flex w-8 shrink-0 items-center justify-center border-l border-border-subtle bg-surface/40 text-base font-semibold text-text transition-colors hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
+    class="flex w-8 shrink-0 items-center justify-center bg-surface/40 text-base font-semibold text-text transition-colors hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
     aria-label="Shift keyboard up one octave"
     title="Octave up"
     onclick={shiftOctaveUp}
