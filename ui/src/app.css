@@ -219,12 +219,31 @@
     --processing-param-width: 2.5075rem;
     --processing-param-height: 1.1475rem;
     --combination-rail-hex-size: 9.9px 12.86px;
+    --honeycomb-cell-tint: var(--color-app);
+    --honeycomb-cell-opacity: 0.22;
+    --honeycomb-line-opacity: 0.18;
     background-color: var(--color-shell);
-    background-image: url("./assets/combination-rail-hex-cells.svg");
-    background-size: var(--combination-rail-hex-size);
-    background-position: left top;
     border-top: 1.7px solid color-mix(in srgb, var(--color-text) 7%, transparent);
     border-bottom: 1.7px solid color-mix(in srgb, var(--color-text) 7%, transparent);
+  }
+
+  .combination-mode-rail::after,
+  .mp-honeycomb-rail::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    background: var(--honeycomb-cell-tint);
+    opacity: var(--honeycomb-cell-opacity);
+    -webkit-mask-image: url("./assets/combination-rail-hex-cells.svg");
+    mask-image: url("./assets/combination-rail-hex-cells.svg");
+    -webkit-mask-size: var(--combination-rail-hex-size);
+    mask-size: var(--combination-rail-hex-size);
+    -webkit-mask-repeat: repeat;
+    mask-repeat: repeat;
+    -webkit-mask-position: left top;
+    mask-position: left top;
   }
 
   .combination-mode-rail::before,
@@ -241,7 +260,7 @@
       var(--color-text-muted) 62%,
       var(--color-border) 100%
     );
-    opacity: 0.18;
+    opacity: var(--honeycomb-line-opacity);
     -webkit-mask-image: url("./assets/combination-rail-hex-lines.svg");
     mask-image: url("./assets/combination-rail-hex-lines.svg");
     -webkit-mask-size: var(--combination-rail-hex-size);
@@ -250,6 +269,19 @@
     mask-repeat: repeat;
     -webkit-mask-position: left top;
     mask-position: left top;
+  }
+
+  :root[data-theme="light"] .combination-mode-rail,
+  :root[data-theme="light"] .mp-honeycomb-rail {
+    --honeycomb-cell-tint: var(--color-border-subtle);
+    --honeycomb-cell-opacity: 0.14;
+    --honeycomb-line-opacity: 0.07;
+    background-color: color-mix(in srgb, var(--color-shell) 55%, var(--color-surface));
+  }
+
+  :root[data-theme="light"] .combination-mode-rail::before,
+  :root[data-theme="light"] .mp-honeycomb-rail::before {
+    background: var(--color-border-subtle);
   }
 
   .combination-mode-rail-layout {
