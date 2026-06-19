@@ -205,7 +205,13 @@
   let rulerHeightPx = $derived(scaledPx(baseRulerHeightPx));
   let measureLines = $derived(measureLineQuarters(rollLengthQuarters));
   let beatLines = $derived(beatLineQuarters(rollLengthQuarters));
-  let visiblePitchRange = $derived(fittedPitchRangeForNotes(notes));
+  let visiblePitchRange = $derived.by(() => {
+    if (drag?.mode === "move") {
+      return drag.lockedPitchRange;
+    }
+
+    return fittedPitchRangeForNotes(notes);
+  });
   let pitchSpan = $derived(visiblePitchRange.maxMidi - visiblePitchRange.minMidi + 1);
   let rowHeightPx = $derived(
     viewportHeightPx > 0 ? viewportHeightPx / pitchSpan : scaledPx(16),
@@ -484,6 +490,7 @@
       previewPreviousStep,
       originalPreviousMultiplierIndex,
       previewPreviousMultiplierIndex: originalPreviousMultiplierIndex,
+      lockedPitchRange: { ...visiblePitchRange },
       didDrag: false,
     };
 
@@ -621,23 +628,28 @@
     await endNoteDrag(event);
   }
 
-  /** @param {PointerEvent} event @param {any} note */
-  function beginStepResize(event, note) {
+  /** @param {PointerEvent} event @param {any} note @param {"start" | "end"} edge */
+  function beginStepResize(event, note, edge) {
     if (event.shiftKey) {
       onBulkSelectPointerDown(event);
       return;
     }
+
+    const resizedStep = edge === "start" ? note.step - 1 : note.step;
+
+    if (resizedStep < 0) return;
 
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
 
     const initialMultiplierIndex =
-      stepTimingMultiplier[note.step] ?? defaultStepTimingMultiplierIndex;
+      stepTimingMultiplier[resizedStep] ?? defaultStepTimingMultiplierIndex;
     drag = {
       mode: "resize",
       pointerId: event.pointerId,
-      step: note.step,
+      step: resizedStep,
+      edge,
       startX: event.clientX,
       initialMultiplierIndex,
       previewMultiplierIndex: initialMultiplierIndex,
@@ -685,15 +697,19 @@
     drag = null;
   }
 
-  /** @param {KeyboardEvent} event @param {any} note */
-  function resizeStepWithKeyboard(event, note) {
+  /** @param {KeyboardEvent} event @param {any} note @param {"start" | "end"} edge */
+  function resizeStepWithKeyboard(event, note, edge) {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
 
     event.preventDefault();
     event.stopPropagation();
 
+    const resizedStep = edge === "start" ? note.step - 1 : note.step;
+
+    if (resizedStep < 0) return;
+
     const initialMultiplierIndex =
-      stepTimingMultiplier[note.step] ?? defaultStepTimingMultiplierIndex;
+      stepTimingMultiplier[resizedStep] ?? defaultStepTimingMultiplierIndex;
     const nextMultiplierIndex = Math.min(
       stepTimingMultiplierCount - 1,
       Math.max(
@@ -703,7 +719,7 @@
     );
 
     if (nextMultiplierIndex !== initialMultiplierIndex) {
-      void onStepResize(row, note.step, nextMultiplierIndex);
+      void onStepResize(row, resizedStep, nextMultiplierIndex);
     }
   }
 
@@ -1133,23 +1149,44 @@
                 >
                   <span class="pointer-events-none truncate">{displayLabel}</span>
                 </button>
-                <button
-                  type="button"
-                  data-cursor="horizontal-drag"
-                  aria-label={`Resize step ${note.step + 1}`}
-                  title="Drag left or right to resize step"
-                  class="absolute top-0 right-0 z-30 flex h-full w-2 touch-none items-center justify-end rounded-sm outline-none {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'}"
-                  onpointerdown={(event) => beginStepResize(event, note)}
-                  onpointermove={moveStepResize}
-                  onpointerup={endStepResize}
-                  onpointercancel={cancelStepResize}
-                  onkeydown={(event) => resizeStepWithKeyboard(event, note)}
-                >
-                  <span
-                    class="pointer-events-none h-[70%] w-px rounded-full bg-current {rowAccent.textAccent} opacity-70"
-                    aria-hidden="true"
-                  ></span>
-                </button>
+                {#if note.step > 0}
+                  <button
+                    type="button"
+                    data-cursor="horizontal-drag"
+                    aria-label={`Resize start of step ${note.step + 1}`}
+                    title="Drag to move this boundary by resizing the preceding step"
+                    class="group absolute top-0 -left-2 z-30 flex h-full w-4 touch-none items-center justify-center outline-none {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'}"
+                    onpointerdown={(event) => beginStepResize(event, note, "start")}
+                    onpointermove={moveStepResize}
+                    onpointerup={endStepResize}
+                    onpointercancel={cancelStepResize}
+                    onkeydown={(event) => resizeStepWithKeyboard(event, note, "start")}
+                  >
+                    <span
+                      class="pointer-events-none h-[78%] w-1 rounded-full border border-text/25 {rowAccent.bgAccentStrong} shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-app)_65%,transparent)] transition-[width,filter] group-hover:w-1.5 group-hover:brightness-110"
+                      aria-hidden="true"
+                    ></span>
+                  </button>
+                {/if}
+                {#if note.step === stepNotes.length - 1}
+                  <button
+                    type="button"
+                    data-cursor="horizontal-drag"
+                    aria-label={`Resize end of step ${note.step + 1}`}
+                    title="Drag to resize this step"
+                    class="group absolute top-0 -right-2 z-30 flex h-full w-4 touch-none items-center justify-center outline-none {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'}"
+                    onpointerdown={(event) => beginStepResize(event, note, "end")}
+                    onpointermove={moveStepResize}
+                    onpointerup={endStepResize}
+                    onpointercancel={cancelStepResize}
+                    onkeydown={(event) => resizeStepWithKeyboard(event, note, "end")}
+                  >
+                    <span
+                      class="pointer-events-none h-[78%] w-1 rounded-full border border-text/25 {rowAccent.bgAccentStrong} shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-app)_65%,transparent)] transition-[width,filter] group-hover:w-1.5 group-hover:brightness-110"
+                      aria-hidden="true"
+                    ></span>
+                  </button>
+                {/if}
               </div>
             {/each}
           </div>
