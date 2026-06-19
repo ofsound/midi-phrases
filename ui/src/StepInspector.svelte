@@ -2,6 +2,7 @@
   import CyclePatternEditor from "./CyclePatternEditor.svelte";
   import ContinuousSlider from "./ContinuousSlider.svelte";
   import StepInspectorKeyboard from "./StepInspectorKeyboard.svelte";
+  import RemoveXIcon from "./RemoveXIcon.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import {
     formatTimingMultiplierLabel,
@@ -71,19 +72,19 @@
 </script>
 
 <section class="flex min-h-0 w-full flex-1 bg-app/90">
-  <aside class="relative flex w-[13.5rem] shrink-0 border-r border-border-subtle px-6 py-2">
+  <aside class="relative flex w-[13.5rem] shrink-0 flex-col border-r border-border-subtle px-6 py-2">
     <button
       type="button"
       data-cursor="pointer"
       aria-label="Close step inspector"
-      class="absolute top-1 left-1 z-10 flex h-5 w-5 items-center justify-center rounded-sm border border-border bg-surface text-sm leading-none text-text-muted transition-colors outline-none hover:border-border-strong hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
+      class="absolute top-2 left-2 z-10 flex h-6 w-6 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-text-muted transition-colors outline-none hover:bg-surface-raised/80 hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
       onclick={onClose}
       title="Close step inspector"
     >
-      X
+      <RemoveXIcon class="pointer-events-none h-3.5 w-3.5" />
     </button>
 
-    <div class="flex min-h-0 w-full flex-1 flex-col justify-between">
+    <div class="flex min-h-0 w-full flex-1 flex-col justify-end gap-3 pb-1 pt-7">
       <ContinuousSlider
         large
         {accent}
