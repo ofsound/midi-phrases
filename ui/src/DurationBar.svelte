@@ -175,9 +175,9 @@
     {@attach trackAttachment}
     data-step-duration
     data-cursor="pointer"
-    class="duration-track relative h-3.5 touch-none select-none overflow-hidden rounded-sm outline-none {accent.ringFocusWithWidth} {muted
-      ? 'duration-track-muted bg-surface-muted'
-      : `${accent.durationTrackBg} ${accent.durationBorder}`}"
+    class="duration-track relative h-3.5 touch-none select-none overflow-hidden outline-none {accent.ringFocusWithWidth} {muted
+      ? 'bg-surface-muted'
+      : 'bg-surface-subtle'}"
     role="slider"
     aria-label={ariaLabel}
     aria-valuemin={0}
@@ -213,17 +213,24 @@
           ? ''
           : 'transition-[width,opacity] duration-75'}"
         style:width="{displayFillPercent}%"
-        style:opacity={muted ? 1 : fillOpacity}
+        style:opacity={fillOpacity}
       ></div>
     {/if}
   </div>
 </div>
 
 <style>
-  .duration-track-muted {
+  .duration-track {
     background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-text) 12%, transparent), color-mix(in srgb, var(--color-text) 2%, transparent) 42%, color-mix(in srgb, var(--color-app) 20%, transparent));
     box-shadow:
       inset 0 1px 0 color-mix(in srgb, var(--color-text) 8%, transparent),
       inset 0 -1px 0 color-mix(in srgb, var(--color-app) 35%, transparent);
+  }
+
+  .duration-fill {
+    background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-text) 26%, transparent), color-mix(in srgb, var(--color-text) 4%, transparent) 48%, color-mix(in srgb, var(--color-app) 18%, transparent));
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--color-text) 22%, transparent),
+      inset 0 -1px 0 color-mix(in srgb, var(--color-app) 22%, transparent);
   }
 </style>

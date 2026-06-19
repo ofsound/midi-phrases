@@ -11,7 +11,7 @@
   import StepMuteToggle from "./StepMuteToggle.svelte";
   import StepSkipToggle from "./StepSkipToggle.svelte";
   import StepMutedOverlay from "./StepMutedOverlay.svelte";
-  import { compactStepDurationFillPercent, compactStepVelocityOpacity } from "./compactStepVisuals.js";
+  import { compactStepVelocityOpacity } from "./compactStepVisuals.js";
   import {
     compactBoundaryResizeInitialIndex,
     compactBoundaryResizeStepIndex,
@@ -1721,7 +1721,6 @@
   {@const stepIsSkipped = stepSkipped[step]}
   {@const stepDimmed = muted || stepIsSkipped}
   {@const velocityOpacity = compactStepVelocityOpacity(stepVelocity[step], stepIsSkipped)}
-  {@const durationFillPercent = compactStepDurationFillPercent(stepDurationFraction[step], stepIsMuted)}
   {@const stepMultiplierIndex = layoutTimingMultipliers[step] ?? defaultStepTimingMultiplierIndex}
   {@const gridColumns = quarterGridColumnsForMultiplierIndex(stepMultiplierIndex)}
   {@const shellPaddingPercent = compactStepShellPaddingPercent(stepMultiplierIndex)}
@@ -1749,7 +1748,7 @@
     <div
       class="relative overflow-hidden rounded-md transition-[box-shadow,filter] duration-75 {muted
         ? 'bg-app/95 ring-1 ring-inset ring-border-subtle/90'
-        : `${accent.durationBorder} ${accent.durationTrackBg}`} {activeGates[step] && !stepDimmed
+        : 'bg-surface'} {activeGates[step] && !stepDimmed
         ? accent.playbackGlow
         : ''} {isStepSelected
         ? 'brightness-75 saturate-75'
@@ -1760,18 +1759,15 @@
       style:margin-right="{step === stepIds.length - 1 ? trailingPaddingPercent : shellPaddingPercent}%"
       style:height="{phraseStepCellMinHeightPx()}px"
     >
-      {#if durationFillPercent > 0}
-        <div
-          class="pointer-events-none absolute inset-y-0 left-0 z-[5] {muted
-            ? 'bg-surface-subtle'
-            : activeGates[step]
-              ? accent.bgAccentStrong
-              : accent.bgAccent}"
-          style:width="{durationFillPercent}%"
-          style:opacity={muted ? 1 : velocityOpacity}
-          aria-hidden="true"
-        ></div>
-      {/if}
+      <div
+        class="pointer-events-none absolute inset-0 transition-[background-color,opacity] duration-75 {muted
+          ? 'bg-surface/70'
+          : activeGates[step]
+            ? accent.bgAccentStrong
+            : accent.bgAccent}"
+        style:opacity={muted ? 1 : activeGates[step] ? 1 : velocityOpacity}
+        aria-hidden="true"
+      ></div>
       {#if stepIsSkipped}
         <div
           class="compact-step-skipped-overlay pointer-events-none absolute inset-0 z-20"
