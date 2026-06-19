@@ -949,9 +949,38 @@ export function patternRepeatLengthQuarters({
 }
 
 /** @param {number} beat */
-export function mapPlaybackBeatForPianoRoll(beat) {
+export function mapPlaybackBeatForPianoRoll(
+  beat,
+  { loopEnabled = false, patternLengthQuarters = 0 } = {},
+) {
   if (beat < 0) return -1;
+
+  if (loopEnabled) return beat;
+
+  if (patternLengthQuarters > EPSILON) {
+    return positiveMod(beat, patternLengthQuarters);
+  }
+
   return beat;
+}
+
+/**
+ * @param {ScheduledNote} note
+ * @param {number} beat
+ * @param {{ loopEnabled?: boolean, patternLengthQuarters?: number }} [options]
+ */
+export function isScheduledNoteActiveAtPlaybackBeat(
+  note,
+  beat,
+  { loopEnabled = false, patternLengthQuarters = 0 } = {},
+) {
+  if (beat < 0) return false;
+
+  if (!loopEnabled && patternLengthQuarters > EPSILON) {
+    return isScheduledNoteActiveAtPatternBeat(note, beat, patternLengthQuarters);
+  }
+
+  return isScheduledNoteActiveAtBeat(note, beat);
 }
 
 /**

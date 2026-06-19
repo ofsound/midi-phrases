@@ -9,15 +9,17 @@
   import { pagedPlaybackScrollLeft } from "./pianoRollAutoScroll.js";
   import { fittedPitchRangeForSchedule } from "./pianoRollViewport.js";
   import { applyVelocityTilt } from "./velocityTilt.js";
-  import {
-    buildPhraseScheduleBeforeBandpass,
-    buildPhraseScheduleWindowBeforeBandpass,
-    DEFAULT_PREVIEW_LENGTH_QUARTERS,
-    isBlackKey,
-    isScheduledNoteActiveAtBeat,
-    mapPlaybackBeatForPianoRoll,
-  } from "./phraseSchedule.js";
-  import { scaledPx } from "./uiScale.svelte.js";
+import {
+  buildPhraseScheduleBeforeBandpass,
+  buildPhraseScheduleWindowBeforeBandpass,
+  DEFAULT_PREVIEW_LENGTH_QUARTERS,
+  isBlackKey,
+  isScheduledNoteActiveAtPlaybackBeat,
+  mapPlaybackBeatForPianoRoll,
+  patternRepeatLengthQuarters,
+} from "./phraseSchedule.js";
+import { rollLengthQuartersForCycle } from "./rowPianoRollShape.js";
+import { scaledPx } from "./uiScale.svelte.js";
 
   
   /**
@@ -92,7 +94,7 @@
     shimmerFeedbackPercent = 70,
     shimmerMixPercent = 100,
     rowColorsEnabled = true,
-    lengthQuarters = DEFAULT_PREVIEW_LENGTH_QUARTERS,
+    lengthQuarters = undefined,
     loopEnabled = false,
     loopStart = 0,
     loopEnd = 8,
@@ -147,17 +149,38 @@
 
   let displayBandpassLow = $derived(noteBandpassPreview.low ?? noteBandpassLowMidi);
   let displayBandpassHigh = $derived(noteBandpassPreview.high ?? noteBandpassHighMidi);
+  let patternRepeatQuarters = $derived(
+    patternRepeatLengthQuarters({
+      stepTimingMultiplier,
+      rowMuted,
+      stepSkipped,
+      stepCycle,
+      pulseIndex,
+    }),
+  );
+  let autoLengthQuarters = $derived.by(() => {
+    const patternLength = patternRepeatQuarters > 0
+      ? rollLengthQuartersForCycle(patternRepeatQuarters)
+      : 0;
+    const loopTapeLength = loopEnabled && loopEnd > loopStart
+      ? rollLengthQuartersForCycle(loopEnd)
+      : 0;
+    const contentLength = Math.max(patternLength, loopTapeLength, loopBraceSnapQuarters);
+
+    return contentLength > 0 ? contentLength : DEFAULT_PREVIEW_LENGTH_QUARTERS;
+  });
+  let resolvedLengthQuarters = $derived(lengthQuarters ?? autoLengthQuarters);
   let visibleStartQuarter = $derived(viewportScrollLeftPx / pxPerQuarter);
   let visibleEndQuarter = $derived(
     viewportWidthPx > 0
       ? (viewportScrollLeftPx + viewportWidthPx) / pxPerQuarter
-      : Math.min(lengthQuarters, 32),
+      : Math.min(resolvedLengthQuarters, 32),
   );
   let renderWindowStart = $derived(
     Math.max(0, Math.floor(visibleStartQuarter - renderOverscanQuarters)),
   );
   let renderWindowEnd = $derived(
-    Math.min(lengthQuarters, Math.ceil(visibleEndQuarter + renderOverscanQuarters)),
+    Math.min(resolvedLengthQuarters, Math.ceil(visibleEndQuarter + renderOverscanQuarters)),
   );
   let renderWindowLeftPx = $derived(renderWindowStart * pxPerQuarter);
   let renderWindowWidthPx = $derived(
@@ -181,7 +204,7 @@
       swingPercent,
       swingSubdivisionIndex,
       combinationModeMask,
-      lengthQuarters,
+      resolvedLengthQuarters,
       scaleRoot,
       scaleModeIndex,
       octavizerDown8vaEnabled,
@@ -222,7 +245,7 @@
       swingPercent,
       swingSubdivisionIndex,
       combinationModeMask,
-      lengthQuarters,
+      resolvedLengthQuarters,
       scaleRoot,
       scaleModeIndex,
       octavizerDown8vaEnabled,
@@ -251,7 +274,7 @@
       ? Math.min(maxRowHeightPx, verticalViewportHeightPx / pitchSpan)
       : fallbackRowHeightPx,
   );
-  let rollWidthPx = $derived(lengthQuarters * pxPerQuarter);
+  let rollWidthPx = $derived(resolvedLengthQuarters * pxPerQuarter);
   let rollHeightPx = $derived(pitchSpan * rowHeightPx);
   let noteVerticalInsetPx = $derived(Math.min(1, Math.max(0, (rowHeightPx - 1) / 2)));
   let noteHeightPx = $derived(Math.max(1, rowHeightPx - noteVerticalInsetPx * 2));
@@ -261,7 +284,10 @@
   let loopLeftPx = $derived(displayStart * pxPerQuarter);
   let loopWidthPx = $derived(loopSpan * pxPerQuarter);
   let displayPlaybackBeat = $derived(
-    mapPlaybackBeatForPianoRoll(playbackBeat),
+    mapPlaybackBeatForPianoRoll(playbackBeat, {
+      loopEnabled,
+      patternLengthQuarters: patternRepeatQuarters,
+    }),
   );
   let showPlaybackPlayhead = $derived(displayPlaybackBeat >= 0);
   let playbackPlayheadLeftPx = $derived(displayPlaybackBeat * pxPerQuarter);
@@ -368,7 +394,7 @@
     const clamped = clampLoopBrace(
       next.start ?? loopStart,
       next.end ?? loopEnd,
-      lengthQuarters,
+      resolvedLengthQuarters,
     );
 
     await onLoopBraceChange({
@@ -415,8 +441,8 @@
         nextEnd = span;
       }
 
-      if (nextEnd > lengthQuarters) {
-        nextEnd = lengthQuarters;
+      if (nextEnd > resolvedLengthQuarters) {
+        nextEnd = resolvedLengthQuarters;
         nextStart = nextEnd - span;
       }
 
@@ -485,8 +511,8 @@
       nextEnd = span;
     }
 
-    if (nextEnd > lengthQuarters) {
-      nextEnd = lengthQuarters;
+    if (nextEnd > resolvedLengthQuarters) {
+      nextEnd = resolvedLengthQuarters;
       nextStart = nextEnd - span;
     }
 
@@ -494,7 +520,7 @@
   }
 
   let pitchRows = $derived(Array.from({ length: pitchSpan }, (_, index) => pitchRange.maxMidi - index));
-  let barLines = $derived(Array.from({ length: Math.floor(lengthQuarters / 4) + 1 }, (_, bar) => bar * 4));
+  let barLines = $derived(Array.from({ length: Math.floor(resolvedLengthQuarters / 4) + 1 }, (_, bar) => bar * 4));
 
   /** @param {HTMLCanvasElement} node */
   function staticCanvasAttachment(node) {
@@ -716,7 +742,10 @@
     const windowLeftPx = renderWindowStart * pxPerQuarter;
 
     for (const note of scheduled) {
-      const noteIsActive = isScheduledNoteActiveAtBeat(note, displayPlaybackBeat);
+      const noteIsActive = isScheduledNoteActiveAtPlaybackBeat(note, displayPlaybackBeat, {
+        loopEnabled,
+        patternLengthQuarters: patternRepeatQuarters,
+      });
 
       if (note.velocity <= 0 || !noteIsActive) continue;
 
