@@ -55,7 +55,9 @@
     quarterGridColumnsForMultiplierIndex,
     compactStepShellPaddingPercent,
     compactStepShellTrailingPaddingPercent,
+    phraseRowEndAddStepQuarterGridColumns,
     rowGridWidthPx,
+    rowQuarterGridColumns,
     insertSlotLeftPxAtGridBoundaryPx,
     rowStepLayoutsPx,
     rowTimingOffsetShiftPx,
@@ -1243,6 +1245,9 @@
   let compactGridStyle = $derived(
     `grid-template-columns: repeat(${Math.max(1, fitGridColumns)}, minmax(0, 1fr));`,
   );
+  let compactAddStepGridColumn = $derived(
+    `${fitGridStartColumn + rowQuarterGridColumns(layoutTimingMultipliers) + 1} / span ${phraseRowEndAddStepQuarterGridColumns()}`,
+  );
 </script>
 
 {#snippet stepHeaderRemoveButton(step, dimmed)}
@@ -1815,6 +1820,12 @@
       {#each compactStepsToRender as { step, stepId } (stepId)}
         {@render compactStepCell(step, stepId)}
       {/each}
+      <div
+        class="pointer-events-auto flex min-w-0 items-center self-stretch"
+        style:grid-column={compactAddStepGridColumn}
+      >
+        {@render largeAddStepButton("Add step to end of row", stepIds.length)}
+      </div>
     </div>
   {:else}
     <div

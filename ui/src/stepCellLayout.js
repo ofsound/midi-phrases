@@ -1,4 +1,5 @@
 
+import { phraseRowEndAddStepReservePx } from "./phraseRowLayout.js";
 import { scaledPx } from "./uiScale.svelte.js";
 
 export const stepTimingMultiplierQuarterStep = 0.25;
@@ -184,6 +185,14 @@ export function rowTimingOffsetQuarterGridColumns(offsetIndex) {
   return durationToQuarterGridSteps(timingOffsetValues[offsetIndex] ?? 0);
 }
 
+/** Quarter-grid columns reserved for the row-end add button in stretch-to-fit rows. */
+export function phraseRowEndAddStepQuarterGridColumns() {
+  return Math.max(
+    1,
+    Math.ceil(phraseRowEndAddStepReservePx() / stepCellQuarterGridWidthPx()),
+  );
+}
+
 /**
  * Shared compact-grid layout for every row. Timing offsets are normalized into
  * grid columns so all rows retain one horizontal scale.
@@ -192,6 +201,7 @@ export function rowTimingOffsetQuarterGridColumns(offsetIndex) {
  * @param {number[]} timingOffsetIndices
  */
 export function compactPhraseGridLayout(rows, timingOffsetIndices) {
+  const addStepColumns = phraseRowEndAddStepQuarterGridColumns();
   const rawStartColumns = rows.map((row, index) =>
     row.length > 0
       ? rowTimingOffsetQuarterGridColumns(timingOffsetIndices[index])
@@ -200,13 +210,15 @@ export function compactPhraseGridLayout(rows, timingOffsetIndices) {
   const firstColumn = Math.min(0, ...rawStartColumns);
   const rowStartColumns = rawStartColumns.map((start) => start - firstColumn);
   const totalColumns = Math.max(
-    1,
-    ...rows.map(
-      (row, index) => rowStartColumns[index] + rowQuarterGridColumns(row),
+    addStepColumns,
+    ...rows.map((row, index) =>
+      row.length > 0
+        ? rowStartColumns[index] + rowQuarterGridColumns(row) + addStepColumns
+        : 0,
     ),
   );
 
-  return { totalColumns, rowStartColumns };
+  return { totalColumns, rowStartColumns, addStepColumns };
 }
 
 /** Total quarter-grid columns occupied by a row's steps. */

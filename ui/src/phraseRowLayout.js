@@ -99,8 +99,20 @@ export function phraseFirstStepLeftOffsetPx() {
 /** Horizontal gap from the row grid edge to the row-end add button (⅔ of former 12px). */
 export const basePhraseRowEndAddStepInsetPx = 8;
 
+/** Matches PlusDragButton `variant="large"` (`size-[54px]`). */
+export const basePhraseRowEndAddStepButtonWidthPx = 54;
+
 export function phraseRowEndAddStepInsetPx() {
   return scaledPx(basePhraseRowEndAddStepInsetPx);
+}
+
+export function phraseRowEndAddStepButtonWidthPx() {
+  return scaledPx(basePhraseRowEndAddStepButtonWidthPx);
+}
+
+/** Inset plus trailing add button width reserved after the last step. */
+export function phraseRowEndAddStepReservePx() {
+  return phraseRowEndAddStepInsetPx() + phraseRowEndAddStepButtonWidthPx();
 }
 
 /** Right inset after the last step shell before the row-end + (⅔ of {@link stepCellPaddingPx}). */
