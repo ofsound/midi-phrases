@@ -139,6 +139,32 @@ export function stepSlotCenterXPx(slot, pxPerQuarter) {
   return (slot.startQuarters + slot.lengthQuarters / 2) * pxPerQuarter;
 }
 
+/** Matches the mono-roll note pill label (`text-[10px]` + horizontal padding). */
+export const pianoRollNoteLabelFontPx = 10;
+
+export const pianoRollNoteLabelHorizontalPaddingPx = 8;
+
+/** @param {string} label */
+export function estimatePianoRollNoteLabelWidthPx(label) {
+  return label.length * 6.5 + pianoRollNoteLabelHorizontalPaddingPx;
+}
+
+/**
+ * Whether the in-note label is too small to read during a drag.
+ *
+ * @param {number} rowHeightPx
+ * @param {number} noteWidthPx
+ * @param {string} [label]
+ */
+export function pianoRollNoteDragTooltipVisible(rowHeightPx, noteWidthPx, label = "") {
+  const noteBarHeightPx = Math.max(8, rowHeightPx - 2);
+
+  if (noteBarHeightPx < pianoRollNoteLabelFontPx + 4) return true;
+  if (noteWidthPx < 40) return true;
+
+  return estimatePianoRollNoteLabelWidthPx(label) > noteWidthPx;
+}
+
 /**
  * Map a drawn stroke to per-step MIDI updates for the horizontal span it covers.
  *

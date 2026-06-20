@@ -11,6 +11,7 @@ import {
   shapeNoteUpdatesFromStroke,
   shapeVelocityUpdatesFromStroke,
   insertStepIndexFromRollX,
+  pianoRollNoteDragTooltipVisible,
   stepAtRollX,
   stepSlotCenterXPx,
   velocityFromRollY,
@@ -161,5 +162,23 @@ describe("shapeVelocityUpdatesFromStroke", () => {
       { step: 1, velocity: 64 },
       { step: 2, velocity: 0 },
     ]);
+  });
+});
+
+describe("pianoRollNoteDragTooltipVisible", () => {
+  it("shows when the pitch row is too short for the 10px label", () => {
+    expect(pianoRollNoteDragTooltipVisible(12, 80, "C4")).toBe(true);
+    expect(pianoRollNoteDragTooltipVisible(18, 80, "C4")).toBe(false);
+  });
+
+  it("shows when the note pill is too narrow", () => {
+    expect(pianoRollNoteDragTooltipVisible(20, 32, "C4")).toBe(true);
+    expect(pianoRollNoteDragTooltipVisible(20, 48, "C4")).toBe(false);
+  });
+
+  it("shows when the label would truncate inside a wide-enough pill", () => {
+    // Real note names are at most 4 chars; use a 5-char label to exercise the width estimate.
+    expect(pianoRollNoteDragTooltipVisible(20, 40, "C#4xx")).toBe(true);
+    expect(pianoRollNoteDragTooltipVisible(20, 44, "C#4xx")).toBe(false);
   });
 });

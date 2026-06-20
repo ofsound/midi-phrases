@@ -14,6 +14,7 @@
     insertStepIndexFromRollX,
     measureLineQuarters,
     midiFromPitchDragDelta,
+    pianoRollNoteDragTooltipVisible,
     rollLengthQuartersForCycle,
     shapeNoteUpdatesFromStroke,
     shapeVelocityUpdatesFromStroke,
@@ -29,6 +30,7 @@
   } from "./rowPianoRollTimeline.js";
   import RowShapeDrawIcon from "./RowShapeDrawIcon.svelte";
   import BulkStepEditControls from "./BulkStepEditControls.svelte";
+  import CompactStepResizeHandle from "./CompactStepResizeHandle.svelte";
   import {
     defaultStepTimingMultiplierIndex,
     maxPhraseStepsPerRow,
@@ -160,6 +162,10 @@
   /** @type {{ pointerId: number, mode: 'note' | 'velocity', points: { x: number, y: number }[] } | null} */
   let shapeStroke = $state(null);
   let rowAccent = $derived(accent ?? emeraldRowAccent);
+  /** CSS color variable resolved from the row accent's bgAccent class (e.g. "bg-accent" → "--color-accent"). */
+  let boundaryAccentVar = $derived(
+    `var(--color-${rowAccent.bgAccent.replace('bg-', '')})`
+  );
   let noteShapeDrawActive = $derived(shapeDrawMode === "note");
   let velocityShapeDrawActive = $derived(shapeDrawMode === "velocity");
   let selectedStepIdSet = $derived(new Set(selectedStepIds));
@@ -1101,13 +1107,14 @@
                   role="presentation"
                   class="step-boundary-interactive-zone absolute top-0 bottom-0 z-25 flex items-center justify-center touch-none select-none cursor-ew-resize w-4 -ml-2"
                   style:left="{note.leftPx}px"
+                  style:--boundary-accent={boundaryAccentVar}
                   onpointerdown={(event) => beginStepResize(event, note, "start")}
                   onpointermove={moveStepResize}
                   onpointerup={endStepResize}
                   onpointercancel={cancelStepResize}
                 >
                   <div
-                    class="step-boundary-line pointer-events-none w-[1px] h-full bg-text/10 transition-all duration-100 opacity-20"
+                    class="step-boundary-line pointer-events-none h-full"
                   ></div>
                 </div>
               {/if}
@@ -1116,13 +1123,14 @@
                   role="presentation"
                   class="step-boundary-interactive-zone absolute top-0 bottom-0 z-25 flex items-center justify-center touch-none select-none cursor-ew-resize w-4 -ml-2"
                   style:left="{note.leftPx + note.fullStepWidthPx}px"
+                  style:--boundary-accent={boundaryAccentVar}
                   onpointerdown={(event) => beginStepResize(event, note, "end")}
                   onpointermove={moveStepResize}
                   onpointerup={endStepResize}
                   onpointercancel={cancelStepResize}
                 >
                   <div
-                    class="step-boundary-line pointer-events-none w-[1px] h-full bg-text/10 transition-all duration-100 opacity-20"
+                    class="step-boundary-line pointer-events-none h-full"
                   ></div>
                 </div>
               {/if}
@@ -1135,6 +1143,13 @@
               {@const playbackActive = note.active && !note.muted}
               {@const displayMidi = drag?.mode === "move" && drag.step === note.step ? drag.previewMidi : note.midi}
               {@const displayLabel = midiToNoteName(displayMidi)}
+              {@const durationFraction =
+                drag?.mode === "duration" && drag.step === note.step
+                  ? drag.previewFraction
+                  : stepDurationFraction[note.step] ?? 1}
+              {@const showDurationHandle =
+                durationFraction < 0.995 &&
+                note.durationWidthPx < note.fullStepWidthPx - scaledPx(6)}
               <div
                 data-bulk-step-cell
                 data-step-row={row}
@@ -1185,45 +1200,62 @@
                   <span class="pointer-events-none truncate">{displayLabel}</span>
                 </button>
                 {#if note.step > 0}
-                  <button
-                    type="button"
-                    data-cursor="horizontal-drag"
-                    aria-label={`Resize start of step ${note.step + 1}`}
+                  <CompactStepResizeHandle
+                    edge="start"
+                    ariaLabel={`Resize start of step ${note.step + 1}`}
                     title="Drag to move this boundary by resizing the preceding step"
-                    class="group absolute top-0 -left-2 z-30 flex h-full w-4 touch-none items-center justify-center outline-none {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'}"
-                    onpointerdown={(event) => beginStepResize(event, note, "start")}
-                    onpointermove={moveStepResize}
-                    onpointerup={endStepResize}
-                    onpointercancel={cancelStepResize}
-                    onkeydown={(event) => resizeStepWithKeyboard(event, note, "start")}
-                  >
-                    <span
-                      class="pointer-events-none h-[78%] w-1 rounded-full border border-text/25 {rowAccent.bgAccentStrong} shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-app)_65%,transparent)] transition-[width,filter] group-hover:w-1.5 group-hover:brightness-110"
-                      aria-hidden="true"
-                    ></span>
-                  </button>
+                    ringFocusClass={rowAccent.ringFocusWithWidth ||
+                      "focus-visible:ring-1 focus-visible:ring-focus-ring"}
+                    onPointerDown={(event) => beginStepResize(event, note, "start")}
+                    onPointerMove={moveStepResize}
+                    onPointerUp={endStepResize}
+                    onPointerCancel={cancelStepResize}
+                    onKeyDown={(event) => resizeStepWithKeyboard(event, note, "start")}
+                  />
                 {/if}
-                {#if note.step === stepNotes.length - 1}
-                  <button
-                    type="button"
-                    data-cursor="horizontal-drag"
-                    aria-label={`Resize end of step ${note.step + 1}`}
+                {#if showDurationHandle}
+                  <CompactStepResizeHandle
+                    edge="custom"
+                    leftPx={note.durationWidthPx}
+                    ariaLabel={`Resize duration of step ${note.step + 1}`}
+                    title="Drag to resize note duration"
+                    ringFocusClass={rowAccent.ringFocusWithWidth ||
+                      "focus-visible:ring-1 focus-visible:ring-focus-ring"}
+                    onPointerDown={(event) => beginDurationDrag(event, note)}
+                    onPointerMove={moveDurationDrag}
+                    onPointerUp={endDurationDrag}
+                    onPointerCancel={cancelDurationDrag}
+                  />
+                {/if}
+                <CompactStepResizeHandle
+                    edge="end"
+                    ariaLabel={`Resize end of step ${note.step + 1}`}
                     title="Drag to resize this step"
-                    class="group absolute top-0 -right-2 z-30 flex h-full w-4 touch-none items-center justify-center outline-none {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'}"
-                    onpointerdown={(event) => beginStepResize(event, note, "end")}
-                    onpointermove={moveStepResize}
-                    onpointerup={endStepResize}
-                    onpointercancel={cancelStepResize}
-                    onkeydown={(event) => resizeStepWithKeyboard(event, note, "end")}
-                  >
-                    <span
-                      class="pointer-events-none h-[78%] w-1 rounded-full border border-text/25 {rowAccent.bgAccentStrong} shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-app)_65%,transparent)] transition-[width,filter] group-hover:w-1.5 group-hover:brightness-110"
-                      aria-hidden="true"
-                    ></span>
-                  </button>
-                {/if}
+                    ringFocusClass={rowAccent.ringFocusWithWidth ||
+                      "focus-visible:ring-1 focus-visible:ring-focus-ring"}
+                    onPointerDown={(event) => beginStepResize(event, note, "end")}
+                    onPointerMove={moveStepResize}
+                    onPointerUp={endStepResize}
+                    onPointerCancel={cancelStepResize}
+                    onKeyDown={(event) => resizeStepWithKeyboard(event, note, "end")}
+                  />
               </div>
             {/each}
+
+            {#if drag?.mode === "move" && drag.didDrag}
+              {@const draggedNote = stepNotes[drag.step]}
+              {@const dragTooltipLabel = midiToNoteName(drag.previewMidi ?? draggedNote?.midi ?? 60)}
+              {#if draggedNote && pianoRollNoteDragTooltipVisible(rowHeightPx, draggedNote.durationWidthPx, dragTooltipLabel)}
+                <div
+                  class="note-drag-tooltip pointer-events-none absolute z-50 rounded-md border border-border-strong bg-surface-raised px-2.5 py-1 text-base font-bold tabular-nums text-text shadow-lg"
+                  style:left="{draggedNote.leftPx + draggedNote.durationWidthPx / 2}px"
+                  style:top="{pitchTopPx(drag.previewMidi ?? draggedNote.midi) + 1}px"
+                  aria-hidden="true"
+                >
+                  {dragTooltipLabel}
+                </div>
+              {/if}
+            {/if}
           </div>
         </div>
       </div>
@@ -1232,10 +1264,35 @@
 </section>
 
 <style>
+  .step-boundary-line {
+    width: 0;
+    border-left: 1px dotted color-mix(in srgb, var(--boundary-accent, var(--color-accent)) 35%, transparent);
+    transition:
+      border-color 100ms,
+      box-shadow 100ms,
+      opacity 100ms;
+  }
+
   .step-boundary-interactive-zone:hover .step-boundary-line {
-    background-color: var(--color-accent);
-    box-shadow: 0 0 6px var(--color-accent), 0 0 2px var(--color-accent);
-    width: 2px;
-    opacity: 1;
+    border-left-style: solid;
+    border-left-color: var(--boundary-accent, var(--color-accent));
+    box-shadow: 0 0 4px color-mix(in srgb, var(--boundary-accent, var(--color-accent)) 45%, transparent);
+  }
+
+  .note-drag-tooltip {
+    white-space: nowrap;
+    transform: translate(-50%, calc(-100% - 8px));
+    animation: note-tooltip-in 80ms ease-out;
+  }
+
+  @keyframes note-tooltip-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, calc(-100% - 4px));
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, calc(-100% - 8px));
+    }
   }
 </style>
