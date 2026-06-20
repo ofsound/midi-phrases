@@ -4752,7 +4752,7 @@
                 </div>
               </div>
               <RowEditPencilIcon
-                class="pointer-events-none absolute right-1.5 bottom-1 z-[5] text-text-faint transition-colors duration-150 group-hover:[color:var(--row-header-accent)]"
+                class="pointer-events-none absolute right-1 bottom-0.5 z-[5] text-text-faint transition-colors duration-150 group-hover:[color:var(--row-header-accent)]"
               />
             </div>
             <PhraseRow

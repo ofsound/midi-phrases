@@ -1,13 +1,13 @@
 <script>
   /** Small edit pencil — row header piano-roll affordance. */
   /** @type {{ class?: string }} */
-  let { class: className = "h-2.5 w-2.5" } = $props();
+  let { class: className = "" } = $props();
 </script>
 
 <svg
   xmlns="http://www.w3.org/2000/svg"
   viewBox="0 0 10 10"
-  class={className}
+  class="block h-2 w-2 shrink-0 {className}"
   aria-hidden="true"
   fill="none"
   stroke="currentColor"
