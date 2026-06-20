@@ -874,7 +874,7 @@
   }
 
   function outputMuteButtonClasses(active) {
-    return `flex h-[calc(2.1rem*1.33)] w-[calc(2.1rem*1.33)] items-center justify-center rounded-sm border text-sm font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
+    return `flex h-[calc(2.1rem*1.33)] w-[calc(2.1rem*1.33)] shrink-0 items-center justify-center rounded-sm border text-sm font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       active
         ? "border-accent bg-accent text-control-primary-text"
         : "mp-control-gradient border-border text-text hover:border-border-strong"
@@ -1402,6 +1402,8 @@
         stepSkipped: stepSkipped[row],
         pulseIndex,
       }),
+      muted: stepMuted[row][step] ?? false,
+      skipped: stepSkipped[row][step] ?? false,
     };
   });
 
@@ -1423,6 +1425,15 @@
   let rowPianoRollCurrentStepFocusVisible = $derived(
     activeRowPianoRollEditor !== null && stretchStepsToFit,
   );
+
+  async function removeInspectedStep() {
+    if (activeStepInspector === null) return;
+
+    const { row, step } = activeStepInspector;
+
+    closeStepInspector();
+    await removeStep(row, step);
+  }
 
   function closeStepInspector() {
     if (document.activeElement instanceof HTMLElement) {
@@ -4442,7 +4453,7 @@
       </div>
     {/if}
     <div class="mp-honeycomb-rail relative z-20">
-  <header class="flex w-full items-end justify-between gap-x-2 px-6 pb-4 pt-2">
+  <header class="flex w-full items-end justify-between gap-x-2 px-6 py-3">
     <div class="relative z-30 flex shrink-0 items-end gap-3">
       <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">
@@ -4649,7 +4660,7 @@
           </div>
     </div>
 
-    <div class="flex shrink-0 items-end gap-1">
+    <div class="flex shrink-0 items-center gap-1">
       <div class="flex flex-col gap-1">
         <div class="flex items-center gap-1.5">
           <span class="w-[3.75rem] shrink-0 text-right text-xs font-semibold leading-none text-text-muted"
@@ -4978,6 +4989,8 @@
         cycle={activeStepInspector.cycle}
         cycleMask={activeStepInspector.cycleMask}
         cycleTriggerCount={activeStepInspector.cycleTriggerCount}
+        muted={activeStepInspector.muted}
+        skipped={activeStepInspector.skipped}
         {scaleRoot}
         {scaleModeIndex}
         accent={rowAccentFor(activeStepInspector.row, rowColorsEnabled)}
@@ -5017,6 +5030,11 @@
             nextCycle,
             nextMask,
           )}
+        onMutedChange={(value) =>
+          setStepMuted(activeStepInspector.row, activeStepInspector.step, value)}
+        onSkippedChange={(value) =>
+          setStepSkipped(activeStepInspector.row, activeStepInspector.step, value)}
+        onRemove={removeInspectedStep}
         onClose={closeStepInspector}
       />
     {:else if activeRowPianoRollEditor !== null}

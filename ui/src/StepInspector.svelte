@@ -3,6 +3,8 @@
   import ContinuousSlider from "./ContinuousSlider.svelte";
   import StepInspectorKeyboard from "./StepInspectorKeyboard.svelte";
   import RemoveXIcon from "./RemoveXIcon.svelte";
+  import StepMuteIcon from "./StepMuteIcon.svelte";
+  import StepSkipIcon from "./StepSkipIcon.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import {
     formatTimingMultiplierLabel,
@@ -26,6 +28,8 @@
    * @property {number} [scaleRoot]
    * @property {number} [scaleModeIndex]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {boolean} [muted]
+   * @property {boolean} [skipped]
    * @property {(midi: number) => void | Promise<void>} [onNoteChange]
    * @property {(value: number) => void | Promise<void>} [onVelocityChange]
    * @property {(value: number) => void | Promise<void>} [onDurationChange]
@@ -36,6 +40,9 @@
    * @property {() => void} [onCycleGestureStart]
    * @property {(cycle: number, cycleMask: number) => void | Promise<void>} [onCyclePatternPreview]
    * @property {(cycle: number, cycleMask: number) => void | Promise<void>} [onCyclePatternCommit]
+   * @property {(value: boolean) => void | Promise<void>} [onMutedChange]
+   * @property {(value: boolean) => void | Promise<void>} [onSkippedChange]
+   * @property {() => void | Promise<void>} [onRemove]
    * @property {() => void} [onClose]
    */
 
@@ -54,6 +61,8 @@
     scaleRoot = 0,
     scaleModeIndex = 0,
     accent = emeraldRowAccent,
+    muted = false,
+    skipped = false,
     onNoteChange = () => {},
     onVelocityChange = () => {},
     onDurationChange = () => {},
@@ -64,11 +73,25 @@
     onCycleGestureStart = () => {},
     onCyclePatternPreview = () => {},
     onCyclePatternCommit = () => {},
+    onMutedChange = () => {},
+    onSkippedChange = () => {},
+    onRemove = () => {},
     onClose = () => {},
   } = $props();
 
   let stepKey = $derived(`${row}:${step}`);
   let durationPercent = $derived(Math.round(Math.min(1, Math.max(0, durationFraction)) * 100));
+
+  /** @param {boolean} active */
+  function inspectorToggleClasses(active) {
+    const base = `flex min-h-[3.5rem] flex-1 flex-col items-center justify-center gap-1.5 rounded-lg border px-2 py-2 transition-[background-color,border-color,color,box-shadow] outline-none ${accent.ringFocusWithWidth}`;
+
+    if (active) {
+      return `${base} ${accent.bgAccentStrong} ${accent.borderFocus} border text-white ${accent.playbackGlow}`;
+    }
+
+    return `${base} mp-control-gradient border-border text-text-secondary hover:border-border-strong hover:text-text`;
+  }
 </script>
 
 <section class="flex min-h-0 w-full flex-1 bg-app/90">
@@ -84,7 +107,47 @@
       <RemoveXIcon class="pointer-events-none h-3.5 w-3.5" />
     </button>
 
-    <div class="flex min-h-0 w-full flex-1 flex-col justify-end gap-3 pb-1 pt-7">
+    <div class="flex min-h-0 w-full flex-1 flex-col justify-center gap-2.5 pt-7">
+      <div class="flex w-full gap-2">
+        <button
+          type="button"
+          data-cursor="pointer"
+          aria-label={skipped ? "Unskip step in sequence" : "Skip step in sequence"}
+          aria-pressed={skipped}
+          title={skipped ? "Unskip step in sequence" : "Skip step in sequence"}
+          class={inspectorToggleClasses(skipped)}
+          onclick={() => onSkippedChange(!skipped)}
+        >
+          <StepSkipIcon class="pointer-events-none h-6 w-6" />
+          <span class="text-[10px] font-semibold uppercase tracking-wide">Skip</span>
+        </button>
+        <button
+          type="button"
+          data-cursor="pointer"
+          aria-label={muted ? "Unmute step" : "Mute step"}
+          aria-pressed={muted}
+          title={muted ? "Unmute step" : "Mute step"}
+          class={inspectorToggleClasses(muted)}
+          onclick={() => onMutedChange(!muted)}
+        >
+          <StepMuteIcon class="pointer-events-none h-6 w-6" />
+          <span class="text-[10px] font-semibold uppercase tracking-wide">Mute</span>
+        </button>
+      </div>
+      <button
+        type="button"
+        data-cursor="pointer"
+        aria-label="Remove step"
+        title="Remove step"
+        class="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-border mp-control-gradient px-3 text-xs font-semibold uppercase tracking-wide text-text-secondary transition-[background-color,border-color,color] outline-none hover:border-danger hover:text-danger focus-visible:ring-1 focus-visible:ring-focus-ring"
+        onclick={onRemove}
+      >
+        <RemoveXIcon class="pointer-events-none h-3.5 w-3.5" />
+        Delete
+      </button>
+    </div>
+
+    <div class="flex w-full shrink-0 flex-col gap-3 pb-1">
       <ContinuousSlider
         large
         {accent}
