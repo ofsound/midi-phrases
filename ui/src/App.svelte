@@ -4454,37 +4454,29 @@
     {/if}
     <div class="mp-honeycomb-rail relative z-20">
   <header class="flex w-full items-end justify-between gap-x-2 px-6 py-3">
-    <div class="relative z-30 flex shrink-0 items-end gap-3">
+    <div class="relative z-30 flex shrink-0 items-end">
       <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">
           <p class="text-sm font-bold uppercase leading-none tracking-widest text-accent">
             ofsound
           </p>
         </div>
-        <div class="flex h-8 items-end">
+        <div class="flex h-8 items-end gap-3">
           <h1 class="translate-y-0.5 whitespace-nowrap leading-none" aria-label={pluginName}>
             <MidiPhrasesLogo name={pluginName} />
           </h1>
+          <div class="mr-1 shrink-0 translate-y-0.5">
+            <StepViewModeToggle
+              size="logo"
+              compact={stretchStepsToFit}
+              accent={interfaceAccent}
+              onChange={(nextCompact) => {
+                stretchStepsToFit = nextCompact;
+              }}
+            />
+          </div>
         </div>
       </div>
-
-      <button
-        type="button"
-        aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
-        aria-pressed={scaleDialogOpen}
-        title={activeScaleName}
-        data-cursor="pointer"
-        class="mr-1 flex flex-col items-start gap-1 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
-        onclick={() => {
-          scaleDialogOpen = true;
-        }}
-      >
-        <div class="h-4" aria-hidden="true"></div>
-        <div class="-translate-y-0.5 flex h-8 flex-col items-start justify-end gap-1">
-          <p class="text-base font-semibold leading-none text-text">{activeKeyCenterLabel}</p>
-          <p class="text-sm font-semibold uppercase leading-none text-accent">{activeScaleModeLabel}</p>
-        </div>
-      </button>
     </div>
 
     <div class="flex shrink-0 items-end gap-1">
@@ -4561,18 +4553,25 @@
             </div>
     </div>
 
-    <div class="flex shrink-0 translate-y-[6px] flex-col items-start gap-1">
-          <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
-            >View</span
-          >
-          <StepViewModeToggle
-            compact={stretchStepsToFit}
-            accent={interfaceAccent}
-            onChange={(nextCompact) => {
-              stretchStepsToFit = nextCompact;
-            }}
-          />
-    </div>
+    <button
+      type="button"
+      aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
+      aria-pressed={scaleDialogOpen}
+      title={activeScaleName}
+      data-cursor="pointer"
+      class="flex shrink-0 translate-y-[6px] flex-col items-start gap-1 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
+      onclick={() => {
+        scaleDialogOpen = true;
+      }}
+    >
+      <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
+        >View</span
+      >
+      <div class="-translate-y-0.5 flex h-8 flex-col items-start justify-end gap-1">
+        <p class="text-base font-semibold leading-none text-text">{activeKeyCenterLabel}</p>
+        <p class="text-sm font-semibold uppercase leading-none text-accent">{activeScaleModeLabel}</p>
+      </div>
+    </button>
 
     <div class="shrink-0">
         <BulkStepEditControls

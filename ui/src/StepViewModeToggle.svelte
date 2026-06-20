@@ -6,6 +6,7 @@
   /**
    * @typedef {Object} Props
    * @property {boolean} [compact] - Compact stretch-to-fit step cells when true; full step controls when false.
+   * @property {"default" | "logo"} [size] - "logo" matches the 2rem MIDI Phrases wordmark height.
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {(compact: boolean) => void} [onChange]
    */
@@ -13,6 +14,7 @@
   /** @type {Props} */
   let {
     compact = false,
+    size = "default",
     accent = interfaceAccent,
     onChange = () => {},
   } = $props();
@@ -25,7 +27,11 @@
   const whiteRingClipId = "step-view-mode-white-ring";
 </script>
 
-<div class="step-view-mode-root relative z-30 flex select-none items-start">
+<div
+  class="step-view-mode-root relative z-30 flex select-none items-start {size === 'logo'
+    ? 'step-view-mode-root-logo'
+    : ''}"
+>
   <button
     type="button"
     class="step-view-mode-frame rounded-full outline-none"
@@ -127,6 +133,11 @@
     --svm: 0.85;
     --svm-extra-h: 4px;
     height: calc(3.6rem * var(--svm) + var(--svm-extra-h));
+  }
+
+  .step-view-mode-root-logo {
+    --svm: calc(2rem / 3.6rem);
+    --svm-extra-h: 0px;
   }
 
   /* Outer racetrack — track-bed fill + depth shadow */
