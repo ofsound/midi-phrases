@@ -70,8 +70,8 @@ private:
     juce::String lastHostCursorName;
     juce::Rectangle<int> preFullscreenEditorBounds;
     int standaloneTitleBarHeightBeforeFullscreen = -1;
-    int scaleMinimumWidth = 1500;
-    int scaleMinimumHeight = 875;
+    int scaleMinimumWidth = 1670;
+    int scaleMinimumHeight = 980;
     bool mouseWasOverWebView = false;
     bool windowAcceptsMouseMoved = false;
     bool editorFullscreen = false;

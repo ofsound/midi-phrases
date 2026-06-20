@@ -459,8 +459,8 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
                                complete (processor.requestWebEditorScaleMinimum (
-                                   args.size() >= 1 ? varToInt (args[0]) : 1500,
-                                   args.size() >= 2 ? varToInt (args[1]) : 875));
+                                   args.size() >= 1 ? varToInt (args[0]) : 1670,
+                                   args.size() >= 2 ? varToInt (args[1]) : 980));
                            })
                        .withNativeFunction (
                            "getPatternSlotState",

@@ -9,11 +9,11 @@ export const uiBaseFontSizePx = 16;
 export const uiScaleStorageKey = "midiPhrasesUiScalePreset";
 
 const uiScaleMinimumSizeAnchors = [
-  { percent: 50, widthPx: 750, pluginHeightPx: 460, standaloneHeightPx: 492 },
-  { percent: 70, widthPx: 1050, pluginHeightPx: 620, standaloneHeightPx: 660 },
-  { percent: 80, widthPx: 1200, pluginHeightPx: 700, standaloneHeightPx: 744 },
-  { percent: 90, widthPx: 1350, pluginHeightPx: 790, standaloneHeightPx: 836 },
-  { percent: 100, widthPx: 1500, pluginHeightPx: 875, standaloneHeightPx: 935 },
+  { percent: 50, widthPx: 835, pluginHeightPx: 515, standaloneHeightPx: 549 },
+  { percent: 70, widthPx: 1170, pluginHeightPx: 694, standaloneHeightPx: 737 },
+  { percent: 80, widthPx: 1335, pluginHeightPx: 784, standaloneHeightPx: 831 },
+  { percent: 90, widthPx: 1505, pluginHeightPx: 884, standaloneHeightPx: 933 },
+  { percent: 100, widthPx: uiDesignWidthPx, pluginHeightPx: uiDesignHeightPluginPx, standaloneHeightPx: uiDesignHeightStandalonePx },
 ];
 
 export const uiScaleState = $state({

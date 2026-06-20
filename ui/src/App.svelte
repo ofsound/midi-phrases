@@ -379,7 +379,7 @@
   const rowGapDoubleClickMaxDistancePx = 16;
   const stepTriggerFlashMs = 110;
   const historyButtonBaseClasses =
-    "flex h-8 w-8 items-center justify-center rounded-md border transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring disabled:border-border-subtle disabled:text-text-faint";
+    "mp-param-box mp-control-gradient flex h-8 items-center justify-center rounded-md border text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring disabled:border-border-subtle disabled:text-text-faint";
 
   function historyButtonClasses(enabled) {
     return `${historyButtonBaseClasses} ${
@@ -864,7 +864,7 @@
   }
 
   function clearPatternButtonClasses(enabled, armed = false) {
-    return `flex h-[2.1rem] w-[2.1rem] items-center justify-center border-0 bg-transparent transition-colors outline-none focus:ring-1 focus:ring-focus-ring ${
+    return `flex h-[1.75rem] w-[1.35rem] shrink-0 items-center justify-center border-0 bg-transparent transition-colors outline-none focus:ring-1 focus:ring-focus-ring ${
       armed
         ? "mp-pattern-clear-armed text-danger"
         : enabled
@@ -4442,7 +4442,7 @@
       </div>
     {/if}
     <div class="mp-honeycomb-rail relative z-20">
-  <header class="flex items-center gap-1.5 px-6 pb-4 pt-2">
+  <header class="flex w-full items-end justify-between gap-x-2 px-6 pb-4 pt-2">
     <div class="relative z-30 flex shrink-0 items-end gap-3">
       <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">
@@ -4476,8 +4476,7 @@
       </button>
     </div>
 
-    <div class="relative flex min-w-0 flex-1 flex-nowrap items-end justify-start gap-x-1.5">
-        <div class="flex items-end gap-1">
+    <div class="flex shrink-0 items-end gap-1">
             <div class="flex flex-col items-start gap-1">
               <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
               <PulseDragInput
@@ -4549,8 +4548,12 @@
                   })}
               />
             </div>
-        </div>
-        <div class="flex items-end px-1.5">
+    </div>
+
+    <div class="flex shrink-0 translate-y-[6px] flex-col items-start gap-1">
+          <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
+            >View</span
+          >
           <StepViewModeToggle
             compact={stretchStepsToFit}
             accent={interfaceAccent}
@@ -4558,7 +4561,9 @@
               stretchStepsToFit = nextCompact;
             }}
           />
-        </div>
+    </div>
+
+    <div class="shrink-0">
         <BulkStepEditControls
           compact
           accent={interfaceAccent}
@@ -4586,7 +4591,13 @@
           onTransposePreview={previewBulkTransposeSemitones}
           onTransposeCommit={commitBulkTransposeSemitones}
         />
-        <div class="flex shrink-0 items-end gap-1">
+    </div>
+
+    <div class="flex shrink-0 flex-col items-start gap-1">
+          <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
+            >Pitch</span
+          >
+          <div class="flex gap-1">
           <button
             type="button"
             aria-label="Undo"
@@ -4594,6 +4605,7 @@
             disabled={undoStack.length === 0}
             data-cursor="pointer"
             class={historyButtonClasses(undoStack.length > 0)}
+            style:--param-box-chars={3}
             onclick={undo}
           >
             <svg
@@ -4617,6 +4629,7 @@
             disabled={redoStack.length === 0}
             data-cursor="pointer"
             class={historyButtonClasses(redoStack.length > 0)}
+            style:--param-box-chars={3}
             onclick={redo}
           >
             <svg
@@ -4633,16 +4646,16 @@
               <path d="M20 9H10a6 6 0 0 0 0 12h2" />
             </svg>
           </button>
-        </div>
+          </div>
     </div>
 
-    <div class="ml-auto mt-1.5 flex shrink-0 items-center gap-2 self-center">
+    <div class="flex shrink-0 items-end gap-1">
       <div class="flex flex-col gap-1">
         <div class="flex items-center gap-1.5">
-          <span class="w-[3.75rem] shrink-0 text-right text-sm font-semibold leading-none text-text-muted"
+          <span class="w-[3.75rem] shrink-0 text-right text-xs font-semibold leading-none text-text-muted"
             >Patterns:</span
           >
-          <div class="flex items-center gap-1">
+          <div class="flex items-center gap-0.5">
             <div class="flex items-center gap-1">
               {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
                 <button
@@ -4676,12 +4689,12 @@
               class={clearPatternButtonClasses(true, patternClearArmed)}
               onclick={handleClearPatternClick}
             >
-              <RemoveXIcon class="pointer-events-none h-4 w-4" />
+              <RemoveXIcon class="pointer-events-none h-3 w-3" />
             </button>
           </div>
         </div>
         <div class="flex items-center gap-1.5">
-          <span class="w-[3.75rem] shrink-0 text-right text-sm font-semibold leading-none text-text-muted"
+          <span class="w-[3.75rem] shrink-0 text-right text-xs font-semibold leading-none text-text-muted"
             >Loops:</span
           >
           <div class="flex items-center gap-1">

@@ -105,17 +105,22 @@
   let sidebarLayout = $derived(layout === "sidebar");
   let operationsGridLayout = $derived(layout === "operations-grid");
   let inlineLabels = $derived(inlineLayout);
+  let stackedCompactLayout = $derived(compact && !inlineLayout && !sidebarLayout);
+  let stackedColumnClass = $derived(stackedCompactLayout ? " h-full" : "");
+  let controlAnchorClass = $derived(stackedCompactLayout ? "mt-auto" : "");
   let groupClass = $derived(
     sidebarLayout
       ? "flex min-w-0 flex-col items-start gap-1"
       : inlineLabels
         ? "flex items-center gap-1.5"
-        : "flex flex-col items-start gap-1",
+        : `flex flex-col items-start gap-1${stackedColumnClass}`,
   );
   let operationGroupClass = $derived(
     sidebarLayout
       ? "w-full"
-      : groupClass,
+      : stackedCompactLayout
+        ? `shrink-0 ${groupClass}`
+        : `${groupClass}`,
   );
   let operationButtonsClass = $derived(
     sidebarLayout
@@ -134,14 +139,23 @@
   let rootClass = $derived(
     sidebarLayout
       ? `flex min-h-0 w-full flex-1 flex-col justify-between items-stretch gap-4 ${className}`
-      : `flex ${compact ? "gap-1" : "gap-2"} ${inlineLayout ? "items-center" : "items-end"} ${className}`,
+      : `flex ${
+          stackedCompactLayout ? "gap-4" : compact ? "gap-1" : "gap-2"
+        } ${
+          inlineLayout ? "items-center" : stackedCompactLayout ? "items-stretch" : "items-end"
+        } ${className}`,
   );
   let parameterControlsClass = $derived(
     sidebarLayout
       ? "grid w-full grid-cols-3 gap-2"
       : inlineLayout
         ? `flex items-center ${compact ? "gap-1 px-1" : "gap-1.5 px-5"}`
-        : `flex items-end ${compact ? "gap-1 px-1" : "gap-1.5 px-5"}`,
+        : stackedCompactLayout
+          ? "flex shrink-0 items-stretch gap-1"
+          : `flex items-end ${compact ? "gap-1 px-1" : "gap-1.5 px-5"}`,
+  );
+  let operationButtonsWrapperClass = $derived(
+    stackedCompactLayout ? `${operationButtonsClass} mt-auto` : operationButtonsClass,
   );
 </script>
 
@@ -150,7 +164,7 @@
     {#if !sidebarLayout}
       <span class={labelClass}>{labelText("Operation")}</span>
     {/if}
-    <div class={operationButtonsClass}>
+    <div class={operationButtonsWrapperClass}>
       <button
         type="button"
         aria-label="Reverse selected steps by row"
@@ -224,6 +238,7 @@
   <div class={parameterControlsClass}>
     <div class={groupClass}>
       <span class={labelClass}>{labelText("Dur %")}</span>
+      <div class={controlAnchorClass}>
       <StepNumberDragInput
         boxed
         compact
@@ -241,9 +256,11 @@
         onValuePreview={onDurationPreview}
         onValueCommit={onDurationCommit}
       />
+      </div>
     </div>
     <div class={groupClass}>
       <span class={labelClass}>{labelText("Vel %")}</span>
+      <div class={controlAnchorClass}>
       <StepNumberDragInput
         boxed
         compact
@@ -261,9 +278,11 @@
         onValuePreview={onVelocityPreview}
         onValueCommit={onVelocityCommit}
       />
+      </div>
     </div>
     <div class={groupClass}>
       <span class={labelClass}>{labelText("Pitch")}</span>
+      <div class={controlAnchorClass}>
       <StepNumberDragInput
         boxed
         compact
@@ -280,6 +299,7 @@
         onValuePreview={onTransposePreview}
         onValueCommit={onTransposeCommit}
       />
+      </div>
     </div>
   </div>
 </div>

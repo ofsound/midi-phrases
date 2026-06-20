@@ -25,7 +25,7 @@
   const whiteRingClipId = "step-view-mode-white-ring";
 </script>
 
-<div class="step-view-mode-root relative z-30 flex select-none items-end">
+<div class="step-view-mode-root relative z-30 flex select-none items-start">
   <button
     type="button"
     class="step-view-mode-frame rounded-full outline-none"
@@ -125,7 +125,8 @@
 <style>
   .step-view-mode-root {
     --svm: 0.85;
-    height: calc(3.6rem * var(--svm));
+    --svm-extra-h: 4px;
+    height: calc(3.6rem * var(--svm) + var(--svm-extra-h));
   }
 
   /* Outer racetrack — track-bed fill + depth shadow */
@@ -133,8 +134,8 @@
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    width: calc(8.4rem * var(--svm));
-    height: calc(3.6rem * var(--svm));
+    width: calc(7.35rem * var(--svm));
+    height: calc(3.6rem * var(--svm) + var(--svm-extra-h));
     border: none;
     background-color: var(--color-border);
     box-shadow:
@@ -151,7 +152,7 @@
   .step-view-mode-track {
     z-index: 1;
     contain: layout style paint;
-    inset: calc(7px * var(--svm)) calc(9px * var(--svm));
+    inset: calc(7px * var(--svm)) calc(10.5px * var(--svm));
     padding: calc(0.125rem * var(--svm));
     box-shadow: inset 0 calc(2px * var(--svm)) calc(4px * var(--svm)) rgba(0, 0, 0, 0.7);
   }

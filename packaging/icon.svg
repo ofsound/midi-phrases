@@ -1,36 +1,48 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- MIDI Phrases app icon. Transparent canvas, inset white plate, emerald phrase bars. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none" aria-label="MIDI Phrases icon">
+<!-- MIDI Phrases app icon — MP in the same triple-stroke track style as MidiPhrasesLogo.svelte -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none" aria-label="MIDI Phrases">
   <defs>
-    <linearGradient id="note-fill" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#6ee7b7" />
-      <stop offset="55%" stop-color="#34d399" />
-      <stop offset="100%" stop-color="#059669" />
-    </linearGradient>
-    <linearGradient id="note-fill-dim" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#34d399" />
-      <stop offset="100%" stop-color="#10b981" />
-    </linearGradient>
+    <pattern id="icon-hex-cells" width="45" height="58.455" patternUnits="userSpaceOnUse">
+      <g fill="#fafafa" opacity="0.22">
+        <path d="M22.5 1.5 L42.75 8.247 V25.723 L22.5 32.47 2.25 25.723 V8.247 Z" />
+        <path d="M22.5 1.5 L42.75 8.247 V25.723 L22.5 32.47 2.25 25.723 V8.247 Z" transform="translate(22.5 29.2275)" />
+        <path d="M22.5 1.5 L42.75 8.247 V25.723 L22.5 32.47 2.25 25.723 V8.247 Z" transform="translate(-22.5 29.2275)" />
+      </g>
+    </pattern>
+
+    <pattern id="icon-hex-lines" width="45" height="58.455" patternUnits="userSpaceOnUse">
+      <g fill="none" stroke="#fafafa" stroke-width="2.475" stroke-linejoin="miter" opacity="0.18">
+        <path d="M22.5 1.5 L42.75 8.247 V25.723 L22.5 32.47 2.25 25.723 V8.247 Z" />
+        <path d="M22.5 1.5 L42.75 8.247 V25.723 L22.5 32.47 2.25 25.723 V8.247 Z" transform="translate(22.5 29.2275)" />
+        <path d="M22.5 1.5 L42.75 8.247 V25.723 L22.5 32.47 2.25 25.723 V8.247 Z" transform="translate(-22.5 29.2275)" />
+      </g>
+    </pattern>
+
+    <radialGradient id="icon-bg-shade" cx="50%" cy="42%" r="72%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#09090b" />
+    </radialGradient>
   </defs>
 
-  <rect x="101" y="101" width="823" height="823" rx="122" fill="#ffffff" stroke="#d4d4d8" stroke-width="3" />
+  <rect width="1024" height="1024" fill="url(#icon-bg-shade)" />
+  <rect width="1024" height="1024" fill="url(#icon-hex-cells)" />
+  <rect width="1024" height="1024" fill="url(#icon-hex-lines)" />
 
-  <g stroke="#d4d4d8" stroke-width="2.5" stroke-linecap="round">
-    <line x1="192" y1="288" x2="832" y2="288" />
-    <line x1="192" y1="416" x2="832" y2="416" />
-    <line x1="192" y1="544" x2="832" y2="544" />
-    <line x1="192" y1="672" x2="832" y2="672" />
-    <line x1="320" y1="256" x2="320" y2="704" />
-    <line x1="512" y1="256" x2="512" y2="704" />
-    <line x1="704" y1="256" x2="704" y2="704" />
+  <g transform="translate(72 248) scale(16)">
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 27V5L15 18L25 5V27" stroke="#34d399" stroke-width="10" />
+      <path d="M5 27V5L15 18L25 5V27" stroke="#fafafa" stroke-width="8" />
+      <path d="M5 27V5L15 18L25 5V27" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" transform="translate(-2 0)" />
+      <path d="M5 27V5L15 18L25 5V27" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" />
+      <path d="M5 27V5L15 18L25 5V27" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" transform="translate(2 0)" />
+    </g>
+
+    <g transform="translate(34 0)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#34d399" stroke-width="10" />
+      <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#fafafa" stroke-width="8" />
+      <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" transform="translate(-2 0)" />
+      <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" />
+      <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" transform="translate(2 0)" />
+    </g>
   </g>
-
-  <g>
-    <rect x="208" y="304" width="232" height="52" rx="13" fill="url(#note-fill)" stroke="#059669" stroke-width="3" />
-    <rect x="400" y="432" width="296" height="52" rx="13" fill="url(#note-fill)" stroke="#059669" stroke-width="3" />
-    <rect x="256" y="560" width="188" height="52" rx="13" fill="url(#note-fill-dim)" stroke="#10b981" stroke-width="3" />
-    <rect x="488" y="688" width="248" height="52" rx="13" fill="url(#note-fill-dim)" stroke="#10b981" stroke-width="3" />
-  </g>
-
-  <rect x="400" y="432" width="296" height="52" rx="13" fill="none" stroke="#ffffff" stroke-width="5" opacity="0.65" />
 </svg>
