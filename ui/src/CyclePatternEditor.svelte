@@ -178,8 +178,8 @@
           class="{cellClass} transition-colors outline-none {inPattern
             ? active
               ? `${accent.dragBorder} ${accent.bgAccent}`
-              : 'border-border-strong bg-surface-subtle shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-text)_8%,transparent)] hover:border-text-muted'
-            : 'border-border/55 bg-surface-muted shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-text)_4%,transparent)] hover:border-border-strong hover:brightness-110'}"
+              : 'cycle-cell-inactive border-border-strong hover:border-text-muted'
+            : 'cycle-cell-outside border-border/55 hover:border-border-strong hover:brightness-110'}"
           aria-label={inPattern
             ? `Cycle step ${index + 1}, ${active ? "on" : "off"}`
             : `Cycle step ${index + 1}, extend pattern`}
@@ -242,6 +242,16 @@
 </div>
 
 <style>
+  .cycle-cell-inactive {
+    background: color-mix(in srgb, var(--color-surface-subtle) 62%, var(--color-text) 22%);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text) 10%, transparent);
+  }
+
+  .cycle-cell-outside {
+    background: color-mix(in srgb, var(--color-surface) 82%, var(--color-app) 18%);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text) 5%, transparent);
+  }
+
   .cycle-playback-pulse {
     background: currentColor;
     box-shadow:

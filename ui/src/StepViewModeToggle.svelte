@@ -54,9 +54,9 @@
           y2="58"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0%" stop-color="var(--color-surface-subtle)" />
-          <stop offset="40%" stop-color="var(--color-text)" />
-          <stop offset="100%" stop-color="var(--color-border-subtle)" />
+          <stop offset="0%" stop-color="var(--color-border-subtle)" />
+          <stop offset="42%" stop-color="var(--color-text-muted)" />
+          <stop offset="100%" stop-color="var(--color-border)" />
         </linearGradient>
         <clipPath id={whiteRingClipId} clipPathUnits="userSpaceOnUse">
           <path
@@ -79,7 +79,7 @@
             stroke-width="0.65"
             stroke-dasharray="1.2 1.6"
             stroke-linecap="butt"
-            opacity="0.86"
+            opacity="0.62"
           />
         </pattern>
       </defs>
@@ -87,11 +87,11 @@
       <g clip-path={`url(#${whiteRingClipId})`}>
         <rect x="0" y="0" width="134" height="58" fill="url(#step-view-mode-white-ring-shade)" />
         <rect x="5" y="5" width="124" height="10.5" fill={`url(#${lanePatternId})`} />
-        <line x1="5" y1="16.75" x2="129" y2="16.75" stroke="var(--color-app)" stroke-width="0.45" opacity="0.38" />
+        <line x1="5" y1="16.75" x2="129" y2="16.75" stroke="var(--color-app)" stroke-width="0.45" opacity="0.26" />
         <rect x="5" y="17.25" width="124" height="10.5" fill={`url(#${lanePatternId})`} />
-        <line x1="5" y1="29" x2="129" y2="29" stroke="var(--color-app)" stroke-width="0.45" opacity="0.38" />
+        <line x1="5" y1="29" x2="129" y2="29" stroke="var(--color-app)" stroke-width="0.45" opacity="0.26" />
         <rect x="5" y="29.5" width="124" height="10.5" fill={`url(#${lanePatternId})`} />
-        <line x1="5" y1="41.25" x2="129" y2="41.25" stroke="var(--color-app)" stroke-width="0.45" opacity="0.38" />
+        <line x1="5" y1="41.25" x2="129" y2="41.25" stroke="var(--color-app)" stroke-width="0.45" opacity="0.26" />
         <rect x="5" y="41.75" width="124" height="10.5" fill={`url(#${lanePatternId})`} />
       </g>
     </svg>
@@ -106,7 +106,7 @@
       <div
         class="icon-slot pointer-events-auto relative z-10 flex shrink-0 items-center justify-center rounded-full {!compact
           ? 'text-zinc-950'
-          : 'text-text-muted/60 hover:text-text-secondary'}"
+          : 'text-text-muted/60'}"
       >
         <FullStepControlsIcon class="pointer-events-none block shrink-0" />
       </div>
@@ -114,7 +114,7 @@
       <div
         class="icon-slot pointer-events-auto relative z-10 flex shrink-0 items-center justify-center rounded-full {compact
           ? 'text-zinc-950'
-          : 'text-text-muted/60 hover:text-text-secondary'}"
+          : 'text-text-muted/60'}"
       >
         <StretchToFitIcon class="pointer-events-none block shrink-0" />
       </div>
@@ -128,7 +128,7 @@
     height: calc(3.6rem * var(--svm));
   }
 
-  /* Outer racetrack — soft accent glow + track-bed white fill */
+  /* Outer racetrack — track-bed fill + depth shadow */
   .step-view-mode-frame {
     position: relative;
     isolation: isolate;
@@ -137,25 +137,9 @@
     border: none;
     background-color: var(--color-text);
     box-shadow:
-      0 0 calc(7px * var(--svm)) color-mix(in srgb, var(--color-accent) 19%, transparent),
-      0 0 calc(16px * var(--svm)) color-mix(in srgb, var(--color-accent) 10%, transparent),
-      0 0 calc(26px * var(--svm)) color-mix(in srgb, var(--color-accent) 5%, transparent),
       0 calc(3px * var(--svm)) calc(11px * var(--svm)) color-mix(in srgb, var(--color-app) 55%, transparent),
       inset 0 calc(-2px * var(--svm)) calc(5px * var(--svm))
         color-mix(in srgb, var(--color-app) 24%, transparent);
-    transition: box-shadow 150ms ease;
-  }
-
-  .step-view-mode-frame::before {
-    content: "";
-    position: absolute;
-    inset: calc(-1px * var(--svm));
-    border-radius: inherit;
-    pointer-events: none;
-    z-index: -1;
-    box-shadow:
-      0 0 calc(10px * var(--svm)) color-mix(in srgb, var(--color-accent) 21%, transparent),
-      0 0 calc(20px * var(--svm)) color-mix(in srgb, var(--color-accent) 11%, transparent);
   }
 
   .step-view-mode-frame::after {
@@ -166,9 +150,9 @@
     pointer-events: none;
     z-index: 0;
     box-shadow:
-      inset 0 calc(1px * var(--svm)) 0 color-mix(in srgb, #fff 38%, transparent),
+      inset 0 calc(1px * var(--svm)) 0 color-mix(in srgb, #fff 22%, transparent),
       inset 0 calc(-1px * var(--svm)) calc(2px * var(--svm))
-        color-mix(in srgb, var(--color-app) 18%, transparent);
+        color-mix(in srgb, var(--color-app) 14%, transparent);
     mask-image: radial-gradient(ellipse 58% 52% at 50% 50%, transparent 68%, #000 70%);
     -webkit-mask-image: radial-gradient(ellipse 58% 52% at 50% 50%, transparent 68%, #000 70%);
   }
@@ -224,27 +208,11 @@
     height: calc(1.25rem * var(--svm));
   }
 
-  .step-view-mode-frame:hover {
+  .step-view-mode-frame:focus-visible {
     box-shadow:
-      0 0 calc(7px * var(--svm)) color-mix(in srgb, var(--color-accent) 38%, transparent),
-      0 0 calc(16px * var(--svm)) color-mix(in srgb, var(--color-accent) 20%, transparent),
-      0 0 calc(26px * var(--svm)) color-mix(in srgb, var(--color-accent) 10%, transparent),
+      0 0 0 calc(2px * var(--svm)) var(--color-focus-ring),
       0 calc(3px * var(--svm)) calc(11px * var(--svm)) color-mix(in srgb, var(--color-app) 55%, transparent),
       inset 0 calc(-2px * var(--svm)) calc(5px * var(--svm))
         color-mix(in srgb, var(--color-app) 24%, transparent);
-  }
-
-  .step-view-mode-frame:hover::before {
-    box-shadow:
-      0 0 calc(10px * var(--svm)) color-mix(in srgb, var(--color-accent) 42%, transparent),
-      0 0 calc(20px * var(--svm)) color-mix(in srgb, var(--color-accent) 22%, transparent);
-  }
-
-  .step-view-mode-frame:focus-visible {
-    box-shadow:
-      0 0 0 calc(2px * var(--svm)) var(--color-app),
-      0 0 calc(8px * var(--svm)) color-mix(in srgb, var(--color-accent) 40%, transparent),
-      0 0 calc(18px * var(--svm)) color-mix(in srgb, var(--color-accent) 22%, transparent),
-      0 0 calc(28px * var(--svm)) color-mix(in srgb, var(--color-accent) 12%, transparent);
   }
 </style>
