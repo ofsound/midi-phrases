@@ -12,6 +12,7 @@
    * @typedef {Object} Props
    * @property {string} [className]
    * @property {"stacked" | "inline" | "sidebar" | "operations-grid"} [layout]
+   * @property {boolean} [compact]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {number} [selectedStepCount]
    * @property {number} [totalStepCount]
@@ -42,6 +43,7 @@
   let {
     className = "",
     layout = "stacked",
+    compact = false,
     accent = emeraldRowAccent,
     selectedStepCount = 0,
     totalStepCount = 0,
@@ -132,14 +134,14 @@
   let rootClass = $derived(
     sidebarLayout
       ? `flex min-h-0 w-full flex-1 flex-col justify-between items-stretch gap-4 ${className}`
-      : `flex gap-2 ${inlineLayout ? "items-center" : "items-end"} ${className}`,
+      : `flex ${compact ? "gap-1" : "gap-2"} ${inlineLayout ? "items-center" : "items-end"} ${className}`,
   );
   let parameterControlsClass = $derived(
     sidebarLayout
       ? "grid w-full grid-cols-3 gap-2"
       : inlineLayout
-        ? "flex items-center gap-1.5 px-5"
-        : "flex items-end gap-1.5 px-5",
+        ? `flex items-center ${compact ? "gap-1 px-1" : "gap-1.5 px-5"}`
+        : `flex items-end ${compact ? "gap-1 px-1" : "gap-1.5 px-5"}`,
   );
 </script>
 

@@ -4408,7 +4408,7 @@
   });
 </script>
 
-<main {@attach appRootAttachment} class="flex h-full flex-col overflow-hidden px-6 pt-3 transition-[filter,opacity] duration-150 {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}">
+<main {@attach appRootAttachment} class="flex h-full flex-col overflow-hidden px-6 pt-2 transition-[filter,opacity] duration-150 {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}">
   <div class="shrink-0 -mx-6">
     {#if standaloneTransportAvailable}
       <div class="flex items-center justify-end gap-2 px-6 pb-2">
@@ -4442,8 +4442,8 @@
       </div>
     {/if}
     <div class="mp-honeycomb-rail relative z-20">
-  <header class="flex items-end gap-3 px-6 pb-5 pt-4">
-    <div class="relative z-30 flex shrink-0 items-end gap-5">
+  <header class="flex items-center gap-1.5 px-6 pb-4 pt-2">
+    <div class="relative z-30 flex shrink-0 items-end gap-3">
       <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">
           <p class="text-sm font-bold uppercase leading-none tracking-widest text-accent">
@@ -4463,12 +4463,12 @@
         aria-pressed={scaleDialogOpen}
         title={activeScaleName}
         data-cursor="pointer"
-        class="mr-4 flex flex-col items-start gap-1 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
+        class="mr-1 flex flex-col items-start gap-1 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
         onclick={() => {
           scaleDialogOpen = true;
         }}
       >
-        <div class="h-5" aria-hidden="true"></div>
+        <div class="h-4" aria-hidden="true"></div>
         <div class="-translate-y-0.5 flex h-8 flex-col items-start justify-end gap-1">
           <p class="text-base font-semibold leading-none text-text">{activeKeyCenterLabel}</p>
           <p class="text-sm font-semibold uppercase leading-none text-accent">{activeScaleModeLabel}</p>
@@ -4476,17 +4476,16 @@
       </button>
     </div>
 
-    <div class="relative flex min-w-0 flex-1 flex-nowrap items-end justify-start gap-x-3">
-        <div class="flex flex-col items-start gap-1">
-          <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
-            <PulseDragInput
-              accent={interfaceAccent}
-              value={pulseIndex}
-              onValueChange={applyPulseIndex}
-            />
-          </div>
-          <div class="flex items-end gap-2">
+    <div class="relative flex min-w-0 flex-1 flex-nowrap items-end justify-start gap-x-1.5">
+        <div class="flex items-end gap-1">
+            <div class="flex flex-col items-start gap-1">
+              <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
+              <PulseDragInput
+                accent={interfaceAccent}
+                value={pulseIndex}
+                onValueChange={applyPulseIndex}
+              />
+            </div>
             <div class="flex flex-col items-start gap-1">
               <span class="text-xs font-semibold leading-none text-text-muted">Swing</span>
               <StepNumberDragInput
@@ -4550,9 +4549,8 @@
                   })}
               />
             </div>
-          </div>
         </div>
-        <div class="flex items-end px-5">
+        <div class="flex items-end px-1.5">
           <StepViewModeToggle
             compact={stretchStepsToFit}
             accent={interfaceAccent}
@@ -4562,6 +4560,7 @@
           />
         </div>
         <BulkStepEditControls
+          compact
           accent={interfaceAccent}
           requireSelection={false}
           totalStepCount={selectableStepCount}
@@ -4637,78 +4636,84 @@
         </div>
     </div>
 
-    <div class="ml-auto flex shrink-0 flex-col items-end gap-1.5">
-      <div class="flex items-center gap-2">
-        <span class="text-sm font-semibold leading-none text-text-muted">Patterns:</span>
-        <div class="flex items-center gap-1">
+    <div class="ml-auto mt-1.5 flex shrink-0 items-center gap-2 self-center">
+      <div class="flex flex-col gap-1">
+        <div class="flex items-center gap-1.5">
+          <span class="w-[3.75rem] shrink-0 text-right text-sm font-semibold leading-none text-text-muted"
+            >Patterns:</span
+          >
+          <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1">
+              {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
+                <button
+                  type="button"
+                  aria-label={patternCopySource === slot
+                    ? `Pattern ${slot + 1} selected as copy source`
+                    : `Select pattern ${slot + 1}`}
+                  aria-pressed={activePatternSlot === slot}
+                  title={patternCopySource === slot
+                    ? "Copy source selected"
+                    : "Shift-click to copy from this pattern"}
+                  data-cursor="pointer"
+                  class={slotButtonClasses(
+                    activePatternSlot === slot,
+                    true,
+                    patternCopySource === slot,
+                    patternCopySource >= 0 && patternCopySource !== slot,
+                  )}
+                  onclick={(event) => handlePatternSlotClick(event, slot)}
+                >
+                  {slot + 1}
+                </button>
+              {/each}
+            </div>
+            <button
+              type="button"
+              data-pattern-clear
+              aria-label={patternClearArmed ? "Confirm clear pattern" : "Clear selected pattern"}
+              title={patternClearArmed ? "Click again to clear" : "Clear pattern shown in the grid"}
+              data-cursor="pointer"
+              class={clearPatternButtonClasses(true, patternClearArmed)}
+              onclick={handleClearPatternClick}
+            >
+              <RemoveXIcon class="pointer-events-none h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-[3.75rem] shrink-0 text-right text-sm font-semibold leading-none text-text-muted"
+            >Loops:</span
+          >
           <div class="flex items-center gap-1">
             {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
               <button
                 type="button"
-                aria-label={patternCopySource === slot
-                  ? `Pattern ${slot + 1} selected as copy source`
-                  : `Select pattern ${slot + 1}`}
-                aria-pressed={activePatternSlot === slot}
-                title={patternCopySource === slot
-                  ? "Copy source selected"
-                  : "Shift-click to copy from this pattern"}
+                aria-label={loopSlotAssigned[slot]
+                  ? `Select loop ${slot + 1}`
+                  : `Save current brace to loop ${slot + 1}`}
+                aria-pressed={activeLoopSlot === slot}
+                title="Click to select, Shift-click to save current brace"
                 data-cursor="pointer"
-                class={slotButtonClasses(
-                  activePatternSlot === slot,
-                  true,
-                  patternCopySource === slot,
-                  patternCopySource >= 0 && patternCopySource !== slot,
-                )}
-                onclick={(event) => handlePatternSlotClick(event, slot)}
+                class={slotButtonClasses(activeLoopSlot === slot, loopSlotAssigned[slot])}
+                onclick={(event) => handleLoopSlotClick(event, slot)}
               >
                 {slot + 1}
               </button>
             {/each}
           </div>
-          <button
-            type="button"
-            data-pattern-clear
-            aria-label={patternClearArmed ? "Confirm clear pattern" : "Clear selected pattern"}
-            title={patternClearArmed ? "Click again to clear" : "Clear pattern shown in the grid"}
-            data-cursor="pointer"
-            class={clearPatternButtonClasses(true, patternClearArmed)}
-            onclick={handleClearPatternClick}
-          >
-            <RemoveXIcon class="pointer-events-none h-4 w-4" />
-          </button>
         </div>
       </div>
-      <div class="flex items-center gap-2">
-        <span class="text-sm font-semibold leading-none text-text-muted">Loops:</span>
-        <div class="flex items-center gap-1">
-          {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
-            <button
-              type="button"
-              aria-label={loopSlotAssigned[slot]
-                ? `Select loop ${slot + 1}`
-                : `Save current brace to loop ${slot + 1}`}
-              aria-pressed={activeLoopSlot === slot}
-              title="Click to select, Shift-click to save current brace"
-              data-cursor="pointer"
-              class={slotButtonClasses(activeLoopSlot === slot, loopSlotAssigned[slot])}
-              onclick={(event) => handleLoopSlotClick(event, slot)}
-            >
-              {slot + 1}
-            </button>
-          {/each}
-        </div>
-        <button
-          type="button"
-          aria-label="Mute output"
-          aria-pressed={activePatternSlot < 0}
-          title="Mute output until a pattern or loop is selected (MIDI note 16)"
-          data-cursor="pointer"
-          class={outputMuteButtonClasses(activePatternSlot < 0)}
-          onclick={deactivateOutput}
-        >
-          M
-        </button>
-      </div>
+      <button
+        type="button"
+        aria-label="Mute output"
+        aria-pressed={activePatternSlot < 0}
+        title="Mute output until a pattern or loop is selected (MIDI note 16)"
+        data-cursor="pointer"
+        class={outputMuteButtonClasses(activePatternSlot < 0)}
+        onclick={deactivateOutput}
+      >
+        M
+      </button>
     </div>
 
   </header>
@@ -4808,7 +4813,7 @@
                 </div>
               </div>
               <RowEditPencilIcon
-                class="pointer-events-none absolute right-2.5 bottom-2 z-[5] text-text-faint transition-colors duration-150 group-hover:[color:var(--row-header-accent)]"
+                class="pointer-events-none absolute right-1.5 bottom-1.5 z-[1] text-text-faint transition-colors duration-150 group-hover:[color:var(--row-header-accent)]"
               />
             </div>
             <PhraseRow
