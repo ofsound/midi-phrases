@@ -130,7 +130,11 @@
       : `flex gap-2 ${inlineLayout ? "items-center" : "items-end"} ${className}`,
   );
   let parameterControlsClass = $derived(
-    sidebarLayout ? "grid w-full grid-cols-3 gap-2" : "contents",
+    sidebarLayout
+      ? "grid w-full grid-cols-3 gap-2"
+      : inlineLayout
+        ? "flex items-center gap-1.5 px-5"
+        : "flex items-end gap-1.5 px-5",
   );
 </script>
 

@@ -28,7 +28,7 @@
 <div class="step-view-mode-root relative z-30 flex select-none items-end">
   <button
     type="button"
-    class="step-view-mode-frame rounded-full shadow-lg backdrop-blur-md outline-none"
+    class="step-view-mode-frame rounded-full outline-none"
     aria-label={compact
       ? "Compact steps enabled. Click to show full step controls."
       : "Full step controls enabled. Click to stretch compact steps to fit."}
@@ -132,29 +132,15 @@
   .step-view-mode-frame {
     position: relative;
     isolation: isolate;
+    overflow: hidden;
     width: calc(8.4rem * var(--svm));
     height: calc(3.6rem * var(--svm));
     border: none;
-    background-color: var(--color-text);
+    background-color: var(--color-border);
     box-shadow:
       0 calc(3px * var(--svm)) calc(11px * var(--svm)) color-mix(in srgb, var(--color-app) 55%, transparent),
       inset 0 calc(-2px * var(--svm)) calc(5px * var(--svm))
         color-mix(in srgb, var(--color-app) 24%, transparent);
-  }
-
-  .step-view-mode-frame::after {
-    content: "";
-    position: absolute;
-    inset: calc(1px * var(--svm));
-    border-radius: inherit;
-    pointer-events: none;
-    z-index: 0;
-    box-shadow:
-      inset 0 calc(1px * var(--svm)) 0 color-mix(in srgb, #fff 22%, transparent),
-      inset 0 calc(-1px * var(--svm)) calc(2px * var(--svm))
-        color-mix(in srgb, var(--color-app) 14%, transparent);
-    mask-image: radial-gradient(ellipse 58% 52% at 50% 50%, transparent 68%, #000 70%);
-    -webkit-mask-image: radial-gradient(ellipse 58% 52% at 50% 50%, transparent 68%, #000 70%);
   }
 
   .track-bed-lanes {

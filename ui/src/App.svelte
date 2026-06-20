@@ -160,8 +160,19 @@
   let stepTimingMultiplier = $state(defaultStepTimingMultiplierGrid());
   let stretchStepsToFit = $state(false);
   let phraseGridFieldWidth = $state(0);
+  /** @type {{ row: number, multipliers: number[] } | null} */
+  let compactTimingPreview = $state(null);
+  let layoutStepTimingMultiplier = $derived.by(() => {
+    if (compactTimingPreview === null) return stepTimingMultiplier;
+
+    return stepTimingMultiplier.map((rowMultipliers, rowIndex) =>
+      rowIndex === compactTimingPreview.row
+        ? compactTimingPreview.multipliers
+        : rowMultipliers,
+    );
+  });
   let compactGridLayout = $derived(
-    compactPhraseGridLayout(stepTimingMultiplier, rowTimingOffset),
+    compactPhraseGridLayout(layoutStepTimingMultiplier, rowTimingOffset),
   );
   let phraseRowMaxTimingPaddingPx = $derived.by(() => {
     let maxPadding = 0;
@@ -188,7 +199,7 @@
     ),
   );
   let phraseStepsScrollContentWidthPx = $derived(
-    phraseRowsScrollContentWidthPx(stepTimingMultiplier, rowTimingOffset),
+    phraseRowsScrollContentWidthPx(layoutStepTimingMultiplier, rowTimingOffset),
   );
   let phraseStepsContentFitScale = $derived.by(() => {
     if (stretchStepsToFit) return 1;
@@ -4811,6 +4822,14 @@
               onNoteCommit={commitPhraseNoteValue}
               onStepBulkGestureStart={beginPhraseStepBulkGesture}
               onMultiplierChange={selectStepTimingMultiplier}
+              onCompactTimingPreview={(multipliers) => {
+                compactTimingPreview = { row, multipliers };
+              }}
+              onCompactTimingPreviewEnd={() => {
+                if (compactTimingPreview?.row === row) {
+                  compactTimingPreview = null;
+                }
+              }}
               onStepMove={movePhraseStepFromPianoRoll}
               onDurationPreview={previewPhraseStepDuration}
               onDurationCommit={commitPhraseStepDuration}

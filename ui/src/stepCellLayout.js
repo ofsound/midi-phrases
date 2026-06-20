@@ -42,6 +42,30 @@ export function stepInsertZoneWidthPx() {
   return scaledPx(baseStepInsertZoneWidthPx);
 }
 
+/** Width of the full-size step's trailing-edge resize affordance. */
+export const baseStepBoundaryEndResizePx = 11;
+
+/** Width of the leading-edge resize affordance on the following step. */
+export const baseStepBoundaryStartResizePx = 12;
+
+export function stepBoundaryEndResizePx() {
+  return scaledPx(baseStepBoundaryEndResizePx);
+}
+
+export function stepBoundaryStartResizePx() {
+  return scaledPx(baseStepBoundaryStartResizePx);
+}
+
+/** Combined boundary hit target: left step end + gap + right step start. */
+export function stepBoundaryResizeZoneWidthPx() {
+  return stepBoundaryEndResizePx() + stepInsertZoneWidthPx() + stepBoundaryStartResizePx();
+}
+
+/** Left edge for a boundary resize zone centered on a quarter-grid boundary. */
+export function boundaryResizeZoneLeftPxAtGridBoundaryPx(boundaryPx) {
+  return boundaryPx - stepBoundaryResizeZoneWidthPx() / 2;
+}
+
 /** Left edge for an insert slot centered on a quarter-grid boundary. */
 export function insertSlotLeftPxAtGridBoundaryPx(boundaryPx) {
   return boundaryPx - stepInsertZoneWidthPx() / 2;

@@ -13,8 +13,6 @@
   import StepMutedOverlay from "./StepMutedOverlay.svelte";
   import { compactStepVelocityOpacity } from "./compactStepVisuals.js";
   import {
-    compactBoundaryResizeInitialIndex,
-    compactBoundaryResizeStepIndex,
     compactStepMoveThresholdPx,
     previewCompactStepBoundaryResize,
   } from "./compactStepInteraction.js";
@@ -71,8 +69,11 @@
     rowGridWidthPx,
     rowQuarterGridColumns,
     insertSlotLeftPxAtGridBoundaryPx,
+    boundaryResizeZoneLeftPxAtGridBoundaryPx,
     rowStepLayoutsPx,
     rowTimingOffsetShiftPx,
+    stepBoundaryResizeZoneWidthPx,
+    stepBoundaryEndResizePx,
     stepCellPaddingPx,
     stepDisplayWidthPx,
     stepFooterActionSlotWidthPx,
@@ -152,6 +153,8 @@
    * @property {(row: number, step: number, midi: number) => void | Promise<void>} [onNoteCommit]
    * @property {(row: number, step: number) => void} [onStepBulkGestureStart]
    * @property {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} [onMultiplierChange]
+   * @property {(multiplierIndices: number[]) => void} [onCompactTimingPreview]
+   * @property {() => void} [onCompactTimingPreviewEnd]
    * @property {(row: number, fromStep: number, toStep: number) => void | Promise<void>} [onStepMove]
    * @property {(row: number, step: number, fraction: number) => void} [onDurationPreview]
    * @property {(row: number, step: number, fraction: number) => void | Promise<void>} [onDurationCommit]
@@ -212,6 +215,8 @@
     onNoteCommit = () => {},
     onStepBulkGestureStart = () => {},
     onMultiplierChange = () => {},
+    onCompactTimingPreview = () => {},
+    onCompactTimingPreviewEnd = () => {},
     onStepMove = () => {},
     onDurationPreview = () => {},
     onDurationCommit = () => {},
@@ -268,6 +273,13 @@
   /** @type {HTMLDivElement | null} */
   let compactGridElement = $state(null);
   let compactGridWidthPx = $state(0);
+  /** @type {HTMLDivElement | null} */
+  let compactDndZoneElement = $state(null);
+  let compactDndZoneWidthPx = $state(0);
+  /** @type {number | "trailing" | null} */
+  let hoveredCompactBoundary = $state(null);
+  /** @type {HTMLElement | null} */
+  let compactResizeHandleElement = null;
   /** @type {{
    *   mode: "move" | "boundaryResize",
    *   pointerId: number,
@@ -482,6 +494,11 @@
   /** @param {number} leftPx */
   function insertSlotStyle(leftPx) {
     return `left: ${layoutPx(leftPx)}px; width: ${layoutPx(stepInsertZoneWidthPx())}px;`;
+  }
+
+  /** @param {number} boundaryCenterPx */
+  function boundaryResizeZoneStyle(boundaryCenterPx) {
+    return `left: ${layoutPx(boundaryResizeZoneLeftPxAtGridBoundaryPx(boundaryCenterPx))}px; width: ${layoutPx(stepBoundaryResizeZoneWidthPx())}px;`;
   }
 
   /** @param {number} boundaryPx */
@@ -1178,41 +1195,150 @@
     };
   }
 
-  function clearCompactStepDrag() {
-    compactStepDrag = null;
-    clearActiveCursor("ew-resize");
+  /** @param {HTMLElement} node */
+  function compactDndZoneAttachment(node) {
+    compactDndZoneElement = node;
+    compactDndZoneWidthPx = node.clientWidth;
+
+    const observer = new ResizeObserver(() => {
+      compactDndZoneWidthPx = node.clientWidth;
+    });
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+
+      if (compactDndZoneElement === node) {
+        compactDndZoneElement = null;
+      }
+    };
   }
 
-  /** @param {PointerEvent} event @param {number} step @param {"start" | "end"} edge */
-  function beginCompactBoundaryResize(event, step, edge) {
+  /** @param {number} leftStep */
+  function quarterGridColumnsThroughStep(leftStep) {
+    let sum = 0;
+
+    for (let index = 0; index <= leftStep; index += 1) {
+      sum += quarterGridColumnsForMultiplierIndex(
+        layoutTimingMultipliers[index] ?? defaultStepTimingMultiplierIndex,
+      );
+    }
+
+    return sum;
+  }
+
+  /** @param {number} leftStep */
+  function compactBoundaryZoneLeftPx(leftStep) {
+    if (compactDndZoneWidthPx <= 0 || compactRowStepColumns <= 0) return 0;
+
+    const boundaryCenterPx =
+      (quarterGridColumnsThroughStep(leftStep) / compactRowStepColumns) * compactDndZoneWidthPx;
+
+    return boundaryCenterPx - layoutPx(stepBoundaryResizeZoneWidthPx()) / 2;
+  }
+
+  function compactTrailingResizeLeftPx() {
+    return Math.max(0, compactDndZoneWidthPx - layoutPx(stepBoundaryEndResizePx()));
+  }
+
+  function clearCompactStepDrag() {
+    clearResizeListeners();
+
+    if (compactResizeHandleElement && compactStepDrag && compactStepDrag.pointerId >= 0) {
+      try {
+        if (compactResizeHandleElement.hasPointerCapture(compactStepDrag.pointerId)) {
+          compactResizeHandleElement.releasePointerCapture(compactStepDrag.pointerId);
+        }
+      } catch {
+        // Pointer may already be released in the WebView.
+      }
+    }
+
+    compactResizeHandleElement = null;
+    clearActiveCursor("ew-resize");
+    onCompactTimingPreviewEnd();
+    compactStepDrag = null;
+    hoveredCompactBoundary = null;
+  }
+
+  /** @param {PointerEvent} event @param {number} leftStep */
+  function beginCompactBoundaryResize(event, leftStep) {
     if (!stretchToFit || stepInspectorInteractionDisabled || compactStepDrag) return;
 
-    const resizedStep = compactBoundaryResizeStepIndex(step, edge);
-
-    if (resizedStep < 0) return;
+    if (leftStep < 0 || leftStep >= stepIds.length) return;
 
     event.preventDefault();
     event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
 
-    const initialMultiplierIndex = compactBoundaryResizeInitialIndex(
-      step,
-      edge,
-      stepTimingMultiplier,
-    );
+    const handle = /** @type {HTMLElement} */ (event.currentTarget);
+    compactResizeHandleElement = handle;
+    handle.setPointerCapture(event.pointerId);
+
+    const initialMultiplierIndex =
+      stepTimingMultiplier[leftStep] ?? defaultStepTimingMultiplierIndex;
 
     compactStepDrag = {
       mode: "boundaryResize",
       pointerId: event.pointerId,
-      step: resizedStep,
-      edge,
+      step: leftStep,
       startX: event.clientX,
       initialMultiplierIndex,
       previewMultiplierIndex: initialMultiplierIndex,
       resizePxPerQuarter: compactPxPerQuarter(),
     };
+    hoveredCompactBoundary = leftStep === stepIds.length - 1 ? "trailing" : leftStep;
     setActiveCursor("ew-resize");
-    void onInspectStep(row, step, stepIds[step]);
+    void onInspectStep(row, leftStep, stepIds[leftStep]);
+
+    addResizeListener("pointermove", trackCompactBoundaryResizeMove, resizePassiveCapture);
+    addResizeListener("mousemove", trackCompactBoundaryResizeMove, resizePassiveCapture);
+    addResizeListener("pointerup", trackCompactBoundaryResizeEnd, resizeCapture);
+    addResizeListener("mouseup", trackCompactBoundaryResizeEnd, resizeCapture);
+    addResizeListener("pointercancel", trackCompactBoundaryResizeCancel, resizeCapture);
+  }
+
+  /** @param {Event} event */
+  function trackCompactBoundaryResizeMove(event) {
+    if (
+      !compactStepDrag
+      || compactStepDrag.mode !== "boundaryResize"
+      || event instanceof PointerEvent && event.pointerId !== compactStepDrag.pointerId
+    ) {
+      return;
+    }
+
+    if ("buttons" in event && event.buttons !== 1) {
+      trackCompactBoundaryResizeEnd(event);
+      return;
+    }
+
+    moveCompactBoundaryResize(/** @type {PointerEvent} */ (event));
+  }
+
+  /** @param {Event} event */
+  async function trackCompactBoundaryResizeEnd(event) {
+    if (
+      !compactStepDrag
+      || compactStepDrag.mode !== "boundaryResize"
+      || event instanceof PointerEvent && event.pointerId !== compactStepDrag.pointerId
+    ) {
+      return;
+    }
+
+    await endCompactBoundaryResize(/** @type {PointerEvent} */ (event));
+  }
+
+  /** @param {Event} event */
+  function trackCompactBoundaryResizeCancel(event) {
+    if (
+      !compactStepDrag
+      || compactStepDrag.mode !== "boundaryResize"
+      || event instanceof PointerEvent && event.pointerId !== compactStepDrag.pointerId
+    ) {
+      return;
+    }
+
+    clearCompactStepDrag();
   }
 
   /** @param {PointerEvent} event */
@@ -1220,21 +1346,32 @@
     if (
       !compactStepDrag
       || compactStepDrag.mode !== "boundaryResize"
-      || compactStepDrag.pointerId !== event.pointerId
+      || event.pointerId !== compactStepDrag.pointerId
     ) {
       return;
     }
 
+    const pxPerQuarter = compactPxPerQuarter();
     const next = previewCompactStepBoundaryResize(
       compactStepDrag.initialMultiplierIndex ?? defaultStepTimingMultiplierIndex,
       event.clientX - compactStepDrag.startX,
-      compactStepDrag.resizePxPerQuarter ?? compactPxPerQuarter(),
+      pxPerQuarter,
       pulseIndex,
     );
 
     if (next === compactStepDrag.previewMultiplierIndex) return;
 
-    compactStepDrag = { ...compactStepDrag, previewMultiplierIndex: next };
+    const preview = stepTimingMultiplier.slice();
+    preview[compactStepDrag.step] = next;
+    onCompactTimingPreview(preview);
+
+    compactStepDrag = {
+      ...compactStepDrag,
+      previewMultiplierIndex: next,
+      initialMultiplierIndex: next,
+      startX: event.clientX,
+      resizePxPerQuarter: pxPerQuarter,
+    };
   }
 
   /** @param {PointerEvent} event */
@@ -1242,18 +1379,18 @@
     if (
       !compactStepDrag
       || compactStepDrag.mode !== "boundaryResize"
-      || compactStepDrag.pointerId !== event.pointerId
+      || event.pointerId !== compactStepDrag.pointerId
     ) {
       return;
     }
 
-    event.currentTarget.releasePointerCapture(event.pointerId);
-    clearActiveCursor("ew-resize");
-
     const finished = compactStepDrag;
-    compactStepDrag = null;
+    clearCompactStepDrag();
 
-    if (finished.previewMultiplierIndex === finished.initialMultiplierIndex) return;
+    const committedIndex =
+      stepTimingMultiplier[finished.step] ?? defaultStepTimingMultiplierIndex;
+
+    if (finished.previewMultiplierIndex === committedIndex) return;
 
     await onMultiplierChange(
       row,
@@ -1266,7 +1403,6 @@
   function cancelCompactStepDrag(event) {
     if (!compactStepDrag || compactStepDrag.pointerId !== event.pointerId) return;
 
-    event.currentTarget.releasePointerCapture(event.pointerId);
     clearCompactStepDrag();
   }
 
@@ -1758,7 +1894,9 @@
         aria-hidden="true"
       ></div>
     {/if}
-    {@render multiplierResizeHandle(step)}
+    {#if step === stepIds.length - 1}
+      {@render multiplierResizeHandle(step)}
+    {/if}
   </div>
 {/snippet}
 
@@ -1775,20 +1913,33 @@
 {/snippet}
 
 {#snippet gridInsertSlot(leftPx, insertStep, mode)}
+  {@const boundaryCenterPx = leftPx + stepInsertZoneWidthPx() / 2}
   <div
     data-insert-slot
-    class="pointer-events-auto absolute top-0 bottom-0 z-[60]"
-    style={insertSlotStyle(leftPx)}
+    class="pointer-events-none absolute top-0 bottom-0 z-[60]"
+    style={mode === "between"
+      ? boundaryResizeZoneStyle(boundaryCenterPx)
+      : insertSlotStyle(leftPx)}
   >
+    {#if mode === "between" && insertStep > 0}
+      <button
+        type="button"
+        data-multiplier-resize
+        data-no-long-press
+        data-cursor="ew-resize"
+        aria-label="Resize step timing multiplier"
+        disabled={isDragging || removeBlocked}
+        class="pointer-events-auto absolute inset-0 z-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+        onpointerdown={(event) => beginMultiplierResize(event, insertStep - 1)}
+        onmousedown={(event) => beginMultiplierResize(event, insertStep - 1)}
+      ></button>
+    {/if}
     <StepInsertZone
       {accent}
       {muted}
       {timingMultiplierOptions}
       onInsert={mode === "leading" || mode === "between"
         ? (multiplierIndex) => onInsertStep(row, insertStep, multiplierIndex)
-        : undefined}
-      onDuplicate={mode === "between" || mode === "trailing"
-        ? () => onDuplicateStep(row, insertStep)
         : undefined}
     />
   </div>
@@ -1826,6 +1977,7 @@
   {@const stepMultiplierIndex = layoutTimingMultipliers[step] ?? defaultStepTimingMultiplierIndex}
   {@const shellPaddingPercent = compactStepShellPaddingPercent(stepMultiplierIndex)}
   {@const trailingPaddingPercent = compactStepShellTrailingPaddingPercent(stepMultiplierIndex)}
+  {@const isTrailingBoundary = step === stepIds.length - 1}
   <div
     class="relative h-full overflow-hidden rounded-md transition-[box-shadow,filter] duration-75 {muted
       ? 'bg-app/95 ring-1 ring-inset ring-border-subtle/90'
@@ -1865,47 +2017,29 @@
       ></div>
     {/if}
     {#if step > 0}
-      <button
-        type="button"
-        data-compact-step-resize
-        data-no-inspect
-        data-no-long-press
-        data-cursor="horizontal-drag"
-        aria-label={`Resize start of step ${step + 1}`}
-        title="Drag to move this boundary by resizing the preceding step"
-        disabled={stepInspectorInteractionDisabled}
-        class="group absolute top-0 -left-1.5 z-30 flex h-full w-3 touch-none items-center justify-center border-0 bg-transparent p-0 outline-none disabled:pointer-events-none disabled:opacity-50 {accent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'}"
-        onpointerdown={(event) => beginCompactBoundaryResize(event, step, "start")}
-        onpointermove={moveCompactBoundaryResize}
-        onpointerup={endCompactBoundaryResize}
-        onpointercancel={cancelCompactStepDrag}
+      <div
+        class="pointer-events-none absolute top-0 -left-1.5 z-30 flex h-full w-3 items-center justify-center"
+        aria-hidden="true"
       >
         <span
-          class="compact-step-resize-handle pointer-events-none"
-          aria-hidden="true"
+          class="compact-step-resize-handle {hoveredCompactBoundary === step - 1
+            ? 'is-active'
+            : ''}"
         ></span>
-      </button>
+      </div>
     {/if}
-    <button
-      type="button"
-      data-compact-step-resize
-      data-no-inspect
-      data-no-long-press
-      data-cursor="horizontal-drag"
-      aria-label={`Resize end of step ${step + 1}`}
-      title="Drag to resize this step"
-      disabled={stepInspectorInteractionDisabled}
-      class="group absolute top-0 -right-1.5 z-30 flex h-full w-3 touch-none items-center justify-center border-0 bg-transparent p-0 outline-none disabled:pointer-events-none disabled:opacity-50 {accent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'}"
-      onpointerdown={(event) => beginCompactBoundaryResize(event, step, "end")}
-      onpointermove={moveCompactBoundaryResize}
-      onpointerup={endCompactBoundaryResize}
-      onpointercancel={cancelCompactStepDrag}
+    <div
+      class="pointer-events-none absolute top-0 -right-1.5 z-30 flex h-full w-3 items-center justify-center"
+      aria-hidden="true"
     >
       <span
-        class="compact-step-resize-handle pointer-events-none"
-        aria-hidden="true"
+        class="compact-step-resize-handle {isTrailingBoundary
+          ? hoveredCompactBoundary === 'trailing'
+          : hoveredCompactBoundary === step
+            ? 'is-active'
+            : ''}"
       ></span>
-    </button>
+    </div>
     <div
       class="pointer-events-none relative z-10 flex h-full min-w-0 items-center justify-center px-1"
     >
@@ -1966,7 +2100,8 @@
   }
 
   :global(.group:hover) .compact-step-resize-handle,
-  :global(.group[data-mp-hover]) .compact-step-resize-handle {
+  :global(.group[data-mp-hover]) .compact-step-resize-handle,
+  :global(.compact-step-resize-handle.is-active) {
     width: 0.28rem;
     background-color: var(--color-text);
     border-color: var(--color-text);
@@ -2041,14 +2176,18 @@
         ></div>
       {/if}
       <div
-        bind:this={dndZoneElement}
-        use:dragHandleZone={dndZoneOptions}
-        onconsider={handleConsider}
-        onfinalize={handleFinalize}
-        data-phrase-row-dragging={isDragging ? true : undefined}
-        class="flex min-h-0 min-w-0 items-stretch outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
+        class="relative min-h-0 min-w-0"
         style={compactStepFlexStyle(compactRowStepColumns)}
+        {@attach compactDndZoneAttachment}
       >
+        <div
+          bind:this={dndZoneElement}
+          use:dragHandleZone={dndZoneOptions}
+          onconsider={handleConsider}
+          onfinalize={handleFinalize}
+          data-phrase-row-dragging={isDragging ? true : undefined}
+          class="flex min-h-0 min-w-0 items-stretch outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
+        >
         {#each compactRenderedItems as item, index (item.id)}
           {@const layout = compactLayoutForItem(item, index)}
           {@const stepIdForLayout = layout.step >= 0 ? stepIds[layout.step] : null}
@@ -2121,6 +2260,49 @@
             {/if}
           </div>
         {/each}
+        </div>
+        {#if !isDragging && !stepInspectorInteractionDisabled}
+          {#each stepIds as _, leftStep (leftStep)}
+            {#if leftStep < stepIds.length - 1}
+              <button
+                type="button"
+                data-compact-step-resize
+                data-no-long-press
+                data-cursor="ew-resize"
+                aria-label={`Resize boundary between steps ${leftStep + 1} and ${leftStep + 2}`}
+                title="Drag to resize the boundary between these steps"
+                class="group absolute inset-y-0 z-[35] touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth}"
+                style:left="{compactBoundaryZoneLeftPx(leftStep)}px"
+                style:width="{layoutPx(stepBoundaryResizeZoneWidthPx())}px"
+                onpointerenter={() => {
+                  hoveredCompactBoundary = leftStep;
+                }}
+                onpointerleave={() => {
+                  if (hoveredCompactBoundary === leftStep) hoveredCompactBoundary = null;
+                }}
+                onpointerdown={(event) => beginCompactBoundaryResize(event, leftStep)}
+              ></button>
+            {/if}
+          {/each}
+          <button
+            type="button"
+            data-compact-step-resize
+            data-no-long-press
+            data-cursor="ew-resize"
+            aria-label={`Resize end of step ${stepIds.length}`}
+            title="Drag to resize this step"
+            class="group absolute inset-y-0 z-[35] touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth}"
+            style:left="{compactTrailingResizeLeftPx()}px"
+            style:width="{layoutPx(stepBoundaryEndResizePx())}px"
+            onpointerenter={() => {
+              hoveredCompactBoundary = "trailing";
+            }}
+            onpointerleave={() => {
+              if (hoveredCompactBoundary === "trailing") hoveredCompactBoundary = null;
+            }}
+            onpointerdown={(event) => beginCompactBoundaryResize(event, stepIds.length - 1)}
+          ></button>
+        {/if}
       </div>
       {#if compactTrailingGridColumns > 0}
         <div
