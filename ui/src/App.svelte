@@ -4479,6 +4479,62 @@
       </div>
     </div>
 
+    <div class="flex shrink-0 flex-col items-start gap-1">
+          <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
+            >Pitch</span
+          >
+          <div class="flex gap-1">
+          <button
+            type="button"
+            aria-label="Undo"
+            title="Undo"
+            disabled={undoStack.length === 0}
+            data-cursor="pointer"
+            class={historyButtonClasses(undoStack.length > 0)}
+            style:--param-box-chars={3}
+            onclick={undo}
+          >
+            <svg
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 14 4 9l5-5" />
+              <path d="M4 9h10a6 6 0 0 1 0 12h-2" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            aria-label="Redo"
+            title="Redo"
+            disabled={redoStack.length === 0}
+            data-cursor="pointer"
+            class={historyButtonClasses(redoStack.length > 0)}
+            style:--param-box-chars={3}
+            onclick={redo}
+          >
+            <svg
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m15 14 5-5-5-5" />
+              <path d="M20 9H10a6 6 0 0 0 0 12h2" />
+            </svg>
+          </button>
+          </div>
+    </div>
+
     <div class="flex shrink-0 items-end gap-1">
             <div class="flex flex-col items-start gap-1">
               <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
@@ -4553,26 +4609,6 @@
             </div>
     </div>
 
-    <button
-      type="button"
-      aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
-      aria-pressed={scaleDialogOpen}
-      title={activeScaleName}
-      data-cursor="pointer"
-      class="flex shrink-0 translate-y-[6px] flex-col items-start gap-1 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
-      onclick={() => {
-        scaleDialogOpen = true;
-      }}
-    >
-      <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
-        >View</span
-      >
-      <div class="-translate-y-0.5 flex h-8 flex-col items-start justify-end gap-1">
-        <p class="text-base font-semibold leading-none text-text">{activeKeyCenterLabel}</p>
-        <p class="text-sm font-semibold uppercase leading-none text-accent">{activeScaleModeLabel}</p>
-      </div>
-    </button>
-
     <div class="shrink-0">
         <BulkStepEditControls
           compact
@@ -4603,61 +4639,25 @@
         />
     </div>
 
-    <div class="flex shrink-0 flex-col items-start gap-1">
-          <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
-            >Pitch</span
-          >
-          <div class="flex gap-1">
-          <button
-            type="button"
-            aria-label="Undo"
-            title="Undo"
-            disabled={undoStack.length === 0}
-            data-cursor="pointer"
-            class={historyButtonClasses(undoStack.length > 0)}
-            style:--param-box-chars={3}
-            onclick={undo}
-          >
-            <svg
-              class="h-4 w-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M9 14 4 9l5-5" />
-              <path d="M4 9h10a6 6 0 0 1 0 12h-2" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            aria-label="Redo"
-            title="Redo"
-            disabled={redoStack.length === 0}
-            data-cursor="pointer"
-            class={historyButtonClasses(redoStack.length > 0)}
-            style:--param-box-chars={3}
-            onclick={redo}
-          >
-            <svg
-              class="h-4 w-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="m15 14 5-5-5-5" />
-              <path d="M20 9H10a6 6 0 0 0 0 12h2" />
-            </svg>
-          </button>
-          </div>
-    </div>
+    <button
+      type="button"
+      aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
+      aria-pressed={scaleDialogOpen}
+      title={activeScaleName}
+      data-cursor="pointer"
+      class="flex shrink-0 flex-col items-start gap-1 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
+      onclick={() => {
+        scaleDialogOpen = true;
+      }}
+    >
+      <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
+        >Pitch</span
+      >
+      <div class="flex h-8 flex-col items-start justify-end gap-0 leading-none">
+        <p class="text-lg font-semibold leading-none text-text">{activeKeyCenterLabel}</p>
+        <p class="text-sm font-semibold uppercase leading-none text-accent">{activeScaleModeLabel}</p>
+      </div>
+    </button>
 
     <div class="flex shrink-0 items-center gap-1">
       <div class="flex flex-col gap-1">
