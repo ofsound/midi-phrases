@@ -463,11 +463,11 @@
     background:
       linear-gradient(180deg, color-mix(in srgb, var(--color-text) 10%, transparent), transparent 36%),
       linear-gradient(180deg, var(--color-surface-muted) 0%, var(--color-surface) 100%);
-    color: color-mix(in srgb, var(--color-accent) 75%, var(--color-text));
+    color: var(--color-text);
     touch-action: none;
     user-select: none;
     outline: none;
-    text-shadow: 0 0 6.8px color-mix(in srgb, var(--color-accent) 29%, transparent);
+    text-shadow: 0 1px 2px color-mix(in srgb, var(--color-app) 55%, transparent);
     box-shadow:
       inset 0 1px 1px color-mix(in srgb, var(--color-text) 9%, transparent),
       inset 0 -1px 1.7px color-mix(in srgb, var(--color-app) 49%, transparent),
@@ -479,13 +479,13 @@
   }
 
   .octavizer-relative-velocity-active {
-    color: color-mix(in srgb, var(--color-accent) 75%, var(--color-text));
+    color: var(--color-text);
   }
 
   .octavizer-relative-velocity-dragging,
   .octavizer-relative-velocity:focus-visible {
     border-color: color-mix(in srgb, var(--color-focus-ring) 58%, var(--color-border-subtle));
-    color: color-mix(in srgb, var(--color-accent) 78%, var(--color-text));
+    color: var(--color-text);
     box-shadow:
       inset 0 1px 1px color-mix(in srgb, var(--color-text) 10%, transparent),
       inset 0 -1px 2px color-mix(in srgb, var(--color-app) 58%, transparent),
@@ -534,9 +534,9 @@
     background:
       linear-gradient(180deg, color-mix(in srgb, var(--color-text) 10%, transparent), transparent 36%),
       linear-gradient(180deg, var(--color-surface-muted) 0%, var(--color-surface) 100%);
-    color: color-mix(in srgb, var(--color-accent) 75%, var(--color-text));
+    color: var(--color-text);
     user-select: none;
-    text-shadow: 0 0 6.8px color-mix(in srgb, var(--color-accent) 29%, transparent);
+    text-shadow: 0 1px 2px color-mix(in srgb, var(--color-app) 55%, transparent);
     box-shadow:
       inset 0 1px 1px color-mix(in srgb, var(--color-text) 9%, transparent),
       inset 0 -1px 1.7px color-mix(in srgb, var(--color-app) 49%, transparent),
@@ -548,13 +548,13 @@
   }
 
   .shimmer-param-active {
-    color: color-mix(in srgb, var(--color-accent) 75%, var(--color-text));
+    color: var(--color-text);
   }
 
   .shimmer-param-dragging,
   .shimmer-param:focus-visible {
     border-color: color-mix(in srgb, var(--color-accent) 58%, var(--color-border-subtle));
-    color: color-mix(in srgb, var(--color-accent) 78%, var(--color-text));
+    color: var(--color-text);
     box-shadow:
       inset 0 1px 1px color-mix(in srgb, var(--color-text) 10%, transparent),
       inset 0 -1px 2px color-mix(in srgb, var(--color-app) 58%, transparent),

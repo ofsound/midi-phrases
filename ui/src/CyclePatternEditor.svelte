@@ -178,7 +178,7 @@
             ? active
               ? `${accent.dragBorder} ${accent.bgAccent}`
               : 'border-border-strong bg-surface-subtle shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-text)_8%,transparent)] hover:border-text-muted'
-            : 'border-border/20 bg-app/30 opacity-30 hover:border-border hover:bg-surface/60 hover:opacity-80'}"
+            : 'border-border/55 bg-surface-muted shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-text)_4%,transparent)] hover:border-border-strong hover:brightness-110'}"
           aria-label={inPattern
             ? `Cycle step ${index + 1}, ${active ? "on" : "off"}`
             : `Cycle step ${index + 1}, extend pattern`}

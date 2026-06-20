@@ -4430,7 +4430,7 @@
       </div>
     {/if}
     <div class="mp-honeycomb-rail relative z-20">
-  <header class="flex items-end gap-3 px-6 pb-2 pt-3">
+  <header class="flex items-end gap-3 px-6 pb-5 pt-3">
     <div class="relative z-30 flex shrink-0 -translate-y-1.5 items-end gap-5">
       <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">
@@ -4543,7 +4543,7 @@
           </div>
           </div>
         </div>
-        <div class="flex items-end px-5">
+        <div class="flex translate-y-[9px] items-end px-5">
           <StepViewModeToggle
             compact={stretchStepsToFit}
             accent={interfaceAccent}
