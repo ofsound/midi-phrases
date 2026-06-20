@@ -4442,8 +4442,8 @@
       </div>
     {/if}
     <div class="mp-honeycomb-rail relative z-20">
-  <header class="flex items-end gap-3 px-6 pb-4.5 pt-3">
-    <div class="relative z-30 flex shrink-0 -translate-y-1.5 items-end gap-5">
+  <header class="flex items-end gap-3 px-6 pb-5 pt-4">
+    <div class="relative z-30 flex shrink-0 items-end gap-5">
       <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">
           <p class="text-sm font-bold uppercase leading-none tracking-widest text-accent">
@@ -4476,16 +4476,16 @@
       </button>
     </div>
 
-    <div class="relative flex min-w-0 flex-1 -translate-y-1.5 flex-nowrap items-end justify-start gap-x-3">
+    <div class="relative flex min-w-0 flex-1 flex-nowrap items-end justify-start gap-x-3">
         <div class="flex flex-col items-start gap-1">
-          <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
-          <PulseNoteButtonGroup
-            accent={interfaceAccent}
-            value={pulseIndex}
-            onValueChange={applyPulseIndex}
-          />
-        </div>
-        <div class="flex items-end">
+          <div class="flex flex-col items-start gap-1">
+            <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
+            <PulseNoteButtonGroup
+              accent={interfaceAccent}
+              value={pulseIndex}
+              onValueChange={applyPulseIndex}
+            />
+          </div>
           <div class="flex items-end gap-2">
             <div class="flex flex-col items-start gap-1">
               <span class="text-xs font-semibold leading-none text-text-muted">Swing</span>
@@ -4516,46 +4516,43 @@
                 onValueChange={applySwingSubdivisionIndex}
               />
             </div>
-          </div>
-          <div class="w-2 shrink-0" aria-hidden="true"></div>
-          <div class="flex items-end gap-2">
             <div class="flex flex-col items-start gap-1">
               <span class="text-xs font-semibold leading-none text-text-muted">Vel %</span>
-            <StepNumberDragInput
-              boxed
-              compact
-              accent={interfaceAccent}
-              value={velocityHumanizePercent}
-              min={0}
-              max={100}
-              resetValue={0}
-              ariaLabel="Velocity humanize percent"
-              onValueChange={(value) =>
-                applyGlobalPercent(value, "setVelocityHumanizePercent", (next) => {
-                  velocityHumanizePercent = next;
-                })}
-            />
-          </div>
-          <div class="flex flex-col items-start gap-1">
-            <span class="text-xs font-semibold leading-none text-text-muted">Time %</span>
-            <StepNumberDragInput
-              boxed
-              compact
-              accent={interfaceAccent}
-              value={timingHumanizePercent}
-              min={0}
-              max={100}
-              resetValue={0}
-              ariaLabel="Timing humanize percent"
-              onValueChange={(value) =>
-                applyGlobalPercent(value, "setTimingHumanizePercent", (next) => {
-                  timingHumanizePercent = next;
-                })}
-            />
-          </div>
+              <StepNumberDragInput
+                boxed
+                compact
+                accent={interfaceAccent}
+                value={velocityHumanizePercent}
+                min={0}
+                max={100}
+                resetValue={0}
+                ariaLabel="Velocity humanize percent"
+                onValueChange={(value) =>
+                  applyGlobalPercent(value, "setVelocityHumanizePercent", (next) => {
+                    velocityHumanizePercent = next;
+                  })}
+              />
+            </div>
+            <div class="flex flex-col items-start gap-1">
+              <span class="text-xs font-semibold leading-none text-text-muted">Time %</span>
+              <StepNumberDragInput
+                boxed
+                compact
+                accent={interfaceAccent}
+                value={timingHumanizePercent}
+                min={0}
+                max={100}
+                resetValue={0}
+                ariaLabel="Timing humanize percent"
+                onValueChange={(value) =>
+                  applyGlobalPercent(value, "setTimingHumanizePercent", (next) => {
+                    timingHumanizePercent = next;
+                  })}
+              />
+            </div>
           </div>
         </div>
-        <div class="flex translate-y-[9px] items-end px-5">
+        <div class="flex items-end px-5">
           <StepViewModeToggle
             compact={stretchStepsToFit}
             accent={interfaceAccent}
@@ -4638,33 +4635,80 @@
             </svg>
           </button>
         </div>
-        <div class="ml-auto flex shrink-0 items-end gap-1.5 pl-3">
-          <ColorsToggle
-            accent={interfaceAccent}
-            enabled={rowColorsEnabled}
-            onChange={async (next) => {
-              rowColorsEnabled = next;
-              await pushRowColorsEnabled();
-            }}
-          />
-          <ThemeModeToggle value={themeMode} onValueChange={setThemeMode} />
-          <UiScaleDragInput
-            value={uiScaleState.percent}
-            onValueChange={setExplicitUiScalePercent}
-          />
+    </div>
+
+    <div class="ml-auto flex shrink-0 flex-col items-end gap-1.5">
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-semibold leading-none text-text-muted">Patterns:</span>
+        <div class="flex items-center gap-1">
+          <div class="flex items-center gap-1">
+            {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
+              <button
+                type="button"
+                aria-label={patternCopySource === slot
+                  ? `Pattern ${slot + 1} selected as copy source`
+                  : `Select pattern ${slot + 1}`}
+                aria-pressed={activePatternSlot === slot}
+                title={patternCopySource === slot
+                  ? "Copy source selected"
+                  : "Shift-click to copy from this pattern"}
+                data-cursor="pointer"
+                class={slotButtonClasses(
+                  activePatternSlot === slot,
+                  true,
+                  patternCopySource === slot,
+                  patternCopySource >= 0 && patternCopySource !== slot,
+                )}
+                onclick={(event) => handlePatternSlotClick(event, slot)}
+              >
+                {slot + 1}
+              </button>
+            {/each}
+          </div>
           <button
             type="button"
-            aria-label={editorFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            aria-pressed={editorFullscreen}
-            title={editorFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            disabled={editorFullscreenBusy || !nativeFunctionAvailable("setEditorFullscreen")}
+            data-pattern-clear
+            aria-label={patternClearArmed ? "Confirm clear pattern" : "Clear selected pattern"}
+            title={patternClearArmed ? "Click again to clear" : "Clear pattern shown in the grid"}
             data-cursor="pointer"
-            class={editorFullscreenButtonClasses()}
-            onclick={toggleEditorFullscreen}
+            class={clearPatternButtonClasses(true, patternClearArmed)}
+            onclick={handleClearPatternClick}
           >
-            <FullscreenIcon class="pointer-events-none h-4 w-4" />
+            <RemoveXIcon class="pointer-events-none h-4 w-4" />
           </button>
         </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-semibold leading-none text-text-muted">Loops:</span>
+        <div class="flex items-center gap-1">
+          {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
+            <button
+              type="button"
+              aria-label={loopSlotAssigned[slot]
+                ? `Select loop ${slot + 1}`
+                : `Save current brace to loop ${slot + 1}`}
+              aria-pressed={activeLoopSlot === slot}
+              title="Click to select, Shift-click to save current brace"
+              data-cursor="pointer"
+              class={slotButtonClasses(activeLoopSlot === slot, loopSlotAssigned[slot])}
+              onclick={(event) => handleLoopSlotClick(event, slot)}
+            >
+              {slot + 1}
+            </button>
+          {/each}
+        </div>
+        <button
+          type="button"
+          aria-label="Mute output"
+          aria-pressed={activePatternSlot < 0}
+          title="Mute output until a pattern or loop is selected (MIDI note 16)"
+          data-cursor="pointer"
+          class={outputMuteButtonClasses(activePatternSlot < 0)}
+          onclick={deactivateOutput}
+        >
+          M
+        </button>
+      </div>
     </div>
 
   </header>
@@ -4764,7 +4808,7 @@
                 </div>
               </div>
               <RowEditPencilIcon
-                class="pointer-events-none absolute right-1 bottom-0.5 z-[5] text-text-faint transition-colors duration-150 group-hover:[color:var(--row-header-accent)]"
+                class="pointer-events-none absolute right-2.5 bottom-2 z-[5] text-text-faint transition-colors duration-150 group-hover:[color:var(--row-header-accent)]"
               />
             </div>
             <PhraseRow
@@ -5066,76 +5110,32 @@
     </div>
     <div class="-mx-6 w-[calc(100%+3rem)] shrink-0">
       <div class="mp-honeycomb-rail relative z-20 overflow-x-auto">
-      <div class="flex min-w-max items-center justify-center gap-8 px-6 py-3">
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-semibold leading-none text-text-muted">Patterns:</span>
-          <div class="flex items-center gap-1">
-            <div class="flex items-center gap-1">
-              {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
-                <button
-                  type="button"
-                  aria-label={patternCopySource === slot
-                    ? `Pattern ${slot + 1} selected as copy source`
-                    : `Select pattern ${slot + 1}`}
-                  aria-pressed={activePatternSlot === slot}
-                  title={patternCopySource === slot
-                    ? "Copy source selected"
-                    : "Shift-click to copy from this pattern"}
-                  data-cursor="pointer"
-                  class={slotButtonClasses(
-                    activePatternSlot === slot,
-                    true,
-                    patternCopySource === slot,
-                    patternCopySource >= 0 && patternCopySource !== slot,
-                  )}
-                  onclick={(event) => handlePatternSlotClick(event, slot)}
-                >
-                  {slot + 1}
-                </button>
-              {/each}
-            </div>
-            <button
-              type="button"
-              data-pattern-clear
-              aria-label={patternClearArmed ? "Confirm clear pattern" : "Clear selected pattern"}
-              title={patternClearArmed ? "Click again to clear" : "Clear pattern shown in the grid"}
-              data-cursor="pointer"
-              class={clearPatternButtonClasses(true, patternClearArmed)}
-              onclick={handleClearPatternClick}
-            >
-              <RemoveXIcon class="pointer-events-none h-4 w-4" />
-            </button>
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-semibold leading-none text-text-muted">Loops:</span>
-          <div class="flex items-center gap-1">
-            {#each Array.from({ length: 8 }, (_, index) => index) as slot (slot)}
-              <button
-                type="button"
-                aria-label={loopSlotAssigned[slot]
-                  ? `Select loop ${slot + 1}`
-                  : `Save current brace to loop ${slot + 1}`}
-                aria-pressed={activeLoopSlot === slot}
-                title="Click to select, Shift-click to save current brace"
-                data-cursor="pointer"
-                class={slotButtonClasses(activeLoopSlot === slot, loopSlotAssigned[slot])}
-                onclick={(event) => handleLoopSlotClick(event, slot)}
-              >
-                {slot + 1}
-              </button>
-            {/each}
-          </div>
+      <div class="flex w-full justify-end px-6 py-3">
+        <div class="flex shrink-0 items-center gap-1.5">
+          <ColorsToggle
+            accent={interfaceAccent}
+            enabled={rowColorsEnabled}
+            onChange={async (next) => {
+              rowColorsEnabled = next;
+              await pushRowColorsEnabled();
+            }}
+          />
+          <ThemeModeToggle value={themeMode} onValueChange={setThemeMode} />
+          <UiScaleDragInput
+            value={uiScaleState.percent}
+            onValueChange={setExplicitUiScalePercent}
+          />
           <button
             type="button"
-            aria-label="Mute output"
-            aria-pressed={activePatternSlot < 0}
-            title="Mute output until a pattern or loop is selected (MIDI note 16)"
+            aria-label={editorFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            aria-pressed={editorFullscreen}
+            title={editorFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            disabled={editorFullscreenBusy || !nativeFunctionAvailable("setEditorFullscreen")}
             data-cursor="pointer"
-            class={outputMuteButtonClasses(activePatternSlot < 0)}
-            onclick={deactivateOutput}
+            class={editorFullscreenButtonClasses()}
+            onclick={toggleEditorFullscreen}
           >
-            M
+            <FullscreenIcon class="pointer-events-none h-4 w-4" />
           </button>
         </div>
       </div>

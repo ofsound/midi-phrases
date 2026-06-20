@@ -1,20 +1,20 @@
 <script>
   /** Small edit pencil — row header piano-roll affordance. */
   /** @type {{ class?: string }} */
-  let { class: className = "" } = $props();
+  let { class: className = "h-4 w-4" } = $props();
 </script>
 
 <svg
   xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 10 10"
-  class="block h-4 w-4 shrink-0 {className}"
+  viewBox="0 0 24 24"
+  class={className}
   aria-hidden="true"
   fill="none"
   stroke="currentColor"
-  stroke-width="1.25"
+  stroke-width="2"
   stroke-linecap="round"
   stroke-linejoin="round"
 >
-  <path d="M6.4 1.4 8.6 3.6 2.9 9.3 1 10l.7-1.9L6.4 1.4z" />
-  <path d="M2.5 8.5h5" />
+  <path d="M12 20h9" />
+  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
 </svg>

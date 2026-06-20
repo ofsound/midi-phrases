@@ -11,7 +11,7 @@
   /**
    * @typedef {Object} Props
    * @property {string} [className]
-   * @property {"stacked" | "inline" | "sidebar"} [layout]
+   * @property {"stacked" | "inline" | "sidebar" | "operations-grid"} [layout]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {number} [selectedStepCount]
    * @property {number} [totalStepCount]
@@ -101,6 +101,7 @@
   }
   let inlineLayout = $derived(layout === "inline");
   let sidebarLayout = $derived(layout === "sidebar");
+  let operationsGridLayout = $derived(layout === "operations-grid");
   let inlineLabels = $derived(inlineLayout);
   let groupClass = $derived(
     sidebarLayout
@@ -115,7 +116,11 @@
       : groupClass,
   );
   let operationButtonsClass = $derived(
-    sidebarLayout ? "grid w-full grid-cols-3 gap-x-2.5 gap-y-2" : "flex items-center gap-1",
+    sidebarLayout
+      ? "grid w-full grid-cols-3 gap-x-2.5 gap-y-2"
+      : operationsGridLayout
+        ? "grid grid-cols-3 gap-1"
+        : "flex items-center gap-1",
   );
   let labelClass = $derived(
     `text-xs font-semibold leading-none text-text-muted${inlineLabels ? " shrink-0" : ""}`,
