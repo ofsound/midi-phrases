@@ -4543,7 +4543,7 @@
           </div>
           </div>
         </div>
-        <div class="flex flex-col items-center justify-end px-5 pb-0.5">
+        <div class="flex items-end px-5">
           <StepViewModeToggle
             compact={stretchStepsToFit}
             accent={interfaceAccent}
