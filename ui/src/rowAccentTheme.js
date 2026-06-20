@@ -178,6 +178,11 @@ export const altRowAccents = [
   },
 ];
 
+/** @param {RowAccent} accent */
+export function rowAccentColorVar(accent) {
+  return `var(--color-${accent.textAccent.replace("text-", "")})`;
+}
+
 /** @param {number} row @param {boolean} rowColorsEnabled */
 export function rowAccentFor(row, rowColorsEnabled) {
   if (!rowColorsEnabled || row <= 0) {

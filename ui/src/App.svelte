@@ -24,6 +24,7 @@
     normalizeEditorCyclePattern,
   } from "./cyclePattern.js";
   import RowDisableIcon from "./RowDisableIcon.svelte";
+  import RowEditPencilIcon from "./RowEditPencilIcon.svelte";
   import RowRecordIcon from "./RowRecordIcon.svelte";
   import BulkStepEditControls from "./BulkStepEditControls.svelte";
   import ScaleModeDialog from "./ScaleModeDialog.svelte";
@@ -47,6 +48,7 @@
     timingMultiplierOptions,
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
+  import { duplicateBlockInRow } from "./bulkStepDrag.js";
   import { duplicateStepBetweenRows, moveStepBetweenRows } from "./crossRowStepMove.js";
   import {
     clampNoteBandpass,
@@ -99,6 +101,7 @@
   } from "./phraseRowLayout.js";
   import {
     interfaceAccent,
+    rowAccentColorVar,
     rowAccentFor,
     rowMutedOverlayClasses,
     rowMuteControlClasses,
@@ -2606,6 +2609,91 @@
     stepCycleOffset = next;
   }
 
+  /** @param {number} row @param {string[]} beforeIds @param {string[]} afterIds */
+  async function commitBulkRowMove(row, beforeIds, afterIds) {
+    if (beforeIds.join() === afterIds.join()) return;
+
+    const after = createHistorySnapshot();
+    const before = snapshotWithRowOrder(after, row, beforeIds, afterIds);
+    pushHistoryEntry("Move steps", before, after);
+
+    await pushCurrentPhraseRow(row);
+  }
+
+  /**
+   * @param {number} row
+   * @param {string[]} blockIds
+   * @param {number} insertionIndex
+   */
+  async function duplicateBulkStepsToDrop(row, blockIds, insertionIndex) {
+    if (row < 0 || row >= stepIds.length) return;
+    if (stepIds[row].length + blockIds.length > maxPhraseStepsPerRow) return;
+
+    const before = createHistorySnapshot();
+    const result = duplicateBlockInRow(
+      {
+        grid,
+        stepDurationFraction,
+        stepTimingMultiplier,
+        stepVelocity,
+        stepMuted,
+        stepSkipped,
+        stepProbability,
+        stepCycle,
+        stepCycleOffset,
+        activeGates,
+      },
+      stepIds,
+      row,
+      blockIds,
+      insertionIndex,
+      createStepId,
+    );
+
+    if (!result) return;
+
+    ({
+      grid,
+      stepDurationFraction,
+      stepTimingMultiplier,
+      stepVelocity,
+      stepMuted,
+      stepSkipped,
+      stepProbability,
+      stepCycle,
+      stepCycleOffset,
+      activeGates,
+    } = result.matrices);
+    stepIds = result.stepIds;
+
+    for (const newId of result.newIds) {
+      const duplicateIndex = stepIds[row].indexOf(newId);
+
+      if (duplicateIndex >= 0) {
+        activeGates[row][duplicateIndex] = false;
+      }
+    }
+
+    const after = createHistorySnapshot();
+    pushHistoryEntry("Duplicate steps", before, after);
+
+    const nextSelectedKeys = new SvelteSet(selectedStepKeysForGrid);
+
+    for (const newId of result.newIds) {
+      nextSelectedKeys.add(stepSelectionKey(row, newId));
+    }
+
+    setSelectedStepKeys(nextSelectedKeys);
+    syncBulkControlsFromSelection();
+
+    if (result.newIds.length > 0) {
+      inspectedStep = { row, stepId: result.newIds[0] };
+    }
+
+    await tick();
+    await pushCurrentPhraseRow(row);
+  }
+
   async function pushMovePhraseStep(row, fromStep, toStep) {
     if (!nativeFunctionAvailable("movePhraseStep")) return;
 
@@ -4592,10 +4680,11 @@
           >
             <div
               data-row-header={row}
-              class="relative -ml-6 flex shrink-0 self-stretch items-center border-r border-border-subtle pl-6 pr-6 {row <
+              class="group relative -ml-6 flex shrink-0 self-stretch items-center border-r border-border-subtle pl-6 pr-6 {row <
               grid.length - 1
                 ? 'border-b'
                 : ''}"
+              style:--row-header-accent={rowAccentColorVar(rowAccent)}
             >
               <button
                 type="button"
@@ -4662,6 +4751,9 @@
                   />
                 </div>
               </div>
+              <RowEditPencilIcon
+                class="pointer-events-none absolute right-1.5 bottom-1 z-[5] text-text-faint transition-colors duration-150 group-hover:[color:var(--row-header-accent)]"
+              />
             </div>
             <PhraseRow
               {row}
@@ -4705,6 +4797,8 @@
               {timingMultiplierOptions}
               onReorder={reorderRowByIds}
               onMoveCommitted={commitRowMove}
+              onBulkMoveCommitted={commitBulkRowMove}
+              onBulkStepDuplicateDrop={duplicateBulkStepsToDrop}
               onCrossRowMove={moveStepToRow}
               onStepDuplicateDrop={duplicateStepToDrop}
               onDuplicateDragChange={(stepId) => duplicateDragStepId = stepId}

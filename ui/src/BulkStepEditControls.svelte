@@ -73,7 +73,9 @@
   );
 
   function actionButtonClasses(enabled = true) {
-    return `flex h-8 w-8 shrink-0 items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
+    const sizeClass = sidebarLayout ? "h-8 w-full" : "h-8 w-8 shrink-0";
+
+    return `flex ${sizeClass} items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
         ? "mp-control-gradient border-border text-text-secondary hover:border-border-strong hover:text-text"
         : "mp-control-gradient-muted border-border-subtle text-text-faint"
@@ -81,7 +83,9 @@
   }
 
   function toggleActionButtonClasses(enabled = true, active = false) {
-    return `flex h-8 w-8 shrink-0 items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
+    const sizeClass = sidebarLayout ? "h-8 w-full" : "h-8 w-8 shrink-0";
+
+    return `flex ${sizeClass} items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
         ? active
           ? "mp-control-gradient border-border-strong text-text shadow-sm"
@@ -111,7 +115,7 @@
       : groupClass,
   );
   let operationButtonsClass = $derived(
-    sidebarLayout ? "flex w-full flex-wrap items-center gap-1" : "flex items-center gap-1",
+    sidebarLayout ? "grid w-full grid-cols-3 gap-1" : "flex items-center gap-1",
   );
   let labelClass = $derived(
     `text-xs font-semibold leading-none text-text-muted${inlineLabels ? " shrink-0" : ""}`,
@@ -122,7 +126,7 @@
   }
   let rootClass = $derived(
     sidebarLayout
-      ? `flex w-full flex-col gap-3 items-stretch ${className}`
+      ? `flex min-h-0 w-full flex-1 flex-col justify-between items-stretch gap-4 ${className}`
       : `flex gap-2 ${inlineLayout ? "items-center" : "items-end"} ${className}`,
   );
   let parameterControlsClass = $derived(

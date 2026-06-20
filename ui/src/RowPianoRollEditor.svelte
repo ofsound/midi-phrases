@@ -28,7 +28,9 @@
     precedingStepResizeForNoteDrag,
     timingMultiplierIndexAfterRollResize,
   } from "./rowPianoRollTimeline.js";
+  import RowPianoRollModeIcon from "./RowPianoRollModeIcon.svelte";
   import RowShapeDrawIcon from "./RowShapeDrawIcon.svelte";
+  import RemoveXIcon from "./RemoveXIcon.svelte";
   import BulkStepEditControls from "./BulkStepEditControls.svelte";
   import CompactStepResizeHandle from "./CompactStepResizeHandle.svelte";
   import {
@@ -89,6 +91,7 @@
    * @property {(value: number) => void | Promise<void>} [onBulkVelocityCommit]
    * @property {(value: number) => void} [onBulkTransposePreview]
    * @property {(value: number) => void | Promise<void>} [onBulkTransposeCommit]
+   * @property {() => void} [onClose]
    */
 
   /** @type {Props} */
@@ -142,6 +145,7 @@
     onBulkVelocityCommit = () => {},
     onBulkTransposePreview = () => {},
     onBulkTransposeCommit = () => {},
+    onClose = () => {},
   } = $props();
 
   const basePxPerQuarter = 28;
@@ -157,8 +161,8 @@
   let drag = $state(null);
   /** @type {{ timer: ReturnType<typeof setTimeout>, step: number, fraction: number } | null} */
   let pendingDurationClick = null;
-  /** @type {'note' | 'velocity' | null} */
-  let shapeDrawMode = $state(null);
+  /** @type {'roll' | 'note' | 'velocity'} */
+  let shapeDrawMode = $state("roll");
   /** @type {{ pointerId: number, mode: 'note' | 'velocity', points: { x: number, y: number }[] } | null} */
   let shapeStroke = $state(null);
   let rowAccent = $derived(accent ?? emeraldRowAccent);
@@ -166,8 +170,7 @@
   let boundaryAccentVar = $derived(
     `var(--color-${rowAccent.bgAccent.replace('bg-', '')})`
   );
-  let noteShapeDrawActive = $derived(shapeDrawMode === "note");
-  let velocityShapeDrawActive = $derived(shapeDrawMode === "velocity");
+  let isShapeDrawMode = $derived(shapeDrawMode === "note" || shapeDrawMode === "velocity");
   let selectedStepIdSet = $derived(new Set(selectedStepIds));
 
   let displayedTimingMultipliers = $derived.by(() => {
@@ -367,15 +370,17 @@
     };
   }
 
-  /** @param {'note' | 'velocity'} mode */
-  function toggleShapeDrawMode(mode) {
-    shapeDrawMode = shapeDrawMode === mode ? null : mode;
+  /** @param {'roll' | 'note' | 'velocity'} mode */
+  function setShapeDrawMode(mode) {
+    if (shapeDrawMode === mode) return;
+
+    shapeDrawMode = mode;
     shapeStroke = null;
     drag = null;
   }
 
-  /** @param {'note' | 'velocity'} mode */
-  function shapeDrawButtonClasses(mode) {
+  /** @param {'roll' | 'note' | 'velocity'} mode */
+  function shapeModeButtonClasses(mode) {
     const active = shapeDrawMode === mode;
 
     return `flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-medium transition-colors outline-none ${
@@ -387,7 +392,7 @@
 
   /** @param {PointerEvent} event */
   function beginShapeDraw(event) {
-    if (!shapeDrawMode || shapeStroke || drag) return;
+    if (!isShapeDrawMode || shapeStroke || drag) return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -396,7 +401,7 @@
     const surface = /** @type {HTMLElement} */ (event.currentTarget);
     shapeStroke = {
       pointerId: event.pointerId,
-      mode: shapeDrawMode,
+      mode: /** @type {'note' | 'velocity'} */ (shapeDrawMode),
       points: [rollPointFromPointer(event, surface)],
     };
   }
@@ -896,7 +901,7 @@
 
   /** @param {PointerEvent} event */
   function handleRollBackgroundDoubleClick(event) {
-    if (shapeDrawMode || drag || stepIds.length >= maxPhraseStepsPerRow) return;
+    if (isShapeDrawMode || drag || stepIds.length >= maxPhraseStepsPerRow) return;
 
     const insertStep = insertStepIndexFromRollX(
       rollXFromPointer(event),
@@ -908,7 +913,7 @@
   }
 
   let rollInsertDoubleClickOptions = $derived({
-    disabled: Boolean(shapeDrawMode),
+    disabled: isShapeDrawMode,
     shouldIgnore: shouldIgnoreRollInsertDoubleClick,
     onDoubleClick: handleRollBackgroundDoubleClick,
   });
@@ -920,9 +925,22 @@
 </script>
 
 <section class="flex min-h-0 w-full flex-1 gap-3">
-  <aside class="flex w-[13.5rem] shrink-0 flex-col gap-3 py-1">
-    <BulkStepEditControls
-      layout="sidebar"
+  <aside class="relative flex w-[13.5rem] shrink-0 flex-col min-h-0 py-2 pr-6 pl-0">
+    <button
+      type="button"
+      data-cursor="pointer"
+      aria-label="Close monophonic piano roll"
+      class="absolute top-2 left-0 z-10 flex h-6 w-6 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-text-muted transition-colors outline-none hover:bg-surface-raised/80 hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
+      onclick={onClose}
+      title="Close monophonic piano roll"
+    >
+      <RemoveXIcon class="pointer-events-none h-3.5 w-3.5" />
+    </button>
+
+    <div class="flex min-h-0 w-full flex-1 flex-col pt-7">
+      <BulkStepEditControls
+        layout="sidebar"
+        className="min-h-0 flex-1"
       accent={rowAccent}
       requireSelection={false}
       totalStepCount={stepIds.length}
@@ -948,34 +966,56 @@
       onTransposePreview={onBulkTransposePreview}
       onTransposeCommit={onBulkTransposeCommit}
     />
+    </div>
 
-    <div class="flex gap-2">
+  </aside>
+
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+    <div
+      class="flex shrink-0 gap-1.5"
+      role="radiogroup"
+      aria-label="Piano roll interaction mode"
+    >
       <button
         type="button"
+        role="radio"
+        data-cursor="pointer"
+        aria-label="Edit notes on the piano roll"
+        aria-checked={shapeDrawMode === "roll"}
+        title="Move and resize steps on the piano roll"
+        class={shapeModeButtonClasses("roll")}
+        onclick={() => setShapeDrawMode("roll")}
+      >
+        <RowPianoRollModeIcon class="pointer-events-none h-4 w-4 shrink-0" />
+        Roll
+      </button>
+      <button
+        type="button"
+        role="radio"
         data-cursor="pointer"
         aria-label="Draw phrase shape across steps"
-        aria-pressed={noteShapeDrawActive}
+        aria-checked={shapeDrawMode === "note"}
         title="Draw a freeform line to set step pitches"
-        class={shapeDrawButtonClasses("note")}
-        onclick={() => toggleShapeDrawMode("note")}
+        class={shapeModeButtonClasses("note")}
+        onclick={() => setShapeDrawMode("note")}
       >
         <RowShapeDrawIcon class="pointer-events-none h-4 w-4 shrink-0" />
         Phrase
       </button>
       <button
         type="button"
+        role="radio"
         data-cursor="pointer"
         aria-label="Draw velocity shape across steps"
-        aria-pressed={velocityShapeDrawActive}
+        aria-checked={shapeDrawMode === "velocity"}
         title="Draw a freeform line to set step velocities"
-        class={shapeDrawButtonClasses("velocity")}
-        onclick={() => toggleShapeDrawMode("velocity")}
+        class={shapeModeButtonClasses("velocity")}
+        onclick={() => setShapeDrawMode("velocity")}
       >
         <RowShapeDrawIcon class="pointer-events-none h-4 w-4 shrink-0" />
         Velocity
       </button>
     </div>
-  </aside>
 
   <div
     class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-app/80"
@@ -1033,13 +1073,13 @@
             role="group"
             aria-label="Focused row piano roll"
             style:height="{rollHeightPx}px"
-            data-cursor={shapeDrawMode ? "crosshair" : undefined}
+            data-cursor={isShapeDrawMode ? "crosshair" : undefined}
             use:doubleClick={rollInsertDoubleClickOptions}
             title="Double-click empty grid space to insert a step"
-            onpointerdown={shapeDrawMode ? beginShapeDraw : undefined}
-            onpointermove={shapeDrawMode ? moveShapeDraw : undefined}
-            onpointerup={shapeDrawMode ? endShapeDraw : undefined}
-            onpointercancel={shapeDrawMode ? endShapeDraw : undefined}
+            onpointerdown={isShapeDrawMode ? beginShapeDraw : undefined}
+            onpointermove={isShapeDrawMode ? moveShapeDraw : undefined}
+            onpointerup={isShapeDrawMode ? endShapeDraw : undefined}
+            onpointercancel={isShapeDrawMode ? endShapeDraw : undefined}
           >
             {#each pitchRows as midi (midi)}
               <div
@@ -1064,7 +1104,7 @@
               aria-hidden="true"
             ></div>
 
-            {#if velocityShapeDrawActive}
+            {#if shapeDrawMode === "velocity"}
               <div
                 class="pointer-events-none absolute inset-0 z-25"
                 aria-hidden="true"
@@ -1154,7 +1194,7 @@
                 data-bulk-step-cell
                 data-step-row={row}
                 data-step-id={note.stepId}
-                class="absolute z-20 transition-[opacity,box-shadow] duration-150 {shapeDrawMode
+                class="absolute z-20 transition-[opacity,box-shadow] duration-150 {isShapeDrawMode
                   ? 'pointer-events-none'
                   : ''} {playbackActive ? rowAccent.playbackGlow : ''}"
                 role="group"
@@ -1190,7 +1230,7 @@
                     : rowAccent.pianoNoteIdle} {note.muted ? 'opacity-35' : ''}"
                   style:width="{note.durationWidthPx}px"
                   onpointerdown={(event) => {
-                    if (shapeDrawMode) return;
+                    if (isShapeDrawMode) return;
                     beginNoteDrag(event, note);
                   }}
                   onpointermove={moveNoteInteraction}
@@ -1260,6 +1300,7 @@
         </div>
       </div>
     </div>
+  </div>
   </div>
 </section>
 
