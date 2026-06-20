@@ -83,7 +83,7 @@
     swingSubdivisionValues,
   } from "./phraseSchedule.js";
   import DiscreteDragSelect from "./DiscreteDragSelect.svelte";
-  import PulseNoteButtonGroup from "./PulseNoteButtonGroup.svelte";
+  import PulseDragInput from "./PulseDragInput.svelte";
   import ColorsToggle from "./ColorsToggle.svelte";
   import ThemeModeToggle from "./ThemeModeToggle.svelte";
   import StepViewModeToggle from "./StepViewModeToggle.svelte";
@@ -4480,7 +4480,7 @@
         <div class="flex flex-col items-start gap-1">
           <div class="flex flex-col items-start gap-1">
             <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
-            <PulseNoteButtonGroup
+            <PulseDragInput
               accent={interfaceAccent}
               value={pulseIndex}
               onValueChange={applyPulseIndex}
