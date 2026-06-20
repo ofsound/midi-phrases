@@ -1756,8 +1756,8 @@
   {@const trailingPaddingPercent = compactStepShellTrailingPaddingPercent(stepMultiplierIndex)}
   <div
     class="relative h-full overflow-hidden rounded-md transition-[box-shadow,filter] duration-75 {muted
-      ? 'bg-app/95 ring-1 ring-inset ring-border-subtle/90'
-      : 'bg-surface'} {activeGates[step] && !stepDimmed
+      ? 'mp-duration-track-gradient bg-app/95 ring-1 ring-inset ring-border-subtle/90'
+      : 'mp-duration-track-gradient bg-surface'} {activeGates[step] && !stepDimmed
       ? accent.playbackGlow
       : ''} {isStepSelected
       ? 'brightness-75 saturate-75'
@@ -1770,10 +1770,8 @@
   >
     <div
       class="pointer-events-none absolute inset-0 transition-[background-color,opacity] duration-75 {muted
-        ? 'bg-surface/70'
-        : activeGates[step]
-          ? accent.bgAccentStrong
-          : accent.bgAccent}"
+        ? 'mp-duration-track-gradient bg-surface/70'
+        : `mp-duration-fill-gradient ${activeGates[step] ? accent.bgAccentStrong : accent.bgAccent}`}"
       style:opacity={muted ? 1 : activeGates[step] ? 1 : velocityOpacity}
       aria-hidden="true"
     ></div>

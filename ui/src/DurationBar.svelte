@@ -175,7 +175,7 @@
     {@attach trackAttachment}
     data-step-duration
     data-cursor="pointer"
-    class="duration-track relative h-3.5 touch-none select-none overflow-hidden outline-none {accent.ringFocusWithWidth} {muted
+    class="duration-track mp-duration-track-gradient relative h-3.5 touch-none select-none overflow-hidden outline-none {accent.ringFocusWithWidth} {muted
       ? 'bg-surface-muted'
       : 'bg-surface-subtle'}"
     role="slider"
@@ -209,7 +209,7 @@
     {/if}
     {#if displayFillPercent > 0}
       <div
-        class="duration-fill absolute inset-y-0 left-0 {muted ? 'bg-surface-subtle' : accent.bgAccent} {dragging
+        class="duration-fill mp-duration-fill-gradient absolute inset-y-0 left-0 {muted ? 'bg-surface-subtle' : accent.bgAccent} {dragging
           ? ''
           : 'transition-[width,opacity] duration-75'}"
         style:width="{displayFillPercent}%"
@@ -218,19 +218,3 @@
     {/if}
   </div>
 </div>
-
-<style>
-  .duration-track {
-    background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-text) 12%, transparent), color-mix(in srgb, var(--color-text) 2%, transparent) 42%, color-mix(in srgb, var(--color-app) 20%, transparent));
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--color-text) 8%, transparent),
-      inset 0 -1px 0 color-mix(in srgb, var(--color-app) 35%, transparent);
-  }
-
-  .duration-fill {
-    background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-text) 26%, transparent), color-mix(in srgb, var(--color-text) 4%, transparent) 48%, color-mix(in srgb, var(--color-app) 18%, transparent));
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--color-text) 22%, transparent),
-      inset 0 -1px 0 color-mix(in srgb, var(--color-app) 22%, transparent);
-  }
-</style>
