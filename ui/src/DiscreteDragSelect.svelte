@@ -16,6 +16,7 @@
    * @property {string} [ariaLabel]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {boolean} [compact] - Tight boxed width for compact header controls with short labels.
+   * @property {number} [boxChars] - Minimum character width for the boxed layout.
    * @property {(index: number) => void | Promise<void>} [onValueChange]
    */
 
@@ -28,6 +29,7 @@
     ariaLabel = "Option",
     accent = emeraldRowAccent,
     compact = false,
+    boxChars = 3,
     onValueChange = () => {}
   } = $props();
 
@@ -93,9 +95,8 @@
 
 <div
   data-cursor="vertical-drag"
-  class="mp-control-gradient flex h-8 touch-none select-none items-center justify-center rounded-md border px-2 text-sm font-semibold tabular-nums outline-none transition-[border-color,box-shadow,filter] duration-75 {compact
-    ? 'w-14'
-    : 'w-[4.5rem]'} {accent.borderFocusVisible} {accent.ringFocusWithWidth} {dragging && !muted
+  style:--param-box-chars={boxChars}
+  class="mp-param-box mp-control-gradient flex h-8 touch-none select-none items-center justify-center rounded-md border text-sm font-semibold tabular-nums outline-none transition-[border-color,box-shadow,filter] duration-75 {accent.borderFocusVisible} {accent.ringFocusWithWidth} {dragging && !muted
     ? `${accent.dragBorder} ${accent.dragShadow}`
     : muted
       ? 'border-border-subtle text-text-muted'

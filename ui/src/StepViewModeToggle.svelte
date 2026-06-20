@@ -25,10 +25,10 @@
   const whiteRingClipId = "step-view-mode-white-ring";
 </script>
 
-<div class="relative z-30 flex h-[3.6rem] select-none items-end">
+<div class="step-view-mode-root relative z-30 flex select-none items-end">
   <button
     type="button"
-    class="step-view-mode-frame h-[3.6rem] w-[8.4rem] rounded-full shadow-lg backdrop-blur-md outline-none"
+    class="step-view-mode-frame rounded-full shadow-lg backdrop-blur-md outline-none"
     aria-label={compact
       ? "Compact steps enabled. Click to show full step controls."
       : "Full step controls enabled. Click to stretch compact steps to fit."}
@@ -96,73 +96,79 @@
       </g>
     </svg>
 
-    <div
-      class="step-view-mode-track absolute inset-x-[9px] inset-y-[7px] grid grid-cols-2 rounded-full border border-border/30 bg-black/60 p-0.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.7)]"
-      aria-hidden="true"
-    >
+    <div class="step-view-mode-track absolute grid grid-cols-2 rounded-full border border-border/30 bg-black/60" aria-hidden="true">
       <div
-        class="step-view-mode-thumb pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-0.2rem)] rounded-full {compact
+        class="step-view-mode-thumb pointer-events-none absolute rounded-full {compact
           ? 'step-view-mode-thumb-compact'
           : ''}"
       ></div>
 
       <div
         class="icon-slot pointer-events-auto relative z-10 flex shrink-0 items-center justify-center rounded-full {!compact
-          ? 'text-white'
+          ? 'text-zinc-950'
           : 'text-text-muted/60 hover:text-text-secondary'}"
       >
-        <FullStepControlsIcon class="pointer-events-none block h-5 w-5 shrink-0" />
+        <FullStepControlsIcon class="pointer-events-none block shrink-0" />
       </div>
 
       <div
         class="icon-slot pointer-events-auto relative z-10 flex shrink-0 items-center justify-center rounded-full {compact
-          ? 'text-white'
+          ? 'text-zinc-950'
           : 'text-text-muted/60 hover:text-text-secondary'}"
       >
-        <StretchToFitIcon class="pointer-events-none block h-5 w-5 shrink-0" />
+        <StretchToFitIcon class="pointer-events-none block shrink-0" />
       </div>
     </div>
   </button>
 </div>
 
 <style>
+  .step-view-mode-root {
+    --svm: 0.85;
+    height: calc(3.6rem * var(--svm));
+  }
+
   /* Outer racetrack — soft accent glow + track-bed white fill */
   .step-view-mode-frame {
     position: relative;
     isolation: isolate;
+    width: calc(8.4rem * var(--svm));
+    height: calc(3.6rem * var(--svm));
     border: none;
     background-color: var(--color-text);
     box-shadow:
-      0 0 7px color-mix(in srgb, var(--color-accent) 38%, transparent),
-      0 0 16px color-mix(in srgb, var(--color-accent) 20%, transparent),
-      0 0 26px color-mix(in srgb, var(--color-accent) 10%, transparent),
-      0 3px 11px color-mix(in srgb, var(--color-app) 55%, transparent),
-      inset 0 -2px 5px color-mix(in srgb, var(--color-app) 24%, transparent);
+      0 0 calc(7px * var(--svm)) color-mix(in srgb, var(--color-accent) 19%, transparent),
+      0 0 calc(16px * var(--svm)) color-mix(in srgb, var(--color-accent) 10%, transparent),
+      0 0 calc(26px * var(--svm)) color-mix(in srgb, var(--color-accent) 5%, transparent),
+      0 calc(3px * var(--svm)) calc(11px * var(--svm)) color-mix(in srgb, var(--color-app) 55%, transparent),
+      inset 0 calc(-2px * var(--svm)) calc(5px * var(--svm))
+        color-mix(in srgb, var(--color-app) 24%, transparent);
     transition: box-shadow 150ms ease;
   }
 
   .step-view-mode-frame::before {
     content: "";
     position: absolute;
-    inset: -1px;
+    inset: calc(-1px * var(--svm));
     border-radius: inherit;
     pointer-events: none;
     z-index: -1;
     box-shadow:
-      0 0 10px color-mix(in srgb, var(--color-accent) 42%, transparent),
-      0 0 20px color-mix(in srgb, var(--color-accent) 22%, transparent);
+      0 0 calc(10px * var(--svm)) color-mix(in srgb, var(--color-accent) 21%, transparent),
+      0 0 calc(20px * var(--svm)) color-mix(in srgb, var(--color-accent) 11%, transparent);
   }
 
   .step-view-mode-frame::after {
     content: "";
     position: absolute;
-    inset: 1px;
+    inset: calc(1px * var(--svm));
     border-radius: inherit;
     pointer-events: none;
     z-index: 0;
     box-shadow:
-      inset 0 1px 0 color-mix(in srgb, #fff 38%, transparent),
-      inset 0 -1px 2px color-mix(in srgb, var(--color-app) 18%, transparent);
+      inset 0 calc(1px * var(--svm)) 0 color-mix(in srgb, #fff 38%, transparent),
+      inset 0 calc(-1px * var(--svm)) calc(2px * var(--svm))
+        color-mix(in srgb, var(--color-app) 18%, transparent);
     mask-image: radial-gradient(ellipse 58% 52% at 50% 50%, transparent 68%, #000 70%);
     -webkit-mask-image: radial-gradient(ellipse 58% 52% at 50% 50%, transparent 68%, #000 70%);
   }
@@ -175,14 +181,21 @@
   .step-view-mode-track {
     z-index: 1;
     contain: layout style paint;
+    inset: calc(7px * var(--svm)) calc(9px * var(--svm));
+    padding: calc(0.125rem * var(--svm));
+    box-shadow: inset 0 calc(2px * var(--svm)) calc(4px * var(--svm)) rgba(0, 0, 0, 0.7);
   }
 
   .step-view-mode-thumb {
+    top: calc(0.125rem * var(--svm));
+    bottom: calc(0.125rem * var(--svm));
+    left: calc(0.125rem * var(--svm));
+    width: calc(50% - 0.2rem * var(--svm));
     transform: translate3d(0, 0, 0);
     transition: transform 300ms ease-out;
     will-change: transform;
     backface-visibility: hidden;
-    border: 1px solid color-mix(in srgb, var(--color-accent) 86%, #fff);
+    border: calc(1px * var(--svm)) solid color-mix(in srgb, var(--color-accent) 86%, #fff);
     background: linear-gradient(
       180deg,
       color-mix(in srgb, var(--color-accent) 68%, #fff) 0%,
@@ -190,10 +203,12 @@
       color-mix(in srgb, var(--color-accent-strong) 82%, var(--color-accent)) 100%
     );
     box-shadow:
-      inset 0 1px 0 color-mix(in srgb, #fff 36%, transparent),
-      inset 0 -1.5px 2px color-mix(in srgb, var(--color-accent-strong) 48%, transparent),
-      0 1px 2px color-mix(in srgb, var(--color-accent) 28%, transparent),
-      0 0 0.55rem color-mix(in srgb, var(--color-accent) 42%, transparent);
+      inset 0 calc(1px * var(--svm)) 0 color-mix(in srgb, #fff 36%, transparent),
+      inset 0 calc(-1.5px * var(--svm)) calc(2px * var(--svm))
+        color-mix(in srgb, var(--color-accent-strong) 48%, transparent),
+      0 calc(1px * var(--svm)) calc(2px * var(--svm))
+        color-mix(in srgb, var(--color-accent) 28%, transparent),
+      0 0 calc(0.55rem * var(--svm)) color-mix(in srgb, var(--color-accent) 42%, transparent);
   }
 
   .step-view-mode-thumb-compact {
@@ -204,26 +219,32 @@
     contain: layout style paint;
   }
 
+  .icon-slot :global(svg) {
+    width: calc(1.25rem * var(--svm));
+    height: calc(1.25rem * var(--svm));
+  }
+
   .step-view-mode-frame:hover {
     box-shadow:
-      0 0 9px color-mix(in srgb, var(--color-accent) 46%, transparent),
-      0 0 18px color-mix(in srgb, var(--color-accent) 26%, transparent),
-      0 0 28px color-mix(in srgb, var(--color-accent) 14%, transparent),
-      0 3px 11px color-mix(in srgb, var(--color-app) 55%, transparent),
-      inset 0 -2px 5px color-mix(in srgb, var(--color-app) 24%, transparent);
+      0 0 calc(7px * var(--svm)) color-mix(in srgb, var(--color-accent) 38%, transparent),
+      0 0 calc(16px * var(--svm)) color-mix(in srgb, var(--color-accent) 20%, transparent),
+      0 0 calc(26px * var(--svm)) color-mix(in srgb, var(--color-accent) 10%, transparent),
+      0 calc(3px * var(--svm)) calc(11px * var(--svm)) color-mix(in srgb, var(--color-app) 55%, transparent),
+      inset 0 calc(-2px * var(--svm)) calc(5px * var(--svm))
+        color-mix(in srgb, var(--color-app) 24%, transparent);
   }
 
   .step-view-mode-frame:hover::before {
     box-shadow:
-      0 0 12px color-mix(in srgb, var(--color-accent) 50%, transparent),
-      0 0 24px color-mix(in srgb, var(--color-accent) 28%, transparent);
+      0 0 calc(10px * var(--svm)) color-mix(in srgb, var(--color-accent) 42%, transparent),
+      0 0 calc(20px * var(--svm)) color-mix(in srgb, var(--color-accent) 22%, transparent);
   }
 
   .step-view-mode-frame:focus-visible {
     box-shadow:
-      0 0 0 2px var(--color-app),
-      0 0 8px color-mix(in srgb, var(--color-accent) 40%, transparent),
-      0 0 18px color-mix(in srgb, var(--color-accent) 22%, transparent),
-      0 0 28px color-mix(in srgb, var(--color-accent) 12%, transparent);
+      0 0 0 calc(2px * var(--svm)) var(--color-app),
+      0 0 calc(8px * var(--svm)) color-mix(in srgb, var(--color-accent) 40%, transparent),
+      0 0 calc(18px * var(--svm)) color-mix(in srgb, var(--color-accent) 22%, transparent),
+      0 0 calc(28px * var(--svm)) color-mix(in srgb, var(--color-accent) 12%, transparent);
   }
 </style>

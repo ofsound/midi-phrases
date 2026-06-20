@@ -83,6 +83,7 @@
           max={stepTimingMultiplierCount - 1}
           defaultValue={defaultShimmerDelayMultiplierIndex}
           formatValue={formatDelay}
+          boxChars={3}
           clampValue={clampShimmerDelayMultiplierIndex}
           active={enabled}
           ariaLabel="Shimmer delay"

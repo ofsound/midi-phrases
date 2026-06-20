@@ -15,6 +15,7 @@
    * @property {(value: number) => number} clampValue
    * @property {boolean} [active]
    * @property {string} [ariaLabel]
+   * @property {number} [boxChars] - Minimum character width for the boxed layout.
    * @property {string} [title]
    * @property {() => void} [onGestureStart]
    * @property {(value: number) => void} [onValuePreview]
@@ -32,6 +33,7 @@
     active = false,
     ariaLabel = "Shimmer parameter",
     title = "Drag vertically to adjust · double-click to reset",
+    boxChars = 4,
     onGestureStart = undefined,
     onValuePreview = undefined,
     onValueCommit = () => {},
@@ -172,7 +174,8 @@
 
 <div
   data-cursor="vertical-drag"
-  class={`shimmer-param ${active ? "shimmer-param-active" : ""} ${dragging ? "shimmer-param-dragging" : ""}`}
+  style:--param-box-chars={boxChars}
+  class={`mp-param-box shimmer-param ${active ? "shimmer-param-active" : ""} ${dragging ? "shimmer-param-dragging" : ""}`}
   role="slider"
   aria-label={ariaLabel}
   aria-valuemin={min}

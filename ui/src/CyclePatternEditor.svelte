@@ -1,5 +1,6 @@
 <script>
   import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
+  import StepMutedOverlay from "./StepMutedOverlay.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import {
     cycleLengthFromCellElements,
@@ -189,6 +190,9 @@
             onCellPointerDown(index);
           }}
         >
+          {#if !inPattern}
+            <StepMutedOverlay active={true} />
+          {/if}
           {#if playbackFlashing}
             {#key `${playbackKey}:${playbackTriggerCount}`}
               <span

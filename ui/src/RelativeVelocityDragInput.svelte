@@ -167,7 +167,7 @@
 
 <div
   data-cursor="vertical-drag"
-  class={`octavizer-relative-velocity ${active ? "octavizer-relative-velocity-active" : ""} ${dragging ? "octavizer-relative-velocity-dragging" : ""}`}
+  class={`mp-param-box octavizer-relative-velocity ${active ? "octavizer-relative-velocity-active" : ""} ${dragging ? "octavizer-relative-velocity-dragging" : ""}`}
   role="slider"
   aria-label={ariaLabel}
   aria-valuemin={minOctavizerRelativeVelocity}

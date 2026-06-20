@@ -17,6 +17,7 @@
    * @property {boolean} [disabled]
    * @property {boolean} [boxed] - When true, use header control box styling (matches DiscreteDragSelect).
    * @property {boolean} [compact] - Tight boxed width for compact header controls with short values.
+   * @property {number} [boxChars] - Minimum character width for boxed layout (largest formatted value).
    * @property {boolean} [deferCommit] - Keep a local drag value during the gesture; throttled preview while dragging; commit on release.
    * @property {() => void} [onGestureStart] - Called at drag start when {@link deferCommit} is true.
    * @property {(value: number) => void} [onValuePreview] - Throttled preview while dragging (100ms).
@@ -38,6 +39,7 @@
     disabled = false,
     boxed = false,
     compact = false,
+    boxChars = undefined,
     deferCommit = false,
     onGestureStart = undefined,
     onValuePreview = undefined,
@@ -46,7 +48,7 @@
   } = $props();
 
   const boxedControlBaseClasses =
-    "mp-control-gradient flex h-8 items-center justify-center rounded-md border px-2 text-sm font-semibold tabular-nums transition-[border-color,box-shadow,filter] duration-75";
+    "mp-param-box mp-control-gradient flex h-8 items-center justify-center rounded-md border text-sm font-semibold tabular-nums transition-[border-color,box-shadow,filter] duration-75";
 
   const pixelsPerStep = 4;
   const previewThrottleMs = 100;
@@ -61,6 +63,7 @@
   let pendingPreviewValue = null;
 
   let displayedValue = $derived(dragging ? dragValue : value);
+  let effectiveBoxChars = $derived(boxChars ?? (compact ? 3 : 4));
   let displayValue = $derived(
     formatValue !== undefined
       ? formatValue(displayedValue)
@@ -204,8 +207,9 @@
 
 <div
   data-cursor={disabled ? "default" : "vertical-drag"}
+  style:--param-box-chars={boxed ? effectiveBoxChars : undefined}
   class="touch-none select-none outline-none {boxed
-    ? `${boxedControlBaseClasses} ${compact ? 'w-14' : 'w-[4.5rem]'}`
+    ? boxedControlBaseClasses
     : 'inline-flex items-center rounded-sm'} {disabled
     ? 'opacity-50'
     : ''} {accent.ringFocusWithWidth} {boxed

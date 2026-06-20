@@ -216,6 +216,7 @@
         compact
         deferCommit
         {accent}
+        boxChars={4}
         value={durationPercent}
         min={-100}
         max={100}
@@ -235,6 +236,7 @@
         compact
         deferCommit
         {accent}
+        boxChars={4}
         value={velocityPercent}
         min={-100}
         max={100}

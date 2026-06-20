@@ -843,7 +843,7 @@
 
     const base = `flex h-[2.1rem] w-[2.1rem] items-center justify-center rounded-sm border text-sm font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       active
-        ? "border-accent bg-accent text-control-primary-text"
+        ? "mp-slot-active border-accent bg-accent text-control-primary-text"
         : assigned
           ? "mp-control-gradient border-border text-text hover:border-border-strong"
           : "mp-control-gradient-muted border-border-subtle text-text-faint hover:border-border hover:text-text-secondary"
@@ -4423,14 +4423,15 @@
             max="300"
             step="1"
             value={Math.round(standaloneTempoBpm)}
-            class="mp-control-gradient h-8 w-[4.5rem] rounded-md border border-border px-2 text-sm font-semibold text-text outline-none focus:border-focus-ring focus:ring-1 focus:ring-focus-ring"
+            class="mp-param-box mp-control-gradient h-8 rounded-md border border-border text-sm font-semibold text-text outline-none focus:border-focus-ring focus:ring-1 focus:ring-focus-ring"
+            style:--param-box-chars={3}
             onchange={setStandaloneTempoFromInput}
           />
         </label>
       </div>
     {/if}
     <div class="mp-honeycomb-rail relative z-20">
-  <header class="flex items-end gap-3 px-6 pb-5 pt-3">
+  <header class="flex items-end gap-3 px-6 pb-4.5 pt-3">
     <div class="relative z-30 flex shrink-0 -translate-y-1.5 items-end gap-5">
       <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">
