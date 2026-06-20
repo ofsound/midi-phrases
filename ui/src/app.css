@@ -213,8 +213,11 @@
 
   .mp-slot-active {
     position: relative;
+    z-index: 1;
     isolation: isolate;
-    box-shadow: var(--shadow-accent-outer-glow);
+    box-shadow:
+      var(--shadow-accent-outer-glow),
+      inset 0 1px 0 color-mix(in srgb, var(--color-text) 32%, transparent);
     transition: box-shadow 150ms ease;
   }
 
@@ -372,7 +375,10 @@
 
   .combination-mode-button:active,
   .combination-mode-button[aria-pressed="true"] {
-    box-shadow: var(--shadow-accent-outer-glow);
+    box-shadow:
+      0 0 3.5px color-mix(in srgb, var(--color-accent) 19%, transparent),
+      0 0 8px color-mix(in srgb, var(--color-accent) 10%, transparent),
+      0 0 13px color-mix(in srgb, var(--color-accent) 5%, transparent);
   }
 
   .combination-mode-button:active::after,
@@ -383,7 +389,9 @@
     border-radius: 2px;
     pointer-events: none;
     z-index: -1;
-    box-shadow: var(--shadow-accent-outer-halo);
+    box-shadow:
+      0 0 5px color-mix(in srgb, var(--color-accent) 21%, transparent),
+      0 0 10px color-mix(in srgb, var(--color-accent) 11%, transparent);
   }
 
   .combination-mode-button:active .combination-mode-button-face,

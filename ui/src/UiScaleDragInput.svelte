@@ -11,11 +11,13 @@
 <StepNumberDragInput
   boxed
   compact
+  boxChars={4}
   accent={interfaceAccent}
   {value}
   min={50}
   max={100}
   resetValue={100}
+  formatValue={(next) => `${Math.round(next)}%`}
   ariaLabel="UI scale percent"
   {onValueChange}
 />

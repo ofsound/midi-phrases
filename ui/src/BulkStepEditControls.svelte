@@ -73,7 +73,7 @@
   );
 
   function actionButtonClasses(enabled = true) {
-    const sizeClass = sidebarLayout ? "h-8 w-full" : "h-8 w-8 shrink-0";
+    const sizeClass = sidebarLayout ? "aspect-square w-full" : "h-8 w-8 shrink-0";
 
     return `flex ${sizeClass} items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
@@ -83,7 +83,7 @@
   }
 
   function toggleActionButtonClasses(enabled = true, active = false) {
-    const sizeClass = sidebarLayout ? "h-8 w-full" : "h-8 w-8 shrink-0";
+    const sizeClass = sidebarLayout ? "aspect-square w-full" : "h-8 w-8 shrink-0";
 
     return `flex ${sizeClass} items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
@@ -111,11 +111,11 @@
   );
   let operationGroupClass = $derived(
     sidebarLayout
-      ? "flex w-full flex-col items-start gap-1.5"
+      ? "w-full"
       : groupClass,
   );
   let operationButtonsClass = $derived(
-    sidebarLayout ? "grid w-full grid-cols-3 gap-1" : "flex items-center gap-1",
+    sidebarLayout ? "grid w-full grid-cols-3 gap-x-2.5 gap-y-2" : "flex items-center gap-1",
   );
   let labelClass = $derived(
     `text-xs font-semibold leading-none text-text-muted${inlineLabels ? " shrink-0" : ""}`,
@@ -140,7 +140,9 @@
 
 <div class={rootClass} data-no-marquee>
   <div class={operationGroupClass}>
-    <span class={labelClass}>{labelText("Operation")}</span>
+    {#if !sidebarLayout}
+      <span class={labelClass}>{labelText("Operation")}</span>
+    {/if}
     <div class={operationButtonsClass}>
       <button
         type="button"

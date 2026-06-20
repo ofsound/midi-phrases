@@ -383,7 +383,7 @@
   function shapeModeButtonClasses(mode) {
     const active = shapeDrawMode === mode;
 
-    return `flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-medium transition-colors outline-none ${
+    return `flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors outline-none ${
       active
         ? `${rowAccent.borderActive} ${rowAccent.bgAccentStrong} text-control-primary-text`
         : "border-border bg-surface text-text-muted hover:border-border-strong hover:text-text"
@@ -970,12 +970,13 @@
 
   </aside>
 
-  <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-    <div
-      class="flex shrink-0 gap-1.5"
-      role="radiogroup"
-      aria-label="Piano roll interaction mode"
-    >
+  <div class="grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-y-3 overflow-hidden pb-5">
+    <div class="flex w-full items-center justify-center bg-surface/15 px-4 py-1.25">
+      <div
+        class="flex shrink-0 gap-1.5"
+        role="radiogroup"
+        aria-label="Piano roll interaction mode"
+      >
       <button
         type="button"
         role="radio"
@@ -1015,8 +1016,10 @@
         <RowShapeDrawIcon class="pointer-events-none h-4 w-4 shrink-0" />
         Velocity
       </button>
+      </div>
     </div>
 
+  <div class="flex min-h-0 min-w-0 overflow-hidden">
   <div
     class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-app/80"
     role="group"
@@ -1300,6 +1303,7 @@
         </div>
       </div>
     </div>
+  </div>
   </div>
   </div>
 </section>

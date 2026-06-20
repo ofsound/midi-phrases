@@ -5065,8 +5065,8 @@
     {/if}
     </div>
     <div class="-mx-6 w-[calc(100%+3rem)] shrink-0">
-      <div class="mp-honeycomb-rail relative z-20 flex h-16 items-center justify-center overflow-x-auto px-6 py-1">
-      <div class="flex min-w-max items-center gap-8">
+      <div class="mp-honeycomb-rail relative z-20 overflow-x-auto">
+      <div class="flex min-w-max items-center justify-center gap-8 px-6 py-3">
         <div class="flex items-center gap-2">
           <span class="text-sm font-semibold leading-none text-text-muted">Patterns:</span>
           <div class="flex items-center gap-1">
