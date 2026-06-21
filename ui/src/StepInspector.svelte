@@ -84,7 +84,7 @@
 
   /** @param {boolean} active */
   function inspectorToggleClasses(active) {
-    const base = `flex min-h-[3.5rem] flex-1 flex-col items-center justify-center gap-1.5 rounded-lg border px-2 py-2 transition-[background-color,border-color,color,box-shadow] outline-none ${accent.ringFocusWithWidth}`;
+    const base = `flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border px-2 transition-[background-color,border-color,color,box-shadow] outline-none ${accent.ringFocusWithWidth}`;
 
     if (active) {
       return `${base} ${accent.bgAccentStrong} ${accent.borderFocus} border text-white ${accent.playbackGlow}`;
@@ -94,21 +94,9 @@
   }
 </script>
 
-<section class="flex min-h-0 w-full flex-1 bg-app/90">
-  <aside class="relative flex w-[13.5rem] shrink-0 flex-col py-2 pr-6 pl-0">
-    <button
-      type="button"
-      data-cursor="pointer"
-      aria-label="Close step inspector"
-      class="absolute top-2 left-0 z-10 flex h-6 w-6 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-text-muted transition-colors outline-none hover:bg-surface-raised/80 hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
-      onclick={onClose}
-      title="Close step inspector"
-    >
-      <RemoveXIcon class="pointer-events-none h-3.5 w-3.5" />
-    </button>
-
-    <div class="flex min-h-0 w-full flex-1 flex-col justify-center gap-2.5 pt-7">
-      <div class="flex w-full gap-2">
+<section class="step-inspector flex min-h-0 w-full flex-1 overflow-hidden bg-app/90">
+  <aside class="inspector-sidebar flex w-[13rem] shrink-0 flex-col gap-2 py-2 pr-3 pl-0">
+    <div class="inspector-toggles flex w-full gap-1.5">
         <button
           type="button"
           data-cursor="pointer"
@@ -118,8 +106,8 @@
           class={inspectorToggleClasses(skipped)}
           onclick={() => onSkippedChange(!skipped)}
         >
-          <StepSkipIcon class="pointer-events-none h-6 w-6" />
-          <span class="text-[10px] font-semibold uppercase tracking-wide">Skip</span>
+          <StepSkipIcon class="pointer-events-none h-4 w-4 shrink-0" />
+          <span class="truncate text-[9px] font-semibold uppercase tracking-wide">Skip</span>
         </button>
         <button
           type="button"
@@ -130,26 +118,13 @@
           class={inspectorToggleClasses(muted)}
           onclick={() => onMutedChange(!muted)}
         >
-          <StepMuteIcon class="pointer-events-none h-6 w-6" />
-          <span class="text-[10px] font-semibold uppercase tracking-wide">Mute</span>
+          <StepMuteIcon class="pointer-events-none h-4 w-4 shrink-0" />
+          <span class="truncate text-[9px] font-semibold uppercase tracking-wide">Mute</span>
         </button>
-      </div>
-      <button
-        type="button"
-        data-cursor="pointer"
-        aria-label="Remove step"
-        title="Remove step"
-        class="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-border mp-control-gradient px-3 text-xs font-semibold uppercase tracking-wide text-text-secondary transition-[background-color,border-color,color] outline-none hover:border-danger hover:text-danger focus-visible:ring-1 focus-visible:ring-focus-ring"
-        onclick={onRemove}
-      >
-        <RemoveXIcon class="pointer-events-none h-3.5 w-3.5" />
-        Delete
-      </button>
     </div>
 
-    <div class="flex w-full shrink-0 flex-col gap-3 pb-1">
+    <div class="inspector-sliders flex min-h-0 w-full flex-1 flex-col justify-center gap-1.5">
       <ContinuousSlider
-        large
         {accent}
         label="Multiplier"
         value={timingMultiplierIndex}
@@ -162,7 +137,6 @@
         onValueChange={onTimingMultiplierChange}
       />
       <ContinuousSlider
-        large
         {accent}
         label="Duration"
         value={durationPercent}
@@ -173,7 +147,6 @@
         onValueChange={onDurationChange}
       />
       <ContinuousSlider
-        large
         {accent}
         label="Velocity"
         value={velocity}
@@ -184,15 +157,40 @@
         onValueChange={onVelocityChange}
       />
     </div>
+
+    <div class="inspector-actions flex h-8 w-full shrink-0 gap-1.5">
+      <button
+        type="button"
+        data-cursor="pointer"
+        aria-label="Remove step"
+        title="Remove step"
+        class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border border-border mp-control-gradient px-2 text-[9px] font-semibold uppercase tracking-wide text-text-secondary transition-[background-color,border-color,color] outline-none hover:border-danger hover:text-danger focus-visible:ring-1 focus-visible:ring-focus-ring"
+        onclick={onRemove}
+      >
+        <RemoveXIcon class="pointer-events-none h-3 w-3 shrink-0" />
+        Delete
+      </button>
+      <button
+        type="button"
+        data-cursor="pointer"
+        aria-label="Close step inspector"
+        class="flex w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface/50 p-0 text-text-muted transition-colors outline-none hover:border-border-strong hover:bg-surface-raised/80 hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
+        onclick={onClose}
+        title="Close step inspector"
+      >
+        <RemoveXIcon class="pointer-events-none h-3.5 w-3.5" />
+      </button>
+    </div>
   </aside>
 
-  <div class="grid min-h-0 min-w-0 flex-1 grid-rows-[33%_minmax(0,1fr)] content-start gap-y-3 overflow-hidden pb-5">
-    <div class="flex min-h-0 min-w-0 items-center justify-center bg-surface/15">
-      <div class="grid w-[60%] min-w-0 grid-cols-2 gap-x-8">
+  <div class="inspector-main grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(4rem,28%)_minmax(0,1fr)] content-start gap-y-2 overflow-hidden pb-2">
+    <div class="flex min-h-0 min-w-0 items-center justify-center bg-surface/15 px-3 py-2">
+      <div class="grid w-full max-w-[46rem] min-w-0 grid-cols-[minmax(0,1.5fr)_minmax(8rem,1fr)] gap-x-4">
         <div class="flex min-h-0 min-w-0 flex-col justify-center gap-1">
           <span class="text-[11px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>
           <CyclePatternEditor
             {accent}
+            compact
             borderless
             {cycle}
             {cycleMask}
@@ -207,7 +205,6 @@
 
         <div class="flex min-h-0 min-w-0 items-center">
           <ContinuousSlider
-            large
             {accent}
             label="Probability"
             value={probability}
@@ -236,3 +233,39 @@
     </div>
   </div>
 </section>
+
+<style>
+  .step-inspector {
+    container-type: size;
+  }
+
+  @container (max-height: 13rem) {
+    .inspector-sidebar {
+      width: min(36rem, 56%);
+      display: grid;
+      grid-template-columns: minmax(12rem, 1.1fr) minmax(16rem, 1.8fr) minmax(7rem, 0.7fr);
+      align-items: center;
+      gap: 0.5rem;
+      padding-top: 0.25rem;
+      padding-bottom: 0.25rem;
+      padding-right: 0.5rem;
+    }
+
+    .inspector-sliders {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .inspector-actions {
+      height: 2rem;
+    }
+
+    .inspector-main {
+      grid-template-rows: minmax(3.25rem, 52%) minmax(0, 1fr);
+      row-gap: 0.25rem;
+      padding-bottom: 0.25rem;
+    }
+  }
+</style>

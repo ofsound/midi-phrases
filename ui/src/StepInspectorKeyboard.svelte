@@ -98,28 +98,37 @@
     "relative flex h-full min-h-0 min-w-0 flex-1 touch-none select-none overflow-hidden";
 </script>
 
-<div class="flex h-full min-h-0 min-w-0 flex-1 items-stretch gap-1 px-1">
-  <button
-    type="button"
-    data-cursor="pointer"
-    class="flex w-8 shrink-0 items-center justify-center bg-surface/40 text-base font-semibold text-text transition-colors hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
-    aria-label="Shift keyboard down one octave"
-    title="Octave down"
-    onclick={shiftOctaveDown}
-  >
-    −
-  </button>
-
+<div class="flex h-full min-h-0 min-w-0 flex-1 px-1">
   <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-    <div class="flex h-8 shrink-0 items-center justify-between gap-4 bg-surface/30 px-3 text-[9px] font-medium uppercase tracking-wider text-text-muted">
-      <span>
+    <div class="flex h-7 shrink-0 items-center gap-2 bg-surface/30 px-1 text-[9px] font-medium uppercase tracking-wider text-text-muted">
+      <button
+        type="button"
+        data-cursor="pointer"
+        class="flex h-6 w-7 shrink-0 items-center justify-center rounded-sm bg-surface/50 text-sm font-semibold text-text transition-colors hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
+        aria-label="Shift keyboard down one octave"
+        title="Octave down"
+        onclick={shiftOctaveDown}
+      >
+        −
+      </button>
+      <span class="min-w-0 flex-1 truncate">
         Note
         <strong class="ml-1 font-mono text-xs font-bold tracking-normal {accent.textAccentStrong}">{currentNoteName}</strong>
       </span>
-      <span class="min-w-0 truncate text-right">
+      <span class="min-w-0 flex-1 truncate text-right">
         Scale
         <strong class="ml-1 text-xs font-semibold normal-case tracking-normal {accent.textAccentStrong}">{currentScaleName}</strong>
       </span>
+      <button
+        type="button"
+        data-cursor="pointer"
+        class="flex h-6 w-7 shrink-0 items-center justify-center rounded-sm bg-surface/50 text-sm font-semibold text-text transition-colors hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
+        aria-label="Shift keyboard up one octave"
+        title="Octave up"
+        onclick={shiftOctaveUp}
+      >
+        +
+      </button>
     </div>
 
     <div
@@ -194,15 +203,4 @@
       </div>
     </div>
   </div>
-
-  <button
-    type="button"
-    data-cursor="pointer"
-    class="flex w-8 shrink-0 items-center justify-center bg-surface/40 text-base font-semibold text-text transition-colors hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
-    aria-label="Shift keyboard up one octave"
-    title="Octave up"
-    onclick={shiftOctaveUp}
-  >
-    +
-  </button>
 </div>

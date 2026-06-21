@@ -71,7 +71,9 @@
     boundaryResizeZoneLeftPxAtGridBoundaryPx,
     rowStepLayoutsPx,
     rowTimingOffsetShiftPx,
+    stepBoundaryEndResizePx,
     stepBoundaryResizeZoneWidthPx,
+    stepBoundaryStartResizePx,
     stepCellPaddingPx,
     stepDisplayWidthPx,
     stepFooterActionSlotWidthPx,
@@ -1093,6 +1095,16 @@
     addResizeListener("pointercancel", trackResizeCancel, resizeCapture);
   }
 
+  /** @param {MouseEvent} event @param {number} insertStep */
+  function insertDefaultStepAtBoundary(event, insertStep) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (isDragging || removeBlocked || stepIds.length >= maxPhraseStepsPerRow) return;
+
+    onInsertStep(row, insertStep, defaultStepTimingMultiplierIndex);
+  }
+
   /** @param {PointerEvent} event */
   async function finishMultiplierResize(event) {
     if (resizeEndHandled || resizingStep < 0) return;
@@ -1691,7 +1703,7 @@
   {@const boundaryCenterPx = leftPx + stepInsertZoneWidthPx() / 2}
   <div
     data-insert-slot
-    class="pointer-events-none absolute top-0 bottom-0 z-[60]"
+    class="boundary-resize-zone pointer-events-none absolute top-0 bottom-0 z-[60]"
     style={mode === "between"
       ? boundaryResizeZoneStyle(boundaryCenterPx)
       : insertSlotStyle(leftPx)}
@@ -1702,18 +1714,29 @@
         data-multiplier-resize
         data-no-long-press
         data-cursor="ew-resize"
-        aria-label="Resize step timing multiplier"
+        aria-label="Resize step boundary; double-click to insert step"
         disabled={isDragging || removeBlocked}
         class="pointer-events-auto absolute inset-0 z-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
         onpointerdown={(event) => beginMultiplierResize(event, insertStep - 1)}
         onmousedown={(event) => beginMultiplierResize(event, insertStep - 1)}
+        ondblclick={(event) => insertDefaultStepAtBoundary(event, insertStep)}
       ></button>
+      <span
+        class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+        style:left="{layoutPx(stepBoundaryEndResizePx())}px"
+        aria-hidden="true"
+      ></span>
+      <span
+        class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+        style:right="{layoutPx(stepBoundaryStartResizePx())}px"
+        aria-hidden="true"
+      ></span>
     {/if}
     <StepInsertZone
       {accent}
       {muted}
       {timingMultiplierOptions}
-      onInsert={mode === "leading" || mode === "between"
+      onInsert={mode === "leading"
         ? (multiplierIndex) => onInsertStep(row, insertStep, multiplierIndex)
         : undefined}
     />
@@ -1814,6 +1837,11 @@
 {/snippet}
 
 <style>
+  .boundary-resize-zone:hover .boundary-edge-handle,
+  .boundary-resize-zone:focus-within .boundary-edge-handle {
+    opacity: 1;
+  }
+
   .compact-step-reorder-handle {
     transform-origin: center;
     transition: transform 75ms ease;
