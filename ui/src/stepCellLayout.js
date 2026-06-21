@@ -210,8 +210,8 @@ export function rowTimingOffsetQuarterGridColumns(offsetIndex) {
 
 /**
  * Shared compact-grid layout for every row. Timing offsets are normalized into
- * grid columns so all rows retain one horizontal scale. The fixed row-end add
- * control is outside this grid and does not participate in scaling.
+ * grid columns so all rows retain one horizontal scale. The row-end add
+ * control sits just after the last step in each row.
  *
  * @param {number[][]} rows
  * @param {number[]} timingOffsetIndices

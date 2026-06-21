@@ -201,12 +201,12 @@
         - phraseRowHeaderGapPx()
         - phraseRowMaxTimingPaddingPx
         - phraseGridOriginLeftOffsetPx()
-        - phraseRowScrollPaddingRightPx()
-        - phraseRowEndAddStepReservePx(),
+        - phraseRowScrollPaddingRightPx(),
     ),
   );
   let phraseStepsScrollContentWidthPx = $derived(
-    phraseRowsScrollContentWidthPx(layoutStepTimingMultiplier, rowTimingOffset),
+    phraseRowsScrollContentWidthPx(layoutStepTimingMultiplier, rowTimingOffset)
+      + phraseRowEndAddStepReservePx(),
   );
   let phraseStepsContentFitScale = $derived.by(() => {
     if (stretchStepsToFit) return 1;
@@ -4783,7 +4783,7 @@
       aria-pressed={scaleDialogOpen}
       title={activeScaleName}
       data-cursor="pointer"
-      class="flex shrink-0 flex-col items-start gap-1 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
+      class="flex shrink-0 flex-col items-start gap-1 overflow-visible border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
       onclick={() => {
         scaleDialogOpen = true;
       }}
@@ -4791,10 +4791,13 @@
       <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
         >Pitch</span
       >
-      <div class="flex flex-col items-start justify-center gap-0.5 leading-none">
-        <p class="text-2xl font-bold leading-none tracking-tight text-text">{activeKeyCenterLabel}</p>
-        <p class="max-w-[7.25rem] truncate text-sm font-semibold leading-tight text-accent"
-          >{activeScaleModeLabel}</p
+      <div class="relative h-8 overflow-visible">
+        <span
+          class="absolute bottom-0 left-0 max-w-[7.25rem] truncate text-sm font-semibold leading-none text-accent"
+          >{activeScaleModeLabel}</span
+        >
+        <span class="absolute bottom-[1rem] left-0 text-2xl font-bold leading-none tracking-tight text-text"
+          >{activeKeyCenterLabel}</span
         >
       </div>
     </button>
@@ -5332,7 +5335,7 @@
                 placeholder="Untitled Project"
               />
               <span class="shrink-0 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-text-faint">
-                {projectDateLabel} · {activeScaleName}
+                {projectDateLabel}
               </span>
             </div>
             <input

@@ -101,8 +101,8 @@ export function phraseFirstStepLeftOffsetPx() {
   return phraseGridOriginLeftOffsetPx() + stepCellPaddingPx();
 }
 
-/** Horizontal gap from the row grid edge to the row-end add button (⅔ of former 12px). */
-export const basePhraseRowEndAddStepInsetPx = 8;
+/** Horizontal gap from the last step shell to the row-end add button. */
+export const basePhraseRowEndAddStepInsetPx = 24;
 
 /** Matches PlusDragButton `variant="large"` (`size-[54px]`). */
 export const basePhraseRowEndAddStepButtonWidthPx = 54;

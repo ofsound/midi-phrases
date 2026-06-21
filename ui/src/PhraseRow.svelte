@@ -51,8 +51,6 @@
   import {
     phraseGridOriginLeftOffsetPx,
     phraseRowEndAddStepInsetPx,
-    phraseRowEndAddStepReservePx,
-    phraseRowEndStepTailPaddingPx,
     phraseRowMinHeightPx,
     phraseStepCellMinHeightPx,
   } from "./phraseRowLayout.js";
@@ -1367,7 +1365,6 @@
   );
   let rowStepLayout = $derived(rowStepLayoutsPx(layoutTimingMultipliers));
   let rowGridSpanPx = $derived(rowGridWidthPx(layoutTimingMultipliers));
-  let scaledRowGridSpanPx = $derived(layoutPx(rowGridSpanPx));
   let trailingInsertLeftPx = $derived(insertLeftAtBoundary(rowGridSpanPx));
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
   let rowCellLayouts = $derived(renderedDndItems.map((item, index) => {
@@ -1711,6 +1708,18 @@
   />
 {/snippet}
 
+{#snippet rowEndAddStepControl()}
+  <div
+    class="pointer-events-auto flex shrink-0 items-center self-stretch"
+    style:margin-left="{phraseRowEndAddStepInsetPx()}px"
+  >
+    {@render largeAddStepButton(
+      isEmptyRow ? "Add first step" : "Add step to end of row",
+      stepIds.length,
+    )}
+  </div>
+{/snippet}
+
 {#snippet gridInsertSlot(leftPx, insertStep, mode)}
   {@const boundaryCenterPx = leftPx + stepInsertZoneWidthPx() / 2}
   <div
@@ -1901,7 +1910,16 @@
     style:min-height="{phraseRowMinHeightPx()}px"
   >
   {#if isEmptyRow}
-    <div class="min-w-0 flex-1" aria-hidden="true"></div>
+    <div class="flex min-w-0 flex-1 items-stretch">
+      {#if stretchToFit && fitGridStartColumn > 0}
+        <div
+          class="pointer-events-none shrink-0"
+          style={compactStepFlexStyle(fitGridStartColumn)}
+          aria-hidden="true"
+        ></div>
+      {/if}
+      {@render rowEndAddStepControl()}
+    </div>
   {:else if stretchToFit}
     <div
       class="relative flex min-w-0 flex-1 items-stretch"
@@ -1996,6 +2014,7 @@
           </div>
         {/each}
       </div>
+      {@render rowEndAddStepControl()}
       {#if compactTrailingGridColumns > 0}
         <div
           class="pointer-events-none shrink-0"
@@ -2014,10 +2033,9 @@
     </div>
   {:else}
     <div class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+      <div class="flex w-max min-w-0 items-stretch">
       <div
         class="relative w-max min-w-0 shrink-0 self-stretch overflow-visible"
-        style:min-width="{scaledRowGridSpanPx}px"
-        style:padding-right="{layoutPx(phraseRowEndStepTailPaddingPx())}px"
       >
       {@render rowInsertSlots()}
 
@@ -2127,17 +2145,9 @@
       {/if}
 
       </div>
+      {@render rowEndAddStepControl()}
+      </div>
     </div>
   {/if}
-    <div
-      class="pointer-events-auto flex shrink-0 items-center justify-end self-stretch"
-      style:width="{phraseRowEndAddStepReservePx()}px"
-      style:padding-left="{phraseRowEndAddStepInsetPx()}px"
-    >
-      {@render largeAddStepButton(
-        isEmptyRow ? "Add first step" : "Add step to end of row",
-        stepIds.length,
-      )}
-    </div>
   </div>
 </div>
