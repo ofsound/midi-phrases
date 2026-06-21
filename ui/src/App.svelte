@@ -4631,8 +4631,8 @@
       </div>
     {/if}
     <div class="mp-honeycomb-rail relative z-20">
-  <header class="flex w-full items-end gap-x-1.5 px-6 py-3">
-    <div class="relative z-30 flex shrink-0 items-end gap-1.5">
+  <header class="flex w-full items-center gap-x-2 px-6 py-3">
+    <div class="relative z-30 flex shrink-0 items-center gap-1.5">
       <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">
           <p class="text-sm font-bold uppercase leading-none tracking-widest text-accent">
@@ -4656,7 +4656,11 @@
         </div>
       </div>
 
-      <div class="flex shrink-0 gap-1">
+      <div class="flex shrink-0 flex-col items-start gap-1">
+        <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
+          >Pitch</span
+        >
+        <div class="flex shrink-0 gap-1">
           <button
             type="button"
             aria-label="Undo"
@@ -4703,10 +4707,11 @@
               <path d="M20 9H10a6 6 0 0 0 0 12h2" />
             </svg>
           </button>
+        </div>
       </div>
     </div>
 
-    <div class="flex shrink-0 items-end gap-1">
+    <div class="flex shrink-0 items-center gap-1">
             <div class="flex flex-col items-start gap-1">
               <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
               <PulseDragInput
@@ -4781,7 +4786,7 @@
     </div>
 
     <div
-      class="flex shrink-0 items-end px-3"
+      class="flex shrink-0 items-center px-3"
       role="presentation"
       aria-hidden="true"
     >
@@ -4818,7 +4823,7 @@
         />
     </div>
 
-    <div class="flex shrink-0 items-end pl-6 pr-3">
+    <div class="flex shrink-0 items-center pl-6 pr-3">
       <button
         type="button"
         aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
@@ -4845,7 +4850,7 @@
       </button>
     </div>
 
-    <div class="ml-auto flex shrink-0 items-end gap-1">
+    <div class="ml-auto flex shrink-0 items-center gap-1">
     <div class="flex shrink-0 items-center gap-1">
       <div class="flex flex-col gap-1">
         <div class="flex items-center gap-1.5">
