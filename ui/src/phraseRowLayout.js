@@ -115,14 +115,25 @@ export function phraseRowEndAddStepButtonWidthPx() {
   return scaledPx(basePhraseRowEndAddStepButtonWidthPx);
 }
 
-/** Inset plus trailing add button width reserved after the last step. */
-export function phraseRowEndAddStepReservePx() {
-  return phraseRowEndAddStepInsetPx() + phraseRowEndAddStepButtonWidthPx();
-}
-
 /** Right inset after the last step shell before the row-end + (⅔ of {@link stepCellPaddingPx}). */
 export function phraseRowEndStepTailPaddingPx() {
   return stepCellPaddingPx() * (2 / 3);
+}
+
+/** Matches row header `pl-6 pr-6` (inset around mute / record / offset controls). */
+export const basePhraseRowHeaderHorizontalPaddingPx = 48;
+
+export function phraseRowHeaderHorizontalPaddingPx() {
+  return scaledPx(basePhraseRowHeaderHorizontalPaddingPx);
+}
+
+/** Inset plus trailing add button width reserved after the last step. */
+export function phraseRowEndAddStepReservePx() {
+  return (
+    phraseRowEndStepTailPaddingPx() +
+    phraseRowEndAddStepInsetPx() +
+    phraseRowEndAddStepButtonWidthPx()
+  );
 }
 
 /**
@@ -141,10 +152,14 @@ export function phraseRowOffsetKnobTrailingEdgePx() {
 
 /**
  * Fixed width from the row container’s left edge to PhraseRow’s left edge.
- * Includes the trailing `gap-1` after the offset knob.
+ * Includes row header `pl-6 pr-6` and the trailing `gap-1` after the offset knob.
  */
 export function phraseRowLeadingControlsWidthPx() {
-  return phraseRowOffsetKnobTrailingEdgePx() + phraseRowHeaderGapPx();
+  return (
+    phraseRowHeaderHorizontalPaddingPx() +
+    phraseRowOffsetKnobTrailingEdgePx() +
+    phraseRowHeaderGapPx()
+  );
 }
 
 /** Row leading controls after the mute button (record, knob + gaps). */

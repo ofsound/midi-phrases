@@ -198,7 +198,6 @@
       0,
       phraseGridFieldWidth
         - phraseRowLeadingControlsWidthPx()
-        - phraseRowHeaderGapPx()
         - phraseRowMaxTimingPaddingPx
         - phraseGridOriginLeftOffsetPx()
         - phraseRowScrollPaddingRightPx(),
