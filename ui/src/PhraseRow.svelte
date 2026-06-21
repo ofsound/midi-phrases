@@ -1455,17 +1455,25 @@
 {/snippet}
 
 {#snippet multiplierResizeHandle(step)}
-  <button
-    type="button"
-    data-multiplier-resize
-    data-no-long-press
-    data-cursor="ew-resize"
-    aria-label="Resize step timing multiplier"
-    disabled={isDragging || removeBlocked}
-    class="absolute top-0 right-0 bottom-5 z-[60] w-[11px] touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
-    onpointerdown={(event) => beginMultiplierResize(event, step)}
-    onmousedown={(event) => beginMultiplierResize(event, step)}
-  ></button>
+  <div
+    class="trailing-multiplier-resize-zone pointer-events-none absolute top-0 right-0 bottom-5 z-[60] w-[11px]"
+  >
+    <button
+      type="button"
+      data-multiplier-resize
+      data-no-long-press
+      data-cursor="ew-resize"
+      aria-label="Resize step timing multiplier"
+      disabled={isDragging || removeBlocked}
+      class="pointer-events-auto absolute inset-0 touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+      onpointerdown={(event) => beginMultiplierResize(event, step)}
+      onmousedown={(event) => beginMultiplierResize(event, step)}
+    ></button>
+    <span
+      class="boundary-edge-handle pointer-events-none absolute top-1/2 right-0 z-10 h-7 w-1 translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+      aria-hidden="true"
+    ></span>
+  </div>
 {/snippet}
 
 {#snippet stepSkipMuteFooter(step)}
@@ -1856,7 +1864,9 @@
 
 <style>
   .boundary-resize-zone:hover .boundary-edge-handle,
-  .boundary-resize-zone:focus-within .boundary-edge-handle {
+  .boundary-resize-zone:focus-within .boundary-edge-handle,
+  .trailing-multiplier-resize-zone:hover .boundary-edge-handle,
+  .trailing-multiplier-resize-zone:focus-within .boundary-edge-handle {
     opacity: 1;
   }
 
