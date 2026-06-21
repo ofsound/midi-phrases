@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- MIDI Phrases app icon — MP in the same triple-stroke track style as MidiPhrasesLogo.svelte -->
+<!-- MIDI Phrases app icon — MP in triple-stroke track style; squircle with transparent exterior -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none" aria-label="MIDI Phrases">
   <defs>
+    <clipPath id="icon-squircle">
+      <rect width="1024" height="1024" rx="229" ry="229" />
+    </clipPath>
+
     <pattern id="icon-hex-cells" width="45" height="58.455" patternUnits="userSpaceOnUse">
       <g fill="#fafafa" opacity="0.22">
         <path d="M22.5 1.5 L42.75 8.247 V25.723 L22.5 32.47 2.25 25.723 V8.247 Z" />
@@ -24,25 +28,30 @@
     </radialGradient>
   </defs>
 
-  <rect width="1024" height="1024" fill="url(#icon-bg-shade)" />
-  <rect width="1024" height="1024" fill="url(#icon-hex-cells)" />
-  <rect width="1024" height="1024" fill="url(#icon-hex-lines)" />
+  <!-- Inset ~8.75% per side so the squircle matches standard macOS dock icon scale -->
+  <g transform="translate(512 512) scale(0.825) translate(-512 -512)">
+    <g clip-path="url(#icon-squircle)">
+    <rect width="1024" height="1024" fill="url(#icon-bg-shade)" />
+    <rect width="1024" height="1024" fill="url(#icon-hex-cells)" />
+    <rect width="1024" height="1024" fill="url(#icon-hex-lines)" />
 
-  <g transform="translate(72 248) scale(16)">
-    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M5 27V5L15 18L25 5V27" stroke="#34d399" stroke-width="10" />
-      <path d="M5 27V5L15 18L25 5V27" stroke="#fafafa" stroke-width="8" />
-      <path d="M5 27V5L15 18L25 5V27" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" transform="translate(-2 0)" />
-      <path d="M5 27V5L15 18L25 5V27" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" />
-      <path d="M5 27V5L15 18L25 5V27" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" transform="translate(2 0)" />
+    <g transform="translate(214 362) scale(10)">
+      <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 27V5L15 18L25 5V27" stroke="#34d399" stroke-width="10" />
+        <path d="M5 27V5L15 18L25 5V27" stroke="#fafafa" stroke-width="8" />
+        <path d="M5 27V5L15 18L25 5V27" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" transform="translate(-2 0)" />
+        <path d="M5 27V5L15 18L25 5V27" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" />
+        <path d="M5 27V5L15 18L25 5V27" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" transform="translate(2 0)" />
+      </g>
+
+      <g transform="translate(36 0)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#34d399" stroke-width="10" />
+        <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#fafafa" stroke-width="8" />
+        <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" transform="translate(-2 0)" />
+        <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" />
+        <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" transform="translate(2 0)" />
+      </g>
     </g>
-
-    <g transform="translate(34 0)" fill="none" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#34d399" stroke-width="10" />
-      <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#fafafa" stroke-width="8" />
-      <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" transform="translate(-2 0)" />
-      <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" />
-      <path d="M5 27V5H12C19 5 22 8 22 12.5S19 20 12 20H5" stroke="#09090b" stroke-width="0.65" stroke-dasharray="1.2 1.6" stroke-linecap="butt" opacity="0.86" transform="translate(2 0)" />
     </g>
   </g>
 </svg>
