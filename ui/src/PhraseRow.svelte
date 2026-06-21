@@ -11,7 +11,9 @@
   import StepMuteToggle from "./StepMuteToggle.svelte";
   import StepSkipToggle from "./StepSkipToggle.svelte";
   import StepMutedOverlay from "./StepMutedOverlay.svelte";
+  import StepSkippedOverlay from "./StepSkippedOverlay.svelte";
   import { compactStepVelocityOpacity } from "./compactStepVisuals.js";
+  import { maxPercentValue } from "./percentLimits.js";
   import {
     compactStepMoveThresholdPx,
   } from "./compactStepInteraction.js";
@@ -230,7 +232,7 @@
     onBulkSelectBackgroundDoubleClick = () => {},
     onDismissPhraseBackground = () => {},
   } = $props();
-  const defaultStepProbability = 100;
+  const defaultStepProbability = maxPercentValue;
   const removeBlockMs = 500;
   const backgroundDoubleClickIntervalMs = 400;
   const backgroundDoubleClickMaxDistancePx = 16;
@@ -394,6 +396,14 @@
     duplicateDropIndex = step;
     const stepId = stepIds[step];
     onDuplicateDragChange(event.altKey ? stepId : null);
+
+    if (
+      (stepInspectionActive && inspectedStepId !== stepId) ||
+      !selectedStepIdSet.has(stepId)
+    ) {
+      onPrepareStepSelection(row, step, stepId);
+    }
+
     prepareBulkDragFromStep(stepId);
   }
 
@@ -1790,10 +1800,7 @@
       aria-hidden="true"
     ></div>
     {#if stepIsSkipped}
-      <div
-        class="compact-step-skipped-overlay pointer-events-none absolute inset-0 z-20"
-        aria-hidden="true"
-      ></div>
+      <StepSkippedOverlay active={true} />
     {/if}
     {#if stepIsMuted}
       <StepMutedOverlay active={true} />
@@ -1860,16 +1867,6 @@
 
   :global(.compact-step-row-dragging) .compact-step-reorder-handle {
     transform: none;
-  }
-
-  .compact-step-skipped-overlay {
-    background: linear-gradient(
-      to bottom right,
-      transparent calc(50% - 1px),
-      color-mix(in srgb, var(--color-text) 72%, transparent) calc(50% - 1px),
-      color-mix(in srgb, var(--color-text) 72%, transparent) calc(50% + 1px),
-      transparent calc(50% + 1px)
-    );
   }
 
   .step-drop-indicator {

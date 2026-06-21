@@ -777,7 +777,7 @@ TEST_CASE ("Pattern shimmer adds delayed octave-up taps", "[instance]")
     testPlugin.setPatternShimmerDelayMultiplierIndex (
         PluginProcessor::defaultStepTimingMultiplierIndex);
     testPlugin.setPatternShimmerFeedbackPercent (80);
-    testPlugin.setPatternShimmerMixPercent (100);
+    testPlugin.setPatternShimmerMixPercent (PluginProcessor::maxPercentValue);
 
     juce::AudioBuffer<float> buffer (2, blockSize);
     juce::MidiBuffer midi;
@@ -825,7 +825,7 @@ TEST_CASE ("Pattern shimmer adds delayed octave-up taps", "[instance]")
     CHECK (noteOnCounts[60] > 0);
     CHECK (noteOnCounts[72] > 0);
     CHECK (noteOnVelocities[60] == 100);
-    CHECK (noteOnVelocities[72] == 80);
+    CHECK (noteOnVelocities[72] == 79);
     testPlugin.setPlayHead (nullptr);
 }
 
@@ -858,7 +858,7 @@ TEST_CASE ("Pattern note bandpass filters shimmer taps", "[instance]")
     testPlugin.setPatternShimmerDelayMultiplierIndex (
         PluginProcessor::defaultStepTimingMultiplierIndex);
     testPlugin.setPatternShimmerFeedbackPercent (80);
-    testPlugin.setPatternShimmerMixPercent (100);
+    testPlugin.setPatternShimmerMixPercent (PluginProcessor::maxPercentValue);
 
     juce::AudioBuffer<float> buffer (2, blockSize);
     juce::MidiBuffer midi;
@@ -1115,7 +1115,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setTimingHumanizePercent (-3);
         testPlugin.setSwingSubdivisionIndex (99);
 
-        CHECK (testPlugin.getSwingPercent() == 100);
+        CHECK (testPlugin.getSwingPercent() == PluginProcessor::maxPercentValue);
         CHECK (testPlugin.getVelocityHumanizePercent() == 64);
         CHECK (testPlugin.getTimingHumanizePercent() == 0);
         CHECK (testPlugin.getSwingSubdivisionIndex()
@@ -3384,6 +3384,59 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPlayHead (nullptr);
     }
 
+    SECTION ("shutdown panic API emits note-off for active generated notes")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 4.0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.0);
+        testPlugin.setPlayHead (&playHead);
+
+        testPlugin.processBlock (buffer, midi);
+        CHECK (testPlugin.hasActiveGeneratedNotes());
+
+        midi.clear();
+        testPlugin.appendGeneratedNotePanicMessages (midi);
+
+        auto emittedExplicitNoteOff = false;
+        auto emittedAllNotesOff = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOff() && message.getNoteNumber() == 60)
+                emittedExplicitNoteOff = true;
+
+            if (message.isAllNotesOff())
+                emittedAllNotesOff = true;
+        }
+
+        CHECK (emittedExplicitNoteOff);
+        CHECK (emittedAllNotesOff);
+        CHECK_FALSE (testPlugin.hasActiveGeneratedNotes());
+
+        testPlugin.releaseResources();
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("swing delays selected pulse subdivisions")
     {
         testPlugin.prepareToPlay (1000.0, 100);
@@ -3531,7 +3584,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseStepProbability (0, 1) == 50);
 
         testPlugin.setPhraseStepProbability (0, 1, 200);
-        CHECK (testPlugin.getPhraseStepProbability (0, 1) == 100);
+        CHECK (testPlugin.getPhraseStepProbability (0, 1) == PluginProcessor::maxPercentValue);
     }
 
     SECTION ("step cycle")

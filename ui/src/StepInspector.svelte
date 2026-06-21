@@ -13,6 +13,7 @@
     timingMultiplierAtIndex,
   } from "./stepCellLayout.js";
   import { inspectorToggleClasses } from "./inspectorSidebar.js";
+  import { maxPercentValue } from "./percentLimits.js";
 
   /**
    * @typedef {Object} Props
@@ -54,7 +55,7 @@
     velocity = 127,
     durationFraction = 1,
     timingMultiplierIndex = defaultStepTimingMultiplierIndex,
-    probability = 100,
+    probability = maxPercentValue,
     cycle = 1,
     cycleMask = 1,
     cycleTriggerCount = -1,
@@ -129,7 +130,7 @@
         label="Duration"
         value={durationPercent}
         min={0}
-        max={100}
+        max={maxPercentValue}
         ariaLabel="Step duration"
         fullWidth={true}
         onValueChange={onDurationChange}
@@ -187,7 +188,7 @@
             label="Probability"
             value={probability}
             min={0}
-            max={100}
+            max={maxPercentValue}
             ariaLabel="Step probability"
             fullWidth={true}
             formatDisplay={(value) => `${Math.round(value)}%`}

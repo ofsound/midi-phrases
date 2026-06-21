@@ -16,7 +16,7 @@ constexpr int phraseStateVersion = 19;
 
 int clampStepProbability (const int probability)
 {
-    return juce::jlimit (0, 100, probability);
+    return juce::jlimit (0, PluginProcessor::maxPercentValue, probability);
 }
 
 int clampStepCycle (const int cycle)
@@ -106,7 +106,7 @@ bool isBloomGestureAnchor (const double ppq,
 
 int clampPercent (const int percent)
 {
-    return juce::jlimit (0, 100, percent);
+    return juce::jlimit (0, PluginProcessor::maxPercentValue, percent);
 }
 
 int combinationModeBit (const int modeIndex)
@@ -497,6 +497,46 @@ void PluginProcessor::resetActiveGeneratedNotes()
         channelNotes.fill (0);
 
     resetPendingCombinedNoteOffs();
+}
+
+bool PluginProcessor::hasActiveGeneratedNotes() const
+{
+    for (const auto& channelNotes : activeGeneratedNoteCounts)
+    {
+        for (const auto activeCount : channelNotes)
+        {
+            if (activeCount > 0)
+                return true;
+        }
+    }
+
+    return false;
+}
+
+void PluginProcessor::resetPlaybackMidiState()
+{
+    wasPlaying = false;
+    resetLastEmittedTriggers();
+    resetPendingNoteOffs();
+    resetPendingNoteOns();
+    resetPendingCombinedNoteOffs();
+    resetActiveGeneratedNotes();
+    clearLoopScheduleAnchor();
+    loopScheduleReanchorRequested = false;
+    currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
+}
+
+void PluginProcessor::appendGeneratedNotePanicMessages (juce::MidiBuffer& midiMessages)
+{
+    if (! hasActiveGeneratedNotes() && ! wasPlaying)
+        return;
+
+    flushActiveGeneratedNotes (0, midiMessages);
+
+    for (int channel = 1; channel <= 16; ++channel)
+        midiMessages.addEvent (juce::MidiMessage::allNotesOff (channel), 0);
+
+    resetPlaybackMidiState();
 }
 
 void PluginProcessor::resetLastEmittedTriggers()
@@ -4721,10 +4761,7 @@ void PluginProcessor::processScheduledRange (const double schedulePpqStart,
 
 void PluginProcessor::releaseResources()
 {
-    resetPendingNoteOffs();
-    resetPendingNoteOns();
-    resetPendingCombinedNoteOffs();
-    resetActiveGeneratedNotes();
+    resetPlaybackMidiState();
 }
 
 bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -4795,14 +4832,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                 midiMessages.addEvent (juce::MidiMessage::allNotesOff (ch), 0);
         }
 
-        wasPlaying = false;
-        resetLastEmittedTriggers();
-        resetPendingNoteOffs();
-        resetPendingNoteOns();
-        resetPendingCombinedNoteOffs();
-        clearLoopScheduleAnchor();
-        loopScheduleReanchorRequested = false;
-        currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
+        resetPlaybackMidiState();
     };
 
     const bool wasPlayingBefore = wasPlaying;
@@ -4816,14 +4846,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             if (wasPlaying)
                 flushActiveGeneratedNotes (0, midiMessages);
 
-            wasPlaying = false;
-            resetLastEmittedTriggers();
-            resetPendingNoteOffs();
-            resetPendingNoteOns();
-            resetPendingCombinedNoteOffs();
-            clearLoopScheduleAnchor();
-            loopScheduleReanchorRequested = false;
-            currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
+            resetPlaybackMidiState();
         }
 
         if (! isStandaloneTransportPlaying())

@@ -32,9 +32,7 @@
   import RowShapeDrawIcon from "./RowShapeDrawIcon.svelte";
   import BulkStepEditControls from "./BulkStepEditControls.svelte";
   import CompactStepResizeHandle from "./CompactStepResizeHandle.svelte";
-  import StepMuteIcon from "./StepMuteIcon.svelte";
-  import StepSkipIcon from "./StepSkipIcon.svelte";
-  import { inspectorToggleClasses } from "./inspectorSidebar.js";
+  import StepSkippedOverlay from "./StepSkippedOverlay.svelte";
   import {
     defaultStepTimingMultiplierIndex,
     maxPhraseStepsPerRow,
@@ -289,7 +287,9 @@
           Math.max(scaledPx(12), noteLengthQuarters * pxPerQuarter - 2),
         ),
         velocity: shapePreviewVelocity ?? stepVelocity[step] ?? 100,
-        muted: stepMuted[step] || stepSkipped[step],
+        muted: stepMuted[step],
+        skipped: stepSkipped[step],
+        dimmed: stepMuted[step] || stepSkipped[step],
         active: activeGates[step] ?? false,
       };
     });
@@ -474,6 +474,8 @@
 
   /** @param {PointerEvent} event @param {any} note */
   function beginNoteDrag(event, note) {
+    if (isShapeDrawMode) return;
+
     if (event.shiftKey) {
       onBulkSelectPointerDown(event);
       return;
@@ -645,6 +647,8 @@
 
   /** @param {PointerEvent} event @param {any} note @param {"start" | "end"} edge */
   function beginStepResize(event, note, edge) {
+    if (isShapeDrawMode) return;
+
     if (event.shiftKey) {
       onBulkSelectPointerDown(event);
       return;
@@ -714,6 +718,8 @@
 
   /** @param {KeyboardEvent} event @param {any} note @param {"start" | "end"} edge */
   function resizeStepWithKeyboard(event, note, edge) {
+    if (isShapeDrawMode) return;
+
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
 
     event.preventDefault();
@@ -744,6 +750,8 @@
     note,
     rail = /** @type {HTMLElement} */ (event.currentTarget).parentElement,
   ) {
+    if (isShapeDrawMode) return;
+
     if (pendingDurationClick) {
       if (pendingDurationClick.step === note.step) {
         clearPendingDurationClick();
@@ -863,6 +871,8 @@
 
   /** @param {PointerEvent} event @param {any} note */
   function beginOutlineDurationDrag(event, note) {
+    if (isShapeDrawMode) return;
+
     if (!event.shiftKey || event.target !== event.currentTarget) return;
 
     onBulkSelectPointerDown(event);
@@ -929,44 +939,10 @@
 
 <section class="step-inspector step-inspector--piano-roll flex min-h-0 w-full flex-1 overflow-hidden bg-app/90">
   <aside class="inspector-sidebar flex w-[13rem] shrink-0 flex-col gap-2 py-2 pr-3 pl-0">
-    <div class="inspector-toggles flex w-full gap-1.5">
-      <button
-        type="button"
-        data-cursor="pointer"
-        aria-label={bulkSkipActive ? "Unskip selected steps" : "Skip selected steps"}
-        aria-pressed={bulkSkipActive}
-        title={bulkSkipActive ? "Unskip selected steps" : "Skip selected steps in sequence"}
-        disabled={bulkEffectiveStepCount === 0}
-        class={inspectorToggleClasses(rowAccent, bulkSkipActive, {
-          disabled: bulkEffectiveStepCount === 0,
-        })}
-        onclick={onBulkToggleSkip}
-      >
-        <StepSkipIcon class="pointer-events-none h-4 w-4 shrink-0" />
-        <span class="truncate text-[9px] font-semibold uppercase tracking-wide">Skip</span>
-      </button>
-      <button
-        type="button"
-        data-cursor="pointer"
-        aria-label={bulkMuteActive ? "Unmute selected steps" : "Mute selected steps"}
-        aria-pressed={bulkMuteActive}
-        title={bulkMuteActive ? "Unmute selected steps" : "Mute selected steps"}
-        disabled={bulkEffectiveStepCount === 0}
-        class={inspectorToggleClasses(rowAccent, bulkMuteActive, {
-          disabled: bulkEffectiveStepCount === 0,
-        })}
-        onclick={onBulkToggleMute}
-      >
-        <StepMuteIcon class="pointer-events-none h-4 w-4 shrink-0" />
-        <span class="truncate text-[9px] font-semibold uppercase tracking-wide">Mute</span>
-      </button>
-    </div>
-
     <div class="inspector-bulk-controls flex min-h-0 w-full flex-1 flex-col">
       <BulkStepEditControls
         layout="sidebar"
         inspectorEmbedded
-        omitSkipMuteToggles
         className="min-h-0 flex-1"
       accent={rowAccent}
       requireSelection={false}
@@ -1102,13 +1078,8 @@
             role="group"
             aria-label="Focused row piano roll"
             style:height="{rollHeightPx}px"
-            data-cursor={isShapeDrawMode ? "crosshair" : undefined}
             use:doubleClick={rollInsertDoubleClickOptions}
             title="Double-click empty grid space to insert a step"
-            onpointerdown={isShapeDrawMode ? beginShapeDraw : undefined}
-            onpointermove={isShapeDrawMode ? moveShapeDraw : undefined}
-            onpointerup={isShapeDrawMode ? endShapeDraw : undefined}
-            onpointercancel={isShapeDrawMode ? endShapeDraw : undefined}
           >
             {#each pitchRows as midi (midi)}
               <div
@@ -1170,6 +1141,7 @@
             {/if}
 
             <!-- Draggable step boundary vertical lines -->
+            {#if !isShapeDrawMode}
             {#each stepNotes as note, index (note.stepId + '-boundary')}
               {#if index > 0}
                 <div
@@ -1204,12 +1176,13 @@
                 </div>
               {/if}
             {/each}
+            {/if}
 
             {#each stepNotes as note (note.stepId)}
               {@const selected = selectedStepIdSet.has(note.stepId)}
               {@const inspected = inspectedStepId === note.stepId}
               {@const highlighted = selected || inspected}
-              {@const playbackActive = note.active && !note.muted}
+              {@const playbackActive = note.active && !note.dimmed}
               {@const displayMidi = drag?.mode === "move" && drag.step === note.step ? drag.previewMidi : note.midi}
               {@const displayLabel = midiToNoteName(displayMidi)}
               {@const durationFraction =
@@ -1237,16 +1210,22 @@
                 onpointermove={moveOutlineDurationDrag}
                 onpointerup={endOutlineDurationDrag}
                 onpointercancel={cancelOutlineDurationDrag}
-                ondblclick={(event) => openAdvancedInspector(event, note)}
+                ondblclick={(event) => {
+                  if (isShapeDrawMode) return;
+                  openAdvancedInspector(event, note);
+                }}
               >
                 <div
                   class="pointer-events-none absolute inset-0 rounded-sm border-2 {playbackActive || highlighted
                     ? rowAccent.borderActive
-                    : rowAccent.selectionBorder} {note.muted && !playbackActive && !highlighted
+                    : rowAccent.selectionBorder} {note.dimmed && !playbackActive && !highlighted
                     ? 'opacity-50'
                     : 'opacity-95'}"
                   aria-hidden="true"
                 ></div>
+                {#if note.skipped}
+                  <StepSkippedOverlay active={true} />
+                {/if}
                 <button
                   type="button"
                   data-cursor="grab"
@@ -1256,7 +1235,7 @@
                   class="absolute top-0 left-0 flex h-full items-center rounded-sm border px-1 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {highlighted
                     || playbackActive
                     ? rowAccent.pianoNoteActive
-                    : rowAccent.pianoNoteIdle} {note.muted ? 'opacity-35' : ''}"
+                    : rowAccent.pianoNoteIdle} {note.dimmed ? 'opacity-35' : ''}"
                   style:width="{note.durationWidthPx}px"
                   onpointerdown={(event) => {
                     if (isShapeDrawMode) return;
@@ -1271,6 +1250,7 @@
                 {#if note.step > 0}
                   <CompactStepResizeHandle
                     edge="start"
+                    disabled={isShapeDrawMode}
                     ariaLabel={`Resize start of step ${note.step + 1}`}
                     title="Drag to move this boundary by resizing the preceding step"
                     ringFocusClass={rowAccent.ringFocusWithWidth ||
@@ -1285,6 +1265,7 @@
                 {#if showDurationHandle}
                   <CompactStepResizeHandle
                     edge="custom"
+                    disabled={isShapeDrawMode}
                     leftPx={note.durationWidthPx}
                     ariaLabel={`Resize duration of step ${note.step + 1}`}
                     title="Drag to resize note duration"
@@ -1298,6 +1279,7 @@
                 {/if}
                 <CompactStepResizeHandle
                     edge="end"
+                    disabled={isShapeDrawMode}
                     ariaLabel={`Resize end of step ${note.step + 1}`}
                     title="Drag to resize this step"
                     ringFocusClass={rowAccent.ringFocusWithWidth ||
@@ -1310,6 +1292,18 @@
                   />
               </div>
             {/each}
+
+            {#if isShapeDrawMode}
+              <div
+                class="absolute inset-0 z-40 touch-none select-none"
+                data-cursor="crosshair"
+                aria-hidden="true"
+                onpointerdown={beginShapeDraw}
+                onpointermove={moveShapeDraw}
+                onpointerup={endShapeDraw}
+                onpointercancel={endShapeDraw}
+              ></div>
+            {/if}
 
             {#if drag?.mode === "move" && drag.didDrag}
               {@const draggedNote = stepNotes[drag.step]}

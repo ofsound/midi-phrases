@@ -61,6 +61,11 @@
     defaultOctavizerRelativeVelocity,
   } from "./octavizer.js";
   import {
+    clampHundredScalePercent,
+    clampSignedRelativePercent,
+    maxPercentValue,
+  } from "./percentLimits.js";
+  import {
     clampShimmerDelayMultiplierIndex,
     clampShimmerFeedbackPercent,
     clampShimmerMixPercent,
@@ -1403,7 +1408,7 @@
       velocity: stepVelocity[row][step] ?? 127,
       durationFraction: stepDurationFraction[row][step] ?? defaultStepDurationFraction,
       timingMultiplierIndex: stepTimingMultiplier[row][step] ?? defaultStepTimingMultiplierIndex,
-      probability: stepProbability[row][step] ?? 100,
+      probability: stepProbability[row][step] ?? maxPercentValue,
       cycle: stepCycle[row][step] ?? 1,
       cycleMask: stepCycleOffset[row][step] ?? defaultStepCycleMask,
       cycleTriggerCount: stepTriggerCountAtBeat({
@@ -2677,8 +2682,8 @@
       for (let step = 0; step < stepCount; step += 1) {
         const value = Number.parseInt(String(rowData?.[step] ?? defaults[row][step]), 10);
         next[row][step] = Number.isNaN(value)
-          ? defaults[row][step] ?? 100
-          : Math.min(100, Math.max(0, value));
+          ? defaults[row][step] ?? maxPercentValue
+          : clampHundredScalePercent(value);
       }
     }
 
@@ -3185,9 +3190,7 @@
   }
 
   function clampBulkRelativePercent(value) {
-    const parsed = Number.parseInt(String(value), 10);
-
-    return Number.isNaN(parsed) ? 0 : Math.min(100, Math.max(-100, parsed));
+    return clampSignedRelativePercent(value);
   }
 
   function clampTransposeSemitones(value) {
@@ -3197,11 +3200,11 @@
   }
 
   function clampStepDurationPercent(value) {
-    return Math.min(100, Math.max(0, value));
+    return clampHundredScalePercent(value);
   }
 
   function clampStepVelocityPercent(value) {
-    return Math.min(100, Math.max(0, value));
+    return clampHundredScalePercent(value);
   }
 
   async function pushRowsForSelectedLocations(locations) {
@@ -3494,7 +3497,7 @@
     if (locations.length === 0) return;
     if (!bulkEditGestureBefore) beginBulkEditGesture();
 
-    const nextProbability = Math.min(100, Math.max(0, probability));
+    const nextProbability = clampHundredScalePercent(probability);
 
     for (const { row: editRow, step: editStep } of locations) {
       stepProbability[editRow][editStep] = nextProbability;
@@ -3579,7 +3582,7 @@
       stepVelocity[row].splice(step, 0, defaultVelocities[row]?.[0] ?? 100);
       stepMuted[row].splice(step, 0, defaultMuted[row]?.[0] ?? false);
       stepSkipped[row].splice(step, 0, defaultSkipped[row]?.[0] ?? false);
-      stepProbability[row].splice(step, 0, defaultProbability[row]?.[0] ?? 100);
+      stepProbability[row].splice(step, 0, defaultProbability[row]?.[0] ?? maxPercentValue);
       stepCycle[row].splice(step, 0, defaultCycle[row]?.[0] ?? 1);
       stepCycleOffset[row].splice(step, 0, defaultCycleOffset[row]?.[0] ?? defaultStepCycleMask);
       activeGates[row].splice(step, 0, false);
@@ -3628,7 +3631,7 @@
       velocity: defaultStepVelocity,
       muted: false,
       skipped: false,
-      probability: 100,
+      probability: maxPercentValue,
       cycle: 1,
       cycleOffset: defaultStepCycleMask,
     };
@@ -3927,9 +3930,7 @@
   }
 
   function clampPercent(value) {
-    const parsed = Number.parseInt(String(value), 10);
-
-    return Number.isNaN(parsed) ? 0 : Math.min(100, Math.max(0, parsed));
+    return clampHundredScalePercent(value);
   }
 
   function loadHumanizeControlsFromInitialisation() {
@@ -4590,19 +4591,19 @@
       </div>
     {/if}
     <div class="mp-honeycomb-rail relative z-20">
-  <header class="flex w-full items-end justify-between gap-x-2 px-6 py-3">
-    <div class="relative z-30 flex shrink-0 items-end">
+  <header class="flex w-full items-center justify-between gap-x-2 px-6 py-3">
+    <div class="relative z-30 flex shrink-0 items-center">
       <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">
           <p class="text-sm font-bold uppercase leading-none tracking-widest text-accent">
             ofsound
           </p>
         </div>
-        <div class="flex h-8 items-end gap-3">
-          <h1 class="translate-y-0.5 whitespace-nowrap leading-none" aria-label={pluginName}>
+        <div class="flex h-8 items-center gap-3">
+          <h1 class="whitespace-nowrap leading-none" aria-label={pluginName}>
             <MidiPhrasesLogo name={pluginName} />
           </h1>
-          <div class="mr-1 shrink-0 translate-y-0.5">
+          <div class="mr-1 shrink-0">
             <StepViewModeToggle
               size="logo"
               compact={stretchStepsToFit}
@@ -4672,7 +4673,7 @@
           </div>
     </div>
 
-    <div class="flex shrink-0 items-end gap-1">
+    <div class="flex shrink-0 items-center gap-1">
             <div class="flex flex-col items-start gap-1">
               <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
               <PulseDragInput
@@ -4689,7 +4690,7 @@
                 accent={interfaceAccent}
                 value={swingPercent}
                 min={0}
-                max={100}
+                max={maxPercentValue}
                 resetValue={0}
                 ariaLabel="Swing"
                 onValueChange={(value) =>
@@ -4718,7 +4719,7 @@
                 accent={interfaceAccent}
                 value={velocityHumanizePercent}
                 min={0}
-                max={100}
+                max={maxPercentValue}
                 resetValue={0}
                 ariaLabel="Velocity humanize percent"
                 onValueChange={(value) =>
@@ -4735,7 +4736,7 @@
                 accent={interfaceAccent}
                 value={timingHumanizePercent}
                 min={0}
-                max={100}
+                max={maxPercentValue}
                 resetValue={0}
                 ariaLabel="Timing humanize percent"
                 onValueChange={(value) =>
@@ -4790,7 +4791,7 @@
       <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
         >Pitch</span
       >
-      <div class="flex flex-col items-start justify-end gap-0.5 leading-none">
+      <div class="flex flex-col items-start justify-center gap-0.5 leading-none">
         <p class="text-2xl font-bold leading-none tracking-tight text-text">{activeKeyCenterLabel}</p>
         <p class="max-w-[7.25rem] truncate text-sm font-semibold leading-tight text-accent"
           >{activeScaleModeLabel}</p

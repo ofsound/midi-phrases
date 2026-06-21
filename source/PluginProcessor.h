@@ -132,12 +132,14 @@ public:
     int getPatternOctavizerDown8vaRelativeVelocity (int patternSlot) const;
     int getPatternOctavizerUp8vaRelativeVelocity (int patternSlot) const;
 
+    static constexpr int maxPercentValue = 99;
+
     static constexpr int defaultShimmerFeedbackPercent = 20;
-    static constexpr int defaultShimmerMixPercent = 100;
+    static constexpr int defaultShimmerMixPercent = maxPercentValue;
     static constexpr int minShimmerFeedbackPercent = 0;
-    static constexpr int maxShimmerFeedbackPercent = 100;
+    static constexpr int maxShimmerFeedbackPercent = maxPercentValue;
     static constexpr int minShimmerMixPercent = 0;
-    static constexpr int maxShimmerMixPercent = 100;
+    static constexpr int maxShimmerMixPercent = maxPercentValue;
 
     void setPatternShimmerEnabled (bool enabled);
     void setPatternShimmerDelayMultiplierIndex (int multiplierIndex);
@@ -202,7 +204,7 @@ public:
     void setPhraseStepSkipped (int row, int step, bool skipped);
     bool isPhraseStepSkipped (int row, int step) const;
 
-    static constexpr int defaultStepProbability = 100;
+    static constexpr int defaultStepProbability = maxPercentValue;
     static constexpr int minStepCycle = 1;
     static constexpr int maxStepCycle = 64;
     static constexpr int defaultStepCycle = 1;
@@ -303,6 +305,9 @@ public:
     bool isStandaloneTransportPlaying() const;
     void setStandaloneTempoBpm (double bpm);
     double getStandaloneTempoBpm() const;
+
+    bool hasActiveGeneratedNotes() const;
+    void appendGeneratedNotePanicMessages (juce::MidiBuffer& midiMessages);
 
     static constexpr int pulseCount = 4;
     static constexpr int defaultPulseIndex = 1;
@@ -482,6 +487,7 @@ private:
     void flushPendingGeneratedNoteOffs (int sampleOffset, juce::MidiBuffer& midiMessages);
     void flushPendingCombinedNoteOffs (int bufferSamples, juce::MidiBuffer& midiMessages);
     void flushActiveGeneratedNotes (int sampleOffset, juce::MidiBuffer& midiMessages);
+    void resetPlaybackMidiState();
     void addPendingNoteOn (const PendingNoteOn& note);
     void emitScheduledNoteOn (int row,
                               int midiChannel,

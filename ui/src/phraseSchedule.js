@@ -2,6 +2,7 @@ import {loopBraceSnapQuarters} from "./loopBraceLayout.js";
 import {defaultPulseIndex, pulseQuartersForIndex} from "./pulseLayout.js";
 import {applyNoteBandpass, defaultNoteBandpassHighMidi, defaultNoteBandpassLowMidi} from "./noteBandpass.js";
 import {applyOctavizer, defaultOctavizerRelativeVelocity} from "./octavizer.js";
+import {maxPercentValue} from "./percentLimits.js";
 import {applyShimmer, defaultShimmerDelayMultiplierIndex, defaultShimmerFeedbackPercent, defaultShimmerMixPercent} from "./shimmer.js";
 import {applyVelocityTilt, defaultVelocityTiltAmount, defaultVelocityTiltPivotMidi} from "./velocityTilt.js";
 import {
@@ -42,9 +43,9 @@ export {cycleGatePasses} from "./cyclePattern.js";
 
 /** @param {number} step @param {number} triggerCount @param {number} probability */
 export function probabilityPasses(step, triggerCount, probability) {
-  const chance = Math.min(100, Math.max(0, Math.round(probability)));
+  const chance = Math.min(maxPercentValue, Math.max(0, Math.round(probability)));
 
-  if (chance >= 100) return true;
+  if (chance >= maxPercentValue) return true;
   if (chance <= 0) return false;
 
   const hash = (step * 2654435761 + triggerCount * 1597334677) >>> 0;
@@ -108,7 +109,7 @@ export function rowTimingOffsetQuarters(offsetIndex, pulseIndex = defaultPulseIn
 }
 
 export function swingDelayQuartersForPpq(ppq, pulseIndex = defaultPulseIndex, swingPercent = 0, swingSubdivisionIndex = 1) {
-  const swing = Math.min(100, Math.max(0, Math.round(swingPercent)));
+  const swing = Math.min(maxPercentValue, Math.max(0, Math.round(swingPercent)));
 
   if (swing <= 0) return 0;
 
@@ -322,7 +323,7 @@ function buildPhraseScheduleCore({
 
         if (!cycleGatePasses(triggerCount, stepCycleLength, stepCyclePatternMask)) continue;
 
-        const probability = rowProbability[step] ?? 100;
+        const probability = rowProbability[step] ?? maxPercentValue;
 
         if (!probabilityPasses(step, triggerCount, probability)) continue;
 
@@ -857,7 +858,7 @@ export function isStepActiveAtBeat({
 
   const cycle = Math.max(1, stepCycle[step] ?? 1);
   const cyclePatternMask = (stepCycleMask[step] ?? stepCycleOffset[step] ?? 1);
-  const probability = stepProbability[step] ?? 100;
+  const probability = stepProbability[step] ?? maxPercentValue;
 
   const {stepStartQuarters, stepLengthQuarters, cycleLengthQuarters} = rowStepLayout(stepTimingMultiplier, pulseIndex, stepSkipped);
 

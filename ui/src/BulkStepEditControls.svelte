@@ -6,6 +6,7 @@
   import StepMuteIcon from "./StepMuteIcon.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
   import StepSkipIcon from "./StepSkipIcon.svelte";
+  import { minSignedRelativePercentValue, maxSignedRelativePercentValue } from "./percentLimits.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
   /**
@@ -92,14 +93,10 @@
     }`;
   }
 
-  function toggleActionButtonClasses(enabled = true, active = false) {
-    const sizeClass = sidebarHeaderStyleOps
-      ? "h-8 w-8 shrink-0"
-      : sidebarLayout
-        ? "aspect-square w-full"
-        : "h-8 w-8 shrink-0";
+  function labeledToggleActionButtonClasses(enabled = true, active = false) {
+    const sizeClass = sidebarLayout ? "h-8 w-full" : "h-8 shrink-0 px-1.5";
 
-    return `flex ${sizeClass} items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
+    return `flex ${sizeClass} items-center justify-center gap-1 rounded-md border transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
         ? active
           ? "mp-control-gradient border-border-strong text-text shadow-sm"
@@ -190,6 +187,34 @@
       <span class={labelClass}>{labelText("Operation")}</span>
     {/if}
     <div class={operationButtonsWrapperClass}>
+      {#if !omitSkipMuteToggles}
+      <button
+        type="button"
+        aria-label={skipActive ? "Unskip selected steps" : "Skip selected steps"}
+        title={skipActive ? "Unskip selected steps" : "Skip selected steps in sequence"}
+        aria-pressed={skipActive}
+        disabled={effectiveStepCount === 0}
+        data-cursor="pointer"
+        class={labeledToggleActionButtonClasses(effectiveStepCount > 0, skipActive)}
+        onclick={onToggleSkip}
+      >
+        <StepSkipIcon class="pointer-events-none h-4 w-4 shrink-0" />
+        <span class="text-[9px] font-semibold uppercase leading-none tracking-wide">Skip</span>
+      </button>
+      <button
+        type="button"
+        aria-label={muteActive ? "Unmute selected steps" : "Mute selected steps"}
+        title={muteActive ? "Unmute selected steps" : "Mute selected steps"}
+        aria-pressed={muteActive}
+        disabled={effectiveStepCount === 0}
+        data-cursor="pointer"
+        class={labeledToggleActionButtonClasses(effectiveStepCount > 0, muteActive)}
+        onclick={onToggleMute}
+      >
+        <StepMuteIcon class="pointer-events-none h-4 w-4 shrink-0" />
+        <span class="text-[9px] font-semibold uppercase leading-none tracking-wide">Mute</span>
+      </button>
+      {/if}
       <button
         type="button"
         aria-label="Reverse selected steps by row"
@@ -234,32 +259,6 @@
       >
         <RowRandomizeLengthIcon class="pointer-events-none h-5 w-5" />
       </button>
-      {#if !omitSkipMuteToggles}
-      <button
-        type="button"
-        aria-label={skipActive ? "Unskip selected steps" : "Skip selected steps"}
-        title={skipActive ? "Unskip selected steps" : "Skip selected steps in sequence"}
-        aria-pressed={skipActive}
-        disabled={effectiveStepCount === 0}
-        data-cursor="pointer"
-        class={toggleActionButtonClasses(effectiveStepCount > 0, skipActive)}
-        onclick={onToggleSkip}
-      >
-        <StepSkipIcon class="pointer-events-none h-5 w-5" />
-      </button>
-      <button
-        type="button"
-        aria-label={muteActive ? "Unmute selected steps" : "Mute selected steps"}
-        title={muteActive ? "Unmute selected steps" : "Mute selected steps"}
-        aria-pressed={muteActive}
-        disabled={effectiveStepCount === 0}
-        data-cursor="pointer"
-        class={toggleActionButtonClasses(effectiveStepCount > 0, muteActive)}
-        onclick={onToggleMute}
-      >
-        <StepMuteIcon class="pointer-events-none h-5 w-5" />
-      </button>
-      {/if}
     </div>
   </div>
   {#if inspectorEmbedded}
@@ -276,8 +275,8 @@
         {accent}
         boxChars={4}
         value={durationPercent}
-        min={-100}
-        max={100}
+        min={minSignedRelativePercentValue}
+        max={maxSignedRelativePercentValue}
         resetValue={0}
         formatValue={formatSignedValue}
         ariaLabel="Bulk step relative duration percent"
@@ -298,8 +297,8 @@
         {accent}
         boxChars={4}
         value={velocityPercent}
-        min={-100}
-        max={100}
+        min={minSignedRelativePercentValue}
+        max={maxSignedRelativePercentValue}
         resetValue={0}
         formatValue={formatSignedValue}
         ariaLabel="Bulk step relative velocity percent"

@@ -38,8 +38,36 @@ public:
         deviceManager.addChangeListener (this);
     }
 
+    void flushMidiBeforeShutdown()
+    {
+        auto* pluginProcessor = dynamic_cast<PluginProcessor*> (processor.get());
+
+        if (pluginProcessor == nullptr)
+            return;
+
+        pluginProcessor->setStandaloneTransportPlaying (false);
+
+        juce::MidiBuffer midi;
+
+        if (pluginProcessor->getSampleRate() > 0.0)
+        {
+            juce::AudioBuffer<float> buffer (juce::jmax (1, pluginProcessor->getMainBusNumOutputChannels()), 512);
+            buffer.clear();
+            pluginProcessor->processBlock (buffer, midi);
+            sendMidiBufferNow (midi);
+            midi.clear();
+        }
+
+        if (pluginProcessor->hasActiveGeneratedNotes())
+        {
+            pluginProcessor->appendGeneratedNotePanicMessages (midi);
+            sendMidiBufferNow (midi);
+        }
+    }
+
     ~MidiPhrasesStandalonePluginHolder() override
     {
+        flushMidiBeforeShutdown();
         deviceManager.removeChangeListener (this);
         player.setMidiOutput (nullptr);
 
@@ -48,6 +76,15 @@ public:
     }
 
 private:
+    void sendMidiBufferNow (const juce::MidiBuffer& midi)
+    {
+        if (virtualMidiOutput == nullptr)
+            return;
+
+        for (const auto metadata : midi)
+            virtualMidiOutput->sendMessageNow (metadata.getMessage());
+    }
+
     void changeListenerCallback (ChangeBroadcaster*) override
     {
         useVirtualMidiOutputIfAvailable();
@@ -69,6 +106,12 @@ private:
 
     std::unique_ptr<MidiOutput> virtualMidiOutput;
 };
+
+void flushMidiBeforeShutdown (StandalonePluginHolder* holder)
+{
+    if (auto* phrasesHolder = dynamic_cast<MidiPhrasesStandalonePluginHolder*> (holder))
+        phrasesHolder->flushMidiBeforeShutdown();
+}
 
 class MidiPhrasesStandaloneApp final : public JUCEApplication
 {
@@ -171,6 +214,11 @@ public:
 
     void systemRequestedQuit() override
     {
+        if (mainWindow != nullptr)
+            flushMidiBeforeShutdown (mainWindow->pluginHolder.get());
+        else if (pluginHolder != nullptr)
+            flushMidiBeforeShutdown (pluginHolder.get());
+
         if (pluginHolder != nullptr)
             pluginHolder->savePluginState();
 

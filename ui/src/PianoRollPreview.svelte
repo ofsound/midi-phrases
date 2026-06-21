@@ -9,6 +9,7 @@
   import { pagedPlaybackScrollLeft } from "./pianoRollAutoScroll.js";
   import { fittedPitchRangeForSchedule } from "./pianoRollViewport.js";
   import { applyVelocityTilt } from "./velocityTilt.js";
+  import { defaultShimmerMixPercent } from "./shimmer.js";
 import {
   buildPhraseScheduleBeforeBandpass,
   buildPhraseScheduleWindowBeforeBandpass,
@@ -92,7 +93,7 @@ import { scaledPx } from "./uiScale.svelte.js";
     shimmerEnabled = false,
     shimmerDelayMultiplierIndex = 3,
     shimmerFeedbackPercent = 70,
-    shimmerMixPercent = 100,
+    shimmerMixPercent = defaultShimmerMixPercent,
     rowColorsEnabled = true,
     lengthQuarters = undefined,
     loopEnabled = false,

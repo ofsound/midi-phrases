@@ -1,6 +1,7 @@
 /** @typedef {{ start: number, end: number, midi: number, velocity: number, row: number, step: number }} ScheduledNote */
 
 import {defaultPulseIndex, pulseQuartersForIndex} from "./pulseLayout.js";
+import {maxPercentValue} from "./percentLimits.js";
 import {defaultStepTimingMultiplierIndex, stepTimingMultiplierCount, timingMultiplierAtIndex} from "./stepCellLayout.js";
 
 export const shimmerSemitoneShift = 12;
@@ -10,11 +11,11 @@ export const maxMidiNote = 127;
 export const defaultShimmerEnabled = false;
 export const defaultShimmerDelayMultiplierIndex = defaultStepTimingMultiplierIndex;
 export const defaultShimmerFeedbackPercent = 20;
-export const defaultShimmerMixPercent = 100;
+export const defaultShimmerMixPercent = maxPercentValue;
 export const minShimmerFeedbackPercent = 0;
-export const maxShimmerFeedbackPercent = 100;
+export const maxShimmerFeedbackPercent = maxPercentValue;
 export const minShimmerMixPercent = 0;
-export const maxShimmerMixPercent = 100;
+export const maxShimmerMixPercent = maxPercentValue;
 
 /** @param {number} multiplierIndex */
 export function clampShimmerDelayMultiplierIndex(multiplierIndex) {

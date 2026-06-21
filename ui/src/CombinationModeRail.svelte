@@ -6,6 +6,7 @@
   import ShimmerControl from "./ShimmerControl.svelte";
   import VelocityTiltControl from "./VelocityTiltControl.svelte";
   import { combinationModes } from "./phraseSchedule.js";
+  import { defaultShimmerMixPercent } from "./shimmer.js";
 
   /**
    * Full-width hardware-style rail for Cross-Mod / Bloom / Counter / Echo / Weave modes.
@@ -77,7 +78,7 @@
     shimmerEnabled = false,
     shimmerDelayMultiplierIndex = 3,
     shimmerFeedbackPercent = 70,
-    shimmerMixPercent = 100,
+    shimmerMixPercent = defaultShimmerMixPercent,
     onShimmerToggle = () => {},
     onShimmerDelayPreview = () => {},
     onShimmerDelayCommit = () => {},
