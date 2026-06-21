@@ -256,7 +256,8 @@
   let stepIds = $state(createInitialStepIds());
   let duplicateDragStepId = $state(null);
 
-  let playbackPollFrameId = 0;
+  let playbackPollTimerId = 0;
+  let playbackPollInFlight = false;
   let slotSelectionInFlight = 0;
   let previousGateSnapshot = defaultPhraseGrid().map((row) => row.map(() => false));
   let activeGateHoldUntil = defaultPhraseGrid().map((row) => row.map(() => 0));
@@ -462,6 +463,7 @@
       editorFullscreen = previous;
     } finally {
       editorFullscreenBusy = false;
+      queuePlaybackUiRefresh();
     }
   }
 
@@ -3814,7 +3816,7 @@
     void commitRecordedNote(midi);
   }
 
-  async function pollPlaybackActivity() {
+  async function pollPlaybackActivityFrame() {
     const beatNativeName = nativeFunctionAvailable("getPlaybackBeat")
       ? "getPlaybackBeat"
       : nativeFunctionAvailable("getLoopPlaybackBeat")
@@ -3839,8 +3841,37 @@
 
     await pollCurrentSlotState();
     await pollRowRecordingNotes();
+  }
 
-    playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
+  function schedulePlaybackPoll() {
+    if (playbackPollInFlight) return;
+
+    playbackPollInFlight = true;
+    void pollPlaybackActivityFrame().finally(() => {
+      playbackPollInFlight = false;
+    });
+  }
+
+  function startPlaybackPoll() {
+    schedulePlaybackPoll();
+
+    if (playbackPollTimerId) return;
+
+    playbackPollTimerId = window.setInterval(schedulePlaybackPoll, 16);
+  }
+
+  function stopPlaybackPoll() {
+    if (playbackPollTimerId) {
+      window.clearInterval(playbackPollTimerId);
+      playbackPollTimerId = 0;
+    }
+  }
+
+  function queuePlaybackUiRefresh() {
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event("resize"));
+      schedulePlaybackPoll();
+    });
   }
 
   async function pollCurrentSlotState() {
@@ -4542,14 +4573,23 @@
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        scheduleUiScaleUpdate();
+        schedulePlaybackPoll();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("keydown", handleKeydown);
-    playbackPollFrameId = requestAnimationFrame(pollPlaybackActivity);
+    startPlaybackPoll();
 
     return () => {
       resizeObserver.disconnect();
       if (scaleFrameId) cancelAnimationFrame(scaleFrameId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("keydown", handleKeydown);
-      cancelAnimationFrame(playbackPollFrameId);
+      stopPlaybackPoll();
       document.removeEventListener("pointermove", updateMarqueePointer);
       document.removeEventListener("pointerup", finishMarqueeSelection);
       document.removeEventListener("pointercancel", cancelMarqueeSelection);

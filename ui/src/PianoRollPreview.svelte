@@ -769,10 +769,17 @@ import { scaledPx } from "./uiScale.svelte.js";
   }
 
   $effect(() => {
+    viewportWidthPx;
+    rollHeightPx;
+    renderWindowWidthPx;
     drawStaticCanvas();
   });
 
   $effect(() => {
+    viewportWidthPx;
+    rollHeightPx;
+    renderWindowWidthPx;
+    displayPlaybackBeat;
     drawActiveCanvas();
   });
 

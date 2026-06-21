@@ -546,6 +546,14 @@ void PluginEditor::setStandaloneWrapperChromeVisible (const bool shouldBeVisible
     standaloneWindow->resized();
 }
 
+void PluginEditor::nudgeWebViewAfterLayoutChange()
+{
+    resized();
+
+    if (webView != nullptr)
+        webView->evaluateJavascript ("window.dispatchEvent(new Event('resize')); void 0;");
+}
+
 juce::var PluginEditor::createEditorFullscreenState() const
 {
     const auto* standaloneWindow = getStandaloneFullscreenWindow();
@@ -578,10 +586,12 @@ juce::var PluginEditor::setEditorFullscreen (const bool shouldBeFullscreen)
             setStandaloneWrapperChromeVisible (false);
             standaloneWindow->setFullScreen (true);
             standaloneWindow->setContentComponentSize (displayBounds.getWidth(), displayBounds.getHeight());
+            nudgeWebViewAfterLayoutChange();
             return createEditorFullscreenState();
         }
 
         setSize (displayBounds.getWidth(), displayBounds.getHeight());
+        nudgeWebViewAfterLayoutChange();
         return createEditorFullscreenState();
     }
 
@@ -601,6 +611,7 @@ juce::var PluginEditor::setEditorFullscreen (const bool shouldBeFullscreen)
     if (! restoreBounds.isEmpty())
         setSize (restoreBounds.getWidth(), restoreBounds.getHeight());
 
+    nudgeWebViewAfterLayoutChange();
     return createEditorFullscreenState();
 }
 

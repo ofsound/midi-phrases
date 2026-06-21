@@ -72,6 +72,7 @@ private:
     juce::ResizableWindow* getStandaloneFullscreenWindow() const;
     juce::DocumentWindow* getStandaloneDocumentWindow() const;
     void setStandaloneWrapperChromeVisible (bool shouldBeVisible);
+    void nudgeWebViewAfterLayoutChange();
     juce::var createEditorFullscreenState() const;
     juce::var setEditorFullscreen (bool shouldBeFullscreen);
     juce::File getDefaultProjectsDirectory() const;
