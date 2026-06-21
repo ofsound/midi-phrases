@@ -396,7 +396,7 @@
   const rowGapDoubleClickMaxDistancePx = 16;
   const stepTriggerFlashMs = 110;
   const historyButtonBaseClasses =
-    "mp-param-box mp-control-gradient flex h-8 items-center justify-center rounded-md border text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring disabled:border-border-subtle disabled:text-text-faint";
+    "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border p-0 text-sm font-semibold transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring disabled:border-border-subtle disabled:text-text-faint";
 
   function historyButtonClasses(enabled) {
     return `${historyButtonBaseClasses} ${
@@ -4631,8 +4631,8 @@
       </div>
     {/if}
     <div class="mp-honeycomb-rail relative z-20">
-  <header class="flex w-full items-center justify-between gap-x-2 px-6 py-3">
-    <div class="relative z-30 flex shrink-0 items-center">
+  <header class="flex w-full items-end gap-x-1.5 px-6 py-3">
+    <div class="relative z-30 flex shrink-0 items-end gap-1.5">
       <div class="flex flex-col items-start gap-[3px]">
         <div class="flex items-start gap-1.5">
           <p class="text-sm font-bold uppercase leading-none tracking-widest text-accent">
@@ -4655,13 +4655,8 @@
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="flex shrink-0 flex-col items-start gap-1">
-          <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
-            >Pitch</span
-          >
-          <div class="flex gap-1">
+      <div class="flex shrink-0 gap-1">
           <button
             type="button"
             aria-label="Undo"
@@ -4669,7 +4664,6 @@
             disabled={undoStack.length === 0}
             data-cursor="pointer"
             class={historyButtonClasses(undoStack.length > 0)}
-            style:--param-box-chars={3}
             onclick={undo}
           >
             <svg
@@ -4693,7 +4687,6 @@
             disabled={redoStack.length === 0}
             data-cursor="pointer"
             class={historyButtonClasses(redoStack.length > 0)}
-            style:--param-box-chars={3}
             onclick={redo}
           >
             <svg
@@ -4710,10 +4703,10 @@
               <path d="M20 9H10a6 6 0 0 0 0 12h2" />
             </svg>
           </button>
-          </div>
+      </div>
     </div>
 
-    <div class="flex shrink-0 items-center gap-1">
+    <div class="flex shrink-0 items-end gap-1">
             <div class="flex flex-col items-start gap-1">
               <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
               <PulseDragInput
@@ -4787,6 +4780,14 @@
             </div>
     </div>
 
+    <div
+      class="flex shrink-0 items-end px-3"
+      role="presentation"
+      aria-hidden="true"
+    >
+      <div class="h-8 w-px shrink-0 bg-border-strong"></div>
+    </div>
+
     <div class="shrink-0">
         <BulkStepEditControls
           compact
@@ -4817,31 +4818,34 @@
         />
     </div>
 
-    <button
-      type="button"
-      aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
-      aria-pressed={scaleDialogOpen}
-      title={activeScaleName}
-      data-cursor="pointer"
-      class="flex shrink-0 flex-col items-start gap-1 overflow-visible border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
-      onclick={() => {
-        scaleDialogOpen = true;
-      }}
-    >
-      <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
-        >Pitch</span
+    <div class="flex shrink-0 items-end pl-6 pr-3">
+      <button
+        type="button"
+        aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
+        aria-pressed={scaleDialogOpen}
+        title={activeScaleName}
+        data-cursor="pointer"
+        class="flex shrink-0 flex-col items-start gap-1 overflow-visible border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
+        onclick={() => {
+          scaleDialogOpen = true;
+        }}
       >
-      <div class="relative h-8 overflow-visible">
-        <span
-          class="absolute bottom-0 left-0 max-w-[7.25rem] truncate text-sm font-semibold leading-none text-accent"
-          >{activeScaleModeLabel}</span
+        <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
+          >Pitch</span
         >
-        <span class="absolute bottom-[1rem] left-0 text-2xl font-bold leading-none tracking-tight text-text"
-          >{activeKeyCenterLabel}</span
-        >
-      </div>
-    </button>
+        <div class="relative h-8 overflow-visible">
+          <span
+            class="absolute bottom-0 left-0 max-w-[7.25rem] truncate text-sm font-semibold leading-none text-accent"
+            >{activeScaleModeLabel}</span
+          >
+          <span class="absolute bottom-[1rem] left-0 text-2xl font-bold leading-none tracking-tight text-text"
+            >{activeKeyCenterLabel}</span
+          >
+        </div>
+      </button>
+    </div>
 
+    <div class="ml-auto flex shrink-0 items-end gap-1">
     <div class="flex shrink-0 items-center gap-1">
       <div class="flex flex-col gap-1">
         <div class="flex items-center gap-1.5">
@@ -4920,6 +4924,7 @@
       >
         M
       </button>
+    </div>
     </div>
 
   </header>

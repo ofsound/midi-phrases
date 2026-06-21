@@ -102,7 +102,7 @@ export function phraseFirstStepLeftOffsetPx() {
 }
 
 /** Horizontal gap from the last step shell to the row-end add button. */
-export const basePhraseRowEndAddStepInsetPx = 24;
+export const basePhraseRowEndAddStepInsetPx = 12;
 
 /** Matches PlusDragButton `variant="large"` (`size-[54px]`). */
 export const basePhraseRowEndAddStepButtonWidthPx = 54;
