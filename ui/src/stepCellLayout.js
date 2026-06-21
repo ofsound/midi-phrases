@@ -1,5 +1,4 @@
 
-import { phraseRowEndAddStepReservePx } from "./phraseRowLayout.js";
 import { scaledPx } from "./uiScale.svelte.js";
 
 export const stepTimingMultiplierQuarterStep = 0.25;
@@ -209,23 +208,15 @@ export function rowTimingOffsetQuarterGridColumns(offsetIndex) {
   return durationToQuarterGridSteps(timingOffsetValues[offsetIndex] ?? 0);
 }
 
-/** Quarter-grid columns reserved for the row-end add button in stretch-to-fit rows. */
-export function phraseRowEndAddStepQuarterGridColumns() {
-  return Math.max(
-    1,
-    Math.ceil(phraseRowEndAddStepReservePx() / stepCellQuarterGridWidthPx()),
-  );
-}
-
 /**
  * Shared compact-grid layout for every row. Timing offsets are normalized into
- * grid columns so all rows retain one horizontal scale.
+ * grid columns so all rows retain one horizontal scale. The fixed row-end add
+ * control is outside this grid and does not participate in scaling.
  *
  * @param {number[][]} rows
  * @param {number[]} timingOffsetIndices
  */
 export function compactPhraseGridLayout(rows, timingOffsetIndices) {
-  const addStepColumns = phraseRowEndAddStepQuarterGridColumns();
   const rawStartColumns = rows.map((row, index) =>
     row.length > 0
       ? rowTimingOffsetQuarterGridColumns(timingOffsetIndices[index])
@@ -234,18 +225,18 @@ export function compactPhraseGridLayout(rows, timingOffsetIndices) {
   const firstColumn = Math.min(0, ...rawStartColumns);
   const rowStartColumns = rawStartColumns.map((start) => start - firstColumn);
   const totalColumns = Math.max(
-    addStepColumns,
+    1,
     ...rows.map((row, index) =>
       row.length > 0
-        ? rowStartColumns[index] + rowQuarterGridColumns(row) + addStepColumns
+        ? rowStartColumns[index] + rowQuarterGridColumns(row)
         : 0,
     ),
   );
 
-  return { totalColumns, rowStartColumns, addStepColumns };
+  return { totalColumns, rowStartColumns };
 }
 
-/** Natural scroll width for the longest phrase row, including the row-end add button. */
+/** Natural scroll width for the longest phrase row's scalable step content. */
 export function phraseRowsScrollContentWidthPx(rows, timingOffsetIndices) {
   const { totalColumns } = compactPhraseGridLayout(rows, timingOffsetIndices);
 

@@ -94,6 +94,7 @@
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
     phraseGridOriginLeftOffsetPx,
+    phraseRowEndAddStepReservePx,
     phraseGridVisualOffsetCompensationPx,
     phraseRowHeaderGapPx,
     phraseRowLeadingControlsWidthPx,
@@ -195,7 +196,8 @@
         - phraseRowHeaderGapPx()
         - phraseRowMaxTimingPaddingPx
         - phraseGridOriginLeftOffsetPx()
-        - phraseRowScrollPaddingRightPx(),
+        - phraseRowScrollPaddingRightPx()
+        - phraseRowEndAddStepReservePx(),
     ),
   );
   let phraseStepsScrollContentWidthPx = $derived(

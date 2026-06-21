@@ -49,6 +49,7 @@
   import {
     phraseGridOriginLeftOffsetPx,
     phraseRowEndAddStepInsetPx,
+    phraseRowEndAddStepReservePx,
     phraseRowEndStepTailPaddingPx,
     phraseRowMinHeightPx,
     phraseStepCellMinHeightPx,
@@ -64,7 +65,6 @@
     quarterGridColumnsForMultiplierIndex,
     compactStepShellPaddingPercent,
     compactStepShellTrailingPaddingPercent,
-    phraseRowEndAddStepQuarterGridColumns,
     rowGridWidthPx,
     rowQuarterGridColumns,
     insertSlotLeftPxAtGridBoundaryPx,
@@ -1334,9 +1334,8 @@
   });
   let compactRenderedItems = $derived(isDragging ? dndItems : orderedStepItems);
   let compactRowStepColumns = $derived(rowQuarterGridColumns(layoutTimingMultipliers));
-  let compactAddStepColumns = $derived(phraseRowEndAddStepQuarterGridColumns());
   let compactTrailingGridColumns = $derived(
-    Math.max(0, fitGridColumns - fitGridStartColumn - compactRowStepColumns - compactAddStepColumns),
+    Math.max(0, fitGridColumns - fitGridStartColumn - compactRowStepColumns),
   );
   let layoutTimingMultipliers = $derived(
     resizePreviewMultipliers
@@ -1348,7 +1347,6 @@
   let rowGridSpanPx = $derived(rowGridWidthPx(layoutTimingMultipliers));
   let scaledRowGridSpanPx = $derived(layoutPx(rowGridSpanPx));
   let trailingInsertLeftPx = $derived(insertLeftAtBoundary(rowGridSpanPx));
-  let trailingAddStepLeftPx = $derived(scaledRowGridSpanPx + layoutPx(phraseRowEndAddStepInsetPx()));
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
   let rowCellLayouts = $derived(renderedDndItems.map((item, index) => {
     const dataStep = isShadowItem(item)
@@ -1736,15 +1734,6 @@
   {@render gridInsertSlot(trailingInsertLeftPx, stepIds.length, "trailing")}
 {/snippet}
 
-{#snippet trailingAddStep()}
-  <div
-    class="pointer-events-auto absolute top-0 bottom-0 z-40 flex items-center"
-    style:left="{trailingAddStepLeftPx}px"
-  >
-    {@render largeAddStepButton("Add step to end of row", stepIds.length)}
-  </div>
-{/snippet}
-
 {#snippet compactStepCell(step, stepId)}
   {@const isStepSelected = selectedStepIdSet.has(stepId)}
   {@const stepIsMuted = stepMuted[step]}
@@ -1880,16 +1869,12 @@
     aria-hidden="true"
   ></div>
   <div
-    class="flex min-w-0 flex-1 items-stretch pt-2 pr-2 pb-2 {stretchToFit || layoutScale < 1
-      ? 'overflow-hidden'
-      : 'overflow-x-auto'}"
+    class="flex min-w-0 flex-1 items-stretch overflow-hidden pt-2 pr-2 pb-2"
     role="presentation"
     style:min-height="{phraseRowMinHeightPx()}px"
   >
   {#if isEmptyRow}
-    <div class="relative flex shrink-0 items-center" style:padding-left="{layoutPx(phraseRowEndAddStepInsetPx())}px">
-      {@render largeAddStepButton("Add first step", 0)}
-    </div>
+    <div class="min-w-0 flex-1" aria-hidden="true"></div>
   {:else if stretchToFit}
     <div
       class="relative flex min-w-0 flex-1 items-stretch"
@@ -1991,12 +1976,6 @@
           aria-hidden="true"
         ></div>
       {/if}
-      <div
-        class="pointer-events-auto flex shrink-0 items-center self-stretch"
-        style={compactStepFlexStyle(compactAddStepColumns)}
-      >
-        {@render largeAddStepButton("Add step to end of row", stepIds.length)}
-      </div>
       {#if isDragging && dropIndicatorIndex >= 0}
         <div
           data-step-drop-indicator
@@ -2007,11 +1986,12 @@
       {/if}
     </div>
   {:else}
-    <div
-      class="relative w-max min-w-0 shrink-0 self-stretch overflow-visible"
-      style:min-width="{scaledRowGridSpanPx}px"
-      style:padding-right="{layoutPx(phraseRowEndStepTailPaddingPx())}px"
-    >
+    <div class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+      <div
+        class="relative w-max min-w-0 shrink-0 self-stretch overflow-visible"
+        style:min-width="{scaledRowGridSpanPx}px"
+        style:padding-right="{layoutPx(phraseRowEndStepTailPaddingPx())}px"
+      >
       {@render rowInsertSlots()}
 
       {#if reorderDisabled}
@@ -2119,8 +2099,18 @@
         {/if}
       {/if}
 
-      {@render trailingAddStep()}
+      </div>
     </div>
   {/if}
+    <div
+      class="pointer-events-auto flex shrink-0 items-center justify-end self-stretch"
+      style:width="{phraseRowEndAddStepReservePx()}px"
+      style:padding-left="{phraseRowEndAddStepInsetPx()}px"
+    >
+      {@render largeAddStepButton(
+        isEmptyRow ? "Add first step" : "Add step to end of row",
+        stepIds.length,
+      )}
+    </div>
   </div>
 </div>

@@ -4,14 +4,12 @@ import {
   compactStepShellTrailingPaddingPercent,
   compactPhraseGridLayout,
   longestRowQuarterGridColumns,
-  phraseRowEndAddStepQuarterGridColumns,
   phraseRowsScrollContentWidthPx,
   quarterGridColumnsForMultiplierIndex,
   stepCellPaddingPx,
   stepCellQuarterGridWidthPx,
   stepDisplayWidthPx,
 } from "./stepCellLayout.js";
-import { phraseRowEndAddStepReservePx } from "./phraseRowLayout.js";
 
 describe("longestRowQuarterGridColumns", () => {
   it("uses the proportional timing span of the longest row", () => {
@@ -78,15 +76,6 @@ describe("phraseRowsScrollContentWidthPx", () => {
   });
 });
 
-describe("phraseRowEndAddStepQuarterGridColumns", () => {
-  it("reserves at least one quarter-grid column for the row-end add button", () => {
-    expect(phraseRowEndAddStepQuarterGridColumns()).toBeGreaterThanOrEqual(1);
-    expect(phraseRowEndAddStepQuarterGridColumns() * stepCellQuarterGridWidthPx()).toBeGreaterThanOrEqual(
-      phraseRowEndAddStepReservePx(),
-    );
-  });
-});
-
 describe("compactPhraseGridLayout", () => {
   it("uses one scale for row spans and positive timing offsets", () => {
     const layout = compactPhraseGridLayout(
@@ -98,18 +87,13 @@ describe("compactPhraseGridLayout", () => {
       ],
       [3, 4, 3, 3],
     );
-    const addStepColumns = phraseRowEndAddStepQuarterGridColumns();
-
     expect(layout.rowStartColumns).toEqual([0, 1, 0, 0]);
-    expect(layout.addStepColumns).toBe(addStepColumns);
-    expect(layout.totalColumns).toBe(20 + addStepColumns);
+    expect(layout.totalColumns).toBe(20);
   });
 
   it("normalizes negative offsets without changing relative alignment", () => {
     const layout = compactPhraseGridLayout([[3], [3]], [0, 3]);
-    const addStepColumns = phraseRowEndAddStepQuarterGridColumns();
-
     expect(layout.rowStartColumns).toEqual([0, 3]);
-    expect(layout.totalColumns).toBe(7 + addStepColumns);
+    expect(layout.totalColumns).toBe(7);
   });
 });
