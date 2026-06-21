@@ -32,6 +32,17 @@ public:
     void applyHostCursorFromWeb (const juce::String& cursorName);
     juce::var handleEditorFullscreenRequest (int mode);
     juce::var handleEditorScaleMinimumRequest (int minWidth, int minHeight);
+    void showSaveProjectDialog (
+        const juce::Array<juce::var>& args,
+        juce::WebBrowserComponent::NativeFunctionCompletion complete);
+    void showLoadProjectDialog (
+        juce::WebBrowserComponent::NativeFunctionCompletion complete);
+    void createNewProject (juce::WebBrowserComponent::NativeFunctionCompletion complete);
+    void cycleProject (int direction,
+                       juce::WebBrowserComponent::NativeFunctionCompletion complete);
+    bool hasPreviousProject() const;
+    bool hasNextProject() const;
+    juce::String getCurrentProjectFileName() const;
 #endif
 
 private:
@@ -63,9 +74,17 @@ private:
     void setStandaloneWrapperChromeVisible (bool shouldBeVisible);
     juce::var createEditorFullscreenState() const;
     juce::var setEditorFullscreen (bool shouldBeFullscreen);
+    juce::File getDefaultProjectsDirectory() const;
+    juce::Array<juce::File> getSiblingProjectFiles() const;
+    bool loadProjectFile (const juce::File& file, juce::String& errorMessage);
+    bool saveProjectFile (const juce::File& file, juce::String& errorMessage);
+    static juce::var projectOperationResult (bool success,
+                                             const juce::String& errorMessage = {});
 
     HostCursorLookAndFeel hostCursorLookAndFeel { *this };
     std::unique_ptr<juce::WebBrowserComponent> webView;
+    std::unique_ptr<juce::FileChooser> projectFileChooser;
+    juce::File currentProjectFile;
     juce::MouseCursor hostMouseCursor { juce::MouseCursor::NormalCursor };
     juce::String lastHostCursorName;
     juce::Rectangle<int> preFullscreenEditorBounds;

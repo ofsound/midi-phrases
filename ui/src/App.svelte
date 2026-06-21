@@ -321,6 +321,15 @@
   let swingSubdivisionIndex = $state(1);
   let rowColorsEnabled = $state(true);
   let themeMode = $state(defaultThemeMode);
+  let projectName = $state("Untitled Project");
+  let projectDescription = $state("");
+  let projectCreatedAt = $state("");
+  let projectModifiedAt = $state("");
+  let projectFileName = $state("");
+  let hasPreviousProject = $state(false);
+  let hasNextProject = $state(false);
+  let projectOperationBusy = $state(false);
+  let projectOperationError = $state("");
   let undoStack = $state([]);
   let redoStack = $state([]);
   const selectedStepKeys = new SvelteSet();
@@ -1151,6 +1160,7 @@
     rowTimingOffset,
   ));
   let activeScaleName = $derived(scaleName(scaleRoot, scaleModeIndex));
+  let projectDateLabel = $derived(formatProjectDate(projectModifiedAt || projectCreatedAt));
   let activeKeyCenterLabel = $derived(keyCenters[scaleRoot]?.label ?? "C");
   let defaultNewStepNote = $derived(defaultStepNoteForScaleRoot(scaleRoot));
   let activeScaleModeLabel = $derived(scaleModes[scaleModeIndex]?.shortLabel ?? "Chrom");
@@ -2272,6 +2282,106 @@
 
   function nativeFunctionAvailable(name) {
     return window.__JUCE__?.initialisationData?.__juce__functions?.includes?.(name) ?? false;
+  }
+
+  function formatProjectDate(value) {
+    if (!value) return "Unsaved";
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+
+    return new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(date);
+  }
+
+  function assignProjectMetadata(state) {
+    if (!state || typeof state !== "object") return;
+
+    projectName = String(state.projectName ?? "Untitled Project");
+    projectDescription = String(state.projectDescription ?? "");
+    projectCreatedAt = String(state.projectCreatedAt ?? "");
+    projectModifiedAt = String(state.projectModifiedAt ?? "");
+    projectFileName = String(state.projectFileName ?? "");
+    hasPreviousProject = Boolean(Number.parseInt(String(state.hasPreviousProject ?? 0), 10));
+    hasNextProject = Boolean(Number.parseInt(String(state.hasNextProject ?? 0), 10));
+  }
+
+  async function refreshProjectState({ loadProjectContent = false } = {}) {
+    if (!nativeFunctionAvailable("getProjectState")) return;
+
+    const state = await getNativeFunction("getProjectState")();
+    if (!state || typeof state !== "object") return;
+
+    assignProjectMetadata(state);
+    if (!loadProjectContent) return;
+
+    activePatternSlot = Number.parseInt(String(state.currentPatternSlot ?? 0), 10);
+    viewPatternSlot = Number.parseInt(String(state.viewPatternSlot ?? 0), 10);
+    activeLoopSlot = Number.parseInt(String(state.currentLoopSlot ?? -1), 10);
+    pulseIndex = Number.parseInt(String(state.pulseIndex ?? defaultPulseIndex), 10);
+    swingPercent = Number.parseInt(String(state.swingPercent ?? 0), 10);
+    velocityHumanizePercent = Number.parseInt(String(state.velocityHumanizePercent ?? 0), 10);
+    timingHumanizePercent = Number.parseInt(String(state.timingHumanizePercent ?? 0), 10);
+    swingSubdivisionIndex = Number.parseInt(String(state.swingSubdivisionIndex ?? 1), 10);
+    rowColorsEnabled = Boolean(Number.parseInt(String(state.rowColorsEnabled ?? 1), 10));
+    standaloneTempoBpm = Number.parseFloat(String(state.standaloneTempoBpm ?? 120));
+    loopSlotAssigned = [...(state.loopSlotAssigned ?? loopSlotAssigned)].map(Boolean);
+    loopSlotPattern = [...(state.loopSlotPattern ?? loopSlotPattern)].map((value) =>
+      Number.parseInt(String(value), 10),
+    );
+    stretchStepsToFit = Boolean(
+      Number.parseInt(String(state.projectStretchStepsToFit ?? 0), 10),
+    );
+
+    const nextTheme = String(state.projectThemeMode ?? defaultThemeMode);
+    themeMode = applyThemeMode(nextTheme);
+    setUiScalePercent(state.projectUiScalePercent ?? 100);
+    await syncEditorScaleMinimumToNative();
+    assignPatternState(state.patternState, activePatternSlot >= 0);
+  }
+
+  async function runProjectOperation(nativeName, args = [], { loadProjectContent = false } = {}) {
+    if (projectOperationBusy || !nativeFunctionAvailable(nativeName)) return;
+
+    projectOperationBusy = true;
+    projectOperationError = "";
+    try {
+      const result = await getNativeFunction(nativeName)(...args);
+      const success = Boolean(Number.parseInt(String(result?.success ?? 0), 10));
+      const error = String(result?.error ?? "");
+
+      if (error) projectOperationError = error;
+      if (success) await refreshProjectState({ loadProjectContent });
+    } catch {
+      projectOperationError = "The project operation could not be completed.";
+    } finally {
+      projectOperationBusy = false;
+    }
+  }
+
+  function saveProject() {
+    void runProjectOperation("saveProject", [
+      projectName,
+      projectDescription,
+      themeMode,
+      uiScaleState.percent,
+      stretchStepsToFit ? 1 : 0,
+    ]);
+  }
+
+  function loadProject() {
+    void runProjectOperation("loadProject", [], { loadProjectContent: true });
+  }
+
+  function createNewProject() {
+    void runProjectOperation("newProject", [], { loadProjectContent: true });
+  }
+
+  function cycleProject(direction) {
+    void runProjectOperation("cycleProject", [direction], { loadProjectContent: true });
   }
 
   function currentUiTimeMs() {
@@ -3906,6 +4016,23 @@
     rowColorsEnabled = Boolean(Number.parseInt(String(raw), 10));
   }
 
+  function loadProjectMetadataFromInitialisation() {
+    const scalar = (key, fallback = "") => {
+      const value = unwrapJuceInit(key);
+      if (value === null) return fallback;
+      return Array.isArray(value) ? value[0] ?? fallback : value;
+    };
+
+    projectName = String(scalar("projectName", "Untitled Project"));
+    projectDescription = String(scalar("projectDescription", ""));
+    projectCreatedAt = String(scalar("projectCreatedAt", ""));
+    projectModifiedAt = String(scalar("projectModifiedAt", ""));
+    themeMode = String(scalar("projectThemeMode", defaultThemeMode));
+    stretchStepsToFit = Boolean(
+      Number.parseInt(String(scalar("projectStretchStepsToFit", 0)), 10),
+    );
+  }
+
   function loadCombinationModesFromInitialisation() {
     const init = unwrapJuceInit("combinationModeMask");
     const raw = Array.isArray(init) ? init[0] : init;
@@ -4279,6 +4406,7 @@
     loadHumanizeControlsFromInitialisation();
     loadLoopBraceFromInitialisation();
     loadRowColorsFromInitialisation();
+    loadProjectMetadataFromInitialisation();
     loadCombinationModesFromInitialisation();
     loadPatternScaleFromInitialisation();
     loadNoteBandpassFromInitialisation();
@@ -4312,8 +4440,15 @@
   });
 
   onMount(() => {
-    themeMode = applyThemeMode(storedThemeMode(), { persist: false });
-    setUiScalePercent(storedUiScalePercent(), { persist: false });
+    const initialTheme = unwrapJuceInit("projectThemeMode");
+    themeMode = applyThemeMode(initialTheme === null ? storedThemeMode() : themeMode, {
+      persist: false,
+    });
+    const initialProjectScale = unwrapJuceInit("projectUiScalePercent");
+    setUiScalePercent(
+      initialProjectScale === null ? storedUiScalePercent() : initialProjectScale,
+      { persist: false },
+    );
     let scaleFrameId = 0;
 
     const updateUiScale = () => {
@@ -5145,8 +5280,83 @@
     </div>
     <div class="-mx-6 w-[calc(100%+3rem)] shrink-0">
       <div class="mp-honeycomb-rail relative z-20 overflow-x-auto">
-      <div class="flex w-full justify-end px-6 py-3">
-        <div class="flex shrink-0 items-center gap-1.5">
+      <div class="grid w-full min-w-[70rem] grid-cols-[auto_minmax(28rem,1fr)_auto] items-center gap-5 px-6 py-3">
+        <div class="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            class="rounded border border-border-subtle bg-surface-raised px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted transition-colors hover:border-accent/60 hover:text-text disabled:opacity-40"
+            disabled={projectOperationBusy || !nativeFunctionAvailable("newProject")}
+            data-cursor="pointer"
+            onclick={createNewProject}
+            title="Start a new empty project"
+          >New</button>
+          <button
+            type="button"
+            class="rounded border border-border-subtle bg-surface-raised px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted transition-colors hover:border-accent/60 hover:text-text disabled:opacity-40"
+            disabled={projectOperationBusy || !nativeFunctionAvailable("loadProject")}
+            data-cursor="pointer"
+            onclick={loadProject}
+          >Load</button>
+          <button
+            type="button"
+            class="rounded border border-accent/50 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent/20 disabled:opacity-40"
+            disabled={projectOperationBusy || !nativeFunctionAvailable("saveProject")}
+            data-cursor="pointer"
+            onclick={saveProject}
+          >Save</button>
+        </div>
+
+        <div class="flex min-w-0 items-stretch gap-2">
+          <button
+            type="button"
+            aria-label="Load previous project"
+            title="Previous project"
+            class="w-10 rounded-l border border-border-subtle bg-surface-raised text-xl text-text-muted transition-colors hover:border-accent/60 hover:text-accent disabled:opacity-25"
+            disabled={projectOperationBusy || !hasPreviousProject}
+            data-cursor="pointer"
+            onclick={() => cycleProject(-1)}
+          >&#9664;</button>
+          <div
+            class="min-w-0 flex-1 rounded border border-border-subtle bg-surface/80 px-4 py-2 shadow-inner"
+            title={projectFileName || "Unsaved project"}
+          >
+            <div class="flex min-w-0 items-baseline gap-3">
+              <input
+                aria-label="Project name"
+                class="min-w-0 flex-1 border-0 bg-transparent p-0 text-base font-semibold tracking-wide text-text outline-none placeholder:text-text-faint focus:text-accent"
+                maxlength="96"
+                bind:value={projectName}
+                placeholder="Untitled Project"
+              />
+              <span class="shrink-0 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-text-faint">
+                {projectDateLabel} · {activeScaleName}
+              </span>
+            </div>
+            <input
+              aria-label="Project description"
+              class="mt-1 w-full border-0 bg-transparent p-0 text-xs text-text-muted outline-none placeholder:text-text-faint focus:text-text"
+              maxlength="240"
+              bind:value={projectDescription}
+              placeholder="Add a project description…"
+            />
+            {#if projectOperationError}
+              <div class="mt-1 truncate text-[0.65rem] text-danger" role="status">
+                {projectOperationError}
+              </div>
+            {/if}
+          </div>
+          <button
+            type="button"
+            aria-label="Load next project"
+            title="Next project"
+            class="w-10 rounded-r border border-border-subtle bg-surface-raised text-xl text-text-muted transition-colors hover:border-accent/60 hover:text-accent disabled:opacity-25"
+            disabled={projectOperationBusy || !hasNextProject}
+            data-cursor="pointer"
+            onclick={() => cycleProject(1)}
+          >&#9654;</button>
+        </div>
+
+        <div class="flex shrink-0 items-center justify-end gap-1.5">
           <ColorsToggle
             accent={interfaceAccent}
             enabled={rowColorsEnabled}

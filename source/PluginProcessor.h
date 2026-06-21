@@ -53,6 +53,22 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    void setProjectMetadata (const juce::String& name,
+                             const juce::String& description,
+                             const juce::String& createdAt,
+                             const juce::String& modifiedAt,
+                             const juce::String& themeMode,
+                             int uiScalePercent,
+                             bool stretchStepsToFit);
+    void resetProject();
+    const juce::String& getProjectName() const noexcept { return projectName; }
+    const juce::String& getProjectDescription() const noexcept { return projectDescription; }
+    const juce::String& getProjectCreatedAt() const noexcept { return projectCreatedAt; }
+    const juce::String& getProjectModifiedAt() const noexcept { return projectModifiedAt; }
+    const juce::String& getProjectThemeMode() const noexcept { return projectThemeMode; }
+    int getProjectUiScalePercent() const noexcept { return projectUiScalePercent; }
+    bool getProjectStretchStepsToFit() const noexcept { return projectStretchStepsToFit; }
+
     static constexpr int phraseRowCount = 4;
     static constexpr int defaultPhraseStepsPerRow = 0;
     static constexpr int maxPhraseStepsPerRow = 64;
@@ -670,6 +686,13 @@ private:
     std::atomic<int> standaloneTransportResetRequested { 0 };
     std::atomic<double> standaloneTempoBpm { 120.0 };
     std::atomic<double> standaloneTransportPpqPosition { 0.0 };
+    juce::String projectName { "Untitled Project" };
+    juce::String projectDescription;
+    juce::String projectCreatedAt;
+    juce::String projectModifiedAt;
+    juce::String projectThemeMode { "dark" };
+    int projectUiScalePercent = 100;
+    bool projectStretchStepsToFit = false;
     double sampleRateHz = 44100.0;
     bool wasPlaying = false;
     double loopScheduleAnchorTransportPpq = -1.0;

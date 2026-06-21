@@ -1,6 +1,7 @@
 #include "WebViewResourceProvider.h"
 
 #include "BinaryData.h"
+#include "PluginEditor.h"
 #include "PluginProcessor.h"
 
 #include <cstring>
@@ -252,6 +253,46 @@ juce::var createCurrentSlotStateVar (PluginProcessor& processor)
     return juce::var (object.release());
 }
 
+juce::var createProjectStateVar (PluginProcessor& processor, const PluginEditor& editor)
+{
+    auto object = std::make_unique<juce::DynamicObject>();
+    const auto patternSlot = patternSlotForNativeDefault (processor);
+    object->setProperty ("patternState", createPatternStateVar (processor, patternSlot));
+    object->setProperty ("currentPatternSlot", processor.getCurrentPatternSlot());
+    object->setProperty ("viewPatternSlot", processor.getViewPatternSlot());
+    object->setProperty ("patternOutputArmed", processor.isPatternOutputArmed() ? 1 : 0);
+    object->setProperty ("currentLoopSlot", processor.getCurrentLoopSlot());
+    object->setProperty ("pulseIndex", processor.getPulseIndex());
+    object->setProperty ("swingPercent", processor.getSwingPercent());
+    object->setProperty ("velocityHumanizePercent", processor.getVelocityHumanizePercent());
+    object->setProperty ("timingHumanizePercent", processor.getTimingHumanizePercent());
+    object->setProperty ("swingSubdivisionIndex", processor.getSwingSubdivisionIndex());
+    object->setProperty ("rowColorsEnabled", processor.isRowColorsEnabled() ? 1 : 0);
+    object->setProperty ("standaloneTempoBpm", processor.getStandaloneTempoBpm());
+    object->setProperty ("projectName", processor.getProjectName());
+    object->setProperty ("projectDescription", processor.getProjectDescription());
+    object->setProperty ("projectCreatedAt", processor.getProjectCreatedAt());
+    object->setProperty ("projectModifiedAt", processor.getProjectModifiedAt());
+    object->setProperty ("projectThemeMode", processor.getProjectThemeMode());
+    object->setProperty ("projectUiScalePercent", processor.getProjectUiScalePercent());
+    object->setProperty ("projectStretchStepsToFit",
+                         processor.getProjectStretchStepsToFit() ? 1 : 0);
+    object->setProperty ("projectFileName", editor.getCurrentProjectFileName());
+    object->setProperty ("hasPreviousProject", editor.hasPreviousProject() ? 1 : 0);
+    object->setProperty ("hasNextProject", editor.hasNextProject() ? 1 : 0);
+
+    juce::Array<juce::var> loopAssigned;
+    juce::Array<juce::var> loopPattern;
+    for (int loopSlot = 0; loopSlot < PluginProcessor::loopSlotCount; ++loopSlot)
+    {
+        loopAssigned.add (processor.isLoopSlotAssigned (loopSlot) ? 1 : 0);
+        loopPattern.add (processor.getLoopSlotPatternSlot (loopSlot));
+    }
+    object->setProperty ("loopSlotAssigned", loopAssigned);
+    object->setProperty ("loopSlotPattern", loopPattern);
+    return juce::var (object.release());
+}
+
 } // namespace
 
 std::optional<juce::WebBrowserComponent::Resource> WebViewResources::getResource (const juce::String& url)
@@ -283,7 +324,8 @@ std::optional<juce::WebBrowserComponent::Resource> WebViewResources::getResource
     return resource;
 }
 
-juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginProcessor& processor)
+juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginProcessor& processor,
+                                                                         PluginEditor& editor)
 {
     using Options = juce::WebBrowserComponent::Options;
 
@@ -441,6 +483,46 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                                 processor.isStandaloneTransportPlaying() ? 1 : 0)
                        .withInitialisationData ("standaloneTempoBpm",
                                                 processor.getStandaloneTempoBpm())
+                       .withInitialisationData ("projectName", processor.getProjectName())
+                       .withInitialisationData ("projectDescription", processor.getProjectDescription())
+                       .withInitialisationData ("projectCreatedAt", processor.getProjectCreatedAt())
+                       .withInitialisationData ("projectModifiedAt", processor.getProjectModifiedAt())
+                       .withInitialisationData ("projectThemeMode", processor.getProjectThemeMode())
+                       .withInitialisationData ("projectUiScalePercent",
+                                                processor.getProjectUiScalePercent())
+                       .withInitialisationData ("projectStretchStepsToFit",
+                                                processor.getProjectStretchStepsToFit() ? 1 : 0)
+                       .withNativeFunction (
+                           "getProjectState",
+                           [&processor, &editor] (const juce::Array<juce::var>&,
+                                                  juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               complete (createProjectStateVar (processor, editor));
+                           })
+                       .withNativeFunction (
+                           "newProject",
+                           [&editor] (const juce::Array<juce::var>&,
+                                      juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               editor.createNewProject (std::move (complete));
+                           })
+                       .withNativeFunction (
+                           "saveProject",
+                           [&editor] (const juce::Array<juce::var>& args,
+                                      juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               editor.showSaveProjectDialog (args, std::move (complete));
+                           })
+                       .withNativeFunction (
+                           "loadProject",
+                           [&editor] (const juce::Array<juce::var>&,
+                                      juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               editor.showLoadProjectDialog (std::move (complete));
+                           })
+                       .withNativeFunction (
+                           "cycleProject",
+                           [&editor] (const juce::Array<juce::var>& args,
+                                      juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               editor.cycleProject (args.size() > 0 ? varToInt (args[0]) : 1,
+                                                    std::move (complete));
+                           })
                        .withNativeFunction (
                            "getEditorFullscreenState",
                            [&processor] (const juce::Array<juce::var>&,

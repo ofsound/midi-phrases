@@ -1,6 +1,8 @@
 #include "PluginEditor.h"
 #include "WebViewHoverSupport.h"
 
+#include <algorithm>
+
 //==============================================================================
 #if JUCE_WEB_BROWSER
 
@@ -139,7 +141,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     juce::ignoreUnused (processorRef);
 
 #if JUCE_WEB_BROWSER
-    webView = std::make_unique<juce::WebBrowserComponent> (WebViewResources::makeBrowserOptions (processorRef));
+    webView = std::make_unique<juce::WebBrowserComponent> (
+        WebViewResources::makeBrowserOptions (processorRef, *this));
     addAndMakeVisible (*webView);
 
     setLookAndFeel (&hostCursorLookAndFeel);
@@ -194,6 +197,267 @@ PluginEditor::~PluginEditor()
     setLookAndFeel (nullptr);
 #endif
 }
+
+#if JUCE_WEB_BROWSER
+juce::File PluginEditor::getDefaultProjectsDirectory() const
+{
+    return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
+        .getChildFile ("ofsound")
+        .getChildFile ("MIDI Phrases");
+}
+
+juce::Array<juce::File> PluginEditor::getSiblingProjectFiles() const
+{
+    const auto directory = currentProjectFile.existsAsFile()
+                               ? currentProjectFile.getParentDirectory()
+                               : getDefaultProjectsDirectory();
+    juce::Array<juce::File> files;
+
+    if (directory.isDirectory())
+        directory.findChildFiles (files, juce::File::findFiles, false, "*.midiphrases");
+
+    std::sort (files.begin(), files.end(), [] (const juce::File& left, const juce::File& right)
+    {
+        return left.getFileName().compareNatural (right.getFileName(), true) < 0;
+    });
+    return files;
+}
+
+bool PluginEditor::hasPreviousProject() const
+{
+    const auto files = getSiblingProjectFiles();
+    return currentProjectFile.existsAsFile() && files.indexOf (currentProjectFile) > 0;
+}
+
+bool PluginEditor::hasNextProject() const
+{
+    const auto files = getSiblingProjectFiles();
+    const auto index = files.indexOf (currentProjectFile);
+    return index >= 0 && index + 1 < files.size();
+}
+
+juce::String PluginEditor::getCurrentProjectFileName() const
+{
+    return currentProjectFile.existsAsFile() ? currentProjectFile.getFileName() : juce::String();
+}
+
+juce::var PluginEditor::projectOperationResult (const bool success,
+                                                 const juce::String& errorMessage)
+{
+    auto object = std::make_unique<juce::DynamicObject>();
+    object->setProperty ("success", success ? 1 : 0);
+    object->setProperty ("error", errorMessage);
+    return juce::var (object.release());
+}
+
+bool PluginEditor::loadProjectFile (const juce::File& file, juce::String& errorMessage)
+{
+    constexpr size_t maximumProjectBytes = 16 * 1024 * 1024;
+
+    if (! file.existsAsFile())
+    {
+        errorMessage = "That project file no longer exists.";
+        return false;
+    }
+
+    if (file.getSize() <= 0 || static_cast<juce::uint64> (file.getSize()) > maximumProjectBytes)
+    {
+        errorMessage = "The selected file is empty or too large to be a MIDI Phrases project.";
+        return false;
+    }
+
+    juce::MemoryBlock data;
+    if (! file.loadFileAsData (data))
+    {
+        errorMessage = "The project file could not be read.";
+        return false;
+    }
+
+    const auto xml = juce::parseXML (
+        juce::String::createStringFromData (data.getData(), static_cast<int> (data.getSize())));
+    if (xml == nullptr || ! xml->hasTagName ("MidiPhrases"))
+    {
+        errorMessage = "The selected file is not a MIDI Phrases project.";
+        return false;
+    }
+
+    processorRef.setStateInformation (data.getData(), static_cast<int> (data.getSize()));
+    currentProjectFile = file;
+
+    if (! xml->hasAttribute ("projectName"))
+    {
+        processorRef.setProjectMetadata (file.getFileNameWithoutExtension(),
+                                         {},
+                                         {},
+                                         {},
+                                         "dark",
+                                         100,
+                                         false);
+    }
+
+    return true;
+}
+
+bool PluginEditor::saveProjectFile (const juce::File& file, juce::String& errorMessage)
+{
+    if (! file.getParentDirectory().createDirectory())
+    {
+        errorMessage = "The project folder could not be created.";
+        return false;
+    }
+
+    juce::MemoryBlock data;
+    processorRef.getStateInformation (data);
+    juce::TemporaryFile temporaryFile (file);
+
+    if (! temporaryFile.getFile().replaceWithData (data.getData(), data.getSize())
+        || ! temporaryFile.overwriteTargetFileWithTemporary())
+    {
+        errorMessage = "The project file could not be written.";
+        return false;
+    }
+
+    currentProjectFile = file;
+    return true;
+}
+
+void PluginEditor::showSaveProjectDialog (
+    const juce::Array<juce::var>& args,
+    juce::WebBrowserComponent::NativeFunctionCompletion complete)
+{
+    if (projectFileChooser != nullptr)
+    {
+        complete (projectOperationResult (false, "A project dialog is already open."));
+        return;
+    }
+
+    const auto now = juce::Time::getCurrentTime().toISO8601 (true);
+    const auto name = args.size() > 0 ? args[0].toString().trim() : processorRef.getProjectName();
+    const auto description = args.size() > 1 ? args[1].toString() : processorRef.getProjectDescription();
+    const auto theme = args.size() > 2 ? args[2].toString() : processorRef.getProjectThemeMode();
+    const auto scale = args.size() > 3 ? static_cast<int> (args[3]) : processorRef.getProjectUiScalePercent();
+    const auto stretch = args.size() > 4 ? static_cast<int> (args[4]) != 0
+                                         : processorRef.getProjectStretchStepsToFit();
+    const auto createdAt = processorRef.getProjectCreatedAt().isNotEmpty()
+                               ? processorRef.getProjectCreatedAt()
+                               : now;
+    auto directory = currentProjectFile.existsAsFile() ? currentProjectFile.getParentDirectory()
+                                                        : getDefaultProjectsDirectory();
+    directory.createDirectory();
+    auto legalName = juce::File::createLegalFileName (
+        name.isNotEmpty() ? name : juce::String ("Untitled Project"));
+    if (legalName.isEmpty())
+        legalName = "Untitled Project";
+    const auto suggestedFile = currentProjectFile.existsAsFile()
+                                   ? currentProjectFile
+                                   : directory.getChildFile (legalName + ".midiphrases");
+
+    projectFileChooser = std::make_unique<juce::FileChooser> (
+        "Save MIDI Phrases Project", suggestedFile, "*.midiphrases", true);
+    const juce::Component::SafePointer<PluginEditor> safeThis (this);
+    projectFileChooser->launchAsync (
+        juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
+            | juce::FileBrowserComponent::warnAboutOverwriting,
+        [safeThis,
+         completion = std::move (complete),
+         name,
+         description,
+         createdAt,
+         now,
+         theme,
+         scale,
+         stretch] (const juce::FileChooser& chooser) mutable
+        {
+            if (safeThis == nullptr)
+                return;
+
+            auto file = chooser.getResult();
+            safeThis->projectFileChooser.reset();
+            if (file == juce::File())
+            {
+                completion (projectOperationResult (false));
+                return;
+            }
+
+            if (! file.hasFileExtension (".midiphrases"))
+                file = file.withFileExtension (".midiphrases");
+
+            safeThis->processorRef.setProjectMetadata (
+                name, description, createdAt, now, theme, scale, stretch);
+            juce::String error;
+            const auto saved = safeThis->saveProjectFile (file, error);
+            completion (projectOperationResult (saved, error));
+        });
+}
+
+void PluginEditor::showLoadProjectDialog (
+    juce::WebBrowserComponent::NativeFunctionCompletion complete)
+{
+    if (projectFileChooser != nullptr)
+    {
+        complete (projectOperationResult (false, "A project dialog is already open."));
+        return;
+    }
+
+    const auto start = currentProjectFile.existsAsFile() ? currentProjectFile
+                                                          : getDefaultProjectsDirectory();
+    projectFileChooser = std::make_unique<juce::FileChooser> (
+        "Load MIDI Phrases Project", start, "*.midiphrases", true);
+    const juce::Component::SafePointer<PluginEditor> safeThis (this);
+    projectFileChooser->launchAsync (
+        juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+        [safeThis, completion = std::move (complete)] (const juce::FileChooser& chooser) mutable
+        {
+            if (safeThis == nullptr)
+                return;
+
+            const auto file = chooser.getResult();
+            safeThis->projectFileChooser.reset();
+            if (file == juce::File())
+            {
+                completion (projectOperationResult (false));
+                return;
+            }
+
+            juce::String error;
+            const auto loaded = safeThis->loadProjectFile (file, error);
+            completion (projectOperationResult (loaded, error));
+        });
+}
+
+void PluginEditor::createNewProject (
+    juce::WebBrowserComponent::NativeFunctionCompletion complete)
+{
+    if (projectFileChooser != nullptr)
+    {
+        complete (projectOperationResult (false, "Close the open project dialog first."));
+        return;
+    }
+
+    processorRef.resetProject();
+    currentProjectFile = juce::File();
+    complete (projectOperationResult (true));
+}
+
+void PluginEditor::cycleProject (
+    const int direction,
+    juce::WebBrowserComponent::NativeFunctionCompletion complete)
+{
+    const auto files = getSiblingProjectFiles();
+    const auto currentIndex = files.indexOf (currentProjectFile);
+    const auto nextIndex = currentIndex + (direction < 0 ? -1 : 1);
+
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= files.size())
+    {
+        complete (projectOperationResult (false));
+        return;
+    }
+
+    juce::String error;
+    const auto loaded = loadProjectFile (files[nextIndex], error);
+    complete (projectOperationResult (loaded, error));
+}
+#endif
 
 #if JUCE_WEB_BROWSER
 void PluginEditor::applyNormalResizeLimits()

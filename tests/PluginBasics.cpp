@@ -1938,6 +1938,71 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (reloaded.getLoopBraceEndQuarters() == Catch::Approx (6.0));
     }
 
+    SECTION ("project metadata and display settings round-trip with processor state")
+    {
+        testPlugin.setProjectMetadata ("Night Drive",
+                                       "Muted polyrhythms for the bridge",
+                                       "2026-06-20T19:39:30-06:00",
+                                       "2026-06-20T20:10:00-06:00",
+                                       "alt",
+                                       80,
+                                       true);
+        testPlugin.setStandaloneTempoBpm (137.5);
+
+        juce::MemoryBlock state;
+        testPlugin.getStateInformation (state);
+
+        PluginProcessor reloaded;
+        reloaded.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+
+        CHECK (reloaded.getProjectName() == "Night Drive");
+        CHECK (reloaded.getProjectDescription() == "Muted polyrhythms for the bridge");
+        CHECK (reloaded.getProjectCreatedAt() == "2026-06-20T19:39:30-06:00");
+        CHECK (reloaded.getProjectModifiedAt() == "2026-06-20T20:10:00-06:00");
+        CHECK (reloaded.getProjectThemeMode() == "alt");
+        CHECK (reloaded.getProjectUiScalePercent() == 80);
+        CHECK (reloaded.getProjectStretchStepsToFit());
+        CHECK (reloaded.getStandaloneTempoBpm() == Catch::Approx (137.5));
+    }
+
+    SECTION ("new project resets every project-owned state group")
+    {
+        ensurePhraseRowStepCount (testPlugin, 0, 2);
+        testPlugin.setPhraseNote (0, 0, 72);
+        testPlugin.setPatternScale (9, 2);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeBloom, true);
+        testPlugin.setLoopBraceStartQuarters (2.0);
+        testPlugin.setLoopBraceEndQuarters (6.0);
+        testPlugin.saveCurrentBraceToLoopSlot (3);
+        testPlugin.setPulseIndex (3);
+        testPlugin.setSwingPercent (60);
+        testPlugin.setRowColorsEnabled (false);
+        testPlugin.setStandaloneTempoBpm (148.0);
+        testPlugin.setProjectMetadata ("Old Project", "Old description", "created", "modified", "alt", 70, true);
+
+        testPlugin.resetProject();
+
+        CHECK (testPlugin.getCurrentPatternSlot() == 0);
+        CHECK (testPlugin.getViewPatternSlot() == 0);
+        CHECK (testPlugin.getCurrentLoopSlot() == -1);
+        CHECK_FALSE (testPlugin.isLoopSlotAssigned (3));
+        CHECK (testPlugin.getPatternPhraseRowStepCount (0, 0) == 0);
+        CHECK (testPlugin.getPatternScaleRoot (0) == PluginProcessor::defaultScaleRoot);
+        CHECK (testPlugin.getPatternScaleModeIndex (0) == PluginProcessor::defaultScaleModeIndex);
+        CHECK (testPlugin.getPatternCombinationModeMask (0) == 0);
+        CHECK (testPlugin.getPulseIndex() == PluginProcessor::defaultPulseIndex);
+        CHECK (testPlugin.getSwingPercent() == 0);
+        CHECK (testPlugin.isRowColorsEnabled());
+        CHECK (testPlugin.getStandaloneTempoBpm() == Catch::Approx (120.0));
+        CHECK (testPlugin.getProjectName() == "Untitled Project");
+        CHECK (testPlugin.getProjectDescription().isEmpty());
+        CHECK (testPlugin.getProjectCreatedAt().isEmpty());
+        CHECK (testPlugin.getProjectModifiedAt().isEmpty());
+        CHECK (testPlugin.getProjectThemeMode() == "dark");
+        CHECK (testPlugin.getProjectUiScalePercent() == 100);
+        CHECK_FALSE (testPlugin.getProjectStretchStepsToFit());
+    }
+
     SECTION ("copy pattern slot duplicates pattern content without copying loop slot assignments")
     {
         ensurePhraseRowStepCount (testPlugin, 0, 3);

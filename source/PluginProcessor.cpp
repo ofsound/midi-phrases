@@ -12,7 +12,7 @@ constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 18;
+constexpr int phraseStateVersion = 19;
 
 int clampStepProbability (const int probability)
 {
@@ -3496,9 +3496,6 @@ bool PluginProcessor::isStandaloneTransportPlaying() const
 
 void PluginProcessor::setStandaloneTempoBpm (const double bpm)
 {
-    if (! hasStandaloneTransport())
-        return;
-
     standaloneTempoBpm.store (clampStandaloneTempoBpm (bpm), std::memory_order_relaxed);
 }
 
@@ -5154,6 +5151,14 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("timingHumanizePercent", getTimingHumanizePercent(), nullptr);
     state.setProperty ("swingSubdivisionIndex", getSwingSubdivisionIndex(), nullptr);
     state.setProperty ("rowColorsEnabled", isRowColorsEnabled() ? 1 : 0, nullptr);
+    state.setProperty ("standaloneTempoBpm", getStandaloneTempoBpm(), nullptr);
+    state.setProperty ("projectName", projectName, nullptr);
+    state.setProperty ("projectDescription", projectDescription, nullptr);
+    state.setProperty ("projectCreatedAt", projectCreatedAt, nullptr);
+    state.setProperty ("projectModifiedAt", projectModifiedAt, nullptr);
+    state.setProperty ("projectThemeMode", projectThemeMode, nullptr);
+    state.setProperty ("projectUiScalePercent", projectUiScalePercent, nullptr);
+    state.setProperty ("projectStretchStepsToFit", projectStretchStepsToFit ? 1 : 0, nullptr);
 
     for (int patternSlot = 0; patternSlot < patternSlotCount; ++patternSlot)
     {
@@ -5301,6 +5306,18 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         return;
 
     const auto stateVersion = static_cast<int> (state.getProperty ("version", 1));
+
+    projectName = state.getProperty ("projectName", "Untitled Project").toString();
+    projectDescription = state.getProperty ("projectDescription", juce::String()).toString();
+    projectCreatedAt = state.getProperty ("projectCreatedAt", juce::String()).toString();
+    projectModifiedAt = state.getProperty ("projectModifiedAt", juce::String()).toString();
+    projectThemeMode = state.getProperty ("projectThemeMode", "dark").toString();
+    projectUiScalePercent = juce::jlimit (
+        50,
+        100,
+        static_cast<int> (state.getProperty ("projectUiScalePercent", 100)));
+    projectStretchStepsToFit =
+        static_cast<int> (state.getProperty ("projectStretchStepsToFit", 0)) != 0;
 
     for (auto& pattern : modelPatterns)
         initialisePatternDefaults (pattern);
@@ -5612,6 +5629,8 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     setSwingSubdivisionIndex (
         static_cast<int> (state.getProperty ("swingSubdivisionIndex", defaultSwingSubdivisionIndex)));
     setRowColorsEnabled (static_cast<int> (state.getProperty ("rowColorsEnabled", 1)) != 0);
+    setStandaloneTempoBpm (
+        static_cast<double> (state.getProperty ("standaloneTempoBpm", 120.0)));
 
     const auto storedPatternSlot = static_cast<int> (state.getProperty ("currentPatternSlot", 0));
     lastViewPatternSlot = clampPatternSlot (
@@ -5695,6 +5714,66 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         patternSlotParameter->setValueNotifyingHost (
             patternSlotParameter->convertTo0to1 (clampPatternSlot (storedPatternSlot) + 1));
     }
+}
+
+void PluginProcessor::setProjectMetadata (const juce::String& name,
+                                          const juce::String& description,
+                                          const juce::String& createdAt,
+                                          const juce::String& modifiedAt,
+                                          const juce::String& themeMode,
+                                          const int uiScalePercent,
+                                          const bool stretchToFit)
+{
+    projectName = name.trim().isNotEmpty() ? name.trim() : juce::String ("Untitled Project");
+    projectDescription = description.trim();
+    projectCreatedAt = createdAt;
+    projectModifiedAt = modifiedAt;
+    projectThemeMode = themeMode == "light" || themeMode == "alt" ? themeMode : juce::String ("dark");
+    projectUiScalePercent = juce::jlimit (50, 100, uiScalePercent);
+    projectStretchStepsToFit = stretchToFit;
+}
+
+void PluginProcessor::resetProject()
+{
+    for (auto& pattern : modelPatterns)
+        initialisePatternDefaults (pattern);
+
+    for (auto& loopSlot : loopSlots)
+        loopSlot = {};
+
+    pulseIndex.store (defaultPulseIndex, std::memory_order_relaxed);
+    swingPercent.store (defaultSwingPercent, std::memory_order_relaxed);
+    velocityHumanizePercent.store (defaultVelocityHumanizePercent, std::memory_order_relaxed);
+    timingHumanizePercent.store (defaultTimingHumanizePercent, std::memory_order_relaxed);
+    swingSubdivisionIndex.store (defaultSwingSubdivisionIndex, std::memory_order_relaxed);
+    rowColorsEnabled.store (1, std::memory_order_relaxed);
+    standaloneTempoBpm.store (120.0, std::memory_order_relaxed);
+    standaloneTransportPlaying.store (0, std::memory_order_relaxed);
+    standaloneTransportPpqPosition.store (0.0, std::memory_order_relaxed);
+    standaloneTransportResetRequested.store (1, std::memory_order_release);
+
+    projectName = "Untitled Project";
+    projectDescription.clear();
+    projectCreatedAt.clear();
+    projectModifiedAt.clear();
+    projectThemeMode = "dark";
+    projectUiScalePercent = 100;
+    projectStretchStepsToFit = false;
+
+    lastViewPatternSlot = 0;
+    currentModelPatternSlot.store (0, std::memory_order_release);
+    patternOutputArmed.store (1, std::memory_order_release);
+    currentLoopSlot.store (-1, std::memory_order_release);
+    audioActiveLoopSlot.store (-1, std::memory_order_release);
+    pendingAudioLoopSlot.store (-1, std::memory_order_release);
+
+    for (int pattern = 0; pattern < patternSlotCount; ++pattern)
+        publishPatternToAudio (pattern);
+
+    requestAudioPatternSlot (0);
+
+    if (patternSlotParameter != nullptr && patternSlotParameter->get() != 1)
+        patternSlotParameter->setValueNotifyingHost (patternSlotParameter->convertTo0to1 (1));
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
