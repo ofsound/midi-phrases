@@ -30,9 +30,11 @@
   } from "./rowPianoRollTimeline.js";
   import RowPianoRollModeIcon from "./RowPianoRollModeIcon.svelte";
   import RowShapeDrawIcon from "./RowShapeDrawIcon.svelte";
-  import RemoveXIcon from "./RemoveXIcon.svelte";
   import BulkStepEditControls from "./BulkStepEditControls.svelte";
   import CompactStepResizeHandle from "./CompactStepResizeHandle.svelte";
+  import StepMuteIcon from "./StepMuteIcon.svelte";
+  import StepSkipIcon from "./StepSkipIcon.svelte";
+  import { inspectorToggleClasses } from "./inspectorSidebar.js";
   import {
     defaultStepTimingMultiplierIndex,
     maxPhraseStepsPerRow,
@@ -91,7 +93,6 @@
    * @property {(value: number) => void | Promise<void>} [onBulkVelocityCommit]
    * @property {(value: number) => void} [onBulkTransposePreview]
    * @property {(value: number) => void | Promise<void>} [onBulkTransposeCommit]
-   * @property {() => void} [onClose]
    */
 
   /** @type {Props} */
@@ -145,7 +146,6 @@
     onBulkVelocityCommit = () => {},
     onBulkTransposePreview = () => {},
     onBulkTransposeCommit = () => {},
-    onClose = () => {},
   } = $props();
 
   const basePxPerQuarter = 28;
@@ -166,6 +166,9 @@
   /** @type {{ pointerId: number, mode: 'note' | 'velocity', points: { x: number, y: number }[] } | null} */
   let shapeStroke = $state(null);
   let rowAccent = $derived(accent ?? emeraldRowAccent);
+  let bulkEffectiveStepCount = $derived(
+    selectedStepIds.length > 0 ? selectedStepIds.length : stepIds.length,
+  );
   /** CSS color variable resolved from the row accent's bgAccent class (e.g. "bg-accent" → "--color-accent"). */
   let boundaryAccentVar = $derived(
     `var(--color-${rowAccent.bgAccent.replace('bg-', '')})`
@@ -924,22 +927,46 @@
 
 </script>
 
-<section class="flex min-h-0 w-full flex-1 gap-3">
-  <aside class="relative flex w-[13.5rem] shrink-0 flex-col min-h-0 py-2 pr-6 pl-0">
-    <button
-      type="button"
-      data-cursor="pointer"
-      aria-label="Close monophonic piano roll"
-      class="absolute top-2 left-0 z-10 flex h-6 w-6 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-text-muted transition-colors outline-none hover:bg-surface-raised/80 hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
-      onclick={onClose}
-      title="Close monophonic piano roll"
-    >
-      <RemoveXIcon class="pointer-events-none h-3.5 w-3.5" />
-    </button>
+<section class="step-inspector step-inspector--piano-roll flex min-h-0 w-full flex-1 overflow-hidden bg-app/90">
+  <aside class="inspector-sidebar flex w-[13rem] shrink-0 flex-col gap-2 py-2 pr-3 pl-0">
+    <div class="inspector-toggles flex w-full gap-1.5">
+      <button
+        type="button"
+        data-cursor="pointer"
+        aria-label={bulkSkipActive ? "Unskip selected steps" : "Skip selected steps"}
+        aria-pressed={bulkSkipActive}
+        title={bulkSkipActive ? "Unskip selected steps" : "Skip selected steps in sequence"}
+        disabled={bulkEffectiveStepCount === 0}
+        class={inspectorToggleClasses(rowAccent, bulkSkipActive, {
+          disabled: bulkEffectiveStepCount === 0,
+        })}
+        onclick={onBulkToggleSkip}
+      >
+        <StepSkipIcon class="pointer-events-none h-4 w-4 shrink-0" />
+        <span class="truncate text-[9px] font-semibold uppercase tracking-wide">Skip</span>
+      </button>
+      <button
+        type="button"
+        data-cursor="pointer"
+        aria-label={bulkMuteActive ? "Unmute selected steps" : "Mute selected steps"}
+        aria-pressed={bulkMuteActive}
+        title={bulkMuteActive ? "Unmute selected steps" : "Mute selected steps"}
+        disabled={bulkEffectiveStepCount === 0}
+        class={inspectorToggleClasses(rowAccent, bulkMuteActive, {
+          disabled: bulkEffectiveStepCount === 0,
+        })}
+        onclick={onBulkToggleMute}
+      >
+        <StepMuteIcon class="pointer-events-none h-4 w-4 shrink-0" />
+        <span class="truncate text-[9px] font-semibold uppercase tracking-wide">Mute</span>
+      </button>
+    </div>
 
-    <div class="flex min-h-0 w-full flex-1 flex-col pt-7">
+    <div class="inspector-bulk-controls flex min-h-0 w-full flex-1 flex-col justify-center gap-1.5">
       <BulkStepEditControls
         layout="sidebar"
+        inspectorEmbedded
+        omitSkipMuteToggles
         className="min-h-0 flex-1"
       accent={rowAccent}
       requireSelection={false}
@@ -967,10 +994,9 @@
       onTransposeCommit={onBulkTransposeCommit}
     />
     </div>
-
   </aside>
 
-  <div class="grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-y-3 overflow-hidden pb-5">
+  <div class="inspector-main grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)] content-start gap-y-2 overflow-hidden pb-2">
     <div class="flex w-full items-center justify-center bg-surface/15 px-4 py-1.25">
       <div
         class="flex shrink-0 gap-1.5"

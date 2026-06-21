@@ -5171,7 +5171,6 @@
         onSkippedChange={(value) =>
           setStepSkipped(activeStepInspector.row, activeStepInspector.step, value)}
         onRemove={removeInspectedStep}
-        onClose={closeStepInspector}
       />
     {:else if activeRowPianoRollEditor !== null}
       <RowPianoRollEditor
@@ -5229,7 +5228,6 @@
         onBulkVelocityCommit={commitBulkVelocityPercent}
         onBulkTransposePreview={previewBulkTransposeSemitones}
         onBulkTransposeCommit={commitBulkTransposeSemitones}
-        onClose={closeRowPianoRollEditor}
       />
     {:else if recordingRow !== null}
       <RecordPianoKeyboard

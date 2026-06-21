@@ -17,6 +17,8 @@
    * @property {number} [selectedStepCount]
    * @property {number} [totalStepCount]
    * @property {boolean} [requireSelection]
+   * @property {boolean} [omitSkipMuteToggles]
+   * @property {boolean} [inspectorEmbedded]
    * @property {boolean} [reverseAvailable]
    * @property {boolean} [skipActive]
    * @property {boolean} [muteActive]
@@ -48,6 +50,8 @@
     selectedStepCount = 0,
     totalStepCount = 0,
     requireSelection = true,
+    omitSkipMuteToggles = false,
+    inspectorEmbedded = false,
     reverseAvailable = false,
     skipActive = false,
     muteActive = false,
@@ -75,7 +79,11 @@
   );
 
   function actionButtonClasses(enabled = true) {
-    const sizeClass = sidebarLayout ? "aspect-square w-full" : "h-8 w-8 shrink-0";
+    const sizeClass = sidebarHeaderStyleOps
+      ? "h-8 w-8 shrink-0"
+      : sidebarLayout
+        ? "aspect-square w-full"
+        : "h-8 w-8 shrink-0";
 
     return `flex ${sizeClass} items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
@@ -85,7 +93,11 @@
   }
 
   function toggleActionButtonClasses(enabled = true, active = false) {
-    const sizeClass = sidebarLayout ? "aspect-square w-full" : "h-8 w-8 shrink-0";
+    const sizeClass = sidebarHeaderStyleOps
+      ? "h-8 w-8 shrink-0"
+      : sidebarLayout
+        ? "aspect-square w-full"
+        : "h-8 w-8 shrink-0";
 
     return `flex ${sizeClass} items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
@@ -103,6 +115,7 @@
   }
   let inlineLayout = $derived(layout === "inline");
   let sidebarLayout = $derived(layout === "sidebar");
+  let sidebarHeaderStyleOps = $derived(sidebarLayout && omitSkipMuteToggles);
   let operationsGridLayout = $derived(layout === "operations-grid");
   let inlineLabels = $derived(inlineLayout);
   let stackedCompactLayout = $derived(compact && !inlineLayout && !sidebarLayout);
@@ -123,11 +136,13 @@
         : `${groupClass}`,
   );
   let operationButtonsClass = $derived(
-    sidebarLayout
-      ? "grid w-full grid-cols-3 gap-x-2.5 gap-y-2"
-      : operationsGridLayout
-        ? "grid grid-cols-3 gap-1"
-        : "flex items-center gap-1",
+    sidebarHeaderStyleOps
+      ? "flex w-full items-center gap-1"
+      : sidebarLayout
+        ? "grid w-full grid-cols-3 gap-x-2.5 gap-y-2"
+        : operationsGridLayout
+          ? "grid grid-cols-3 gap-1"
+          : "flex items-center gap-1",
   );
   let labelClass = $derived(
     `text-xs font-semibold leading-none text-text-muted${inlineLabels ? " shrink-0" : ""}`,
@@ -138,7 +153,9 @@
   }
   let rootClass = $derived(
     sidebarLayout
-      ? `flex min-h-0 w-full flex-1 flex-col justify-between items-stretch gap-4 ${className}`
+      ? `flex min-h-0 w-full flex-1 flex-col items-stretch ${
+          inspectorEmbedded ? "inspector-bulk-root justify-center gap-1.5" : "justify-between gap-4"
+        } ${className}`
       : `flex ${
           stackedCompactLayout ? "gap-4" : compact ? "gap-1" : "gap-2"
         } ${
@@ -209,6 +226,7 @@
       >
         <RowRandomizeLengthIcon class="pointer-events-none h-5 w-5" />
       </button>
+      {#if !omitSkipMuteToggles}
       <button
         type="button"
         aria-label={skipActive ? "Unskip selected steps" : "Skip selected steps"}
@@ -233,6 +251,7 @@
       >
         <StepMuteIcon class="pointer-events-none h-5 w-5" />
       </button>
+      {/if}
     </div>
   </div>
   <div class={parameterControlsClass}>

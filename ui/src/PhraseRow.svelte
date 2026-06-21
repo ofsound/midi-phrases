@@ -1385,17 +1385,20 @@
   <button
     type="button"
     data-remove-button
+    data-no-marquee
+    data-no-long-press
     data-cursor="pointer"
     aria-label="Remove step"
     disabled={removeBlocked}
-    class="relative z-30 flex h-5 w-5 shrink-0 items-center justify-start p-0 transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 {dimmed
+    class="step-remove-button pointer-events-auto absolute top-0 left-0 z-[80] flex h-5 w-5 items-center justify-center rounded-tl-lg p-0 transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 {dimmed
       ? 'text-text-faint hover:text-text-muted'
       : `text-text-secondary hover:text-text ${accent.textAccentFocus}`}"
+    onpointerdowncapture={(event) => event.stopPropagation()}
     onpointerdown={(event) => event.stopPropagation()}
     onmousedown={(event) => event.stopPropagation()}
     onclick={(event) => handleRemoveClick(event, step)}
   >
-    <RemoveXIcon class="pointer-events-none h-2 w-2" />
+    <RemoveXIcon class="pointer-events-none h-2.5 w-2.5" />
   </button>
 {/snippet}
 
@@ -1424,7 +1427,7 @@
       data-no-marquee
       data-no-long-press
       title="Drag to reorder · Option-drag to duplicate · moves or copies all selected steps"
-      class="flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
+      class="step-header-drag-handle relative z-0 flex min-h-5 min-w-0 flex-1 items-center justify-end {stepDimmed
         ? 'opacity-80'
         : 'opacity-60'}"
       onpointerdown={(event) => prepareStepDrag(event, step)}
@@ -1578,6 +1581,7 @@
       stepDimmed,
     )} {(isStepSelected || stepInspectorHighlighted) && !isDragging ? accent.selectionShell : ''}"
   >
+    {@render stepHeaderRemoveButton(step, stepDimmed)}
     <div
       class="relative z-0 h-full min-h-0 w-full min-w-0"
       onpointerdowncapture={(event) => handleStepControlPointerDown(event, step)}
@@ -1594,17 +1598,15 @@
         {#if reorderEnabled}
           <div
             data-step-header
-            class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
+            class="flex h-5 w-full shrink-0 items-center gap-0 pl-5 pr-1 {stepHeaderClass(stepDimmed)}"
           >
-            {@render stepHeaderRemoveButton(step, stepDimmed)}
             {@render stepHeaderTimingArea(step, stepDimmed, multiplierLabel, true)}
           </div>
         {:else}
           <div
             data-step-header
-            class="flex h-5 w-full shrink-0 items-center gap-0 px-1 {stepHeaderClass(stepDimmed)}"
+            class="flex h-5 w-full shrink-0 items-center gap-0 pl-5 pr-1 {stepHeaderClass(stepDimmed)}"
           >
-            {@render stepHeaderRemoveButton(step, stepDimmed)}
             {@render stepHeaderTimingArea(step, stepDimmed, multiplierLabel, false)}
           </div>
         {/if}

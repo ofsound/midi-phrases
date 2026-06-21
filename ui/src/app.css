@@ -856,6 +856,55 @@
     background: color-mix(in srgb, var(--color-text) 49%, transparent);
     box-shadow: 1px 0 0 color-mix(in srgb, var(--color-app) 19%, transparent);
   }
+
+  .step-inspector {
+    container-type: size;
+  }
+
+  @container (max-height: 13rem) {
+    .inspector-sidebar {
+      width: min(36rem, 56%);
+      display: grid;
+      grid-template-columns: minmax(12rem, 1.1fr) minmax(16rem, 1.8fr) minmax(7rem, 0.7fr);
+      align-items: center;
+      gap: 0.5rem;
+      padding-top: 0.25rem;
+      padding-bottom: 0.25rem;
+      padding-right: 0.5rem;
+    }
+
+    .step-inspector--piano-roll .inspector-sidebar {
+      grid-template-columns: minmax(12rem, 1.1fr) minmax(16rem, 1.8fr);
+    }
+
+    .inspector-sliders {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .step-inspector--piano-roll .inspector-bulk-controls {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .step-inspector--piano-roll .inspector-bulk-root {
+      display: contents;
+    }
+
+    .inspector-actions {
+      height: 2rem;
+    }
+
+    .inspector-main {
+      grid-template-rows: minmax(3.25rem, 52%) minmax(0, 1fr);
+      row-gap: 0.25rem;
+      padding-bottom: 0.25rem;
+    }
+  }
 }
 
 /* svelte-dnd-action drag ghost — keep visible (shadow placeholder uses hidden styles). */
