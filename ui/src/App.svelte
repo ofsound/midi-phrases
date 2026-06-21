@@ -205,13 +205,13 @@
     ),
   );
   let phraseStepsScrollContentWidthPx = $derived(
-    phraseRowsScrollContentWidthPx(layoutStepTimingMultiplier, rowTimingOffset)
-      + phraseRowEndAddStepReservePx(),
+    phraseRowsScrollContentWidthPx(layoutStepTimingMultiplier, rowTimingOffset),
   );
   let phraseStepsContentFitScale = $derived.by(() => {
     if (stretchStepsToFit) return 1;
 
-    const available = phraseRowContentViewportWidth;
+    const addStepReserve = phraseRowEndAddStepReservePx();
+    const available = Math.max(0, phraseRowContentViewportWidth - addStepReserve);
     const content = phraseStepsScrollContentWidthPx;
 
     if (available <= 0 || content <= available) return 1;
