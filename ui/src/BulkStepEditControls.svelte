@@ -116,6 +116,7 @@
   let inlineLayout = $derived(layout === "inline");
   let sidebarLayout = $derived(layout === "sidebar");
   let sidebarHeaderStyleOps = $derived(sidebarLayout && omitSkipMuteToggles);
+  let showOperationLabel = $derived(!sidebarLayout || inspectorEmbedded);
   let operationsGridLayout = $derived(layout === "operations-grid");
   let inlineLabels = $derived(inlineLayout);
   let stackedCompactLayout = $derived(compact && !inlineLayout && !sidebarLayout);
@@ -130,7 +131,9 @@
   );
   let operationGroupClass = $derived(
     sidebarLayout
-      ? "w-full"
+      ? inspectorEmbedded
+        ? "flex w-full min-w-0 shrink-0 flex-col items-start gap-1"
+        : "w-full"
       : stackedCompactLayout
         ? `shrink-0 ${groupClass}`
         : `${groupClass}`,
@@ -154,7 +157,9 @@
   let rootClass = $derived(
     sidebarLayout
       ? `flex min-h-0 w-full flex-1 flex-col items-stretch ${
-          inspectorEmbedded ? "inspector-bulk-root justify-center gap-1.5" : "justify-between gap-4"
+          inspectorEmbedded
+            ? "inspector-bulk-root min-h-0"
+            : "justify-between gap-4"
         } ${className}`
       : `flex ${
           stackedCompactLayout ? "gap-4" : compact ? "gap-1" : "gap-2"
@@ -164,7 +169,7 @@
   );
   let parameterControlsClass = $derived(
     sidebarLayout
-      ? "grid w-full grid-cols-3 gap-2"
+      ? "grid w-full shrink-0 grid-cols-3 gap-2"
       : inlineLayout
         ? `flex items-center ${compact ? "gap-1 px-1" : "gap-1.5 px-5"}`
         : stackedCompactLayout
@@ -177,8 +182,11 @@
 </script>
 
 <div class={rootClass} data-no-marquee>
+  {#if inspectorEmbedded}
+    <div class="min-h-0 flex-1" aria-hidden="true"></div>
+  {/if}
   <div class={operationGroupClass}>
-    {#if !sidebarLayout}
+    {#if showOperationLabel}
       <span class={labelClass}>{labelText("Operation")}</span>
     {/if}
     <div class={operationButtonsWrapperClass}>
@@ -254,6 +262,9 @@
       {/if}
     </div>
   </div>
+  {#if inspectorEmbedded}
+    <div class="min-h-0 flex-1" aria-hidden="true"></div>
+  {/if}
   <div class={parameterControlsClass}>
     <div class={groupClass}>
       <span class={labelClass}>{labelText("Dur %")}</span>

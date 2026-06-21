@@ -962,7 +962,7 @@
       </button>
     </div>
 
-    <div class="inspector-bulk-controls flex min-h-0 w-full flex-1 flex-col justify-center gap-1.5">
+    <div class="inspector-bulk-controls flex min-h-0 w-full flex-1 flex-col">
       <BulkStepEditControls
         layout="sidebar"
         inspectorEmbedded

@@ -1165,7 +1165,7 @@
   let projectDateLabel = $derived(formatProjectDate(projectModifiedAt || projectCreatedAt));
   let activeKeyCenterLabel = $derived(keyCenters[scaleRoot]?.label ?? "C");
   let defaultNewStepNote = $derived(defaultStepNoteForScaleRoot(scaleRoot));
-  let activeScaleModeLabel = $derived(scaleModes[scaleModeIndex]?.shortLabel ?? "Chrom");
+  let activeScaleModeLabel = $derived(scaleModes[scaleModeIndex]?.label ?? "Chromatic");
   let bulkPitchAriaLabel = $derived(
     isChromaticScaleMode(scaleModeIndex)
       ? "Bulk step pitch semitones"
@@ -4790,9 +4790,11 @@
       <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
         >Pitch</span
       >
-      <div class="flex h-8 flex-col items-start justify-end gap-0 leading-none">
-        <p class="text-lg font-semibold leading-none text-text">{activeKeyCenterLabel}</p>
-        <p class="text-sm font-semibold uppercase leading-none text-accent">{activeScaleModeLabel}</p>
+      <div class="flex flex-col items-start justify-end gap-0.5 leading-none">
+        <p class="text-2xl font-bold leading-none tracking-tight text-text">{activeKeyCenterLabel}</p>
+        <p class="max-w-[7.25rem] truncate text-sm font-semibold leading-tight text-accent"
+          >{activeScaleModeLabel}</p
+        >
       </div>
     </button>
 
