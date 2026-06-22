@@ -65,6 +65,27 @@ describe("moveStepBetweenRows", () => {
       ),
     ).toBeNull();
   });
+
+  it("accepts an explicit insertion index for row-end drops", () => {
+    const result = moveStepBetweenRows(
+      {
+        notes: [[60], [62, 64]],
+      },
+      [["a"], ["x", "y"]],
+      0,
+      1,
+      "a",
+      ["x", "y"],
+      2,
+    );
+
+    expect(result).toEqual({
+      matrices: {
+        notes: [[], [62, 64, 60]],
+      },
+      stepIds: [[], ["x", "y", "a"]],
+    });
+  });
 });
 
 describe("moveBlockBetweenRows", () => {

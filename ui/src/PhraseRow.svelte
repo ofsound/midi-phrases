@@ -144,7 +144,7 @@
    * @property {(row: number, beforeIds: string[], afterIds: string[]) => void | Promise<void>} [onMoveCommitted]
    * @property {(row: number, beforeIds: string[], afterIds: string[]) => void | Promise<void>} [onBulkMoveCommitted]
    * @property {(row: number, blockIds: string[], insertionIndex: number) => void | Promise<void>} [onBulkStepDuplicateDrop]
-   * @property {(targetRow: number, stepId: string, orderedTargetIds: string[]) => void | Promise<void>} [onCrossRowMove]
+   * @property {(targetRow: number, stepId: string, orderedTargetIds: string[], shadowIndex?: number) => void | Promise<void>} [onCrossRowMove]
    * @property {(targetRow: number, movedStepId: string, blockIds: string[], orderedTargetPreview: string[], shadowIndex?: number) => void | Promise<void>} [onBulkCrossRowMove]
    * @property {(targetRow: number, movedStepId: string, blockIds: string[], previewIds: string[], shadowIndex: number) => void | Promise<void>} [onBulkCrossRowDuplicateDrop]
    * @property {(targetRow: number, stepId: string, orderedTargetIds: string[], insertionIndex?: number) => void | Promise<void>} [onStepDuplicateDrop]
@@ -710,9 +710,9 @@
           );
         }
       } else if (isDuplicateDrop) {
-        await onStepDuplicateDrop(row, movedStepId, previewIds);
+        await onStepDuplicateDrop(row, movedStepId, previewIds, dropIndicatorIndex);
       } else {
-        await onCrossRowMove(row, movedStepId, previewIds);
+        await onCrossRowMove(row, movedStepId, previewIds, dropIndicatorIndex);
       }
 
       await tick();
@@ -2108,8 +2108,7 @@
         onconsider={handleConsider}
         onfinalize={handleFinalize}
         data-phrase-row-dragging={isDragging ? true : undefined}
-        class="phrase-row-dnd-zone flex min-h-0 min-w-0 items-stretch outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
-        style={compactStepFlexStyle(compactRowStepColumns)}
+        class="phrase-row-dnd-zone flex min-h-0 min-w-0 flex-1 items-stretch outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
         style:padding-right="{phraseRowEndAddStepReservePx()}px"
       >
         {#each compactRenderedItems as item, index (item.id)}
@@ -2193,17 +2192,16 @@
             {/if}
           </div>
         {/each}
+        {#if compactTrailingGridColumns > 0}
+          <div
+            class="row-trailing-drop-lane min-h-full min-w-0 flex-1 self-stretch"
+            aria-hidden="true"
+          ></div>
+        {/if}
       </div>
       <div class="row-end-add-step-overlay absolute inset-y-2 right-2 flex items-center">
         {@render rowEndAddStepControl()}
       </div>
-      {#if compactTrailingGridColumns > 0}
-        <div
-          class="pointer-events-none shrink-0"
-          style={compactStepFlexStyle(compactTrailingGridColumns)}
-          aria-hidden="true"
-        ></div>
-      {/if}
       {#if isDragging && dropIndicatorIndex >= 0}
         <div
           data-step-drop-indicator

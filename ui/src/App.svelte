@@ -2215,12 +2215,25 @@
    * @param {number} targetRow
    * @param {string} stepId
    * @param {string[]} orderedTargetIds
+   * @param {number} [shadowIndex]
    */
-  async function moveStepToRow(targetRow, stepId, orderedTargetIds) {
+  async function moveStepToRow(targetRow, stepId, orderedTargetIds, shadowIndex = -1) {
     const sourceRow = stepIds.findIndex((ids) => ids.includes(stepId));
 
     if (sourceRow < 0 || sourceRow === targetRow) return;
     if (stepIds[targetRow]?.length >= maxPhraseStepsPerRow) return;
+
+    const previewIndex = orderedTargetIds.indexOf(stepId);
+    const insertionIndex = previewIndex >= 0
+      ? previewIndex
+      : blockCrossRowInsertionIndex(
+        stepIds[targetRow],
+        stepId,
+        orderedTargetIds,
+        shadowIndex,
+      );
+
+    if (insertionIndex < 0) return;
 
     const before = createHistorySnapshot();
     const selectedKeysBefore = new SvelteSet(selectedStepKeysForGrid);
@@ -2244,6 +2257,7 @@
       targetRow,
       stepId,
       orderedTargetIds,
+      insertionIndex,
     );
 
     if (!result) return;
@@ -2471,13 +2485,27 @@
    * @param {number} targetRow
    * @param {string} stepId
    * @param {string[]} orderedTargetIds
-   * @param {number} [insertionIndex]
+   * @param {number} [insertionIndexOrShadow]
    */
-  async function duplicateStepToDrop(targetRow, stepId, orderedTargetIds, insertionIndex) {
+  async function duplicateStepToDrop(targetRow, stepId, orderedTargetIds, insertionIndexOrShadow = undefined) {
     const sourceRow = stepIds.findIndex((ids) => ids.includes(stepId));
 
     if (sourceRow < 0 || targetRow < 0 || targetRow >= stepIds.length) return;
     if (stepIds[targetRow]?.length >= maxPhraseStepsPerRow) return;
+
+    const previewIndex = orderedTargetIds.indexOf(stepId);
+    let insertionIndex = null;
+
+    if (previewIndex < 0) {
+      insertionIndex = blockCrossRowInsertionIndex(
+        stepIds[targetRow],
+        stepId,
+        orderedTargetIds,
+        insertionIndexOrShadow ?? -1,
+      );
+    } else if (sourceRow === targetRow && insertionIndexOrShadow != null && insertionIndexOrShadow >= 0) {
+      insertionIndex = insertionIndexOrShadow;
+    }
 
     const before = createHistorySnapshot();
     const duplicateId = createStepId();
@@ -2500,7 +2528,7 @@
       stepId,
       orderedTargetIds,
       duplicateId,
-      insertionIndex ?? null,
+      insertionIndex,
     );
 
     if (!result) return;

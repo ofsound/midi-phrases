@@ -9,6 +9,7 @@ import { maxPhraseStepsPerRow } from "./stepCellLayout.js";
  * @param {number} targetRow
  * @param {string} stepId
  * @param {string[]} orderedTargetIds
+ * @param {number | null} [insertionIndexOverride]
  * @returns {{ matrices: Record<string, any[][]>, stepIds: string[][] } | null}
  */
 export function moveStepBetweenRows(
@@ -18,22 +19,36 @@ export function moveStepBetweenRows(
   targetRow,
   stepId,
   orderedTargetIds,
+  insertionIndexOverride = null,
 ) {
   if (sourceRow === targetRow || sourceRow < 0 || targetRow < 0) return null;
   if (!stepIds[sourceRow] || !stepIds[targetRow]) return null;
 
   const sourceIndex = stepIds[sourceRow].indexOf(stepId);
-  const targetIndex = orderedTargetIds.indexOf(stepId);
-  const expectedTargetIds = [...stepIds[targetRow], stepId];
+  const previewIndex = orderedTargetIds.indexOf(stepId);
+  const targetBefore = stepIds[targetRow];
+  const insertionIndex = insertionIndexOverride ?? previewIndex;
+  const resolvedTargetIds = previewIndex >= 0
+    ? orderedTargetIds
+    : [
+      ...targetBefore.slice(0, insertionIndex),
+      stepId,
+      ...targetBefore.slice(insertionIndex),
+    ];
+  const expectedTargetIds = [...targetBefore, stepId];
 
-  if (sourceIndex < 0 || targetIndex < 0) return null;
-  if (orderedTargetIds.length !== expectedTargetIds.length) return null;
-  if (new Set(orderedTargetIds).size !== orderedTargetIds.length) return null;
-  if (!expectedTargetIds.every((id) => orderedTargetIds.includes(id))) return null;
+  if (sourceIndex < 0 || insertionIndex < 0) return null;
+  if (resolvedTargetIds.length !== expectedTargetIds.length) return null;
+  if (new Set(resolvedTargetIds).size !== resolvedTargetIds.length) return null;
+  if (!expectedTargetIds.every((id) => resolvedTargetIds.includes(id))) return null;
+
+  const targetIndex = resolvedTargetIds.indexOf(stepId);
+
+  if (targetIndex < 0) return null;
 
   const nextStepIds = stepIds.map((ids) => [...ids]);
   nextStepIds[sourceRow].splice(sourceIndex, 1);
-  nextStepIds[targetRow] = [...orderedTargetIds];
+  nextStepIds[targetRow] = [...resolvedTargetIds];
 
   /** @type {Record<string, any[][]>} */
   const nextMatrices = {};
