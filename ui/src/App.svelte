@@ -1692,7 +1692,7 @@
   const compactStepMarqueeBlockSelector =
     "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-no-marquee], [data-no-long-press], [data-insert-slot], [data-remove-button], [data-multiplier-resize]";
 
-  /** @param {PointerEvent} event @param {{ clientX?: number, clientY?: number }} [origin] */
+  /** @param {PointerEvent} event @param {{ clientX?: number, clientY?: number, addToSelection?: boolean, toggleStep?: boolean }} [origin] */
   function beginStepMarqueeSelection(event, origin) {
     if (event.button !== 0 || marqueeSelection) return;
 
@@ -1704,7 +1704,7 @@
     const compactStepCell =
       stepCell instanceof HTMLElement && stepCell.hasAttribute("data-compact-step-cell");
 
-    if (event.shiftKey && stepCell instanceof HTMLElement) {
+    if (((event.shiftKey && !origin) || origin?.toggleStep) && stepCell instanceof HTMLElement) {
       if (toggleStepSelectionFromCellElement(stepCell)) {
         event.preventDefault();
         event.stopPropagation();
@@ -1725,14 +1725,15 @@
 
     const startX = origin?.clientX ?? event.clientX;
     const startY = origin?.clientY ?? event.clientY;
+    const addToSelection = origin?.addToSelection ?? event.shiftKey;
 
     marqueeSelection = {
       startX,
       startY,
       currentX: event.clientX,
       currentY: event.clientY,
-      addToSelection: event.shiftKey,
-      baseKeys: event.shiftKey ? new Set(selectedStepKeysForGrid) : new Set(),
+      addToSelection,
+      baseKeys: addToSelection ? new Set(selectedStepKeysForGrid) : new Set(),
     };
 
     updateMarqueeSelectionFromPointer();

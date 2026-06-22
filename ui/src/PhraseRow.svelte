@@ -165,7 +165,7 @@
    * @property {(row: number, step: number, skipped: boolean) => void | Promise<void>} [onStepSkipChange]
    * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onInspectStep]
    * @property {(row: number, step: number, stepId: string) => void} [onPrepareStepSelection]
-   * @property {(event: PointerEvent, origin?: { clientX?: number, clientY?: number }) => void} [onBulkSelectPointerDown]
+   * @property {(event: PointerEvent, origin?: { clientX?: number, clientY?: number, addToSelection?: boolean, toggleStep?: boolean }) => void} [onBulkSelectPointerDown]
    * @property {(event: PointerEvent) => void} [onBulkSelectBackgroundDoubleClick]
    * @property {() => void} [onDismissPhraseBackground]
    */
@@ -269,7 +269,7 @@
   let lastBulkBackgroundPointerDownTime = 0;
   let lastBulkBackgroundPointerDownX = 0;
   let lastBulkBackgroundPointerDownY = 0;
-  /** @type {{ pointerId: number, startX: number, startY: number, moved: boolean, step: number } | null} */
+  /** @type {{ pointerId: number, startX: number, startY: number, moved: boolean, step: number, element: HTMLElement } | null} */
   let compactStepPointerGesture = null;
   /** @type {HTMLDivElement | null} */
   let compactGridElement = $state(null);
@@ -778,33 +778,25 @@
 
     if (!(target instanceof Element)) return;
 
-    if (
-      target.closest(
-        "[data-remove-button], [data-insert-slot], [data-multiplier-resize], [data-no-inspect], [data-step-inspector-toggle], [aria-label='Drag to reorder step']",
-      )
-    ) {
-      return;
-    }
-
     suppressCompactStepClick = false;
-    compactStepPointerGesture = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      moved: false,
-      marqueeStarted: false,
-      step,
-    };
 
     if (event.shiftKey) {
-      compactStepPointerGesture = null;
-      onBulkSelectPointerDown(event);
+      const element = /** @type {HTMLElement} */ (event.currentTarget);
+      compactStepPointerGesture = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+        step,
+        element,
+      };
+      element.setPointerCapture?.(event.pointerId);
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
       return;
     }
 
-    handleStepControlPointerDown(event, step);
+    prepareStepDrag(event, step);
   }
 
   /** @param {PointerEvent} event */
@@ -814,22 +806,21 @@
     const deltaX = event.clientX - compactStepPointerGesture.startX;
     const deltaY = event.clientY - compactStepPointerGesture.startY;
 
-    if (
-      !compactStepPointerGesture.marqueeStarted
-      && Math.hypot(deltaX, deltaY) >= compactStepMoveThresholdPx
-    ) {
-      compactStepPointerGesture.marqueeStarted = true;
-      compactStepPointerGesture.moved = true;
-      onBulkSelectPointerDown(event, {
-        clientX: compactStepPointerGesture.startX,
-        clientY: compactStepPointerGesture.startY,
-      });
-      compactStepPointerGesture = null;
-      return;
-    }
-
     if (Math.hypot(deltaX, deltaY) >= compactStepMoveThresholdPx) {
-      compactStepPointerGesture.moved = true;
+      const gesture = compactStepPointerGesture;
+      gesture.moved = true;
+      suppressCompactStepClick = true;
+
+      if (gesture.element.hasPointerCapture?.(event.pointerId)) {
+        gesture.element.releasePointerCapture(event.pointerId);
+      }
+
+      compactStepPointerGesture = null;
+      onBulkSelectPointerDown(event, {
+        clientX: gesture.startX,
+        clientY: gesture.startY,
+        addToSelection: true,
+      });
     }
   }
 
@@ -837,8 +828,21 @@
   function handleCompactStepPointerEnd(event) {
     if (!compactStepPointerGesture || compactStepPointerGesture.pointerId !== event.pointerId) return;
 
-    suppressCompactStepClick = compactStepPointerGesture.moved;
+    const gesture = compactStepPointerGesture;
     compactStepPointerGesture = null;
+
+    if (gesture.element.hasPointerCapture?.(event.pointerId)) {
+      gesture.element.releasePointerCapture(event.pointerId);
+    }
+
+    suppressCompactStepClick = true;
+
+    if (!gesture.moved && event.type === "pointerup") {
+      onBulkSelectPointerDown(event, { toggleStep: true });
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
   }
 
   /** @param {MouseEvent} event @param {number} step */
@@ -939,6 +943,16 @@
 
   /** @param {PointerEvent} event */
   function handleBulkSelectPointerDown(event) {
+    if (stretchToFit && !event.shiftKey) {
+      const target = event.target;
+
+      if (target instanceof Element && !target.closest("[data-bulk-step-cell]")) {
+        onDismissPhraseBackground();
+      }
+
+      return;
+    }
+
     if (
       event.button !== 0 ||
       isDragging ||
@@ -1854,36 +1868,14 @@
         aria-hidden="true"
       ></div>
     {/if}
-    <div
-      class="pointer-events-none relative z-10 flex h-full min-w-0 items-center justify-center px-1"
-    >
-      <div
-        use:dragHandle
-        use:preventTabFocus
-        role="button"
-        tabindex="0"
-        aria-label="Drag to reorder step"
-        data-cursor="grab"
-        data-no-inspect
-        data-no-marquee
-        data-no-long-press
-        title="Drag to reorder · Option-drag to duplicate · moves or copies all selected steps"
-        class="compact-step-reorder-handle pointer-events-auto inline-flex max-w-full touch-none items-center justify-center rounded-sm px-2 py-1 outline-none {stepIsSkipped
-          ? 'opacity-45'
-          : muted
-            ? 'opacity-80'
-            : ''} {accent.ringFocusWithWidth}"
-        onpointerdown={(event) => prepareStepDrag(event, step)}
-        onpointerup={(event) => retargetOpenStepInspector(event, step)}
+    <div class="pointer-events-none relative z-10 flex h-full min-w-0 items-center justify-center px-1">
+      <span
+        class="truncate font-sans text-lg leading-none font-black tabular-nums {stepDimmed
+          ? 'text-text-muted'
+          : 'text-white'}"
       >
-        <span
-          class="pointer-events-none truncate font-sans text-lg leading-none font-black tabular-nums {stepDimmed
-            ? 'text-text-muted'
-            : 'text-white'}"
-        >
-          {midiToNoteName(notes[step])}
-        </span>
-      </div>
+        {midiToNoteName(notes[step])}
+      </span>
     </div>
   </div>
 {/snippet}
@@ -1896,22 +1888,8 @@
     opacity: 1;
   }
 
-  .compact-step-reorder-handle {
-    transform-origin: center;
-    transition: transform 75ms ease;
-  }
-
-  .compact-step-reorder-handle:hover,
-  .compact-step-reorder-handle:focus-visible {
-    transform: scale(1.12);
-  }
-
   :global(.compact-step-row-dragging) > * {
     transition: none !important;
-  }
-
-  :global(.compact-step-row-dragging) .compact-step-reorder-handle {
-    transform: none;
   }
 
   .step-drop-indicator {
@@ -1993,6 +1971,7 @@
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
+            use:dragHandle
             data-bulk-step-cell={layout.step >= 0 ? true : undefined}
             data-compact-step-cell
             data-step-row={layout.step >= 0 ? row : undefined}
@@ -2001,7 +1980,8 @@
             data-step-selected={layout.step >= 0 && selectedStepIdSet.has(stepIds[layout.step])
               ? true
               : undefined}
-            class="relative min-w-0 {layout.isShadow ? 'pointer-events-none' : ''} {hideBulkDragSource
+            data-cursor={layout.step >= 0 ? "grab" : undefined}
+            class="relative min-w-0 touch-none select-none {layout.isShadow ? 'pointer-events-none' : ''} {hideBulkDragSource
               ? 'opacity-0 pointer-events-none'
               : dimBulkDuplicateSource
                 ? 'opacity-75'
@@ -2009,7 +1989,7 @@
             style={compactItemFlexStyle(item, index)}
             title={layout.isShadow
               ? undefined
-              : "Click for advanced settings · drag center to reorder · Option-drag to duplicate"}
+              : "Click for advanced settings · drag to reorder · Option-drag to duplicate · Shift-drag to select"}
             aria-hidden={layout.isShadow ? true : undefined}
             onclick={(event) => layout.step >= 0 && openCompactStepInspector(event, layout.step)}
             onpointerdowncapture={(event) => layout.step >= 0 && handleCompactStepPointerDown(event, layout.step)}
