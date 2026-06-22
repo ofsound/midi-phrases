@@ -1007,6 +1007,19 @@
   outline: none !important;
 }
 
+/* Let step drags reach the row-end drop padding behind the + button. */
+.row-end-add-step-overlay {
+  pointer-events: none;
+}
+
+.row-end-add-step-overlay .row-end-add-step-control {
+  pointer-events: auto;
+}
+
+body:has(#dnd-action-dragged-el) .row-end-add-step-overlay .row-end-add-step-control {
+  pointer-events: none;
+}
+
 /* svelte-dnd-action keyboard a11y — pointer-only in this plugin; suppress stray focus rings. */
 [role="list"]:focus,
 [role="list"]:focus-visible,

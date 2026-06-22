@@ -26,6 +26,28 @@ describe("moveStepBetweenRows", () => {
     });
   });
 
+  it("moves a step into an empty target row", () => {
+    const result = moveStepBetweenRows(
+      {
+        notes: [[60, 62], []],
+        velocity: [[80, 81], []],
+      },
+      [["a", "b"], []],
+      0,
+      1,
+      "a",
+      ["a"],
+    );
+
+    expect(result).toEqual({
+      matrices: {
+        notes: [[62], [60]],
+        velocity: [[81], [80]],
+      },
+      stepIds: [["b"], ["a"]],
+    });
+  });
+
   it("rejects a target order that loses or duplicates steps", () => {
     expect(
       moveStepBetweenRows(
@@ -41,6 +63,29 @@ describe("moveStepBetweenRows", () => {
 });
 
 describe("duplicateStepBetweenRows", () => {
+  it("copies a step into an empty target row", () => {
+    const result = duplicateStepBetweenRows(
+      {
+        notes: [[60], []],
+        velocity: [[80], []],
+      },
+      [["a"], []],
+      0,
+      1,
+      "a",
+      ["a"],
+      "copy-a",
+    );
+
+    expect(result).toEqual({
+      matrices: {
+        notes: [[60], [60]],
+        velocity: [[80], [80]],
+      },
+      stepIds: [["a"], ["copy-a"]],
+    });
+  });
+
   it("copies every aligned value into another row without removing the source", () => {
     const result = duplicateStepBetweenRows(
       {

@@ -52,6 +52,7 @@
   import {
     phraseGridOriginLeftOffsetPx,
     phraseRowEndAddStepInsetPx,
+    phraseRowEndAddStepReservePx,
     phraseRowMinHeightPx,
     phraseStepCellMinHeightPx,
   } from "./phraseRowLayout.js";
@@ -516,9 +517,9 @@
 
   /** @param {CustomEvent} event */
   function handleConsider(event) {
-    if (reorderDisabled) return;
-
     const trigger = event.detail.info.trigger;
+
+    if (stepIds.length === 0 && trigger === TRIGGERS.DRAG_STARTED) return;
     const shadowIndex = event.detail.items.findIndex(isShadowItem);
 
     dropIndicatorIndex = shadowIndex;
@@ -1344,7 +1345,6 @@
   const stepHeaderLabelClass = (dimmed) =>
     dimmed ? "text-text-muted" : "text-text-secondary";
   let isEmptyRow = $derived(stepIds.length === 0);
-  let reorderDisabled = $derived(stepIds.length === 0);
   let selectedStepIdSet = $derived(new Set(selectedStepIds));
   let insertMultiplierOptions = $derived(insertStepTimingMultiplierOptions(timingMultiplierOptions));
   let stepInspectorInteractionDisabled = $derived(
@@ -1757,7 +1757,7 @@
 
 {#snippet rowEndAddStepControl()}
   <div
-    class="pointer-events-auto flex shrink-0 items-center self-stretch"
+    class="row-end-add-step-control pointer-events-auto flex shrink-0 items-center self-stretch"
     style:margin-left="{phraseRowEndAddStepInsetPx()}px"
   >
     {@render largeAddStepButton(
@@ -1924,7 +1924,7 @@
     style:min-height="{phraseRowMinHeightPx()}px"
   >
   {#if isEmptyRow}
-    <div class="flex min-w-0 flex-1 items-stretch">
+    <div class="relative flex min-w-0 flex-1 items-stretch">
       {#if stretchToFit && fitGridStartColumn > 0}
         <div
           class="pointer-events-none shrink-0"
@@ -1932,7 +1932,21 @@
           aria-hidden="true"
         ></div>
       {/if}
-      {@render rowEndAddStepControl()}
+      <div
+        bind:this={dndZoneElement}
+        use:dragHandleZone={dndZoneOptions}
+        onconsider={handleConsider}
+        onfinalize={handleFinalize}
+        data-phrase-row-dragging={isDragging ? true : undefined}
+        class="phrase-row-dnd-zone flex min-h-full min-w-0 flex-1 outline-none {stretchToFit && isDragging
+          ? 'compact-step-row-dragging'
+          : ''}"
+        style:min-height="{phraseRowMinHeightPx()}px"
+        style:padding-right="{phraseRowEndAddStepReservePx()}px"
+      ></div>
+      <div class="row-end-add-step-overlay absolute inset-y-2 right-2 flex items-center">
+        {@render rowEndAddStepControl()}
+      </div>
     </div>
   {:else if stretchToFit}
     <div
@@ -1952,8 +1966,9 @@
         onconsider={handleConsider}
         onfinalize={handleFinalize}
         data-phrase-row-dragging={isDragging ? true : undefined}
-        class="flex min-h-0 min-w-0 items-stretch outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
+        class="phrase-row-dnd-zone flex min-h-0 min-w-0 items-stretch outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
         style={compactStepFlexStyle(compactRowStepColumns)}
+        style:padding-right="{phraseRowEndAddStepReservePx()}px"
       >
         {#each compactRenderedItems as item, index (item.id)}
           {@const layout = compactLayoutForItem(item, index)}
@@ -2037,7 +2052,9 @@
           </div>
         {/each}
       </div>
-      {@render rowEndAddStepControl()}
+      <div class="row-end-add-step-overlay absolute inset-y-2 right-2 flex items-center">
+        {@render rowEndAddStepControl()}
+      </div>
       {#if compactTrailingGridColumns > 0}
         <div
           class="pointer-events-none shrink-0"
@@ -2062,39 +2079,14 @@
       >
       {@render rowInsertSlots()}
 
-      {#if reorderDisabled}
-        <div class="relative flex w-max shrink-0 items-stretch overflow-visible">
-          {#each stepIds as stepId, step (stepId)}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div
-              data-bulk-step-cell
-              data-step-row={row}
-              data-step-id={stepId}
-              data-step-index={step}
-              data-step-selected={selectedStepIdSet.has(stepId) ? true : undefined}
-              class="relative shrink-0 overflow-visible"
-              style={shellStyleForStep(step)}
-              style:margin-left={step === 0
-                ? `${layoutPx(stepCellPaddingPx())}px`
-                : `${layoutPx(stepInsertZoneWidthPx())}px`}
-              onclick={(event) => retargetOpenStepInspector(event, step)}
-              ondblclick={(event) => openFullStepInspector(event, step)}
-            >
-              <div class="pointer-events-auto h-full overflow-visible">
-                {@render stepCell(step, false)}
-              </div>
-            </div>
-          {/each}
-        </div>
-      {:else}
         <div
           bind:this={dndZoneElement}
           use:dragHandleZone={dndZoneOptions}
           onconsider={handleConsider}
           onfinalize={handleFinalize}
           data-phrase-row-dragging={isDragging ? true : undefined}
-          class="relative flex w-max shrink-0 items-stretch overflow-visible outline-none"
+          class="phrase-row-dnd-zone relative flex w-max shrink-0 items-stretch overflow-visible outline-none"
+          style:padding-right="{phraseRowEndAddStepReservePx()}px"
         >
           {#each renderedDndItems as item, index (item.id)}
             {@const layout = layoutForItem(item, index)}
@@ -2157,6 +2149,9 @@
             </div>
           {/each}
         </div>
+        <div class="row-end-add-step-overlay absolute inset-y-0 right-0 flex items-center">
+          {@render rowEndAddStepControl()}
+        </div>
         {#if isDragging && dropIndicatorIndex >= 0}
           <div
             data-step-drop-indicator
@@ -2165,10 +2160,8 @@
             aria-hidden="true"
           ></div>
         {/if}
-      {/if}
 
       </div>
-      {@render rowEndAddStepControl()}
       </div>
     </div>
   {/if}
