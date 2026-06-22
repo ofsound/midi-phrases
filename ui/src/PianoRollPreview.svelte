@@ -9,6 +9,7 @@
   import { pagedPlaybackScrollLeft } from "./pianoRollAutoScroll.js";
   import { fittedPitchRangeForSchedule } from "./pianoRollViewport.js";
   import { applyVelocityTilt } from "./velocityTilt.js";
+  import { applyGlobalTranspose } from "./globalTranspose.js";
   import { defaultShimmerMixPercent } from "./shimmer.js";
 import {
   buildPhraseScheduleBeforeBandpass,
@@ -46,6 +47,7 @@ import { scaledPx } from "./uiScale.svelte.js";
    * @property {number} [noteBandpassHighMidi]
    * @property {number} [velocityTiltPivotMidi]
    * @property {number} [velocityTiltAmount]
+   * @property {number} [globalTransposeSemitones]
    * @property {boolean} [octavizerDown8vaEnabled]
    * @property {boolean} [octavizerUp8vaEnabled]
    * @property {number} [octavizerDown8vaRelativeVelocity]
@@ -86,6 +88,7 @@ import { scaledPx } from "./uiScale.svelte.js";
     noteBandpassHighMidi = 108,
     velocityTiltPivotMidi = 60,
     velocityTiltAmount = 0,
+    globalTransposeSemitones = 0,
     octavizerDown8vaEnabled = false,
     octavizerUp8vaEnabled = false,
     octavizerDown8vaRelativeVelocity = 0,
@@ -222,10 +225,13 @@ import { scaledPx } from "./uiScale.svelte.js";
   );
 
   let scheduled = $derived(
-    applyVelocityTilt(
-      applyNoteBandpass(scheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
-      velocityTiltPivotMidi,
-      velocityTiltAmount,
+    applyGlobalTranspose(
+      applyVelocityTilt(
+        applyNoteBandpass(scheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
+        velocityTiltPivotMidi,
+        velocityTiltAmount,
+      ),
+      globalTransposeSemitones,
     ),
   );
 
@@ -261,10 +267,13 @@ import { scaledPx } from "./uiScale.svelte.js";
   );
 
   let fullScheduled = $derived(
-    applyVelocityTilt(
-      applyNoteBandpass(fullScheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
-      velocityTiltPivotMidi,
-      velocityTiltAmount,
+    applyGlobalTranspose(
+      applyVelocityTilt(
+        applyNoteBandpass(fullScheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
+        velocityTiltPivotMidi,
+        velocityTiltAmount,
+      ),
+      globalTransposeSemitones,
     ),
   );
 

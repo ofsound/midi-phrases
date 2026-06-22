@@ -243,3 +243,20 @@ describe("velocity tilt schedule preview", () => {
     expect(velocitiesByMidi[72]).toBe(112);
   });
 });
+
+describe("global transpose schedule preview", () => {
+  it("transposes after bandpass and remembers the requested semitone offset", () => {
+    const schedule = buildPhraseSchedule({
+      ...baseWindowScheduleParams({
+        notes: [[60], [], [], []],
+        lengthQuarters: 1,
+        noteBandpassLowMidi: 60,
+        noteBandpassHighMidi: 60,
+        globalTransposeSemitones: 5,
+      }),
+    });
+
+    expect(schedule).toHaveLength(1);
+    expect(schedule[0].midi).toBe(65);
+  });
+});

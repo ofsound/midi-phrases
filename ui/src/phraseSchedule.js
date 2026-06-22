@@ -5,6 +5,7 @@ import {applyOctavizer, defaultOctavizerRelativeVelocity} from "./octavizer.js";
 import {maxPercentValue} from "./percentLimits.js";
 import {applyShimmer, defaultShimmerDelayMultiplierIndex, defaultShimmerFeedbackPercent, defaultShimmerMixPercent} from "./shimmer.js";
 import {applyVelocityTilt, defaultVelocityTiltAmount, defaultVelocityTiltPivotMidi} from "./velocityTilt.js";
+import {applyGlobalTranspose, defaultGlobalTransposeSemitones} from "./globalTranspose.js";
 import {
   defaultScaleModeIndex,
   defaultScaleRoot,
@@ -438,14 +439,17 @@ function buildPhraseScheduleCore({
  * @returns {ScheduledNote[]}
  */
 export function buildPhraseSchedule(params) {
-  return applyVelocityTilt(
-    applyNoteBandpass(
-      buildPhraseScheduleBeforeBandpass(params),
-      params.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
-      params.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
+  return applyGlobalTranspose(
+    applyVelocityTilt(
+      applyNoteBandpass(
+        buildPhraseScheduleBeforeBandpass(params),
+        params.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
+        params.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
+      ),
+      params.velocityTiltPivotMidi ?? defaultVelocityTiltPivotMidi,
+      params.velocityTiltAmount ?? defaultVelocityTiltAmount,
     ),
-    params.velocityTiltPivotMidi ?? defaultVelocityTiltPivotMidi,
-    params.velocityTiltAmount ?? defaultVelocityTiltAmount,
+    params.globalTransposeSemitones ?? defaultGlobalTransposeSemitones,
   );
 }
 
@@ -461,6 +465,7 @@ export function buildPhraseScheduleBeforeBandpass(params) {
     noteBandpassHighMidi: _noteBandpassHighMidi,
     velocityTiltPivotMidi: _velocityTiltPivotMidi,
     velocityTiltAmount: _velocityTiltAmount,
+    globalTransposeSemitones: _globalTransposeSemitones,
     ...scheduleParams
   } = params;
 
@@ -485,6 +490,7 @@ export function buildPhraseScheduleWindowBeforeBandpass(params) {
     noteBandpassHighMidi: _noteBandpassHighMidi,
     velocityTiltPivotMidi: _velocityTiltPivotMidi,
     velocityTiltAmount: _velocityTiltAmount,
+    globalTransposeSemitones: _globalTransposeSemitones,
     windowStartQuarters = 0,
     windowEndQuarters = params.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS,
     windowLookbackQuarters = DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS,

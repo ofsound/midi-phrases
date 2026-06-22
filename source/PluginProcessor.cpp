@@ -284,6 +284,13 @@ int clampVelocityTiltAmount (const int amount)
                          amount);
 }
 
+int clampGlobalTransposeSemitones (const int semitones)
+{
+    return juce::jlimit (PluginProcessor::minGlobalTransposeSemitones,
+                         PluginProcessor::maxGlobalTransposeSemitones,
+                         semitones);
+}
+
 int velocityTiltOutputVelocity (const int baseVelocity,
                                 const int note,
                                 const int pivotMidi,
@@ -856,6 +863,7 @@ void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
     pattern.noteBandpassHighMidi = defaultNoteBandpassHighMidi;
     pattern.velocityTiltPivotMidi = defaultVelocityTiltPivotMidi;
     pattern.velocityTiltAmount = defaultVelocityTiltAmount;
+    pattern.globalTransposeSemitones = defaultGlobalTransposeSemitones;
     pattern.octavizerDown8vaEnabled = 0;
     pattern.octavizerUp8vaEnabled = 0;
     pattern.octavizerDown8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
@@ -1295,6 +1303,10 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
 
         case SequencerCommand::Type::SetPatternVelocityTiltAmount:
             pattern.velocityTiltAmount = clampVelocityTiltAmount (command.intValue);
+            break;
+
+        case SequencerCommand::Type::SetPatternGlobalTransposeSemitones:
+            pattern.globalTransposeSemitones = clampGlobalTransposeSemitones (command.intValue);
             break;
 
         case SequencerCommand::Type::SetPatternOctavizerDown8vaEnabled:
@@ -1762,6 +1774,25 @@ int PluginProcessor::getPatternVelocityTiltPivotMidi (const int patternSlot) con
 int PluginProcessor::getPatternVelocityTiltAmount (const int patternSlot) const
 {
     return clampVelocityTiltAmount (modelPattern (patternSlot).velocityTiltAmount);
+}
+
+void PluginProcessor::setPatternGlobalTransposeSemitones (const int semitones)
+{
+    const auto patternSlot = getViewPatternSlot();
+    const auto clamped = clampGlobalTransposeSemitones (semitones);
+
+    modelPattern (patternSlot).globalTransposeSemitones = clamped;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternGlobalTransposeSemitones;
+    command.patternSlot = patternSlot;
+    command.intValue = clamped;
+    publishCommandToAudio (command);
+}
+
+int PluginProcessor::getPatternGlobalTransposeSemitones (const int patternSlot) const
+{
+    return clampGlobalTransposeSemitones (modelPattern (patternSlot).globalTransposeSemitones);
 }
 
 void PluginProcessor::setPatternOctavizerDown8vaEnabled (const bool enabled)
@@ -3449,9 +3480,13 @@ void PluginProcessor::processPhraseRowNoteAuditions (const int bufferSamples,
             velocityHumanizePercent.load (std::memory_order_relaxed),
             playbackRandomState);
 
+        const auto outputNote = juce::jlimit (minMidiNote,
+                                               maxMidiNote,
+                                               newNote + activePattern.globalTransposeSemitones);
+
         emitScheduledNoteOn (row,
                              pending.channel,
-                             newNote,
+                             outputNote,
                              velocity,
                              audition.step,
                              0,
@@ -4607,6 +4642,21 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         }
     }
 
+    {
+        const auto transposeSemitones = activePattern.globalTransposeSemitones;
+
+        if (transposeSemitones != 0)
+        {
+            for (size_t index = 0; index < eventCount; ++index)
+            {
+                auto& event = combinedEvents[index];
+                event.note = juce::jlimit (minMidiNote,
+                                           maxMidiNote,
+                                           event.note + transposeSemitones);
+            }
+        }
+    }
+
     for (size_t index = 0; index < eventCount; ++index)
     {
         auto event = combinedEvents[index];
@@ -5207,6 +5257,9 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
         patternTree.setProperty ("velocityTiltAmount",
                                  getPatternVelocityTiltAmount (patternSlot),
                                  nullptr);
+        patternTree.setProperty ("globalTransposeSemitones",
+                                 getPatternGlobalTransposeSemitones (patternSlot),
+                                 nullptr);
         patternTree.setProperty ("octavizerDown8vaEnabled",
                                  isPatternOctavizerDown8vaEnabled (patternSlot) ? 1 : 0,
                                  nullptr);
@@ -5482,6 +5535,9 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         pattern.velocityTiltAmount = clampVelocityTiltAmount (
             static_cast<int> (patternTree.getProperty ("velocityTiltAmount",
                                                        defaultVelocityTiltAmount)));
+        pattern.globalTransposeSemitones = clampGlobalTransposeSemitones (
+            static_cast<int> (patternTree.getProperty ("globalTransposeSemitones",
+                                                       defaultGlobalTransposeSemitones)));
         pattern.octavizerDown8vaEnabled =
             static_cast<int> (patternTree.getProperty ("octavizerDown8vaEnabled", 0)) != 0 ? 1 : 0;
         pattern.octavizerUp8vaEnabled =

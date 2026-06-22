@@ -118,6 +118,13 @@ public:
     int getPatternVelocityTiltPivotMidi (int patternSlot) const;
     int getPatternVelocityTiltAmount (int patternSlot) const;
 
+    static constexpr int defaultGlobalTransposeSemitones = 0;
+    static constexpr int minGlobalTransposeSemitones = -48;
+    static constexpr int maxGlobalTransposeSemitones = 48;
+
+    void setPatternGlobalTransposeSemitones (int semitones);
+    int getPatternGlobalTransposeSemitones (int patternSlot) const;
+
     static constexpr int defaultOctavizerRelativeVelocity = 0;
     static constexpr int minOctavizerRelativeVelocity = -127;
     static constexpr int maxOctavizerRelativeVelocity = 127;
@@ -391,6 +398,7 @@ private:
         int noteBandpassHighMidi = defaultNoteBandpassHighMidi;
         int velocityTiltPivotMidi = defaultVelocityTiltPivotMidi;
         int velocityTiltAmount = defaultVelocityTiltAmount;
+        int globalTransposeSemitones = defaultGlobalTransposeSemitones;
         int octavizerDown8vaEnabled = 0;
         int octavizerUp8vaEnabled = 0;
         int octavizerDown8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
@@ -438,6 +446,7 @@ private:
             SetPatternNoteBandpass,
             SetPatternVelocityTiltPivotMidi,
             SetPatternVelocityTiltAmount,
+            SetPatternGlobalTransposeSemitones,
             SetPatternOctavizerDown8vaEnabled,
             SetPatternOctavizerUp8vaEnabled,
             SetPatternOctavizerDown8vaRelativeVelocity,

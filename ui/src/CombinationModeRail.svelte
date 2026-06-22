@@ -5,6 +5,7 @@
   import OctavizerControl from "./OctavizerControl.svelte";
   import ShimmerControl from "./ShimmerControl.svelte";
   import VelocityTiltControl from "./VelocityTiltControl.svelte";
+  import GlobalTransposeControl from "./GlobalTransposeControl.svelte";
   import { combinationModes } from "./phraseSchedule.js";
   import { defaultShimmerMixPercent } from "./shimmer.js";
 
@@ -25,6 +26,9 @@
    * @property {(value: number) => void} [onVelocityTiltAmountPreview]
    * @property {(value: number) => void | Promise<void>} [onVelocityTiltAmountCommit]
    * @property {(pivotMidi: number, amount: number) => void | Promise<void>} [onVelocityTiltXYCommit]
+   * @property {number} globalTransposeSemitones
+   * @property {(value: number) => void} [onGlobalTransposePreview]
+   * @property {(value: number) => void | Promise<void>} [onGlobalTransposeCommit]
    * @property {boolean} octavizerDown8vaEnabled
    * @property {boolean} octavizerUp8vaEnabled
    * @property {number} octavizerDown8vaRelativeVelocity
@@ -64,6 +68,9 @@
     onVelocityTiltAmountPreview = () => {},
     onVelocityTiltAmountCommit = () => {},
     onVelocityTiltXYCommit = undefined,
+    globalTransposeSemitones = 0,
+    onGlobalTransposePreview = () => {},
+    onGlobalTransposeCommit = () => {},
     octavizerDown8vaEnabled = false,
     octavizerUp8vaEnabled = false,
     octavizerDown8vaRelativeVelocity = 0,
@@ -159,6 +166,13 @@
       onAmountPreview={onVelocityTiltAmountPreview}
       onAmountCommit={onVelocityTiltAmountCommit}
       onXYCommit={onVelocityTiltXYCommit}
+    />
+
+    <GlobalTransposeControl
+      semitones={globalTransposeSemitones}
+      onGestureStart={onProcessingParamGestureStart}
+      onPreview={onGlobalTransposePreview}
+      onCommit={onGlobalTransposeCommit}
     />
   </div>
 </div>

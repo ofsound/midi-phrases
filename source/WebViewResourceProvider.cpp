@@ -225,6 +225,8 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
                          processor.getPatternVelocityTiltPivotMidi (patternSlot));
     object->setProperty ("velocityTiltAmount",
                          processor.getPatternVelocityTiltAmount (patternSlot));
+    object->setProperty ("globalTransposeSemitones",
+                         processor.getPatternGlobalTransposeSemitones (patternSlot));
     object->setProperty ("octavizerDown8vaEnabled",
                          processor.isPatternOctavizerDown8vaEnabled (patternSlot) ? 1 : 0);
     object->setProperty ("octavizerUp8vaEnabled",
@@ -440,6 +442,9 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                                     patternSlotForNativeDefault (processor)))
                        .withInitialisationData ("velocityTiltAmount",
                                                 processor.getPatternVelocityTiltAmount (
+                                                    patternSlotForNativeDefault (processor)))
+                       .withInitialisationData ("globalTransposeSemitones",
+                                                processor.getPatternGlobalTransposeSemitones (
                                                     patternSlotForNativeDefault (processor)))
                        .withInitialisationData ("octavizerDown8vaEnabled",
                                                 processor.isPatternOctavizerDown8vaEnabled (
@@ -681,6 +686,16 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.setPatternVelocityTiltAmount (varToInt (args[0]));
 
                                complete (processor.getPatternVelocityTiltAmount (
+                                   patternSlotForNativeDefault (processor)));
+                           })
+                       .withNativeFunction (
+                           "setPatternGlobalTransposeSemitones",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPatternGlobalTransposeSemitones (varToInt (args[0]));
+
+                               complete (processor.getPatternGlobalTransposeSemitones (
                                    patternSlotForNativeDefault (processor)));
                            })
                        .withNativeFunction (

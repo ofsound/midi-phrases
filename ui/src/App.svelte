@@ -80,6 +80,10 @@
     defaultVelocityTiltPivotMidi,
   } from "./velocityTilt.js";
   import {
+    clampGlobalTransposeSemitones,
+    defaultGlobalTransposeSemitones,
+  } from "./globalTranspose.js";
+  import {
     combinationModeMaskBits,
     combinationModes,
     isStepActiveAtBeat,
@@ -312,6 +316,7 @@
   let noteBandpassHighMidi = $state(defaultNoteBandpassHighMidi);
   let velocityTiltPivotMidi = $state(defaultVelocityTiltPivotMidi);
   let velocityTiltAmount = $state(defaultVelocityTiltAmount);
+  let globalTransposeSemitones = $state(defaultGlobalTransposeSemitones);
   let octavizerDown8vaEnabled = $state(false);
   let octavizerUp8vaEnabled = $state(false);
   let octavizerDown8vaRelativeVelocity = $state(defaultOctavizerRelativeVelocity);
@@ -544,6 +549,10 @@
     velocityTiltAmount = clampVelocityTiltAmount(amount);
   }
 
+  function setGlobalTransposeState(value) {
+    globalTransposeSemitones = clampGlobalTransposeSemitones(value);
+  }
+
   function setShimmerState({
     enabled = shimmerEnabled,
     delayMultiplierIndex = shimmerDelayMultiplierIndex,
@@ -576,6 +585,17 @@
         velocityTiltAmount = clampVelocityTiltAmount(parsed);
       }
     }
+  }
+
+  async function syncGlobalTransposeToNative() {
+    if (!nativeFunctionAvailable("setPatternGlobalTransposeSemitones")) return;
+
+    const confirmed = await getNativeFunction("setPatternGlobalTransposeSemitones")(
+      globalTransposeSemitones,
+    );
+    const parsed = Number.parseInt(String(confirmed), 10);
+
+    if (!Number.isNaN(parsed)) setGlobalTransposeState(parsed);
   }
 
   async function syncOctavizerToNative() {
@@ -740,6 +760,15 @@
     void getNativeFunction("setPatternVelocityTiltAmount")(next);
   }
 
+  function previewGlobalTranspose(value) {
+    const next = clampGlobalTransposeSemitones(value);
+    setGlobalTransposeState(next);
+
+    if (!nativeFunctionAvailable("setPatternGlobalTransposeSemitones")) return;
+
+    void getNativeFunction("setPatternGlobalTransposeSemitones")(next);
+  }
+
   async function commitProcessingParam(label, applyState, syncFn, changed) {
     const before = processingParamGestureBefore ?? createHistorySnapshot();
     resetProcessingParamGesture();
@@ -800,6 +829,16 @@
       (before, after) =>
         after.velocityTiltPivotMidi !== before.velocityTiltPivotMidi
         || after.velocityTiltAmount !== before.velocityTiltAmount,
+    );
+  }
+
+  async function commitGlobalTranspose(value) {
+    await commitProcessingParam(
+      "Global transpose",
+      () => setGlobalTransposeState(value),
+      syncGlobalTransposeToNative,
+      (before, after) =>
+        after.globalTransposeSemitones !== before.globalTransposeSemitones,
     );
   }
 
@@ -1772,6 +1811,7 @@
       noteBandpassHighMidi,
       velocityTiltPivotMidi,
       velocityTiltAmount,
+      globalTransposeSemitones,
       octavizerDown8vaEnabled,
       octavizerUp8vaEnabled,
       octavizerDown8vaRelativeVelocity,
@@ -1845,6 +1885,9 @@
       pivotMidi: next.velocityTiltPivotMidi ?? defaultVelocityTiltPivotMidi,
       amount: next.velocityTiltAmount ?? defaultVelocityTiltAmount,
     });
+    setGlobalTransposeState(
+      next.globalTransposeSemitones ?? defaultGlobalTransposeSemitones,
+    );
     setOctavizerState({
       down8vaEnabled: next.octavizerDown8vaEnabled ?? false,
       up8vaEnabled: next.octavizerUp8vaEnabled ?? false,
@@ -1906,6 +1949,12 @@
         10,
       ),
     });
+    setGlobalTransposeState(
+      Number.parseInt(
+        String(state.globalTransposeSemitones ?? defaultGlobalTransposeSemitones),
+        10,
+      ),
+    );
     setOctavizerState({
       down8vaEnabled: Boolean(Number.parseInt(String(state.octavizerDown8vaEnabled ?? 0), 10)),
       up8vaEnabled: Boolean(Number.parseInt(String(state.octavizerUp8vaEnabled ?? 0), 10)),
@@ -2060,6 +2109,11 @@
       amount: snapshot.velocityTiltAmount ?? defaultVelocityTiltAmount,
     });
     await syncVelocityTiltToNative();
+
+    setGlobalTransposeState(
+      snapshot.globalTransposeSemitones ?? defaultGlobalTransposeSemitones,
+    );
+    await syncGlobalTransposeToNative();
 
     setOctavizerState({
       down8vaEnabled: snapshot.octavizerDown8vaEnabled ?? false,
@@ -4102,6 +4156,17 @@
     });
   }
 
+  function loadGlobalTransposeFromInitialisation() {
+    setGlobalTransposeState(
+      Number.parseInt(
+        String(
+          unwrapJuceInit("globalTransposeSemitones") ?? defaultGlobalTransposeSemitones,
+        ),
+        10,
+      ),
+    );
+  }
+
   function loadOctavizerFromInitialisation() {
     setOctavizerState({
       down8vaEnabled: Boolean(
@@ -4445,6 +4510,7 @@
     loadPatternScaleFromInitialisation();
     loadNoteBandpassFromInitialisation();
     loadVelocityTiltFromInitialisation();
+    loadGlobalTransposeFromInitialisation();
     loadOctavizerFromInitialisation();
     loadShimmerFromInitialisation();
     loadStandaloneTransportFromInitialisation();
@@ -5134,11 +5200,14 @@
       onNoteBandpassCommit={commitNoteBandpass}
       velocityTiltPivotMidi={velocityTiltPivotMidi}
       velocityTiltAmount={velocityTiltAmount}
+      globalTransposeSemitones={globalTransposeSemitones}
       onVelocityTiltPivotPreview={previewVelocityTiltPivot}
       onVelocityTiltPivotCommit={commitVelocityTiltPivot}
       onVelocityTiltAmountPreview={previewVelocityTiltAmount}
       onVelocityTiltAmountCommit={commitVelocityTiltAmount}
       onVelocityTiltXYCommit={commitVelocityTiltXY}
+      onGlobalTransposePreview={previewGlobalTranspose}
+      onGlobalTransposeCommit={commitGlobalTranspose}
       octavizerDown8vaEnabled={octavizerDown8vaEnabled}
       octavizerUp8vaEnabled={octavizerUp8vaEnabled}
       octavizerDown8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}
@@ -5311,6 +5380,7 @@
         noteBandpassHighMidi={noteBandpassHighMidi}
         velocityTiltPivotMidi={velocityTiltPivotMidi}
         velocityTiltAmount={velocityTiltAmount}
+        globalTransposeSemitones={globalTransposeSemitones}
         octavizerDown8vaEnabled={octavizerDown8vaEnabled}
         octavizerUp8vaEnabled={octavizerUp8vaEnabled}
         octavizerDown8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}

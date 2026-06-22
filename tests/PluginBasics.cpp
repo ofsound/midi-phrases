@@ -493,6 +493,32 @@ TEST_CASE ("Pattern velocity tilt adjusts filtered scheduled output", "[instance
     testPlugin.setPlayHead (nullptr);
 }
 
+TEST_CASE ("Pattern global transpose is the final scheduled pitch transform", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, true);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseStepVelocity (0, 0, 100);
+    testPlugin.setPatternNoteBandpass (60, 60);
+    testPlugin.setPatternGlobalTransposeSemitones (5);
+
+    const auto noteOnCounts = collectNoteOnsOverQuarters (testPlugin, sampleRate, blockSize, 2.0);
+
+    CHECK (testPlugin.getPatternGlobalTransposeSemitones (0) == 5);
+    CHECK (noteOnCounts[65] > 0);
+    CHECK (noteOnCounts[60] == 0);
+}
+
 TEST_CASE ("Pattern octavizer duplicates scheduled notes by octave", "[instance]")
 {
     PluginProcessor testPlugin;
@@ -2109,6 +2135,26 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (reloaded.getPatternScaleModeIndex (0) == PluginProcessor::defaultScaleModeIndex);
     }
 
+    SECTION ("global transpose is remembered per pattern and in plugin state")
+    {
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setPatternGlobalTransposeSemitones (5);
+
+        testPlugin.setCurrentPatternSlot (1);
+        CHECK (testPlugin.getPatternGlobalTransposeSemitones (1)
+               == PluginProcessor::defaultGlobalTransposeSemitones);
+        testPlugin.setPatternGlobalTransposeSemitones (-12);
+
+        juce::MemoryBlock state;
+        testPlugin.getStateInformation (state);
+
+        PluginProcessor reloaded;
+        reloaded.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+
+        CHECK (reloaded.getPatternGlobalTransposeSemitones (0) == 5);
+        CHECK (reloaded.getPatternGlobalTransposeSemitones (1) == -12);
+    }
+
     SECTION ("clearPatternSlot resets per-pattern state")
     {
         testPlugin.setCurrentPatternSlot (0);
@@ -2117,6 +2163,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPatternNoteBandpass (48, 84);
         testPlugin.setPatternVelocityTiltPivotMidi (72);
         testPlugin.setPatternVelocityTiltAmount (40);
+        testPlugin.setPatternGlobalTransposeSemitones (5);
         testPlugin.setPatternOctavizerDown8vaEnabled (true);
         testPlugin.setPatternOctavizerUp8vaEnabled (true);
         testPlugin.setPatternShimmerEnabled (true);
@@ -2132,6 +2179,8 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPatternVelocityTiltPivotMidi (0)
                == PluginProcessor::defaultVelocityTiltPivotMidi);
         CHECK (testPlugin.getPatternVelocityTiltAmount (0) == PluginProcessor::defaultVelocityTiltAmount);
+        CHECK (testPlugin.getPatternGlobalTransposeSemitones (0)
+               == PluginProcessor::defaultGlobalTransposeSemitones);
         CHECK_FALSE (testPlugin.isPatternOctavizerDown8vaEnabled (0));
         CHECK_FALSE (testPlugin.isPatternOctavizerUp8vaEnabled (0));
         CHECK_FALSE (testPlugin.isPatternShimmerEnabled (0));
