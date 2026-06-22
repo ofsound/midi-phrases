@@ -13,6 +13,7 @@
   import StepMutedOverlay from "./StepMutedOverlay.svelte";
   import StepSkippedOverlay from "./StepSkippedOverlay.svelte";
   import { compactStepVelocityOpacity } from "./compactStepVisuals.js";
+  import { boundaryDoubleClickCommand } from "./boundaryDoubleClick.js";
   import { maxPercentValue } from "./percentLimits.js";
   import {
     compactStepMoveThresholdPx,
@@ -1110,13 +1111,26 @@
   }
 
   /** @param {MouseEvent} event @param {number} insertStep */
-  function insertDefaultStepAtBoundary(event, insertStep) {
+  function handleBoundaryDoubleClick(event, insertStep) {
     event.preventDefault();
     event.stopPropagation();
 
-    if (isDragging || removeBlocked || stepIds.length >= maxPhraseStepsPerRow) return;
+    if (isDragging || removeBlocked) return;
 
-    onInsertStep(row, insertStep, defaultStepTimingMultiplierIndex);
+    const command = boundaryDoubleClickCommand({
+      altKey: event.altKey,
+      insertStep,
+      stepCount: stepIds.length,
+      maxStepCount: maxPhraseStepsPerRow,
+    });
+
+    if (!command) return;
+
+    if (command.type === "duplicate") {
+      onDuplicateStep(row, command.insertStep);
+    } else {
+      onInsertStep(row, command.insertStep, defaultStepTimingMultiplierIndex);
+    }
   }
 
   /** @param {PointerEvent} event */
@@ -1470,11 +1484,13 @@
       data-multiplier-resize
       data-no-long-press
       data-cursor="ew-resize"
-      aria-label="Resize step timing multiplier"
+      aria-label="Resize final step boundary; double-click to insert; Option-double-click to duplicate"
+      title="Double-click to insert · Option-double-click to duplicate"
       disabled={isDragging || removeBlocked}
       class="pointer-events-auto absolute inset-0 touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
       onpointerdown={(event) => beginMultiplierResize(event, step)}
       onmousedown={(event) => beginMultiplierResize(event, step)}
+      ondblclick={(event) => handleBoundaryDoubleClick(event, step + 1)}
     ></button>
     <span
       class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
@@ -1718,6 +1734,7 @@
     {muted}
     ariaLabel={label}
     variant="large"
+    contentClass={isEmptyRow ? "" : "-translate-x-4"}
     options={insertMultiplierOptions}
     defaultIndex={defaultStepTimingMultiplierIndex}
     onConfirm={(multiplierIndex) => onInsertStep(row, insertStep, multiplierIndex)}
@@ -1751,12 +1768,13 @@
         data-multiplier-resize
         data-no-long-press
         data-cursor="ew-resize"
-        aria-label="Resize step boundary; double-click to insert step"
+        aria-label="Resize step boundary; double-click to insert; Option-double-click to duplicate"
+        title="Double-click to insert · Option-double-click to duplicate"
         disabled={isDragging || removeBlocked}
         class="pointer-events-auto absolute inset-0 z-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
         onpointerdown={(event) => beginMultiplierResize(event, insertStep - 1)}
         onmousedown={(event) => beginMultiplierResize(event, insertStep - 1)}
-        ondblclick={(event) => insertDefaultStepAtBoundary(event, insertStep)}
+        ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
       ></button>
       <span
         class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"

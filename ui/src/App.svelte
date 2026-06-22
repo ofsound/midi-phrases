@@ -4829,23 +4829,19 @@
         aria-pressed={scaleDialogOpen}
         title={activeScaleName}
         data-cursor="pointer"
-        class="flex shrink-0 flex-col items-start gap-1 overflow-visible border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
+        class="flex min-w-[9rem] shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface/30 px-3 py-1 text-center outline-none transition-[border-color,opacity] hover:border-border-strong hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
         onclick={() => {
           scaleDialogOpen = true;
         }}
       >
-        <span class="pointer-events-none text-xs font-semibold leading-none opacity-0" aria-hidden="true"
-          >Pitch</span
+        <span
+          class="pointer-events-none -translate-y-0.5 text-[1.85rem] font-bold leading-[0.8] tracking-tight text-text"
+          >{activeKeyCenterLabel}</span
         >
-        <div class="relative h-8 overflow-visible">
-          <span
-            class="absolute bottom-0 left-0 max-w-[7.25rem] truncate text-sm font-semibold leading-none text-accent"
-            >{activeScaleModeLabel}</span
-          >
-          <span class="absolute bottom-[1rem] left-0 text-2xl font-bold leading-none tracking-tight text-text"
-            >{activeKeyCenterLabel}</span
-          >
-        </div>
+        <span
+          class="pointer-events-none max-w-[8rem] truncate text-sm font-semibold leading-none text-accent"
+          >{activeScaleModeLabel}</span
+        >
       </button>
     </div>
 

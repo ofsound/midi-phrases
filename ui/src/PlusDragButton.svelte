@@ -11,6 +11,7 @@
    * @property {number} [defaultIndex]
    * @property {"large" | "compact"} [variant]
    * @property {string} [class]
+   * @property {string} [contentClass]
    * @property {(multiplierIndex: number) => void | Promise<void>} [onConfirm]
    */
 
@@ -23,6 +24,7 @@
     defaultIndex = defaultStepTimingMultiplierIndex,
     variant = "compact",
     class: className = "",
+    contentClass = "",
     onConfirm = () => {},
   } = $props();
 
@@ -111,11 +113,13 @@
   onpointerup={onPointerUp}
   onpointercancel={onPointerUp}
 >
-  {#if active}
-    <span class="font-sans tabular-nums {variant === 'large' ? 'text-[1.35rem]' : ''}"
-      >{displayLabel}</span
-    >
-  {:else}
-    +
-  {/if}
+  <span class="inline-block {contentClass}">
+    {#if active}
+      <span class="font-sans tabular-nums {variant === 'large' ? 'text-[1.35rem]' : ''}"
+        >{displayLabel}</span
+      >
+    {:else}
+      +
+    {/if}
+  </span>
 </button>
