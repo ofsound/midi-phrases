@@ -145,11 +145,13 @@
    * @property {(row: number, beforeIds: string[], afterIds: string[]) => void | Promise<void>} [onBulkMoveCommitted]
    * @property {(row: number, blockIds: string[], insertionIndex: number) => void | Promise<void>} [onBulkStepDuplicateDrop]
    * @property {(targetRow: number, stepId: string, orderedTargetIds: string[]) => void | Promise<void>} [onCrossRowMove]
-   * @property {(targetRow: number, movedStepId: string, blockIds: string[], orderedTargetPreview: string[]) => void | Promise<void>} [onBulkCrossRowMove]
+   * @property {(targetRow: number, movedStepId: string, blockIds: string[], orderedTargetPreview: string[], shadowIndex?: number) => void | Promise<void>} [onBulkCrossRowMove]
    * @property {(targetRow: number, movedStepId: string, blockIds: string[], previewIds: string[], shadowIndex: number) => void | Promise<void>} [onBulkCrossRowDuplicateDrop]
    * @property {(targetRow: number, stepId: string, orderedTargetIds: string[], insertionIndex?: number) => void | Promise<void>} [onStepDuplicateDrop]
    * @property {(stepId: string | null) => void} [onDuplicateDragChange]
    * @property {string | null} [duplicateDragStepId]
+   * @property {string[] | null} [bulkDragStepIds]
+   * @property {(blockIds: string[] | null) => void} [onBulkDragSessionChange]
    * @property {(row: number, step: number) => void | Promise<void>} [onRemoveStep]
    * @property {(row: number, step: number, multiplierIndex?: number) => void | Promise<void>} [onInsertStep]
    * @property {(row: number, step: number) => void | Promise<void>} [onDuplicateStep]
@@ -214,6 +216,8 @@
     onStepDuplicateDrop = () => {},
     onDuplicateDragChange = () => {},
     duplicateDragStepId = null,
+    bulkDragStepIds = null,
+    onBulkDragSessionChange = () => {},
     onRemoveStep = () => {},
     onInsertStep = () => {},
     onDuplicateStep = () => {},
@@ -337,6 +341,7 @@
     duplicateDropIndex = -1;
     dropIndicatorIndex = -1;
     onDuplicateDragChange(null);
+    onBulkDragSessionChange(null);
     bulkDragBlockIds = null;
     bulkDragGhostSnapshots = null;
     bulkDragGhostLayout = null;
@@ -396,10 +401,14 @@
     bulkDragGhostSnapshots = null;
     bulkDragGhostLayout = null;
 
-    if (selectedStepIds.length < 2 || !selectedStepIdSet.has(draggedId)) return;
+    if (selectedStepIds.length < 2 || !selectedStepIdSet.has(draggedId)) {
+      onBulkDragSessionChange(null);
+      return;
+    }
 
     const block = selectedIdsInRowOrder(stepIds, selectedStepIds);
     bulkDragBlockIds = block;
+    onBulkDragSessionChange(block);
     bulkDragGhostSnapshots = captureBulkStepGhostSnapshots(
       dndZoneElement,
       block,
@@ -642,32 +651,12 @@
 
     const isCrossRowDrop = trigger === TRIGGERS.DROPPED_INTO_ZONE
       && !stepIds.includes(movedStepId);
+    const inboundBulkDrag = bulkDragStepIds !== null
+      && bulkDragStepIds.length >= 2
+      && bulkDragStepIds.includes(movedStepId);
     const isBulkDrag = bulkDragBlockIds !== null && bulkDragBlockIds.length >= 2 && idsBeforeDrag;
 
     if (isBulkDrag) {
-      if (isCrossRowDrop) {
-        dndItems = filtered;
-        const previewIds = filtered.map((item) => item.id);
-        const bulkShadowIndex = bulkDropShadowIndex();
-
-        if (isDuplicateDrop && bulkShadowIndex >= 0) {
-          await onBulkCrossRowDuplicateDrop(
-            row,
-            movedStepId,
-            bulkDragBlockIds,
-            previewIds,
-            bulkShadowIndex,
-          );
-        } else {
-          await onBulkCrossRowMove(row, movedStepId, bulkDragBlockIds, previewIds);
-        }
-
-        idsBeforeDrag = null;
-        await tick();
-        endDragSession();
-        return;
-      }
-
       const bulkShadowIndex = bulkDropShadowIndex();
 
       if (isDuplicateDrop && bulkShadowIndex >= 0) {
@@ -699,11 +688,33 @@
 
     if (isCrossRowDrop) {
       dndItems = filtered;
-      if (isDuplicateDrop) {
-        await onStepDuplicateDrop(row, movedStepId, filtered.map((item) => item.id));
+      const previewIds = filtered.map((item) => item.id);
+      const bulkShadowIndex = bulkDropShadowIndex();
+
+      if (inboundBulkDrag && bulkDragStepIds) {
+        if (isDuplicateDrop && bulkShadowIndex >= 0) {
+          await onBulkCrossRowDuplicateDrop(
+            row,
+            movedStepId,
+            bulkDragStepIds,
+            previewIds,
+            bulkShadowIndex,
+          );
+        } else {
+          await onBulkCrossRowMove(
+            row,
+            movedStepId,
+            bulkDragStepIds,
+            previewIds,
+            bulkShadowIndex,
+          );
+        }
+      } else if (isDuplicateDrop) {
+        await onStepDuplicateDrop(row, movedStepId, previewIds);
       } else {
-        await onCrossRowMove(row, movedStepId, filtered.map((item) => item.id));
+        await onCrossRowMove(row, movedStepId, previewIds);
       }
+
       await tick();
       endDragSession();
       return;

@@ -127,6 +127,7 @@ export function duplicateStepBetweenRows(
  * @param {string[]} blockIds
  * @param {string} movedStepId
  * @param {string[]} orderedTargetPreview
+ * @param {number | null} [insertionIndexOverride]
  * @returns {{ matrices: Record<string, any[][]>, stepIds: string[][] } | null}
  */
 export function moveBlockBetweenRows(
@@ -137,6 +138,7 @@ export function moveBlockBetweenRows(
   blockIds,
   movedStepId,
   orderedTargetPreview,
+  insertionIndexOverride = null,
 ) {
   if (sourceRow === targetRow || sourceRow < 0 || targetRow < 0) return null;
   if (!stepIds[sourceRow] || !stepIds[targetRow]) return null;
@@ -146,7 +148,7 @@ export function moveBlockBetweenRows(
 
   if (block.length === 0 || !block.includes(movedStepId)) return null;
 
-  const insertionIndex = orderedTargetPreview.indexOf(movedStepId);
+  const insertionIndex = insertionIndexOverride ?? orderedTargetPreview.indexOf(movedStepId);
 
   if (insertionIndex < 0) return null;
 

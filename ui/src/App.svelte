@@ -259,6 +259,8 @@
   /** @type {string[][]} */
   let stepIds = $state(createInitialStepIds());
   let duplicateDragStepId = $state(null);
+  /** @type {string[] | null} */
+  let bulkDragStepIds = $state(null);
 
   let playbackPollTimerId = 0;
   let playbackPollInFlight = false;
@@ -2289,7 +2291,7 @@
    * @param {string[]} blockIds
    * @param {string[]} orderedTargetPreview
    */
-  async function moveBulkToRow(targetRow, movedStepId, blockIds, orderedTargetPreview) {
+  async function moveBulkToRow(targetRow, movedStepId, blockIds, orderedTargetPreview, shadowIndex = -1) {
     const sourceRow = stepIds.findIndex((ids) => blockIds.some((id) => ids.includes(id)));
 
     if (sourceRow < 0 || sourceRow === targetRow) return;
@@ -2297,6 +2299,18 @@
     const blockInSource = blockIds.filter((id) => stepIds[sourceRow].includes(id));
 
     if (stepIds[targetRow].length + blockInSource.length > maxPhraseStepsPerRow) return;
+
+    const previewIndex = orderedTargetPreview.indexOf(movedStepId);
+    const insertionIndex = previewIndex >= 0
+      ? previewIndex
+      : blockCrossRowInsertionIndex(
+        stepIds[targetRow],
+        movedStepId,
+        orderedTargetPreview,
+        shadowIndex,
+      );
+
+    if (insertionIndex < 0) return;
 
     const before = createHistorySnapshot();
     const selectedKeysBefore = new SvelteSet(selectedStepKeysForGrid);
@@ -2322,6 +2336,7 @@
       blockInSource,
       movedStepId,
       orderedTargetPreview,
+      insertionIndex,
     );
 
     if (!result) return;
@@ -5329,7 +5344,9 @@
               onBulkCrossRowDuplicateDrop={duplicateBulkToRow}
               onStepDuplicateDrop={duplicateStepToDrop}
               onDuplicateDragChange={(stepId) => duplicateDragStepId = stepId}
+              onBulkDragSessionChange={(blockIds) => bulkDragStepIds = blockIds}
               {duplicateDragStepId}
+              bulkDragStepIds={bulkDragStepIds}
               onRemoveStep={removeStep}
               onInsertStep={insertStep}
               onDuplicateStep={duplicateStep}

@@ -111,6 +111,28 @@ describe("moveBlockBetweenRows", () => {
       stepIds: [["b"], ["a", "c"]],
     });
   });
+
+  it("accepts an explicit insertion index for row-end drops", () => {
+    const result = moveBlockBetweenRows(
+      {
+        notes: [[60, 62], [64]],
+      },
+      [["a", "b"], ["x"]],
+      0,
+      1,
+      ["a", "b"],
+      "a",
+      ["x"],
+      1,
+    );
+
+    expect(result).toEqual({
+      matrices: {
+        notes: [[], [64, 60, 62]],
+      },
+      stepIds: [[], ["x", "a", "b"]],
+    });
+  });
 });
 
 describe("duplicateStepBetweenRows", () => {
