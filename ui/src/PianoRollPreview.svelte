@@ -1,6 +1,6 @@
 <script>
   import { onDestroy, onMount } from "svelte";
-  import { midiToNoteName } from "./midiNoteNames.js";
+  import PianoRollKeyboardLabels from "./PianoRollKeyboardLabels.svelte";
   import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { beatFromClientX, clampLoopBrace, loopBraceSnapQuarters } from "./loopBraceLayout.js";
   import { defaultPulseIndex } from "./pulseLayout.js";
@@ -289,7 +289,6 @@ import { scaledPx } from "./uiScale.svelte.js";
   let noteVerticalInsetPx = $derived(Math.min(1, Math.max(0, (rowHeightPx - 1) / 2)));
   let noteHeightPx = $derived(Math.max(1, rowHeightPx - noteVerticalInsetPx * 2));
   let noteCornerRadiusPx = $derived(Math.min(2, noteHeightPx / 2));
-  let showKeyboardLabels = $derived(rowHeightPx >= 8);
   let loopSpan = $derived(Math.max(loopBraceSnapQuarters, displayEnd - displayStart));
   let loopLeftPx = $derived(displayStart * pxPerQuarter);
   let loopWidthPx = $derived(loopSpan * pxPerQuarter);
@@ -958,18 +957,15 @@ import { scaledPx } from "./uiScale.svelte.js";
           class="shrink-0 border-r border-border-subtle bg-surface/90"
           style:width="{keyboardWidthPx}px"
         >
-          <div class="relative" style:height="{rollHeightPx}px">
+          <div class="relative overflow-visible" style:height="{rollHeightPx}px">
             {#each pitchRows as midi (midi)}
               <div
-                class="absolute right-0 left-0 flex items-center justify-end pr-1.5 {keyboardRowClass(midi)}"
+                class="absolute right-0 left-0 {keyboardRowClass(midi)}"
                 style:top="{pitchTopPx(midi)}px"
                 style:height="{rowHeightPx}px"
-              >
-                {#if showKeyboardLabels && midi % 12 === 0}
-                  <span class="text-[9px] font-medium text-text-muted">{midiToNoteName(midi)}</span>
-                {/if}
-              </div>
+              ></div>
             {/each}
+            <PianoRollKeyboardLabels {pitchRows} {rowHeightPx} {pitchTopPx} />
           </div>
         </div>
 

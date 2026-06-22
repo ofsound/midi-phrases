@@ -1,5 +1,6 @@
 <script>
   import { onDestroy } from "svelte";
+  import PianoRollKeyboardLabels from "./PianoRollKeyboardLabels.svelte";
   import { midiToNoteName } from "./midiNoteNames.js";
   import { fittedPitchRangeForNotes } from "./pianoRollViewport.js";
   import { defaultPulseIndex } from "./pulseLayout.js";
@@ -1033,18 +1034,15 @@
       style:width="{keyboardWidthPx}px"
       style:padding-top="{rulerHeightPx}px"
     >
-      <div class="relative" style:height="{rollHeightPx}px">
+      <div class="relative overflow-visible" style:height="{rollHeightPx}px">
         {#each pitchRows as midi (midi)}
           <div
-            class="absolute right-0 left-0 flex items-center justify-end pr-1.5 {pitchRowClass(midi)}"
+            class="absolute right-0 left-0 {pitchRowClass(midi)}"
             style:top="{pitchTopPx(midi)}px"
             style:height="{rowHeightPx}px"
-          >
-            {#if midi % 12 === 0}
-              <span class="text-[9px] font-medium text-text-muted">{midiToNoteName(midi)}</span>
-            {/if}
-          </div>
+          ></div>
         {/each}
+        <PianoRollKeyboardLabels {pitchRows} {rowHeightPx} {pitchTopPx} />
       </div>
     </div>
 

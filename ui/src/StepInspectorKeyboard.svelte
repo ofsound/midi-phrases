@@ -1,5 +1,6 @@
 <script>
   import { midiToNoteName } from "./midiNoteNames.js";
+  import PianoKeyboardAspectFrame from "./PianoKeyboardAspectFrame.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import { pianoBlackKeyClass, pianoBlackKeySeamMaskClass, pianoWhiteKeyClass } from "./pianoKeyboardTheme.js";
   import {
@@ -93,9 +94,6 @@
   function onKeyPointerUp(event) {
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
-
-  let keyboardSurfaceClass =
-    "relative flex h-full min-h-0 min-w-0 flex-1 touch-none select-none overflow-hidden";
 </script>
 
 <div class="flex h-full min-h-0 min-w-0 flex-1 px-1">
@@ -131,12 +129,13 @@
       </button>
     </div>
 
-    <div
-      class={keyboardSurfaceClass}
-      role="group"
-      aria-label={`Step note keyboard, ${currentNoteName}, ${currentScaleName}`}
-    >
-      <div class="relative z-0 flex h-full w-full">
+    <PianoKeyboardAspectFrame whiteCount={layout.whiteCount} class="min-h-0 flex-1">
+      <div
+        class="relative h-full w-full"
+        role="group"
+        aria-label={`Step note keyboard, ${currentNoteName}, ${currentScaleName}`}
+      >
+        <div class="relative z-0 flex h-full w-full">
         {#each layout.whites as { midi } (midi)}
           {@const interactive = isKeyInteractive(midi)}
           {@const selected = isSelectedNote(midi)}
@@ -201,6 +200,7 @@
           ></button>
         {/each}
       </div>
-    </div>
+      </div>
+    </PianoKeyboardAspectFrame>
   </div>
 </div>

@@ -32,6 +32,19 @@ export const recordPianoBlackKeyWidthRatio = 0.62;
 /** Narrower blacks for short preview ranges so adjacent accidentals don’t touch. */
 export const scalePreviewBlackKeyWidthRatio = 0.52;
 
+/** White-key width ÷ height — keeps virtual keyboards near real piano proportions (~23×150 mm). */
+export const pianoWhiteKeyWidthToHeight = 23 / 150;
+
+/**
+ * Keyboard surface width ÷ height for a row of white keys at {@link pianoWhiteKeyWidthToHeight}.
+ * @param {number} whiteCount
+ */
+export function pianoKeyboardAspectRatio(whiteCount) {
+  const count = Math.max(1, Math.round(whiteCount));
+
+  return count * pianoWhiteKeyWidthToHeight;
+}
+
 /**
  * White and black keys for a MIDI inclusive range.
  * Black keys are centered on the seam between the white key below and above.

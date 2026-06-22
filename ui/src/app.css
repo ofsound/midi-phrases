@@ -160,6 +160,28 @@
     min-width: calc(var(--param-box-chars) * 1ch + var(--param-box-padding-x) * 2);
   }
 
+  .piano-keyboard-fit {
+    container-type: size;
+    display: grid;
+    place-items: center;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .piano-keyboard-aspect {
+    position: relative;
+    aspect-ratio: var(--piano-aspect);
+    width: min(100cqw, calc(100cqh * var(--piano-aspect)));
+    height: min(100cqh, calc(100cqw / var(--piano-aspect)));
+    max-width: 100%;
+    max-height: 100%;
+    touch-action: none;
+    user-select: none;
+    overflow: hidden;
+  }
+
   .mp-control-gradient:not(:disabled):hover,
   .mp-control-gradient[data-mp-hover] {
     /* Keep header controls on the same compositing layer while hovered. Applying

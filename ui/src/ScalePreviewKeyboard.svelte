@@ -1,4 +1,5 @@
 <script>
+  import PianoKeyboardAspectFrame from "./PianoKeyboardAspectFrame.svelte";
   import {
     buildRecordPianoKeys,
     scalePreviewBlackKeyWidthRatio,
@@ -36,11 +37,12 @@
 </script>
 
 <div
-  class="flex w-full min-h-[10rem] flex-col overflow-hidden rounded-xl border border-border-subtle bg-app/80"
+  class="overflow-hidden rounded-xl border border-border-subtle bg-app/80"
   aria-hidden="true"
 >
-  <div class="relative flex min-h-[10rem] w-full flex-1 touch-none select-none">
-    <div class="relative z-0 flex h-full min-h-[10rem] w-full">
+  <PianoKeyboardAspectFrame whiteCount={layout.whiteCount} class="min-h-[10rem] w-full">
+    <div class="relative h-full w-full">
+      <div class="relative z-0 flex h-full w-full">
       {#each layout.whites as { midi } (midi)}
         <div
           class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end pb-1.5 last:border-r-0 {pianoWhiteKeyClass}"
@@ -65,5 +67,6 @@
         </div>
       {/each}
     </div>
-  </div>
+    </div>
+  </PianoKeyboardAspectFrame>
 </div>

@@ -1,6 +1,7 @@
 <script>
   import { SvelteSet } from "svelte/reactivity";
   import { midiToNoteName } from "./midiNoteNames.js";
+  import PianoKeyboardAspectFrame from "./PianoKeyboardAspectFrame.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import { pianoBlackKeyClass, pianoBlackKeySeamMaskClass, pianoWhiteKeyClass } from "./pianoKeyboardTheme.js";
   import {
@@ -126,8 +127,9 @@
   <div
     class="flex h-0 min-h-[12rem] flex-1 flex-col overflow-hidden rounded-xl border border-border-subtle bg-app/80"
   >
-    <div class="relative flex min-h-0 flex-1 touch-none select-none">
-      <div class="relative z-0 flex h-full min-h-[10rem] w-full">
+    <PianoKeyboardAspectFrame whiteCount={layout.whiteCount} class="min-h-0 flex-1">
+      <div class="relative h-full w-full">
+        <div class="relative z-0 flex h-full w-full">
         {#each layout.whites as { midi } (midi)}
           {@const usable = isKeyUsable(midi)}
           <button
@@ -218,7 +220,8 @@
           </button>
         {/each}
       </div>
-    </div>
+      </div>
+    </PianoKeyboardAspectFrame>
   </div>
 
   <p class="mt-2 shrink-0 text-center text-[11px] text-text-faint">
