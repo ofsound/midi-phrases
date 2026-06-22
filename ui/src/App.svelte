@@ -1464,6 +1464,12 @@
     };
   });
 
+  let activeStepInspectorBulkEditCount = $derived.by(() => {
+    if (activeStepInspector === null) return 0;
+
+    return inspectorEditLocations(activeStepInspector.row, activeStepInspector.step).length;
+  });
+
   let activeRowPianoRollEditor = $derived.by(() => {
     if (rowPianoRollStep === null) return null;
 
@@ -5238,6 +5244,7 @@
       <StepInspector
         row={activeStepInspector.row}
         step={activeStepInspector.step}
+        bulkEditStepCount={activeStepInspectorBulkEditCount}
         note={activeStepInspector.note}
         velocity={activeStepInspector.velocity}
         durationFraction={activeStepInspector.durationFraction}

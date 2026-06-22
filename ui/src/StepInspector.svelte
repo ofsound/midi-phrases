@@ -19,6 +19,7 @@
    * @typedef {Object} Props
    * @property {number} [row]
    * @property {number} [step]
+   * @property {number} [bulkEditStepCount]
    * @property {number} [note]
    * @property {number} [velocity]
    * @property {number} [durationFraction]
@@ -51,6 +52,7 @@
   let {
     row = 0,
     step = 0,
+    bulkEditStepCount = 1,
     note = 60,
     velocity = 127,
     durationFraction = 1,
@@ -163,10 +165,18 @@
   </aside>
 
   <div class="inspector-main grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(4rem,28%)_minmax(0,1fr)] content-start gap-y-2 overflow-hidden pb-2">
-    <div class="flex min-h-0 min-w-0 items-center justify-center bg-surface/15 px-3 py-2">
+    <div class="flex min-h-0 min-w-0 flex-col items-center justify-center gap-1 bg-surface/15 px-3 py-2">
+      {#if bulkEditStepCount > 1}
+        <p
+          class="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted"
+          aria-live="polite"
+        >
+          {bulkEditStepCount} steps inspected
+        </p>
+      {/if}
       <div class="grid w-full max-w-[46rem] min-w-0 grid-cols-2 gap-x-4">
         <div class="flex min-h-0 min-w-0 flex-col justify-center gap-1">
-          <span class="text-[11px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>
+          <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>
           <CyclePatternEditor
             {accent}
             compact
