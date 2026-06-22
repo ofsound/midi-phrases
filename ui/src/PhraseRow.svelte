@@ -796,7 +796,7 @@
       return;
     }
 
-    prepareStepDrag(event, step);
+    compactStepPointerGesture = null;
   }
 
   /** @param {PointerEvent} event */
@@ -1971,7 +1971,6 @@
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
-            use:dragHandle
             data-bulk-step-cell={layout.step >= 0 ? true : undefined}
             data-compact-step-cell
             data-step-row={layout.step >= 0 ? row : undefined}
@@ -2025,6 +2024,14 @@
                 ></div>
               {/if}
             {:else}
+              <div
+                use:dragHandle
+                data-compact-step-drag-handle
+                data-cursor="grab"
+                class="absolute inset-0 z-50 touch-none select-none"
+                aria-label="Drag to reorder step"
+                onpointerdown={(event) => prepareStepDrag(event, layout.step)}
+              ></div>
               {@render compactStepCell(layout.step, stepIds[layout.step])}
             {/if}
           </div>

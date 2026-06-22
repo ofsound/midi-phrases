@@ -1733,7 +1733,7 @@
 
   /** @param {PointerEvent} event @param {{ clientX?: number, clientY?: number, addToSelection?: boolean, toggleStep?: boolean }} [origin] */
   function beginStepMarqueeSelection(event, origin) {
-    if (event.button !== 0 || marqueeSelection) return;
+    if ((!origin && event.button !== 0) || marqueeSelection) return;
 
     const target = event.target;
 
