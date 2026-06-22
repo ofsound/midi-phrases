@@ -229,9 +229,17 @@
     position: relative;
     z-index: 1;
     isolation: isolate;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--color-text) 24%, transparent), transparent 42%),
+      linear-gradient(
+        180deg,
+        var(--color-accent-strong),
+        color-mix(in srgb, var(--color-accent) 88%, var(--color-app))
+      );
     box-shadow:
       var(--shadow-accent-outer-glow),
-      inset 0 1px 0 color-mix(in srgb, var(--color-text) 32%, transparent);
+      inset 0 1px 0 color-mix(in srgb, var(--color-text) 32%, transparent),
+      inset 0 -1px 1.7px color-mix(in srgb, var(--color-app) 30%, transparent);
     transition: box-shadow 150ms ease;
   }
 

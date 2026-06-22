@@ -910,7 +910,7 @@
 
     const base = `flex h-[2.1rem] w-[2.1rem] items-center justify-center rounded-sm border text-sm font-semibold leading-none transition-[border-color,color,box-shadow,filter] outline-none focus:ring-1 focus:ring-focus-ring ${
       active
-        ? "mp-slot-active border-accent bg-accent text-control-primary-text"
+        ? "mp-slot-active border-accent text-control-primary-text"
         : assigned
           ? "mp-control-gradient border-border text-text hover:border-border-strong"
           : "mp-control-gradient-muted border-border-subtle text-text-faint hover:border-border hover:text-text-secondary"
