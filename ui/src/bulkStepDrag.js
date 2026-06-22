@@ -46,6 +46,22 @@ export function blockMoveOrder(beforeIds, blockIds, shadowIndex) {
  * @param {string[]} blockIds
  * @param {number} shadowIndex
  */
+/**
+ * Maps a cross-row drag preview to a target-row insertion index.
+ *
+ * @param {string[]} targetBeforeIds
+ * @param {string} movedStepId
+ * @param {string[]} previewIds
+ * @param {number} shadowIndex
+ */
+export function blockCrossRowInsertionIndex(targetBeforeIds, movedStepId, previewIds, shadowIndex) {
+  const previewIndex = previewIds.indexOf(movedStepId);
+
+  if (previewIndex >= 0) return previewIndex;
+
+  return Math.min(Math.max(0, shadowIndex), targetBeforeIds.length);
+}
+
 export function blockDuplicateInsertionIndex(beforeIds, blockIds, shadowIndex) {
   const blockSet = new Set(blockIds);
   const blockIndices = beforeIds

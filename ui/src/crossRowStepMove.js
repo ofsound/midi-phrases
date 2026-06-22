@@ -1,3 +1,5 @@
+import { maxPhraseStepsPerRow } from "./stepCellLayout.js";
+
 /**
  * Moves one aligned entry between row-based matrices.
  *
@@ -112,4 +114,154 @@ export function duplicateStepBetweenRows(
   }
 
   return { matrices: nextMatrices, stepIds: nextStepIds };
+}
+
+/**
+ * Moves a contiguous source-row block into another row. `orderedTargetPreview` is the
+ * drag-library preview for the target row (only the dragged id is inserted visually).
+ *
+ * @param {Record<string, any[][]>} matrices
+ * @param {string[][]} stepIds
+ * @param {number} sourceRow
+ * @param {number} targetRow
+ * @param {string[]} blockIds
+ * @param {string} movedStepId
+ * @param {string[]} orderedTargetPreview
+ * @returns {{ matrices: Record<string, any[][]>, stepIds: string[][] } | null}
+ */
+export function moveBlockBetweenRows(
+  matrices,
+  stepIds,
+  sourceRow,
+  targetRow,
+  blockIds,
+  movedStepId,
+  orderedTargetPreview,
+) {
+  if (sourceRow === targetRow || sourceRow < 0 || targetRow < 0) return null;
+  if (!stepIds[sourceRow] || !stepIds[targetRow]) return null;
+
+  const blockSet = new Set(blockIds);
+  const block = stepIds[sourceRow].filter((id) => blockSet.has(id));
+
+  if (block.length === 0 || !block.includes(movedStepId)) return null;
+
+  const insertionIndex = orderedTargetPreview.indexOf(movedStepId);
+
+  if (insertionIndex < 0) return null;
+
+  const targetBefore = stepIds[targetRow];
+  const sourceBefore = stepIds[sourceRow];
+
+  if (targetBefore.length + block.length > maxPhraseStepsPerRow) return null;
+
+  const nextTargetIds = [
+    ...targetBefore.slice(0, insertionIndex),
+    ...block,
+    ...targetBefore.slice(insertionIndex),
+  ];
+  const nextSourceIds = sourceBefore.filter((id) => !blockSet.has(id));
+
+  if (new Set(nextTargetIds).size !== nextTargetIds.length) return null;
+
+  const nextStepIds = stepIds.map((ids, rowIndex) => {
+    if (rowIndex === sourceRow) return nextSourceIds;
+
+    if (rowIndex === targetRow) return nextTargetIds;
+
+    return [...ids];
+  });
+
+  /** @type {Record<string, any[][]>} */
+  const nextMatrices = {};
+
+  for (const [name, matrix] of Object.entries(matrices)) {
+    const next = matrix.map((values) => [...values]);
+    const blockValues = block.map((id) => {
+      const sourceIndex = sourceBefore.indexOf(id);
+
+      if (sourceIndex < 0 || sourceIndex >= next[sourceRow].length) return null;
+
+      return next[sourceRow][sourceIndex];
+    });
+
+    if (blockValues.some((value) => value === null)) return null;
+
+    const sourceIndices = block
+      .map((id) => sourceBefore.indexOf(id))
+      .sort((left, right) => right - left);
+
+    for (const sourceIndex of sourceIndices) {
+      next[sourceRow].splice(sourceIndex, 1);
+    }
+
+    next[targetRow].splice(insertionIndex, 0, ...blockValues);
+    nextMatrices[name] = next;
+  }
+
+  return { matrices: nextMatrices, stepIds: nextStepIds };
+}
+
+/**
+ * Copies a source-row block into another row without removing the originals.
+ *
+ * @param {Record<string, any[][]>} matrices
+ * @param {string[][]} stepIds
+ * @param {number} sourceRow
+ * @param {number} targetRow
+ * @param {string[]} blockIds
+ * @param {number} insertionIndex
+ * @param {() => string} createStepId
+ * @returns {{ matrices: Record<string, any[][]>, stepIds: string[][], newIds: string[] } | null}
+ */
+export function duplicateBlockBetweenRows(
+  matrices,
+  stepIds,
+  sourceRow,
+  targetRow,
+  blockIds,
+  insertionIndex,
+  createStepId,
+) {
+  if (sourceRow < 0 || targetRow < 0) return null;
+  if (!stepIds[sourceRow] || !stepIds[targetRow]) return null;
+
+  const blockSet = new Set(blockIds);
+  const block = stepIds[sourceRow].filter((id) => blockSet.has(id));
+
+  if (block.length === 0) return null;
+  if (insertionIndex < 0 || insertionIndex > stepIds[targetRow].length) return null;
+  if (stepIds[targetRow].length + block.length > maxPhraseStepsPerRow) return null;
+
+  const newIds = block.map(() => createStepId());
+  const nextStepIds = stepIds.map((ids, rowIndex) => {
+    if (rowIndex !== targetRow) return [...ids];
+
+    const next = [...ids];
+    next.splice(insertionIndex, 0, ...newIds);
+
+    return next;
+  });
+
+  /** @type {Record<string, any[][]>} */
+  const nextMatrices = {};
+
+  for (const [name, matrix] of Object.entries(matrices)) {
+    const next = matrix.map((values) => [...values]);
+    const sourceBefore = stepIds[sourceRow];
+    const blockValues = block.map((id) => {
+      const sourceIndex = sourceBefore.indexOf(id);
+
+      if (sourceIndex < 0 || sourceIndex >= next[sourceRow].length) return null;
+
+      return next[sourceRow][sourceIndex];
+    });
+
+    if (blockValues.some((value) => value === null)) return null;
+
+    next[targetRow].splice(insertionIndex, 0, ...blockValues);
+    nextMatrices[name] = next;
+  }
+
+  return { matrices: nextMatrices, stepIds: nextStepIds, newIds };
 }

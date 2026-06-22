@@ -49,7 +49,8 @@
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
   import { duplicateBlockInRow } from "./bulkStepDrag.js";
-  import { duplicateStepBetweenRows, moveStepBetweenRows } from "./crossRowStepMove.js";
+  import { duplicateStepBetweenRows, duplicateBlockBetweenRows, moveBlockBetweenRows, moveStepBetweenRows } from "./crossRowStepMove.js";
+  import { blockCrossRowInsertionIndex } from "./bulkStepDrag.js";
   import {
     clampNoteBandpass,
     defaultNoteBandpassHighMidi,
@@ -2279,6 +2280,175 @@
     }
 
     await pushCurrentPhraseRow(sourceRow);
+    await pushCurrentPhraseRow(targetRow);
+  }
+
+  /**
+   * @param {number} targetRow
+   * @param {string} movedStepId
+   * @param {string[]} blockIds
+   * @param {string[]} orderedTargetPreview
+   */
+  async function moveBulkToRow(targetRow, movedStepId, blockIds, orderedTargetPreview) {
+    const sourceRow = stepIds.findIndex((ids) => blockIds.some((id) => ids.includes(id)));
+
+    if (sourceRow < 0 || sourceRow === targetRow) return;
+
+    const blockInSource = blockIds.filter((id) => stepIds[sourceRow].includes(id));
+
+    if (stepIds[targetRow].length + blockInSource.length > maxPhraseStepsPerRow) return;
+
+    const before = createHistorySnapshot();
+    const selectedKeysBefore = new SvelteSet(selectedStepKeysForGrid);
+    const selectedInBlock = blockInSource.filter((id) =>
+      selectedKeysBefore.has(stepSelectionKey(sourceRow, id)),
+    );
+    const result = moveBlockBetweenRows(
+      {
+        grid,
+        stepDurationFraction,
+        stepTimingMultiplier,
+        stepVelocity,
+        stepMuted,
+        stepSkipped,
+        stepProbability,
+        stepCycle,
+        stepCycleOffset,
+        activeGates,
+      },
+      stepIds,
+      sourceRow,
+      targetRow,
+      blockInSource,
+      movedStepId,
+      orderedTargetPreview,
+    );
+
+    if (!result) return;
+
+    ({
+      grid,
+      stepDurationFraction,
+      stepTimingMultiplier,
+      stepVelocity,
+      stepMuted,
+      stepSkipped,
+      stepProbability,
+      stepCycle,
+      stepCycleOffset,
+      activeGates,
+    } = result.matrices);
+    stepIds = result.stepIds;
+
+    if (inspectedStep && blockInSource.includes(inspectedStep.stepId)) {
+      inspectedStep = { row: targetRow, stepId: inspectedStep.stepId };
+    }
+
+    if (rowPianoRollStep && blockInSource.includes(rowPianoRollStep.stepId)) {
+      rowPianoRollStep = { row: targetRow, stepId: rowPianoRollStep.stepId };
+    }
+
+    const after = createHistorySnapshot();
+    pushHistoryEntry("Move steps to row", before, after);
+
+    await tick();
+
+    if (selectedInBlock.length > 0) {
+      for (const id of selectedInBlock) {
+        selectedKeysBefore.delete(stepSelectionKey(sourceRow, id));
+        selectedKeysBefore.add(stepSelectionKey(targetRow, id));
+      }
+
+      setSelectedStepKeys(selectedKeysBefore);
+      syncBulkControlsFromSelection();
+    }
+
+    await pushCurrentPhraseRow(sourceRow);
+    await pushCurrentPhraseRow(targetRow);
+  }
+
+  /**
+   * @param {number} targetRow
+   * @param {string} movedStepId
+   * @param {string[]} blockIds
+   * @param {string[]} previewIds
+   * @param {number} shadowIndex
+   */
+  async function duplicateBulkToRow(targetRow, movedStepId, blockIds, previewIds, shadowIndex) {
+    const sourceRow = stepIds.findIndex((ids) => ids.includes(movedStepId));
+
+    if (sourceRow < 0 || targetRow < 0 || targetRow >= stepIds.length) return;
+
+    const blockInSource = blockIds.filter((id) => stepIds[sourceRow].includes(id));
+
+    if (stepIds[targetRow].length + blockInSource.length > maxPhraseStepsPerRow) return;
+
+    const insertionIndex = blockCrossRowInsertionIndex(
+      stepIds[targetRow],
+      movedStepId,
+      previewIds,
+      shadowIndex,
+    );
+    const before = createHistorySnapshot();
+    const result = duplicateBlockBetweenRows(
+      {
+        grid,
+        stepDurationFraction,
+        stepTimingMultiplier,
+        stepVelocity,
+        stepMuted,
+        stepSkipped,
+        stepProbability,
+        stepCycle,
+        stepCycleOffset,
+        activeGates,
+      },
+      stepIds,
+      sourceRow,
+      targetRow,
+      blockInSource,
+      insertionIndex,
+      createStepId,
+    );
+
+    if (!result) return;
+
+    ({
+      grid,
+      stepDurationFraction,
+      stepTimingMultiplier,
+      stepVelocity,
+      stepMuted,
+      stepSkipped,
+      stepProbability,
+      stepCycle,
+      stepCycleOffset,
+      activeGates,
+    } = result.matrices);
+    stepIds = result.stepIds;
+
+    for (const newId of result.newIds) {
+      const duplicateIndex = stepIds[targetRow].indexOf(newId);
+
+      if (duplicateIndex >= 0) {
+        activeGates[targetRow][duplicateIndex] = false;
+      }
+    }
+
+    const after = createHistorySnapshot();
+    pushHistoryEntry("Duplicate steps to row", before, after);
+
+    const nextSelectedKeys = new SvelteSet(selectedStepKeysForGrid);
+
+    for (const newId of result.newIds) {
+      nextSelectedKeys.add(stepSelectionKey(targetRow, newId));
+    }
+
+    setSelectedStepKeys(nextSelectedKeys);
+    syncBulkControlsFromSelection();
+    inspectedStep = { row: targetRow, stepId: result.newIds[result.newIds.length - 1] };
+
+    await tick();
     await pushCurrentPhraseRow(targetRow);
   }
 
@@ -5155,6 +5325,8 @@
               onBulkMoveCommitted={commitBulkRowMove}
               onBulkStepDuplicateDrop={duplicateBulkStepsToDrop}
               onCrossRowMove={moveStepToRow}
+              onBulkCrossRowMove={moveBulkToRow}
+              onBulkCrossRowDuplicateDrop={duplicateBulkToRow}
               onStepDuplicateDrop={duplicateStepToDrop}
               onDuplicateDragChange={(stepId) => duplicateDragStepId = stepId}
               {duplicateDragStepId}

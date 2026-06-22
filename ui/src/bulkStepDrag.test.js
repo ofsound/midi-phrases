@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  blockCrossRowInsertionIndex,
   blockDuplicateInsertionIndex,
   blockMoveOrder,
   duplicateBlockInRow,
@@ -44,6 +45,16 @@ describe("blockDuplicateInsertionIndex", () => {
   it("maps a multi-step shadow index to the copy boundary", () => {
     expect(blockDuplicateInsertionIndex(["a", "b", "c", "d", "e"], ["b", "d"], 2)).toBe(2);
     expect(blockDuplicateInsertionIndex(["a", "b", "c", "d", "e"], ["b", "d"], 5)).toBe(5);
+  });
+});
+
+describe("blockCrossRowInsertionIndex", () => {
+  it("prefers the dragged preview id position", () => {
+    expect(blockCrossRowInsertionIndex(["x", "y"], "b", ["x", "b", "y"], 0)).toBe(1);
+  });
+
+  it("falls back to the clamped shadow index", () => {
+    expect(blockCrossRowInsertionIndex(["x", "y"], "b", ["x", "y"], 2)).toBe(2);
   });
 });
 

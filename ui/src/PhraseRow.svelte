@@ -145,6 +145,8 @@
    * @property {(row: number, beforeIds: string[], afterIds: string[]) => void | Promise<void>} [onBulkMoveCommitted]
    * @property {(row: number, blockIds: string[], insertionIndex: number) => void | Promise<void>} [onBulkStepDuplicateDrop]
    * @property {(targetRow: number, stepId: string, orderedTargetIds: string[]) => void | Promise<void>} [onCrossRowMove]
+   * @property {(targetRow: number, movedStepId: string, blockIds: string[], orderedTargetPreview: string[]) => void | Promise<void>} [onBulkCrossRowMove]
+   * @property {(targetRow: number, movedStepId: string, blockIds: string[], previewIds: string[], shadowIndex: number) => void | Promise<void>} [onBulkCrossRowDuplicateDrop]
    * @property {(targetRow: number, stepId: string, orderedTargetIds: string[], insertionIndex?: number) => void | Promise<void>} [onStepDuplicateDrop]
    * @property {(stepId: string | null) => void} [onDuplicateDragChange]
    * @property {string | null} [duplicateDragStepId]
@@ -207,6 +209,8 @@
     onBulkMoveCommitted = () => {},
     onBulkStepDuplicateDrop = () => {},
     onCrossRowMove = () => {},
+    onBulkCrossRowMove = () => {},
+    onBulkCrossRowDuplicateDrop = () => {},
     onStepDuplicateDrop = () => {},
     onDuplicateDragChange = () => {},
     duplicateDragStepId = null,
@@ -326,7 +330,7 @@
 
     isDragging = false;
     draggedStepId = null;
-    dndItems = [];
+    resetDndItemsToRow();
     clearDndZoneTransforms();
     blockRemoveTemporarily();
     draggedAsDuplicate = false;
@@ -369,6 +373,21 @@
         idsBeforeDrag?.indexOf(id) ?? stepIndexFromId(id),
       ),
     }));
+  }
+
+  function resetDndItemsToRow() {
+    dndItems = stepIds.map((id, step) => ({
+      id,
+      multiplierIndex: multiplierIndexForDataStep(step),
+    }));
+  }
+
+  function bulkDropShadowIndex() {
+    if (dropIndicatorIndex >= 0) return dropIndicatorIndex;
+
+    if (duplicateDropIndex >= 0) return duplicateDropIndex;
+
+    return -1;
   }
 
   /** @param {string} draggedId */
@@ -529,7 +548,7 @@
       beginDragSession();
       idsBeforeDrag = stepIds.slice();
       draggedStepId = event.detail.info.id;
-      if (!bulkDragGhostSnapshots) {
+      if (!bulkDragGhostSnapshots || bulkDragGhostSnapshots.size === 0) {
         prepareBulkDragFromStep(event.detail.info.id);
       }
       draggedAsDuplicate = draggedAsDuplicate || duplicateDragStepId === event.detail.info.id;
@@ -558,7 +577,7 @@
     } else if (trigger === TRIGGERS.DRAGGED_LEFT && idsBeforeDrag === null) {
       isDragging = false;
       draggedStepId = null;
-      dndItems = [];
+      resetDndItemsToRow();
     }
 
     if (bulkDragBlockIds && bulkDragBlockIds.length >= 2 && idsBeforeDrag) {
@@ -567,13 +586,14 @@
       }
 
       if (draggedAsDuplicate && trigger !== TRIGGERS.DRAG_STARTED) {
-        restoreDuplicateSourceItems();
+        dndItems = event.detail.items;
         scheduleBulkDragGhostRefresh();
         return;
       }
 
       dndItems = event.detail.items;
       scheduleBulkDragGhostRefresh();
+      void tick();
       return;
     }
 
@@ -597,6 +617,12 @@
     const isDuplicateDrop = draggedAsDuplicate || duplicateDragStepId === movedStepId;
 
     if (trigger === TRIGGERS.DROPPED_INTO_ANOTHER) {
+      if (idsBeforeDrag) {
+        dndItems = idsBeforeDrag.map((id) => ({ id }));
+      } else {
+        resetDndItemsToRow();
+      }
+
       idsBeforeDrag = null;
       endDragSession();
       return;
@@ -606,7 +632,7 @@
       if (idsBeforeDrag) {
         dndItems = idsBeforeDrag.map((id) => ({ id }));
       } else {
-        dndItems = [];
+        resetDndItemsToRow();
       }
 
       idsBeforeDrag = null;
@@ -618,23 +644,41 @@
       && !stepIds.includes(movedStepId);
     const isBulkDrag = bulkDragBlockIds !== null && bulkDragBlockIds.length >= 2 && idsBeforeDrag;
 
-    if (isBulkDrag && (isCrossRowDrop || trigger === TRIGGERS.DROPPED_INTO_ANOTHER)) {
-      dndItems = idsBeforeDrag.map((id) => ({ id }));
-      idsBeforeDrag = null;
-      endDragSession();
-      return;
-    }
-
     if (isBulkDrag) {
-      if (isDuplicateDrop && duplicateDropIndex >= 0) {
+      if (isCrossRowDrop) {
+        dndItems = filtered;
+        const previewIds = filtered.map((item) => item.id);
+        const bulkShadowIndex = bulkDropShadowIndex();
+
+        if (isDuplicateDrop && bulkShadowIndex >= 0) {
+          await onBulkCrossRowDuplicateDrop(
+            row,
+            movedStepId,
+            bulkDragBlockIds,
+            previewIds,
+            bulkShadowIndex,
+          );
+        } else {
+          await onBulkCrossRowMove(row, movedStepId, bulkDragBlockIds, previewIds);
+        }
+
+        idsBeforeDrag = null;
+        await tick();
+        endDragSession();
+        return;
+      }
+
+      const bulkShadowIndex = bulkDropShadowIndex();
+
+      if (isDuplicateDrop && bulkShadowIndex >= 0) {
         dndItems = idsBeforeDrag.map((id) => ({ id }));
         await onBulkStepDuplicateDrop(row, bulkDragBlockIds, blockDuplicateInsertionIndex(
           idsBeforeDrag,
           bulkDragBlockIds,
-          duplicateDropIndex,
+          bulkShadowIndex,
         ));
-      } else if (duplicateDropIndex >= 0) {
-        const afterIds = blockMoveOrder(idsBeforeDrag, bulkDragBlockIds, duplicateDropIndex);
+      } else if (bulkShadowIndex >= 0) {
+        const afterIds = blockMoveOrder(idsBeforeDrag, bulkDragBlockIds, bulkShadowIndex);
 
         if (afterIds.some((id, index) => id !== idsBeforeDrag[index])) {
           dndItems = dndItemsFromIds(afterIds);
@@ -669,7 +713,7 @@
       if (idsBeforeDrag) {
         dndItems = idsBeforeDrag.map((id) => ({ id }));
       } else {
-        dndItems = [];
+        resetDndItemsToRow();
       }
 
       idsBeforeDrag = null;
@@ -1298,13 +1342,15 @@
     if (isShadowItem(item)) {
       const multiplierIndex = multiplierIndexForActiveDrag();
       const gridColumns = quarterGridColumnsForMultiplierIndex(multiplierIndex);
+      const ghostWidth = bulkDragGhostLayout && bulkDragGhostLayout.length >= 2
+        ? bulkDragGhostLayout.reduce((sum, ghost) => sum + ghost.widthPx + ghost.gapBeforePx, 0)
+        : 0;
+      const fallbackWidth = compactInboundCellWidthPx(multiplierIndex);
 
       return {
         step: -1,
         gridColumns,
-        cellWidth: bulkDragGhostLayout && bulkDragGhostLayout.length >= 2
-          ? bulkDragGhostLayout.reduce((sum, ghost) => sum + ghost.widthPx + ghost.gapBeforePx, 0)
-          : compactInboundCellWidthPx(multiplierIndex),
+        cellWidth: Math.max(ghostWidth, fallbackWidth),
         isShadow: true,
       };
     }
