@@ -502,6 +502,12 @@
     return `left: ${layoutPx(boundaryResizeZoneLeftPxAtGridBoundaryPx(boundaryCenterPx))}px; width: ${layoutPx(stepBoundaryResizeZoneWidthPx())}px;`;
   }
 
+  function trailingResizeZoneStyle() {
+    const trailingHitWidth = stepBoundaryEndResizePx() + stepInsertZoneWidthPx();
+
+    return `right: -${layoutPx(stepInsertZoneWidthPx())}px; width: ${layoutPx(trailingHitWidth)}px;`;
+  }
+
   /** @param {number} boundaryPx */
   function insertLeftAtBoundary(boundaryPx) {
     return insertSlotLeftPxAtGridBoundaryPx(boundaryPx);
@@ -1456,7 +1462,8 @@
 
 {#snippet multiplierResizeHandle(step)}
   <div
-    class="trailing-multiplier-resize-zone pointer-events-none absolute top-0 right-0 bottom-5 z-[60] w-[11px]"
+    class="trailing-multiplier-resize-zone pointer-events-none absolute top-0 bottom-0 z-[60]"
+    style={trailingResizeZoneStyle()}
   >
     <button
       type="button"
@@ -1470,7 +1477,8 @@
       onmousedown={(event) => beginMultiplierResize(event, step)}
     ></button>
     <span
-      class="boundary-edge-handle pointer-events-none absolute top-1/2 right-0 z-10 h-7 w-1 translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+      class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+      style:left="{layoutPx(stepBoundaryEndResizePx())}px"
       aria-hidden="true"
     ></span>
   </div>

@@ -5335,11 +5335,11 @@
     </div>
     <div class="-mx-6 w-[calc(100%+3rem)] shrink-0">
       <div class="mp-honeycomb-rail relative z-20 overflow-x-auto">
-      <div class="grid w-full min-w-[70rem] grid-cols-[auto_minmax(28rem,1fr)_auto] items-center gap-5 px-6 py-3">
+      <div class="grid w-full min-w-[70rem] grid-cols-[auto_minmax(28rem,1fr)_auto] items-center gap-5 px-6 py-1.5">
         <div class="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            class="rounded border border-border-subtle bg-surface-raised px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted transition-colors hover:border-accent/60 hover:text-text disabled:opacity-40"
+            class="h-8 rounded border border-border-subtle bg-surface-raised px-4 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted transition-colors hover:border-accent/60 hover:text-text disabled:opacity-40"
             disabled={projectOperationBusy || !nativeFunctionAvailable("newProject")}
             data-cursor="pointer"
             onclick={createNewProject}
@@ -5347,14 +5347,14 @@
           >New</button>
           <button
             type="button"
-            class="rounded border border-border-subtle bg-surface-raised px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted transition-colors hover:border-accent/60 hover:text-text disabled:opacity-40"
+            class="h-8 rounded border border-border-subtle bg-surface-raised px-4 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted transition-colors hover:border-accent/60 hover:text-text disabled:opacity-40"
             disabled={projectOperationBusy || !nativeFunctionAvailable("loadProject")}
             data-cursor="pointer"
             onclick={loadProject}
           >Load</button>
           <button
             type="button"
-            class="rounded border border-accent/50 bg-accent/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent/20 disabled:opacity-40"
+            class="h-8 rounded border border-accent/50 bg-accent/10 px-4 text-xs font-semibold uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent/20 disabled:opacity-40"
             disabled={projectOperationBusy || !nativeFunctionAvailable("saveProject")}
             data-cursor="pointer"
             onclick={saveProject}
@@ -5366,45 +5366,38 @@
             type="button"
             aria-label="Load previous project"
             title="Previous project"
-            class="w-10 rounded-l border border-border-subtle bg-surface-raised text-xl text-text-muted transition-colors hover:border-accent/60 hover:text-accent disabled:opacity-25"
+            class="h-8 w-10 rounded-l border border-border-subtle bg-surface-raised text-xl text-text-muted transition-colors hover:border-accent/60 hover:text-accent disabled:opacity-25"
             disabled={projectOperationBusy || !hasPreviousProject}
             data-cursor="pointer"
             onclick={() => cycleProject(-1)}
           >&#9664;</button>
           <div
-            class="min-w-0 flex-1 rounded border border-border-subtle bg-surface/80 px-4 py-2 shadow-inner"
+            class="flex h-8 min-w-0 flex-1 items-center gap-3 rounded border border-border-subtle bg-surface/80 px-4 shadow-inner"
             title={projectFileName || "Unsaved project"}
           >
-            <div class="flex min-w-0 items-baseline gap-3">
-              <input
-                aria-label="Project name"
-                class="min-w-0 flex-1 border-0 bg-transparent p-0 text-base font-semibold tracking-wide text-text outline-none placeholder:text-text-faint focus:text-accent"
-                maxlength="96"
-                bind:value={projectName}
-                placeholder="Untitled Project"
-              />
-              <span class="shrink-0 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-text-faint">
-                {projectDateLabel}
-              </span>
-            </div>
+            <input
+              aria-label="Project name"
+              class="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-semibold tracking-wide text-text outline-none placeholder:text-text-faint focus:text-accent"
+              maxlength="96"
+              bind:value={projectName}
+              placeholder="Untitled Project"
+            />
             <input
               aria-label="Project description"
-              class="mt-1 w-full border-0 bg-transparent p-0 text-xs text-text-muted outline-none placeholder:text-text-faint focus:text-text"
+              class="w-[25ch] shrink-0 truncate border-0 bg-transparent p-0 text-xs text-text-muted outline-none placeholder:text-text-faint focus:text-text"
               maxlength="240"
               bind:value={projectDescription}
               placeholder="Add a project description…"
             />
-            {#if projectOperationError}
-              <div class="mt-1 truncate text-[0.65rem] text-danger" role="status">
-                {projectOperationError}
-              </div>
-            {/if}
+            <span class="shrink-0 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-text-faint">
+              {projectDateLabel}
+            </span>
           </div>
           <button
             type="button"
             aria-label="Load next project"
             title="Next project"
-            class="w-10 rounded-r border border-border-subtle bg-surface-raised text-xl text-text-muted transition-colors hover:border-accent/60 hover:text-accent disabled:opacity-25"
+            class="h-8 w-10 rounded-r border border-border-subtle bg-surface-raised text-xl text-text-muted transition-colors hover:border-accent/60 hover:text-accent disabled:opacity-25"
             disabled={projectOperationBusy || !hasNextProject}
             data-cursor="pointer"
             onclick={() => cycleProject(1)}
@@ -5438,6 +5431,11 @@
             <FullscreenIcon class="pointer-events-none h-4 w-4" />
           </button>
         </div>
+        {#if projectOperationError}
+          <div class="col-start-2 -mt-1 truncate text-[0.65rem] text-danger" role="status">
+            {projectOperationError}
+          </div>
+        {/if}
       </div>
       </div>
     </div>
