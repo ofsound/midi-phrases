@@ -3,11 +3,13 @@ import {
   computeUiScale,
   currentUiScaleMinimumSize,
   normalizeUiScalePercent,
+  resolveInitialUiScalePercent,
   setUiScalePercent,
   uiDesignHeightPluginPx,
   uiDesignHeightStandalonePx,
   uiDesignWidthPx,
   uiMinScale,
+  uiScaleStorageKey,
 } from "./uiScale.svelte.js";
 
 describe("computeUiScale", () => {
@@ -81,5 +83,36 @@ describe("computeUiScale", () => {
     expect(normalizeUiScalePercent(49)).toBe(50);
     expect(normalizeUiScalePercent(101)).toBe(100);
     expect(normalizeUiScalePercent(null)).toBe(100);
+  });
+});
+
+describe("resolveInitialUiScalePercent", () => {
+  it("defaults to 100% when no stored preference exists", () => {
+    expect(resolveInitialUiScalePercent(70)).toBe(100);
+  });
+
+  it("prefers the stored UI scale over project state", () => {
+    const storage = new Map([["midiPhrasesUiScalePreset", "85"]]);
+    const previous = globalThis.localStorage;
+
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key) => storage.get(key) ?? null,
+        setItem: (key, value) => {
+          storage.set(key, value);
+        },
+      },
+    });
+
+    try {
+      expect(resolveInitialUiScalePercent(70)).toBe(85);
+      expect(uiScaleStorageKey).toBe("midiPhrasesUiScalePreset");
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: previous,
+      });
+    }
   });
 });

@@ -67,6 +67,7 @@ public:
     const juce::String& getProjectModifiedAt() const noexcept { return projectModifiedAt; }
     const juce::String& getProjectThemeMode() const noexcept { return projectThemeMode; }
     int getProjectUiScalePercent() const noexcept { return projectUiScalePercent; }
+    void setProjectUiScalePercent (int uiScalePercent);
     bool getProjectStretchStepsToFit() const noexcept { return projectStretchStepsToFit; }
 
     static constexpr int phraseRowCount = 4;

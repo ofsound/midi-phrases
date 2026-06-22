@@ -550,6 +550,14 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    args.size() >= 2 ? varToInt (args[1]) : 980));
                            })
                        .withNativeFunction (
+                           "setProjectUiScalePercent",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               processor.setProjectUiScalePercent (
+                                   args.size() >= 1 ? varToInt (args[0]) : 100);
+                               complete (processor.getProjectUiScalePercent());
+                           })
+                       .withNativeFunction (
                            "getPatternSlotState",
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {

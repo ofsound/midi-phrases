@@ -5812,6 +5812,11 @@ void PluginProcessor::setProjectMetadata (const juce::String& name,
     projectStretchStepsToFit = stretchToFit;
 }
 
+void PluginProcessor::setProjectUiScalePercent (const int uiScalePercent)
+{
+    projectUiScalePercent = juce::jlimit (50, 100, uiScalePercent);
+}
+
 void PluginProcessor::resetProject()
 {
     for (auto& pattern : modelPatterns)

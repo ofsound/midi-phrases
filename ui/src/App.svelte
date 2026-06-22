@@ -137,9 +137,9 @@
   import { applyThemeMode, defaultThemeMode, storedThemeMode } from "./themeMode.js";
   import {
     currentUiScaleMinimumSize,
+    resolveInitialUiScalePercent,
     setUiScalePercent,
     setUiViewportSize,
-    storedUiScalePercent,
     uiScaleState,
   } from "./uiScale.svelte.js";
 
@@ -422,9 +422,16 @@
     await getNativeFunction("setEditorScaleMinimum")(minimumSize.widthPx, minimumSize.heightPx);
   }
 
+  async function syncProjectUiScaleToNative() {
+    if (!nativeFunctionAvailable("setProjectUiScalePercent")) return;
+
+    await getNativeFunction("setProjectUiScalePercent")(uiScaleState.percent);
+  }
+
   function setExplicitUiScalePercent(next) {
     setUiScalePercent(next);
     void syncEditorScaleMinimumToNative();
+    void syncProjectUiScaleToNative();
   }
 
   function editorFullscreenButtonClasses() {
@@ -4551,10 +4558,13 @@
       persist: false,
     });
     const initialProjectScale = unwrapJuceInit("projectUiScalePercent");
-    setUiScalePercent(
-      initialProjectScale === null ? storedUiScalePercent() : initialProjectScale,
-      { persist: false },
-    );
+    const projectScaleScalar =
+      initialProjectScale === null
+        ? null
+        : Array.isArray(initialProjectScale)
+          ? initialProjectScale[0]
+          : initialProjectScale;
+    setUiScalePercent(resolveInitialUiScalePercent(projectScaleScalar), { persist: false });
     let scaleFrameId = 0;
 
     const updateUiScale = () => {

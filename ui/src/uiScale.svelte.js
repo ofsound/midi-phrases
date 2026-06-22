@@ -67,6 +67,25 @@ export function storedUiScalePercent() {
 }
 
 /**
+ * Startup scale: last UI choice in localStorage, otherwise 100%.
+ * Project files apply their own scale when loaded explicitly.
+ * @param {unknown} projectScaleFromJuce
+ */
+export function resolveInitialUiScalePercent(projectScaleFromJuce) {
+  if (typeof localStorage !== "undefined") {
+    const stored = localStorage.getItem(uiScaleStorageKey);
+
+    if (stored !== null && stored !== "") {
+      return normalizeUiScalePercent(stored);
+    }
+  }
+
+  void projectScaleFromJuce;
+
+  return uiMaxScalePercent;
+}
+
+/**
  * @param {string | number} percentValue
  * @param {{ persist?: boolean }} [options]
  */
