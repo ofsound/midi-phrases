@@ -326,6 +326,7 @@
 
     isDragging = false;
     draggedStepId = null;
+    dndItems = [];
     clearDndZoneTransforms();
     blockRemoveTemporarily();
     draggedAsDuplicate = false;
@@ -557,6 +558,7 @@
     } else if (trigger === TRIGGERS.DRAGGED_LEFT && idsBeforeDrag === null) {
       isDragging = false;
       draggedStepId = null;
+      dndItems = [];
     }
 
     if (bulkDragBlockIds && bulkDragBlockIds.length >= 2 && idsBeforeDrag) {
@@ -600,8 +602,13 @@
       return;
     }
 
-    if (trigger === TRIGGERS.DROPPED_OUTSIDE_OF_ANY && idsBeforeDrag) {
-      dndItems = idsBeforeDrag.map((id) => ({ id }));
+    if (trigger === TRIGGERS.DROPPED_OUTSIDE_OF_ANY) {
+      if (idsBeforeDrag) {
+        dndItems = idsBeforeDrag.map((id) => ({ id }));
+      } else {
+        dndItems = [];
+      }
+
       idsBeforeDrag = null;
       endDragSession();
       return;
@@ -661,6 +668,8 @@
     if (filtered.length !== stepIds.length) {
       if (idsBeforeDrag) {
         dndItems = idsBeforeDrag.map((id) => ({ id }));
+      } else {
+        dndItems = [];
       }
 
       idsBeforeDrag = null;
@@ -1254,32 +1263,62 @@
     return (cols / fitGridColumns) * compactGridWidthPx;
   }
 
+  /** @param {{ id?: string, multiplierIndex?: number }} item */
+  function multiplierIndexForDndItem(item) {
+    if (item.multiplierIndex != null) return item.multiplierIndex;
+
+    const step = stepIndexFromId(item.id ?? "");
+
+    if (step >= 0) return multiplierIndexForDataStep(step);
+
+    return defaultStepTimingMultiplierIndex;
+  }
+
+  function multiplierIndexForActiveDrag() {
+    if (!draggedStepId) return defaultStepTimingMultiplierIndex;
+
+    const match = withoutShadowItems(dndItems).find((item) => item.id === draggedStepId);
+
+    return multiplierIndexForDndItem(match ?? { id: draggedStepId });
+  }
+
+  /** @param {number} multiplierIndex */
+  function compactInboundCellWidthPx(multiplierIndex) {
+    const gridColumns = quarterGridColumnsForMultiplierIndex(multiplierIndex);
+
+    if (compactGridWidthPx <= 0 || fitGridColumns <= 0) {
+      return layoutPx(stepDisplayWidthPx(multiplierIndex));
+    }
+
+    return (gridColumns / fitGridColumns) * compactGridWidthPx;
+  }
+
   /** @param {{ id: string, multiplierIndex?: number }} item @param {number} index */
   function compactLayoutForItem(item, index) {
     if (isShadowItem(item)) {
-      const draggedStep = stepIndexFromId(draggedStepId ?? "");
-      const gridColumns = draggedStep >= 0
-        ? quarterGridColumnsForMultiplierIndex(multiplierIndexForDataStep(draggedStep))
-        : 1;
+      const multiplierIndex = multiplierIndexForActiveDrag();
+      const gridColumns = quarterGridColumnsForMultiplierIndex(multiplierIndex);
 
       return {
         step: -1,
         gridColumns,
         cellWidth: bulkDragGhostLayout && bulkDragGhostLayout.length >= 2
           ? bulkDragGhostLayout.reduce((sum, ghost) => sum + ghost.widthPx + ghost.gapBeforePx, 0)
-          : compactCellWidthPx(draggedStep, gridColumns),
+          : compactInboundCellWidthPx(multiplierIndex),
         isShadow: true,
       };
     }
 
     const step = stepIndexFromId(item.id);
-    const multiplierIndex = item.multiplierIndex ?? multiplierIndexForDataStep(step);
+    const multiplierIndex = multiplierIndexForDndItem(item);
     const gridColumns = quarterGridColumnsForMultiplierIndex(multiplierIndex);
 
     return {
       step,
       gridColumns,
-      cellWidth: compactCellWidthPx(step, gridColumns),
+      cellWidth: step >= 0
+        ? compactCellWidthPx(step, gridColumns)
+        : compactInboundCellWidthPx(multiplierIndex),
       isShadow: false,
     };
   }
@@ -1755,6 +1794,42 @@
   />
 {/snippet}
 
+{#snippet emptyRowDndPlaceholders()}
+  {#each renderedDndItems as item, index (item.id)}
+    {#if stretchToFit}
+      {@const layout = compactLayoutForItem(item, index)}
+      <div
+        class="relative min-w-0 pointer-events-none {isShadowItem(item) ? '' : 'opacity-0'}"
+        style={compactItemFlexStyle(item, index)}
+        aria-hidden="true"
+      >
+        {#if isShadowItem(item)}
+          <div
+            class="shrink-0 rounded-md border-2 border-dashed border-border-subtle/80 bg-surface/40 opacity-35"
+            style:min-height="{phraseStepCellMinHeightPx()}px"
+          ></div>
+        {:else}
+          <div style:min-height="{phraseStepCellMinHeightPx()}px"></div>
+        {/if}
+      </div>
+    {:else}
+      {@const layout = layoutForItem(item, index)}
+      <div
+        class="relative shrink-0 pointer-events-none {isShadowItem(item) ? '' : 'opacity-0'}"
+        style={fixedFlexStyle(layout.cellWidth)}
+        style:margin-left={index === 0
+          ? `${layoutPx(stepCellPaddingPx())}px`
+          : `${layoutPx(stepInsertZoneWidthPx())}px`}
+        aria-hidden="true"
+      >
+        {#if isShadowItem(item)}
+          <div class="shrink-0" style={fixedFlexStyle(layout.cellWidth)}></div>
+        {/if}
+      </div>
+    {/if}
+  {/each}
+{/snippet}
+
 {#snippet rowEndAddStepControl()}
   <div
     class="row-end-add-step-control pointer-events-auto flex shrink-0 items-center self-stretch"
@@ -1943,10 +2018,20 @@
           : ''}"
         style:min-height="{phraseRowMinHeightPx()}px"
         style:padding-right="{phraseRowEndAddStepReservePx()}px"
-      ></div>
+      >
+        {@render emptyRowDndPlaceholders()}
+      </div>
       <div class="row-end-add-step-overlay absolute inset-y-2 right-2 flex items-center">
         {@render rowEndAddStepControl()}
       </div>
+      {#if isDragging && dropIndicatorIndex >= 0}
+        <div
+          data-step-drop-indicator
+          class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
+          style:left="{stretchToFit ? compactDropIndicatorLeftPx : dropIndicatorLeftPx}px"
+          aria-hidden="true"
+        ></div>
+      {/if}
     </div>
   {:else if stretchToFit}
     <div
