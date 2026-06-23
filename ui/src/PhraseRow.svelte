@@ -1887,6 +1887,15 @@
   {/each}
 {/snippet}
 
+{#snippet rowStartAddStepControl()}
+  <div
+    class="row-start-add-step-control pointer-events-auto flex shrink-0 items-center self-stretch"
+    style:margin-left="{stretchToFit ? 0 : layoutPx(stepCellPaddingPx())}px"
+  >
+    {@render largeAddStepButton("Add first step", 0)}
+  </div>
+{/snippet}
+
 {#snippet rowEndAddStepControl()}
   <div
     class="row-end-add-step-control pointer-events-auto flex shrink-0 items-center self-stretch"
@@ -2070,16 +2079,12 @@
         onconsider={handleConsider}
         onfinalize={handleFinalize}
         data-phrase-row-dragging={isDragging ? true : undefined}
-        class="phrase-row-dnd-zone flex min-h-full min-w-0 flex-1 outline-none {stretchToFit && isDragging
+        class="phrase-row-dnd-zone flex min-h-0 min-w-0 flex-1 items-stretch outline-none {stretchToFit && isDragging
           ? 'compact-step-row-dragging'
           : ''}"
-        style:min-height="{phraseRowMinHeightPx()}px"
-        style:padding-right="{phraseRowEndAddStepReservePx()}px"
       >
+        {@render rowStartAddStepControl()}
         {@render emptyRowDndPlaceholders()}
-      </div>
-      <div class="row-end-add-step-overlay absolute inset-y-2 right-2 flex items-center">
-        {@render rowEndAddStepControl()}
       </div>
       {#if isDragging && dropIndicatorIndex >= 0}
         <div

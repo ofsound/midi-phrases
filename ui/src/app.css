@@ -1016,7 +1016,15 @@
   pointer-events: auto;
 }
 
+.row-start-add-step-control {
+  pointer-events: auto;
+}
+
 body:has(#dnd-action-dragged-el) .row-end-add-step-overlay .row-end-add-step-control {
+  pointer-events: none;
+}
+
+body:has(#dnd-action-dragged-el) .row-start-add-step-control {
   pointer-events: none;
 }
 
