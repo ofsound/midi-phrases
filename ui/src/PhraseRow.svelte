@@ -1874,7 +1874,7 @@
   {@const stepDimmed = muted || stepIsSkipped}
   {@const velocityOpacity = compactStepVelocityOpacity(stepVelocity[step], stepIsSkipped)}
   <div
-    class="relative h-full overflow-hidden rounded-md transition-[box-shadow,filter] duration-75 {muted
+    class="relative h-full min-h-full overflow-hidden rounded-md transition-[box-shadow,filter] duration-75 {muted
       ? 'mp-duration-track-gradient bg-app/95 ring-1 ring-inset ring-border-subtle/90'
       : 'mp-duration-track-gradient bg-surface'} {activeGates[step] && !stepDimmed
       ? accent.playbackGlow
@@ -1883,7 +1883,6 @@
       : activeGates[step]
         ? 'brightness-125'
         : ''}"
-    style:min-height="{phraseStepCellMinHeightPx()}px"
   >
     <div
       class="pointer-events-none absolute inset-0 transition-[background-color,opacity] duration-75 {muted
@@ -1985,7 +1984,7 @@
     <div class="min-w-0 flex-1 overflow-hidden">
       <div class="flex w-max min-w-0 items-stretch">
         <div
-          class="relative flex w-max min-w-0 shrink-0 items-center overflow-visible"
+          class="relative flex w-max min-w-0 shrink-0 items-stretch overflow-visible"
           style:height="{phraseStepCellMinHeightPx()}px"
         >
           <div
@@ -1994,7 +1993,7 @@
             onconsider={handleConsider}
             onfinalize={handleFinalize}
             data-phrase-row-dragging={isDragging ? true : undefined}
-            class="phrase-row-dnd-zone relative flex w-max shrink-0 items-center overflow-visible outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
+            class="phrase-row-dnd-zone relative flex w-max shrink-0 items-stretch overflow-visible outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
             style:padding-right="{phraseRowEndAddStepReservePx()}px"
           >
             {#each compactRenderedItems as item, index (item.id)}
@@ -2021,7 +2020,7 @@
                   ? true
                   : undefined}
                 data-cursor={layout.step >= 0 ? "grab" : undefined}
-                class="relative min-w-0 touch-none select-none {layout.isShadow ? 'pointer-events-none' : ''} {hideBulkDragSource
+                class="relative h-full min-w-0 touch-none select-none {layout.isShadow ? 'pointer-events-none' : ''} {hideBulkDragSource
                   ? 'opacity-0 pointer-events-none'
                   : dimBulkDuplicateSource
                     ? 'opacity-75'
@@ -2094,7 +2093,7 @@
     <div class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
       <div class="flex w-max min-w-0 items-stretch">
       <div
-        class="relative flex w-max min-w-0 shrink-0 items-center overflow-visible"
+        class="relative flex w-max min-w-0 shrink-0 items-stretch overflow-visible"
         style:height="{phraseStepCellMinHeightPx()}px"
       >
       {@render rowInsertSlots()}
@@ -2105,7 +2104,7 @@
           onconsider={handleConsider}
           onfinalize={handleFinalize}
           data-phrase-row-dragging={isDragging ? true : undefined}
-          class="phrase-row-dnd-zone relative flex w-max shrink-0 items-center overflow-visible outline-none"
+          class="phrase-row-dnd-zone relative flex w-max shrink-0 items-stretch overflow-visible outline-none"
           style:padding-right="{phraseRowEndAddStepReservePx()}px"
         >
           {#each renderedDndItems as item, index (item.id)}
@@ -2134,7 +2133,7 @@
               data-step-id={layout.step >= 0 ? stepIds[layout.step] : undefined}
               data-step-index={layout.step >= 0 ? layout.step : undefined}
               data-step-selected={layout.step >= 0 && selectedStepIdSet.has(stepIds[layout.step]) ? true : undefined}
-              class="relative shrink-0 overflow-visible {isShadowItem(item) ? 'pointer-events-none' : ''} {hideBulkDragSource
+              class="relative h-full shrink-0 overflow-visible {isShadowItem(item) ? 'pointer-events-none' : ''} {hideBulkDragSource
                 ? 'opacity-0 pointer-events-none'
                 : dimBulkDuplicateSource
                   ? 'opacity-75'
