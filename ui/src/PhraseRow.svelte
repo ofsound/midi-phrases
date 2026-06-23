@@ -1985,7 +1985,8 @@
     <div class="min-w-0 flex-1 overflow-hidden">
       <div class="flex w-max min-w-0 items-stretch">
         <div
-          class="relative w-max min-w-0 shrink-0 self-stretch overflow-visible"
+          class="relative flex w-max min-w-0 shrink-0 items-center overflow-visible"
+          style:height="{phraseStepCellMinHeightPx()}px"
         >
           <div
             bind:this={dndZoneElement}
@@ -1993,7 +1994,7 @@
             onconsider={handleConsider}
             onfinalize={handleFinalize}
             data-phrase-row-dragging={isDragging ? true : undefined}
-            class="phrase-row-dnd-zone relative flex w-max shrink-0 items-stretch overflow-visible outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
+            class="phrase-row-dnd-zone relative flex w-max shrink-0 items-center overflow-visible outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
             style:padding-right="{phraseRowEndAddStepReservePx()}px"
           >
             {#each compactRenderedItems as item, index (item.id)}
@@ -2093,7 +2094,8 @@
     <div class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
       <div class="flex w-max min-w-0 items-stretch">
       <div
-        class="relative w-max min-w-0 shrink-0 self-stretch overflow-visible"
+        class="relative flex w-max min-w-0 shrink-0 items-center overflow-visible"
+        style:height="{phraseStepCellMinHeightPx()}px"
       >
       {@render rowInsertSlots()}
 
@@ -2103,7 +2105,7 @@
           onconsider={handleConsider}
           onfinalize={handleFinalize}
           data-phrase-row-dragging={isDragging ? true : undefined}
-          class="phrase-row-dnd-zone relative flex w-max shrink-0 items-stretch overflow-visible outline-none"
+          class="phrase-row-dnd-zone relative flex w-max shrink-0 items-center overflow-visible outline-none"
           style:padding-right="{phraseRowEndAddStepReservePx()}px"
         >
           {#each renderedDndItems as item, index (item.id)}
