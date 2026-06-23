@@ -5079,7 +5079,7 @@
     </div>
 
     <div
-      class="flex shrink-0 items-center px-3"
+      class="flex shrink-0 items-center px-2"
       role="presentation"
       aria-hidden="true"
     >
@@ -5116,24 +5116,24 @@
         />
     </div>
 
-    <div class="flex shrink-0 items-center pl-6 pr-3">
+    <div class="flex shrink-0 items-center pl-2 pr-1">
       <button
         type="button"
         aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
         aria-pressed={scaleDialogOpen}
         title={activeScaleName}
         data-cursor="pointer"
-        class="flex min-w-[9rem] shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface/30 px-3 py-1 text-center outline-none transition-[border-color,opacity] hover:border-border-strong hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
+        class="flex min-w-[6.25rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-border bg-surface/30 px-1.5 py-1 text-center outline-none transition-[border-color,opacity] hover:border-border-strong hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
         onclick={() => {
           scaleDialogOpen = true;
         }}
       >
         <span
-          class="pointer-events-none -translate-y-0.5 text-[1.85rem] font-bold leading-[0.8] tracking-tight text-text"
+          class="pointer-events-none text-[1.5rem] font-bold leading-[0.85] tracking-tight text-text"
           >{activeKeyCenterLabel}</span
         >
         <span
-          class="pointer-events-none max-w-[8rem] truncate text-sm font-semibold leading-none text-accent"
+          class="pointer-events-none max-w-[6.25rem] truncate text-xs font-semibold leading-none text-accent"
           >{activeScaleModeLabel}</span
         >
       </button>

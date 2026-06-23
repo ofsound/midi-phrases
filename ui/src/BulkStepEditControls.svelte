@@ -79,12 +79,8 @@
     requireSelection || selectedStepCount > 0 ? selectedStepCount : totalStepCount,
   );
 
-  function actionButtonClasses(enabled = true) {
-    const sizeClass = sidebarHeaderStyleOps
-      ? "h-8 w-8 shrink-0"
-      : sidebarLayout
-        ? "aspect-square w-full"
-        : "h-8 w-8 shrink-0";
+  function actionButtonClasses(enabled = true, fillGridCell = false) {
+    const sizeClass = fillGridCell ? "h-8 w-full" : "h-8 w-8 shrink-0";
 
     return `flex ${sizeClass} items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
@@ -94,7 +90,11 @@
   }
 
   function labeledToggleActionButtonClasses(enabled = true, active = false) {
-    const sizeClass = sidebarLayout ? "h-8 w-full" : "h-8 shrink-0 px-1.5";
+    const sizeClass = sidebarLayout
+      ? "h-8 min-w-0 flex-1"
+      : compact
+        ? "h-8 shrink-0 px-1"
+        : "h-8 shrink-0 px-1.5";
 
     return `flex ${sizeClass} items-center justify-center gap-1 rounded-md border transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
@@ -139,10 +139,18 @@
     sidebarHeaderStyleOps
       ? "flex w-full items-center gap-1"
       : sidebarLayout
-        ? "grid w-full grid-cols-3 gap-x-2.5 gap-y-2"
+        ? omitSkipMuteToggles
+          ? "flex w-full items-center gap-1"
+          : "flex w-full flex-col gap-1"
         : operationsGridLayout
           ? "grid grid-cols-3 gap-1"
           : "flex items-center gap-1",
+  );
+  let operationSkipMuteRowClass = $derived(
+    sidebarLayout && !omitSkipMuteToggles ? "flex w-full gap-1" : "",
+  );
+  let operationIconRowClass = $derived(
+    sidebarLayout && !omitSkipMuteToggles ? "grid w-full grid-cols-4 gap-1" : "",
   );
   let labelClass = $derived(
     `text-xs font-semibold leading-none text-text-muted${inlineLabels ? " shrink-0" : ""}`,
@@ -155,11 +163,11 @@
     sidebarLayout
       ? `flex min-h-0 w-full flex-1 flex-col items-stretch ${
           inspectorEmbedded
-            ? "inspector-bulk-root min-h-0"
+            ? "inspector-bulk-root min-h-0 justify-start gap-4"
             : "justify-between gap-4"
         } ${className}`
       : `flex ${
-          stackedCompactLayout ? "gap-4" : compact ? "gap-1" : "gap-2"
+          stackedCompactLayout ? "gap-3" : compact ? "gap-1" : "gap-2"
         } ${
           inlineLayout ? "items-center" : stackedCompactLayout ? "items-stretch" : "items-end"
         } ${className}`,
@@ -179,14 +187,87 @@
 </script>
 
 <div class={rootClass} data-no-marquee>
-  {#if inspectorEmbedded}
-    <div class="min-h-0 flex-1" aria-hidden="true"></div>
-  {/if}
   <div class={operationGroupClass}>
     {#if showOperationLabel}
       <span class={labelClass}>{labelText("Operation")}</span>
     {/if}
     <div class={operationButtonsWrapperClass}>
+      {#if sidebarLayout && !omitSkipMuteToggles}
+        <div class={operationSkipMuteRowClass}>
+          <button
+            type="button"
+            aria-label={skipActive ? "Unskip selected steps" : "Skip selected steps"}
+            title={skipActive ? "Unskip selected steps" : "Skip selected steps in sequence"}
+            aria-pressed={skipActive}
+            disabled={effectiveStepCount === 0}
+            data-cursor="pointer"
+            class={labeledToggleActionButtonClasses(effectiveStepCount > 0, skipActive)}
+            onclick={onToggleSkip}
+          >
+            <StepSkipIcon class="pointer-events-none h-4 w-4 shrink-0" />
+            <span class="text-[9px] font-semibold uppercase leading-none tracking-wide">Skip</span>
+          </button>
+          <button
+            type="button"
+            aria-label={muteActive ? "Unmute selected steps" : "Mute selected steps"}
+            title={muteActive ? "Unmute selected steps" : "Mute selected steps"}
+            aria-pressed={muteActive}
+            disabled={effectiveStepCount === 0}
+            data-cursor="pointer"
+            class={labeledToggleActionButtonClasses(effectiveStepCount > 0, muteActive)}
+            onclick={onToggleMute}
+          >
+            <StepMuteIcon class="pointer-events-none h-4 w-4 shrink-0" />
+            <span class="text-[9px] font-semibold uppercase leading-none tracking-wide">Mute</span>
+          </button>
+        </div>
+        <div class={operationIconRowClass}>
+          <button
+            type="button"
+            aria-label="Reverse selected steps by row"
+            title="Reverse selected steps by row"
+            disabled={!reverseAvailable}
+            data-cursor="pointer"
+            class={actionButtonClasses(reverseAvailable, true)}
+            onclick={onReverse}
+          >
+            <RowReverseOrderIcon class="pointer-events-none h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Shuffle selected steps"
+            title="Shuffle selected steps across rows"
+            disabled={effectiveStepCount <= 1}
+            data-cursor="pointer"
+            class={actionButtonClasses(effectiveStepCount > 1, true)}
+            onclick={onShuffle}
+          >
+            <RowRandomizeOrderIcon class="pointer-events-none h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Randomize selected step octaves"
+            title="Randomize selected step octaves"
+            disabled={effectiveStepCount === 0}
+            data-cursor="pointer"
+            class={actionButtonClasses(effectiveStepCount > 0, true)}
+            onclick={onRandomizeOctaves}
+          >
+            <RowRandomizeOctaveIcon class="pointer-events-none h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Randomize selected step lengths"
+            title="Randomize selected step lengths"
+            disabled={effectiveStepCount === 0}
+            data-cursor="pointer"
+            class={actionButtonClasses(effectiveStepCount > 0, true)}
+            onclick={onRandomizeLengths}
+          >
+            <RowRandomizeLengthIcon class="pointer-events-none h-4 w-4" />
+          </button>
+        </div>
+      {:else}
       {#if !omitSkipMuteToggles}
       <button
         type="button"
@@ -259,11 +340,9 @@
       >
         <RowRandomizeLengthIcon class="pointer-events-none h-5 w-5" />
       </button>
+      {/if}
     </div>
   </div>
-  {#if inspectorEmbedded}
-    <div class="min-h-0 flex-1" aria-hidden="true"></div>
-  {/if}
   <div class={parameterControlsClass}>
     <div class={groupClass}>
       <span class={labelClass}>{labelText("Dur %")}</span>

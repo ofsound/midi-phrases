@@ -1500,7 +1500,7 @@
 
 {#snippet multiplierResizeHandle(step)}
   <div
-    class="trailing-multiplier-resize-zone pointer-events-none absolute top-0 bottom-0 z-[60]"
+    class="trailing-multiplier-resize-zone pointer-events-none absolute top-0 bottom-5 z-[60]"
     style={trailingResizeZoneStyle()}
   >
     <button
@@ -1511,7 +1511,7 @@
       aria-label="Resize final step boundary; double-click to insert; Option-double-click to duplicate"
       title="Double-click to insert · Option-double-click to duplicate"
       disabled={isDragging || removeBlocked}
-      class="pointer-events-auto absolute inset-0 touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+      class="pointer-events-auto absolute top-0 right-0 bottom-5 left-0 touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
       onpointerdown={(event) => beginMultiplierResize(event, step)}
       onmousedown={(event) => beginMultiplierResize(event, step)}
       ondblclick={(event) => handleBoundaryDoubleClick(event, step + 1)}
@@ -1538,7 +1538,7 @@
   {@const footerButtonClass = `flex h-full shrink-0 items-center justify-center border-0 bg-surface-muted/30 p-0 outline-none focus-visible:outline-none ${accent.ringFocusWithWidth}`}
   {@const footerSlotStyle = `width: ${stepFooterActionSlotWidthPx()}px`}
   <div
-    class="flex h-5 w-full shrink-0 {isQuarterStep
+    class="relative z-[65] flex h-5 w-full shrink-0 {isQuarterStep
       ? 'divide-x divide-border-subtle'
       : 'justify-between'} {footerShellClass}"
     data-no-long-press
@@ -1812,7 +1812,7 @@
   {@const boundaryCenterPx = leftPx + stepInsertZoneWidthPx() / 2}
   <div
     data-insert-slot
-    class="boundary-resize-zone pointer-events-none absolute top-0 bottom-0 z-[60]"
+    class="boundary-resize-zone pointer-events-none absolute top-0 bottom-5 z-[60]"
     style={mode === "between"
       ? boundaryResizeZoneStyle(boundaryCenterPx)
       : insertSlotStyle(leftPx)}
@@ -1826,7 +1826,7 @@
         aria-label="Resize step boundary; double-click to insert; Option-double-click to duplicate"
         title="Double-click to insert · Option-double-click to duplicate"
         disabled={isDragging || removeBlocked}
-        class="pointer-events-auto absolute inset-0 z-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+        class="pointer-events-auto absolute top-0 right-0 bottom-5 left-0 z-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
         onpointerdown={(event) => beginMultiplierResize(event, insertStep - 1)}
         onmousedown={(event) => beginMultiplierResize(event, insertStep - 1)}
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
