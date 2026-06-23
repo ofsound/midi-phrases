@@ -2331,7 +2331,9 @@
                     aria-label="Drag to reorder step"
                     onpointerdown={(event) => prepareStepDrag(event, layout.step)}
                   ></div>
-                  {@render compactStepCell(layout.step, stepIds[layout.step])}
+                  <div class="pointer-events-auto h-full overflow-visible">
+                    {@render compactStepCell(layout.step, stepIds[layout.step])}
+                  </div>
                 {/if}
               </div>
             {/each}
