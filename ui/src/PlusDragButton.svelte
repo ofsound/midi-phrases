@@ -95,10 +95,10 @@
   aria-label={ariaLabel}
   data-cursor={active ? "vertical-drag" : "pointer"}
   class="{variant === 'large'
-    ? 'flex size-[54px] shrink-0 items-center justify-center border border-transparent bg-transparent text-[1.9rem] leading-none font-semibold outline-none transition-[transform,color] duration-75 ease-out focus:ring-1'
-    : 'shrink-0 border-0 bg-transparent p-0 text-xl leading-none font-bold opacity-0 outline-none transition-[opacity,transform] duration-75 ease-out group-hover:opacity-100 group-focus-within:opacity-100'} touch-none select-none {active
+    ? 'flex size-[54px] shrink-0 items-center justify-center border border-transparent bg-transparent text-[1.9rem] leading-none font-semibold outline-none transition-[color] duration-75 ease-out focus:ring-1'
+    : 'shrink-0 border-0 bg-transparent p-0 text-xl leading-none font-bold opacity-0 outline-none transition-opacity duration-75 ease-out group-hover:opacity-100 group-focus-within:opacity-100'} touch-none select-none {active
     ? ''
-    : 'hover:scale-110 focus-visible:scale-110'} {variant === 'compact' && active
+    : 'hover:[&_span]:scale-110 focus-visible:[&_span]:scale-110'} {variant === 'compact' && active
     ? 'opacity-100'
     : ''} {muted
     ? variant === 'large'
@@ -113,7 +113,7 @@
   onpointerup={onPointerUp}
   onpointercancel={onPointerUp}
 >
-  <span class="inline-block {contentClass}">
+  <span class="inline-block origin-center transition-transform duration-75 ease-out {contentClass}">
     {#if active}
       <span class="font-sans tabular-nums {variant === 'large' ? 'text-[1.35rem]' : ''}"
         >{displayLabel}</span
