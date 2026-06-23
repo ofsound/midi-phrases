@@ -5116,14 +5116,14 @@
         />
     </div>
 
-    <div class="flex shrink-0 items-center pl-2 pr-1">
+    <div class="flex min-w-0 flex-1 items-center justify-center px-2">
       <button
         type="button"
         aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
         aria-pressed={scaleDialogOpen}
         title={activeScaleName}
         data-cursor="pointer"
-        class="flex min-w-[6.25rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border border-border bg-surface/30 px-1.5 py-1 text-center outline-none transition-[border-color,opacity] hover:border-border-strong hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
+        class="flex min-w-[6.25rem] shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface/30 px-1.5 py-1.5 text-center outline-none transition-[border-color,opacity] hover:border-border-strong hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
         onclick={() => {
           scaleDialogOpen = true;
         }}
@@ -5139,7 +5139,7 @@
       </button>
     </div>
 
-    <div class="ml-auto flex shrink-0 items-center gap-1">
+    <div class="flex shrink-0 items-center gap-1">
     <div class="flex shrink-0 items-center gap-1">
       <div class="flex flex-col gap-1">
         <div class="flex items-center gap-1.5">
