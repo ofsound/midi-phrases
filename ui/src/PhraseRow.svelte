@@ -316,6 +316,13 @@
   function beginDragSession() {
     isDragging = true;
     blockRemoveTemporarily();
+
+    const rowHeightPx = phraseStepCellMinHeightPx();
+
+    if (dndZoneElement) {
+      dndZoneElement.style.minHeight = `${rowHeightPx}px`;
+      dndZoneElement.style.height = `${rowHeightPx}px`;
+    }
   }
 
   function endDragSession() {
@@ -337,6 +344,32 @@
     bulkDragBlockIds = null;
     bulkDragGhostSnapshots = null;
     bulkDragGhostLayout = null;
+
+    if (dndZoneElement) {
+      dndZoneElement.style.removeProperty("min-height");
+      dndZoneElement.style.removeProperty("height");
+    }
+  }
+
+  /** @param {{ id: string }} item @param {string | null} stepIdForLayout */
+  function isCollapsedDndSlot(item, stepIdForLayout) {
+    if (isShadowItem(item)) return true;
+
+    return Boolean(
+      isBulkDragActive
+      && stepIdForLayout
+      && bulkDragBlockIds?.includes(stepIdForLayout)
+      && !draggedAsDuplicate,
+    );
+  }
+
+  /** @param {number} index @param {boolean} collapsed */
+  function dndSlotMarginLeftPx(index, collapsed) {
+    if (collapsed) return 0;
+
+    return index === 0
+      ? layoutPx(stepCellPaddingPx())
+      : layoutPx(stepInsertZoneWidthPx());
   }
 
   function refreshBulkDragGhost() {
@@ -464,7 +497,9 @@
 
   let layoutScale = $derived(Math.min(1, contentFitScale));
   let phraseStepCellHeightPx = $derived(phraseStepCellMinHeightPx());
-  let phraseRowDndZoneStyle = $derived(`min-height: ${phraseStepCellHeightPx}px;`);
+  let phraseRowDndZoneStyle = $derived(
+    `min-height: ${phraseStepCellHeightPx}px; height: ${phraseStepCellHeightPx}px;`,
+  );
 
   /** @param {number} px */
   function layoutPx(px) {
@@ -1306,15 +1341,11 @@
     if (isShadowItem(item)) {
       const multiplierIndex = multiplierIndexForActiveDrag();
       const gridColumns = quarterGridColumnsForMultiplierIndex(multiplierIndex);
-      const ghostWidth = bulkDragGhostLayout && bulkDragGhostLayout.length >= 2
-        ? bulkDragGhostLayout.reduce((sum, ghost) => sum + ghost.widthPx + ghost.gapBeforePx, 0)
-        : 0;
-      const fallbackWidth = compactInboundCellWidthPx(multiplierIndex);
 
       return {
         step: -1,
         gridColumns,
-        cellWidth: Math.max(ghostWidth, fallbackWidth),
+        cellWidth: 0,
         isShadow: true,
       };
     }
@@ -1417,13 +1448,15 @@
     const dataStep = isShadowItem(item)
       ? stepIndexFromId(draggedStepId ?? "")
       : stepIndexFromId(item.id);
+    const stepIdForLayout = dataStep >= 0 ? stepIds[dataStep] : null;
+    const collapsed = isCollapsedDndSlot(item, stepIdForLayout);
     const multiplierIndex = item.multiplierIndex
       ?? (dataStep >= 0 ? multiplierIndexForDataStep(dataStep) : defaultStepTimingMultiplierIndex);
 
     return {
-      cellWidth: layoutPx(stepDisplayWidthPx(multiplierIndex)),
+      cellWidth: collapsed ? 0 : layoutPx(stepDisplayWidthPx(multiplierIndex)),
       step: isShadowItem(item) ? -1 : dataStep,
-      gapBefore: index > 0,
+      gapBefore: index > 0 && !collapsed,
     };
   }));
   let dropIndicatorLeftPx = $derived(placementIndicatorLeftPx(
@@ -1770,22 +1803,13 @@
 {#snippet emptyRowDndPlaceholders()}
   {#each renderedDndItems as item, index (item.id)}
     {@const layout = stretchToFit ? compactLayoutForItem(item, index) : layoutForItem(item, index)}
+    {@const collapsed = isShadowItem(item)}
     <div
-      class="relative shrink-0 pointer-events-none {isShadowItem(item) ? '' : 'opacity-0'}"
-      style={fixedFlexStyle(layout.cellWidth)}
-      style:margin-left={index === 0
-        ? `${layoutPx(stepCellPaddingPx())}px`
-        : `${layoutPx(stepInsertZoneWidthPx())}px`}
+      class="relative shrink-0 pointer-events-none {collapsed ? 'h-0 min-h-0 overflow-hidden' : 'opacity-0'}"
+      style={fixedFlexStyle(collapsed ? 0 : layout.cellWidth)}
+      style:margin-left="{dndSlotMarginLeftPx(index, collapsed)}px"
       aria-hidden="true"
-    >
-      {#if isShadowItem(item)}
-        <div
-          class="shrink-0 {stretchToFit ? 'rounded-md border-2 border-dashed border-border-subtle/80 bg-surface/40 opacity-35' : ''}"
-          style={fixedFlexStyle(layout.cellWidth)}
-          style:min-height="{phraseStepCellHeightPx}px"
-        ></div>
-      {/if}
-    </div>
+    ></div>
   {/each}
 {/snippet}
 
@@ -2014,6 +2038,7 @@
                 && stepIdForLayout
                 && bulkDragBlockIds?.includes(stepIdForLayout)
                 && draggedAsDuplicate}
+              {@const collapsed = layout.isShadow || hideBulkDragSource}
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 data-bulk-step-cell={layout.step >= 0 ? true : undefined}
@@ -2025,48 +2050,23 @@
                   ? true
                   : undefined}
                 data-cursor={layout.step >= 0 ? "grab" : undefined}
-                class="relative h-full min-w-0 touch-none select-none {layout.isShadow ? 'pointer-events-none' : ''} {hideBulkDragSource
-                  ? 'opacity-0 pointer-events-none'
-                  : dimBulkDuplicateSource
-                    ? 'opacity-75'
-                    : ''}"
-                style={fixedFlexStyle(layout.cellWidth)}
-                style:min-height="{phraseStepCellHeightPx}px"
-                style:margin-left={index === 0
-                  ? `${layoutPx(stepCellPaddingPx())}px`
-                  : `${layoutPx(stepInsertZoneWidthPx())}px`}
+                class="relative min-w-0 touch-none select-none {collapsed
+                  ? 'h-0 min-h-0 overflow-hidden pointer-events-none'
+                  : 'h-full'} {dimBulkDuplicateSource ? 'opacity-75' : ''}"
+                style={fixedFlexStyle(collapsed ? 0 : layout.cellWidth)}
+                style:min-height={collapsed ? undefined : `${phraseStepCellHeightPx}px`}
+                style:margin-left="{dndSlotMarginLeftPx(index, collapsed)}px"
                 title={layout.isShadow
                   ? undefined
                   : "Click for advanced settings · drag to reorder · Option-drag to duplicate · Shift-drag to select"}
-                aria-hidden={layout.isShadow ? true : undefined}
+                aria-hidden={collapsed ? true : undefined}
                 onclick={(event) => layout.step >= 0 && openCompactStepInspector(event, layout.step)}
                 onpointerdowncapture={(event) => layout.step >= 0 && handleCompactStepPointerDown(event, layout.step)}
                 onpointermovecapture={handleCompactStepPointerMove}
                 onpointerupcapture={handleCompactStepPointerEnd}
                 onpointercancelcapture={handleCompactStepPointerEnd}
               >
-                {#if layout.isShadow}
-                  {#if bulkDragGhostLayout && bulkDragGhostLayout.length >= 2}
-                    <div class="flex h-full min-w-0 items-stretch opacity-35"
-                      style:min-height="{phraseStepCellHeightPx}px"
-                      aria-hidden="true"
-                    >
-                      {#each bulkDragGhostLayout as ghost (ghost.stepId)}
-                        <div
-                          class="h-full shrink-0 rounded-md border-2 border-dashed border-border-subtle bg-surface/60"
-                          style={fixedFlexStyle(ghost.widthPx)}
-                          style:margin-left="{ghost.gapBeforePx}px"
-                        ></div>
-                      {/each}
-                    </div>
-                  {:else}
-                    <div
-                      class="shrink-0 rounded-md border-2 border-dashed border-border-subtle/80 bg-surface/40 opacity-35"
-                      style:min-height="{phraseStepCellHeightPx}px"
-                      aria-hidden="true"
-                    ></div>
-                  {/if}
-                {:else}
+                {#if !layout.isShadow}
                   <div
                     use:dragHandle
                     data-compact-step-drag-handle
@@ -2127,53 +2127,24 @@
               && stepIdForLayout
               && bulkDragBlockIds?.includes(stepIdForLayout)
               && draggedAsDuplicate}
-            {@const shadowShellWidth =
-              isShadowItem(item) && bulkDragGhostLayout && bulkDragGhostLayout.length >= 2
-                ? bulkDragGhostLayout.reduce(
-                    (sum, ghost) => sum + ghost.widthPx + ghost.gapBeforePx,
-                    0,
-                  )
-                : layout.cellWidth}
+            {@const collapsed = isShadowItem(item) || hideBulkDragSource}
             <div
               data-bulk-step-cell={layout.step >= 0 ? true : undefined}
               data-step-row={layout.step >= 0 ? row : undefined}
               data-step-id={layout.step >= 0 ? stepIds[layout.step] : undefined}
               data-step-index={layout.step >= 0 ? layout.step : undefined}
               data-step-selected={layout.step >= 0 && selectedStepIdSet.has(stepIds[layout.step]) ? true : undefined}
-              class="relative h-full shrink-0 overflow-visible {isShadowItem(item) ? 'pointer-events-none' : ''} {hideBulkDragSource
-                ? 'opacity-0 pointer-events-none'
-                : dimBulkDuplicateSource
-                  ? 'opacity-75'
-                  : ''}"
-              style={fixedFlexStyle(shadowShellWidth)}
-              style:min-height="{phraseStepCellHeightPx}px"
-              style:margin-left={index === 0
-                ? `${layoutPx(stepCellPaddingPx())}px`
-                : `${layoutPx(stepInsertZoneWidthPx())}px`}
-              aria-hidden={isShadowItem(item) ? true : undefined}
+              class="relative shrink-0 overflow-visible {collapsed
+                ? 'h-0 min-h-0 overflow-hidden pointer-events-none'
+                : 'h-full'} {dimBulkDuplicateSource ? 'opacity-75' : ''}"
+              style={fixedFlexStyle(collapsed ? 0 : layout.cellWidth)}
+              style:min-height={collapsed ? undefined : `${phraseStepCellHeightPx}px`}
+              style:margin-left="{dndSlotMarginLeftPx(index, collapsed)}px"
+              aria-hidden={collapsed ? true : undefined}
               onclick={(event) => layout.step >= 0 && retargetOpenStepInspector(event, layout.step)}
               ondblclick={(event) => layout.step >= 0 && openFullStepInspector(event, layout.step)}
             >
-              {#if isShadowItem(item)}
-                {#if bulkDragGhostLayout && bulkDragGhostLayout.length >= 2}
-                  <div class="flex h-full min-h-0 shrink-0 items-stretch opacity-35" aria-hidden="true">
-                    {#each bulkDragGhostLayout as ghost (ghost.stepId)}
-                      <div
-                        class="h-full shrink-0 rounded-lg border-2 border-dashed border-border-subtle bg-surface/60"
-                        style={fixedFlexStyle(ghost.widthPx)}
-                        style:min-height="{phraseStepCellHeightPx}px"
-                        style:margin-left="{ghost.gapBeforePx}px"
-                      ></div>
-                    {/each}
-                  </div>
-                {:else}
-                  <div
-                    class="h-full shrink-0"
-                    style={fixedFlexStyle(layout.cellWidth)}
-                    style:min-height="{phraseStepCellHeightPx}px"
-                  ></div>
-                {/if}
-              {:else}
+              {#if !isShadowItem(item)}
                 <div class="pointer-events-auto h-full overflow-visible">
                   {@render stepCell(layout.step, true)}
                 </div>
