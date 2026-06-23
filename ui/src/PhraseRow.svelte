@@ -65,10 +65,7 @@
     multiplierIndexFromWidth,
     multiplierLabelForIndex,
     quarterGridColumnsForMultiplierIndex,
-    compactStepShellPaddingPercent,
-    compactStepShellTrailingPaddingPercent,
     rowGridWidthPx,
-    rowQuarterGridColumns,
     insertSlotLeftPxAtGridBoundaryPx,
     boundaryResizeZoneLeftPxAtGridBoundaryPx,
     rowStepLayoutsPx,
@@ -135,7 +132,6 @@
    * @property {boolean} [stretchToFit]
    * @property {number} [contentFitScale]
    * @property {number} [fitGridColumns]
-   * @property {number} [fitGridStartColumn]
    * @property {string | null} [inspectedStepId]
    * @property {string | null} [stepInspectorHighlightedId]
    * @property {(value: number, delta: number) => number} [stepNoteValue]
@@ -201,7 +197,6 @@
     stretchToFit = false,
     contentFitScale = 1,
     fitGridColumns = 1,
-    fitGridStartColumn = 0,
     inspectedStepId = null,
     stepInspectorHighlightedId = null,
     stepNoteValue = (value, delta) => value + delta,
@@ -280,9 +275,6 @@
   let lastBulkBackgroundPointerDownY = 0;
   /** @type {{ pointerId: number, startX: number, startY: number, moved: boolean, step: number, element: HTMLElement } | null} */
   let compactStepPointerGesture = null;
-  /** @type {HTMLDivElement | null} */
-  let compactGridElement = $state(null);
-  let compactGridWidthPx = $state(0);
   /** @type {{
    *   mode: "move" | "boundaryResize",
    *   pointerId: number,
@@ -413,8 +405,8 @@
       dndZoneElement,
       block,
       layoutPx,
-      stretchToFit ? 0 : stepInsertZoneWidthPx(),
-      stretchToFit ? 0 : stepCellPaddingPx(),
+      stepInsertZoneWidthPx(),
+      stepCellPaddingPx(),
     );
     bulkDragGhostLayout = bulkGhostLayoutEntries(block, bulkDragGhostSnapshots);
   }
@@ -470,7 +462,7 @@
     return stepDisplayWidthPx(multiplierIndexForDataStep(dataStep));
   }
 
-  let layoutScale = $derived(stretchToFit ? 1 : Math.min(1, contentFitScale));
+  let layoutScale = $derived(Math.min(1, contentFitScale));
 
   /** @param {number} px */
   function layoutPx(px) {
@@ -1267,8 +1259,8 @@
     const pulse = pulseQuartersForIndex(pulseIndex);
     const quartersPerGridColumn = pulse * stepTimingMultiplierQuarterStep;
 
-    if (compactGridWidthPx > 0 && fitGridColumns > 0) {
-      const pxPerGridColumn = compactGridWidthPx / fitGridColumns;
+    if (fitGridColumns > 0) {
+      const pxPerGridColumn = layoutPx(stepCellQuarterGridWidthPx());
 
       return pxPerGridColumn / quartersPerGridColumn;
     }
@@ -1276,46 +1268,11 @@
     return stepCellQuarterGridWidthPx() / quartersPerGridColumn;
   }
 
-  /** @param {HTMLElement} node */
-  function compactGridAttachment(node) {
-    compactGridElement = node;
-    compactGridWidthPx = node.clientWidth;
-
-    const observer = new ResizeObserver(() => {
-      compactGridWidthPx = node.clientWidth;
-    });
-    observer.observe(node);
-
-    return () => {
-      observer.disconnect();
-
-      if (compactGridElement === node) {
-        compactGridElement = null;
-      }
-    };
-  }
-
   function clearCompactStepDrag() {
     clearResizeListeners();
     clearActiveCursor("ew-resize");
     onCompactTimingPreviewEnd();
     compactStepDrag = null;
-  }
-
-  /** @param {number} gridColumns */
-  function compactStepFlexStyle(gridColumns) {
-    return `flex: ${gridColumns} 1 0%; min-width: 0;`;
-  }
-
-  /** @param {number} step @param {number} [gridColumns] */
-  function compactCellWidthPx(step, gridColumns = undefined) {
-    const cols = gridColumns ?? quarterGridColumnsForMultiplierIndex(
-      layoutTimingMultipliers[step] ?? defaultStepTimingMultiplierIndex,
-    );
-
-    if (compactGridWidthPx <= 0 || fitGridColumns <= 0) return 0;
-
-    return (cols / fitGridColumns) * compactGridWidthPx;
   }
 
   /** @param {{ id?: string, multiplierIndex?: number }} item */
@@ -1339,13 +1296,7 @@
 
   /** @param {number} multiplierIndex */
   function compactInboundCellWidthPx(multiplierIndex) {
-    const gridColumns = quarterGridColumnsForMultiplierIndex(multiplierIndex);
-
-    if (compactGridWidthPx <= 0 || fitGridColumns <= 0) {
-      return layoutPx(stepDisplayWidthPx(multiplierIndex));
-    }
-
-    return (gridColumns / fitGridColumns) * compactGridWidthPx;
+    return layoutPx(stepDisplayWidthPx(multiplierIndex));
   }
 
   /** @param {{ id: string, multiplierIndex?: number }} item @param {number} index */
@@ -1373,43 +1324,10 @@
     return {
       step,
       gridColumns,
-      cellWidth: step >= 0
-        ? compactCellWidthPx(step, gridColumns)
-        : compactInboundCellWidthPx(multiplierIndex),
+      cellWidth: compactInboundCellWidthPx(multiplierIndex),
       isShadow: false,
     };
   }
-
-  /** @param {{ id: string, multiplierIndex?: number }} item @param {number} index */
-  function compactItemFlexStyle(item, index) {
-    const layout = compactLayoutForItem(item, index);
-
-    if (!layout.isShadow) return compactStepFlexStyle(layout.gridColumns);
-
-    if (bulkDragBlockIds && bulkDragBlockIds.length >= 2) {
-      const totalColumns = bulkDragBlockIds.reduce((sum, id) => {
-        const step = stepIndexFromId(id);
-
-        if (step < 0) return sum;
-
-        return sum + quarterGridColumnsForMultiplierIndex(multiplierIndexForDataStep(step));
-      }, 0);
-
-      return compactStepFlexStyle(Math.max(1, totalColumns));
-    }
-
-    return compactStepFlexStyle(layout.gridColumns);
-  }
-
-  let compactDropIndicatorLeftPx = $derived.by(() => {
-    if (!stretchToFit || !isDragging || dropIndicatorIndex < 0) return 0;
-    if (compactGridWidthPx <= 0 || fitGridColumns <= 0) return 0;
-
-    const leadingPx = (fitGridStartColumn / fitGridColumns) * compactGridWidthPx;
-    const stepWidths = compactRenderedItems.map((item, index) => compactLayoutForItem(item, index).cellWidth);
-
-    return leadingPx + placementIndicatorLeftPx(stepWidths, dropIndicatorIndex, 0, 0);
-  });
 
   /** @param {{ id: string }} item @param {number} index */
   function layoutForItem(item, index) {
@@ -1483,10 +1401,6 @@
     return preview;
   });
   let compactRenderedItems = $derived(isDragging ? dndItems : orderedStepItems);
-  let compactRowStepColumns = $derived(rowQuarterGridColumns(layoutTimingMultipliers));
-  let compactTrailingGridColumns = $derived(
-    Math.max(0, fitGridColumns - fitGridStartColumn - compactRowStepColumns),
-  );
   let layoutTimingMultipliers = $derived(
     resizePreviewMultipliers
       ?? compactDragTimingMultipliers
@@ -1853,44 +1767,30 @@
 
 {#snippet emptyRowDndPlaceholders()}
   {#each renderedDndItems as item, index (item.id)}
-    {#if stretchToFit}
-      {@const layout = compactLayoutForItem(item, index)}
-      <div
-        class="relative min-w-0 pointer-events-none {isShadowItem(item) ? '' : 'opacity-0'}"
-        style={compactItemFlexStyle(item, index)}
-        aria-hidden="true"
-      >
-        {#if isShadowItem(item)}
-          <div
-            class="shrink-0 rounded-md border-2 border-dashed border-border-subtle/80 bg-surface/40 opacity-35"
-            style:min-height="{phraseStepCellMinHeightPx()}px"
-          ></div>
-        {:else}
-          <div style:min-height="{phraseStepCellMinHeightPx()}px"></div>
-        {/if}
-      </div>
-    {:else}
-      {@const layout = layoutForItem(item, index)}
-      <div
-        class="relative shrink-0 pointer-events-none {isShadowItem(item) ? '' : 'opacity-0'}"
-        style={fixedFlexStyle(layout.cellWidth)}
-        style:margin-left={index === 0
-          ? `${layoutPx(stepCellPaddingPx())}px`
-          : `${layoutPx(stepInsertZoneWidthPx())}px`}
-        aria-hidden="true"
-      >
-        {#if isShadowItem(item)}
-          <div class="shrink-0" style={fixedFlexStyle(layout.cellWidth)}></div>
-        {/if}
-      </div>
-    {/if}
+    {@const layout = stretchToFit ? compactLayoutForItem(item, index) : layoutForItem(item, index)}
+    <div
+      class="relative shrink-0 pointer-events-none {isShadowItem(item) ? '' : 'opacity-0'}"
+      style={fixedFlexStyle(layout.cellWidth)}
+      style:margin-left={index === 0
+        ? `${layoutPx(stepCellPaddingPx())}px`
+        : `${layoutPx(stepInsertZoneWidthPx())}px`}
+      aria-hidden="true"
+    >
+      {#if isShadowItem(item)}
+        <div
+          class="shrink-0 {stretchToFit ? 'rounded-md border-2 border-dashed border-border-subtle/80 bg-surface/40 opacity-35' : ''}"
+          style={fixedFlexStyle(layout.cellWidth)}
+          style:min-height="{phraseStepCellMinHeightPx()}px"
+        ></div>
+      {/if}
+    </div>
   {/each}
 {/snippet}
 
 {#snippet rowStartAddStepControl()}
   <div
     class="row-start-add-step-control pointer-events-auto flex shrink-0 items-center self-stretch"
-    style:margin-left="{stretchToFit ? 0 : layoutPx(stepCellPaddingPx())}px"
+    style:margin-left="{layoutPx(stepCellPaddingPx())}px"
   >
     {@render largeAddStepButton("Add first step", 0)}
   </div>
@@ -1973,9 +1873,6 @@
   {@const stepIsSkipped = stepSkipped[step]}
   {@const stepDimmed = muted || stepIsSkipped}
   {@const velocityOpacity = compactStepVelocityOpacity(stepVelocity[step], stepIsSkipped)}
-  {@const stepMultiplierIndex = layoutTimingMultipliers[step] ?? defaultStepTimingMultiplierIndex}
-  {@const shellPaddingPercent = compactStepShellPaddingPercent(stepMultiplierIndex)}
-  {@const trailingPaddingPercent = compactStepShellTrailingPaddingPercent(stepMultiplierIndex)}
   <div
     class="relative h-full overflow-hidden rounded-md transition-[box-shadow,filter] duration-75 {muted
       ? 'mp-duration-track-gradient bg-app/95 ring-1 ring-inset ring-border-subtle/90'
@@ -1986,8 +1883,6 @@
       : activeGates[step]
         ? 'brightness-125'
         : ''}"
-    style:margin-left="{shellPaddingPercent}%"
-    style:margin-right="{step === stepIds.length - 1 ? trailingPaddingPercent : shellPaddingPercent}%"
     style:min-height="{phraseStepCellMinHeightPx()}px"
   >
     <div
@@ -2049,9 +1944,7 @@
 <div
   class="flex min-w-0 flex-1 overflow-hidden"
   role="presentation"
-  style:padding-left={stretchToFit
-    ? "0px"
-    : `${rowTimingOffsetShiftPx(timingOffsetIndex) + timingOffsetVisualCompensationPx}px`}
+  style:padding-left="{layoutPx(rowTimingOffsetShiftPx(timingOffsetIndex) + timingOffsetVisualCompensationPx)}px"
   onpointerdown={handleBulkSelectPointerDown}
 >
   <div
@@ -2066,13 +1959,6 @@
   >
   {#if isEmptyRow}
     <div class="relative flex min-w-0 flex-1 items-stretch">
-      {#if stretchToFit && fitGridStartColumn > 0}
-        <div
-          class="pointer-events-none shrink-0"
-          style={compactStepFlexStyle(fitGridStartColumn)}
-          aria-hidden="true"
-        ></div>
-      {/if}
       <div
         bind:this={dndZoneElement}
         use:dragHandleZone={dndZoneOptions}
@@ -2090,131 +1976,118 @@
         <div
           data-step-drop-indicator
           class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
-          style:left="{stretchToFit ? compactDropIndicatorLeftPx : dropIndicatorLeftPx}px"
+          style:left="{dropIndicatorLeftPx}px"
           aria-hidden="true"
         ></div>
       {/if}
     </div>
   {:else if stretchToFit}
-    <div
-      class="relative flex min-w-0 flex-1 items-stretch"
-      {@attach compactGridAttachment}
-    >
-      {#if fitGridStartColumn > 0}
+    <div class="min-w-0 flex-1 overflow-hidden">
+      <div class="flex w-max min-w-0 items-stretch">
         <div
-          class="pointer-events-none shrink-0"
-          style={compactStepFlexStyle(fitGridStartColumn)}
-          aria-hidden="true"
-        ></div>
-      {/if}
-      <div
-        bind:this={dndZoneElement}
-        use:dragHandleZone={dndZoneOptions}
-        onconsider={handleConsider}
-        onfinalize={handleFinalize}
-        data-phrase-row-dragging={isDragging ? true : undefined}
-        class="phrase-row-dnd-zone flex min-h-0 min-w-0 flex-1 items-stretch outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
-        style:padding-right="{phraseRowEndAddStepReservePx()}px"
-      >
-        {#each compactRenderedItems as item, index (item.id)}
-          {@const layout = compactLayoutForItem(item, index)}
-          {@const stepIdForLayout = layout.step >= 0 ? stepIds[layout.step] : null}
-          {@const hideBulkDragSource =
-            isBulkDragActive
-            && stepIdForLayout
-            && bulkDragBlockIds?.includes(stepIdForLayout)
-            && !draggedAsDuplicate}
-          {@const dimBulkDuplicateSource =
-            isBulkDragActive
-            && stepIdForLayout
-            && bulkDragBlockIds?.includes(stepIdForLayout)
-            && draggedAsDuplicate}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          class="relative w-max min-w-0 shrink-0 self-stretch overflow-visible"
+        >
           <div
-            data-bulk-step-cell={layout.step >= 0 ? true : undefined}
-            data-compact-step-cell
-            data-step-row={layout.step >= 0 ? row : undefined}
-            data-step-id={stepIdForLayout ?? undefined}
-            data-step-index={layout.step >= 0 ? layout.step : undefined}
-            data-step-selected={layout.step >= 0 && selectedStepIdSet.has(stepIds[layout.step])
-              ? true
-              : undefined}
-            data-cursor={layout.step >= 0 ? "grab" : undefined}
-            class="relative min-w-0 touch-none select-none {layout.isShadow ? 'pointer-events-none' : ''} {hideBulkDragSource
-              ? 'opacity-0 pointer-events-none'
-              : dimBulkDuplicateSource
-                ? 'opacity-75'
-                : ''}"
-            style={compactItemFlexStyle(item, index)}
-            title={layout.isShadow
-              ? undefined
-              : "Click for advanced settings · drag to reorder · Option-drag to duplicate · Shift-drag to select"}
-            aria-hidden={layout.isShadow ? true : undefined}
-            onclick={(event) => layout.step >= 0 && openCompactStepInspector(event, layout.step)}
-            onpointerdowncapture={(event) => layout.step >= 0 && handleCompactStepPointerDown(event, layout.step)}
-            onpointermovecapture={handleCompactStepPointerMove}
-            onpointerupcapture={handleCompactStepPointerEnd}
-            onpointercancelcapture={handleCompactStepPointerEnd}
+            bind:this={dndZoneElement}
+            use:dragHandleZone={dndZoneOptions}
+            onconsider={handleConsider}
+            onfinalize={handleFinalize}
+            data-phrase-row-dragging={isDragging ? true : undefined}
+            class="phrase-row-dnd-zone relative flex w-max shrink-0 items-stretch overflow-visible outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
+            style:padding-right="{phraseRowEndAddStepReservePx()}px"
           >
-            {#if layout.isShadow}
-              {#if bulkDragGhostLayout && bulkDragGhostLayout.length >= 2}
-                <div
-                  class="flex h-full min-w-0 items-stretch opacity-35"
-                  style:min-height="{phraseStepCellMinHeightPx()}px"
-                  aria-hidden="true"
-                >
-                  {#each bulkDragGhostLayout as ghost (ghost.stepId)}
-                    {@const ghostStep = stepIndexFromId(ghost.stepId)}
-                    {@const ghostColumns = ghostStep >= 0
-                      ? quarterGridColumnsForMultiplierIndex(
-                          layoutTimingMultipliers[ghostStep] ?? defaultStepTimingMultiplierIndex,
-                        )
-                      : 1}
-                    <div
-                      class="h-full shrink-0 rounded-md border-2 border-dashed border-border-subtle bg-surface/60"
-                      style={compactStepFlexStyle(ghostColumns)}
-                    ></div>
-                  {/each}
-                </div>
-              {:else}
-                <div
-                  class="shrink-0 rounded-md border-2 border-dashed border-border-subtle/80 bg-surface/40 opacity-35"
-                  style:min-height="{phraseStepCellMinHeightPx()}px"
-                  aria-hidden="true"
-                ></div>
-              {/if}
-            {:else}
+            {#each compactRenderedItems as item, index (item.id)}
+              {@const layout = compactLayoutForItem(item, index)}
+              {@const stepIdForLayout = layout.step >= 0 ? stepIds[layout.step] : null}
+              {@const hideBulkDragSource =
+                isBulkDragActive
+                && stepIdForLayout
+                && bulkDragBlockIds?.includes(stepIdForLayout)
+                && !draggedAsDuplicate}
+              {@const dimBulkDuplicateSource =
+                isBulkDragActive
+                && stepIdForLayout
+                && bulkDragBlockIds?.includes(stepIdForLayout)
+                && draggedAsDuplicate}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
-                use:dragHandle
-                data-compact-step-drag-handle
-                data-cursor="grab"
-                class="absolute inset-0 z-50 touch-none select-none"
-                aria-label="Drag to reorder step"
-                onpointerdown={(event) => prepareStepDrag(event, layout.step)}
-              ></div>
-              {@render compactStepCell(layout.step, stepIds[layout.step])}
-            {/if}
+                data-bulk-step-cell={layout.step >= 0 ? true : undefined}
+                data-compact-step-cell
+                data-step-row={layout.step >= 0 ? row : undefined}
+                data-step-id={stepIdForLayout ?? undefined}
+                data-step-index={layout.step >= 0 ? layout.step : undefined}
+                data-step-selected={layout.step >= 0 && selectedStepIdSet.has(stepIds[layout.step])
+                  ? true
+                  : undefined}
+                data-cursor={layout.step >= 0 ? "grab" : undefined}
+                class="relative min-w-0 touch-none select-none {layout.isShadow ? 'pointer-events-none' : ''} {hideBulkDragSource
+                  ? 'opacity-0 pointer-events-none'
+                  : dimBulkDuplicateSource
+                    ? 'opacity-75'
+                    : ''}"
+                style={fixedFlexStyle(layout.cellWidth)}
+                style:margin-left={index === 0
+                  ? `${layoutPx(stepCellPaddingPx())}px`
+                  : `${layoutPx(stepInsertZoneWidthPx())}px`}
+                title={layout.isShadow
+                  ? undefined
+                  : "Click for advanced settings · drag to reorder · Option-drag to duplicate · Shift-drag to select"}
+                aria-hidden={layout.isShadow ? true : undefined}
+                onclick={(event) => layout.step >= 0 && openCompactStepInspector(event, layout.step)}
+                onpointerdowncapture={(event) => layout.step >= 0 && handleCompactStepPointerDown(event, layout.step)}
+                onpointermovecapture={handleCompactStepPointerMove}
+                onpointerupcapture={handleCompactStepPointerEnd}
+                onpointercancelcapture={handleCompactStepPointerEnd}
+              >
+                {#if layout.isShadow}
+                  {#if bulkDragGhostLayout && bulkDragGhostLayout.length >= 2}
+                    <div
+                      class="flex h-full min-w-0 items-stretch opacity-35"
+                      style:min-height="{phraseStepCellMinHeightPx()}px"
+                      aria-hidden="true"
+                    >
+                      {#each bulkDragGhostLayout as ghost (ghost.stepId)}
+                        <div
+                          class="h-full shrink-0 rounded-md border-2 border-dashed border-border-subtle bg-surface/60"
+                          style={fixedFlexStyle(ghost.widthPx)}
+                          style:margin-left="{ghost.gapBeforePx}px"
+                        ></div>
+                      {/each}
+                    </div>
+                  {:else}
+                    <div
+                      class="shrink-0 rounded-md border-2 border-dashed border-border-subtle/80 bg-surface/40 opacity-35"
+                      style:min-height="{phraseStepCellMinHeightPx()}px"
+                      aria-hidden="true"
+                    ></div>
+                  {/if}
+                {:else}
+                  <div
+                    use:dragHandle
+                    data-compact-step-drag-handle
+                    data-cursor="grab"
+                    class="absolute inset-0 z-50 touch-none select-none"
+                    aria-label="Drag to reorder step"
+                    onpointerdown={(event) => prepareStepDrag(event, layout.step)}
+                  ></div>
+                  {@render compactStepCell(layout.step, stepIds[layout.step])}
+                {/if}
+              </div>
+            {/each}
           </div>
-        {/each}
-        {#if compactTrailingGridColumns > 0}
-          <div
-            class="row-trailing-drop-lane min-h-full min-w-0 flex-1 self-stretch"
-            aria-hidden="true"
-          ></div>
-        {/if}
+          <div class="row-end-add-step-overlay absolute inset-y-0 right-0 flex items-center">
+            {@render rowEndAddStepControl()}
+          </div>
+          {#if isDragging && dropIndicatorIndex >= 0}
+            <div
+              data-step-drop-indicator
+              class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
+              style:left="{dropIndicatorLeftPx}px"
+              aria-hidden="true"
+            ></div>
+          {/if}
+        </div>
       </div>
-      <div class="row-end-add-step-overlay absolute inset-y-2 right-2 flex items-center">
-        {@render rowEndAddStepControl()}
-      </div>
-      {#if isDragging && dropIndicatorIndex >= 0}
-        <div
-          data-step-drop-indicator
-          class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
-          style:left="{compactDropIndicatorLeftPx}px"
-          aria-hidden="true"
-        ></div>
-      {/if}
     </div>
   {:else}
     <div class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">

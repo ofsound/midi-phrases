@@ -212,8 +212,6 @@
     phraseRowsScrollContentWidthPx(layoutStepTimingMultiplier, rowTimingOffset),
   );
   let phraseStepsContentFitScale = $derived.by(() => {
-    if (stretchStepsToFit) return 1;
-
     const addStepReserve = phraseRowEndAddStepReservePx();
     const available = Math.max(0, phraseRowContentViewportWidth - addStepReserve);
     const content = phraseStepsScrollContentWidthPx;
@@ -5347,7 +5345,6 @@
               stretchToFit={stretchStepsToFit}
               contentFitScale={phraseStepsContentFitScale}
               fitGridColumns={compactGridLayout.totalColumns}
-              fitGridStartColumn={compactGridLayout.rowStartColumns[row]}
               inspectedStepId={
                 activeStepInspector !== null && inspectedStep?.row === row
                   ? inspectedStep.stepId
