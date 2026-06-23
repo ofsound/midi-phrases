@@ -61,28 +61,28 @@ export function phraseRowMinHeightPx() {
 }
 
 /** Matches App row header `gap-1` between controls and before PhraseRow. */
-export const basePhraseRowHeaderGapPx = 4;
+export const basePhraseRowHeaderGapPx = 6;
 
 export function phraseRowHeaderGapPx() {
   return scaledPx(basePhraseRowHeaderGapPx);
 }
 
-/** Matches row record icon button `h-6 w-6`. */
-export const basePhraseRowActionIconControlWidthPx = 24;
+/** Matches row record icon button `h-[1.75rem] w-[1.75rem]`. */
+export const basePhraseRowActionIconControlWidthPx = 28;
 
 export function phraseRowActionIconControlWidthPx() {
   return scaledPx(basePhraseRowActionIconControlWidthPx);
 }
 
-/** Matches row on/off toggle `h-[1.6875rem] w-[1.6875rem]`. */
-export const basePhraseRowMuteControlWidthPx = 27;
+/** Matches row on/off toggle `h-[1.9375rem] w-[1.9375rem]`. */
+export const basePhraseRowMuteControlWidthPx = 31;
 
 export function phraseRowMuteControlWidthPx() {
   return scaledPx(basePhraseRowMuteControlWidthPx);
 }
 
-/** Matches BipolarKnob `h-6 w-6` in the row header. */
-export const basePhraseRowOffsetKnobWidthPx = 24;
+/** Matches BipolarKnob `h-[1.75rem] w-[1.75rem]` in the row header. */
+export const basePhraseRowOffsetKnobWidthPx = 28;
 
 export function phraseRowOffsetKnobWidthPx() {
   return scaledPx(basePhraseRowOffsetKnobWidthPx);

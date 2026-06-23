@@ -463,6 +463,8 @@
   }
 
   let layoutScale = $derived(Math.min(1, contentFitScale));
+  let phraseStepCellHeightPx = $derived(phraseStepCellMinHeightPx());
+  let phraseRowDndZoneStyle = $derived(`min-height: ${phraseStepCellHeightPx}px;`);
 
   /** @param {number} px */
   function layoutPx(px) {
@@ -1780,7 +1782,7 @@
         <div
           class="shrink-0 {stretchToFit ? 'rounded-md border-2 border-dashed border-border-subtle/80 bg-surface/40 opacity-35' : ''}"
           style={fixedFlexStyle(layout.cellWidth)}
-          style:min-height="{phraseStepCellMinHeightPx()}px"
+          style:min-height="{phraseStepCellHeightPx}px"
         ></div>
       {/if}
     </div>
@@ -1941,7 +1943,7 @@
 </style>
 
 <div
-  class="flex min-w-0 flex-1 overflow-hidden"
+  class="flex min-w-0 flex-1 overflow-x-hidden overflow-y-visible"
   role="presentation"
   style:padding-left="{layoutPx(rowTimingOffsetShiftPx(timingOffsetIndex) + timingOffsetVisualCompensationPx)}px"
   onpointerdown={handleBulkSelectPointerDown}
@@ -1952,7 +1954,7 @@
     aria-hidden="true"
   ></div>
   <div
-    class="flex min-w-0 flex-1 items-stretch overflow-hidden pt-2 pr-2 pb-2"
+    class="flex min-w-0 flex-1 items-stretch overflow-x-hidden overflow-y-visible pt-2 pr-2 pb-2"
     role="presentation"
     style:min-height="{phraseRowMinHeightPx()}px"
   >
@@ -1964,9 +1966,10 @@
         onconsider={handleConsider}
         onfinalize={handleFinalize}
         data-phrase-row-dragging={isDragging ? true : undefined}
-        class="phrase-row-dnd-zone flex min-h-0 min-w-0 flex-1 items-stretch outline-none {stretchToFit && isDragging
+        class="phrase-row-dnd-zone flex min-w-0 flex-1 items-stretch outline-none {stretchToFit && isDragging
           ? 'compact-step-row-dragging'
           : ''}"
+        style={phraseRowDndZoneStyle}
       >
         {@render rowStartAddStepControl()}
         {@render emptyRowDndPlaceholders()}
@@ -1981,10 +1984,11 @@
       {/if}
     </div>
   {:else if stretchToFit}
-    <div class="min-w-0 flex-1 overflow-hidden">
+    <div class="min-w-0 flex-1 overflow-x-hidden overflow-y-visible">
       <div class="flex w-max min-w-0 items-stretch">
         <div
           class="relative flex w-max min-w-0 shrink-0 items-stretch overflow-visible"
+          style:min-height="{phraseStepCellMinHeightPx()}px"
           style:height="{phraseStepCellMinHeightPx()}px"
         >
           <div
@@ -1994,6 +1998,7 @@
             onfinalize={handleFinalize}
             data-phrase-row-dragging={isDragging ? true : undefined}
             class="phrase-row-dnd-zone relative flex w-max shrink-0 items-stretch overflow-visible outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
+            style={phraseRowDndZoneStyle}
             style:padding-right="{phraseRowEndAddStepReservePx()}px"
           >
             {#each compactRenderedItems as item, index (item.id)}
@@ -2026,6 +2031,7 @@
                     ? 'opacity-75'
                     : ''}"
                 style={fixedFlexStyle(layout.cellWidth)}
+                style:min-height="{phraseStepCellHeightPx}px"
                 style:margin-left={index === 0
                   ? `${layoutPx(stepCellPaddingPx())}px`
                   : `${layoutPx(stepInsertZoneWidthPx())}px`}
@@ -2041,9 +2047,8 @@
               >
                 {#if layout.isShadow}
                   {#if bulkDragGhostLayout && bulkDragGhostLayout.length >= 2}
-                    <div
-                      class="flex h-full min-w-0 items-stretch opacity-35"
-                      style:min-height="{phraseStepCellMinHeightPx()}px"
+                    <div class="flex h-full min-w-0 items-stretch opacity-35"
+                      style:min-height="{phraseStepCellHeightPx}px"
                       aria-hidden="true"
                     >
                       {#each bulkDragGhostLayout as ghost (ghost.stepId)}
@@ -2057,7 +2062,7 @@
                   {:else}
                     <div
                       class="shrink-0 rounded-md border-2 border-dashed border-border-subtle/80 bg-surface/40 opacity-35"
-                      style:min-height="{phraseStepCellMinHeightPx()}px"
+                      style:min-height="{phraseStepCellHeightPx}px"
                       aria-hidden="true"
                     ></div>
                   {/if}
@@ -2090,10 +2095,11 @@
       </div>
     </div>
   {:else}
-    <div class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+    <div class="min-w-0 flex-1 overflow-x-auto overflow-y-visible">
       <div class="flex w-max min-w-0 items-stretch">
       <div
         class="relative flex w-max min-w-0 shrink-0 items-stretch overflow-visible"
+        style:min-height="{phraseStepCellMinHeightPx()}px"
         style:height="{phraseStepCellMinHeightPx()}px"
       >
       {@render rowInsertSlots()}
@@ -2105,6 +2111,7 @@
           onfinalize={handleFinalize}
           data-phrase-row-dragging={isDragging ? true : undefined}
           class="phrase-row-dnd-zone relative flex w-max shrink-0 items-stretch overflow-visible outline-none"
+          style={phraseRowDndZoneStyle}
           style:padding-right="{phraseRowEndAddStepReservePx()}px"
         >
           {#each renderedDndItems as item, index (item.id)}
@@ -2139,6 +2146,7 @@
                   ? 'opacity-75'
                   : ''}"
               style={fixedFlexStyle(shadowShellWidth)}
+              style:min-height="{phraseStepCellHeightPx}px"
               style:margin-left={index === 0
                 ? `${layoutPx(stepCellPaddingPx())}px`
                 : `${layoutPx(stepInsertZoneWidthPx())}px`}
@@ -2148,17 +2156,22 @@
             >
               {#if isShadowItem(item)}
                 {#if bulkDragGhostLayout && bulkDragGhostLayout.length >= 2}
-                  <div class="flex shrink-0 items-stretch opacity-35" aria-hidden="true">
+                  <div class="flex h-full min-h-0 shrink-0 items-stretch opacity-35" aria-hidden="true">
                     {#each bulkDragGhostLayout as ghost (ghost.stepId)}
                       <div
-                        class="shrink-0 rounded-lg border-2 border-dashed border-border-subtle bg-surface/60"
+                        class="h-full shrink-0 rounded-lg border-2 border-dashed border-border-subtle bg-surface/60"
                         style={fixedFlexStyle(ghost.widthPx)}
+                        style:min-height="{phraseStepCellHeightPx}px"
                         style:margin-left="{ghost.gapBeforePx}px"
                       ></div>
                     {/each}
                   </div>
                 {:else}
-                  <div class="shrink-0" style={fixedFlexStyle(layout.cellWidth)}></div>
+                  <div
+                    class="h-full shrink-0"
+                    style={fixedFlexStyle(layout.cellWidth)}
+                    style:min-height="{phraseStepCellHeightPx}px"
+                  ></div>
                 {/if}
               {:else}
                 <div class="pointer-events-auto h-full overflow-visible">

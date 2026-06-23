@@ -5079,14 +5079,16 @@
     </div>
 
     <div
-      class="flex shrink-0 items-center px-2"
+      class="flex shrink-0 flex-col gap-1 px-2"
       role="presentation"
       aria-hidden="true"
     >
-      <div class="h-8 w-px shrink-0 bg-border-strong"></div>
+      <span class="text-xs font-semibold leading-none opacity-0" aria-hidden="true">|</span>
+      <div class="h-[2.125rem] w-px shrink-0 self-center bg-border-strong"></div>
     </div>
 
-    <div class="shrink-0">
+    <div class="flex min-w-0 flex-1 items-center gap-x-2">
+      <div class="shrink-0">
         <BulkStepEditControls
           compact
           accent={interfaceAccent}
@@ -5114,9 +5116,10 @@
           onTransposePreview={previewBulkTransposeSemitones}
           onTransposeCommit={commitBulkTransposeSemitones}
         />
-    </div>
+      </div>
 
-    <div class="flex min-w-0 flex-1 items-center justify-center px-2">
+      <div class="min-w-0 flex-1" aria-hidden="true"></div>
+
       <button
         type="button"
         aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
@@ -5137,10 +5140,10 @@
           >{activeScaleModeLabel}</span
         >
       </button>
-    </div>
 
-    <div class="flex shrink-0 items-center gap-1">
-    <div class="flex shrink-0 items-center gap-1">
+      <div class="min-w-0 flex-1" aria-hidden="true"></div>
+
+      <div class="flex shrink-0 items-center gap-1">
       <div class="flex flex-col gap-1">
         <div class="flex items-center gap-1.5">
           <span class="w-[3.75rem] shrink-0 text-right text-xs font-semibold leading-none text-text-muted"
@@ -5240,7 +5243,7 @@
           {@const rowPianoRollFocusMuted =
             activeRowPianoRollEditor !== null && activeRowPianoRollEditor.row !== row}
           <div
-            class="relative z-10 flex min-w-0 shrink-0 items-center gap-1 transition-opacity duration-150 {rowPianoRollFocusMuted
+            class="relative z-10 flex min-w-0 shrink-0 items-stretch gap-1 transition-opacity duration-150 {rowPianoRollFocusMuted
               ? 'opacity-50'
               : ''}"
           >
@@ -5268,7 +5271,7 @@
                     ? `Edit row ${row + 1} in the monophonic piano roll`
                     : `Add a step to row ${row + 1} to edit it in the piano roll`}
               ></button>
-              <div class="pointer-events-none relative z-10 flex items-center gap-1 px-1">
+              <div class="pointer-events-none relative z-10 flex items-center gap-1.5 px-1">
                 {#if rowMuted[row]}
                   <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
                 {/if}
@@ -5283,7 +5286,7 @@
                   onclick={(event) => toggleRowMute(row, event.shiftKey)}
                   title="Shift-click to solo row"
                 >
-                  <RowDisableIcon class="h-6 w-6" />
+                  <RowDisableIcon class="h-[1.725rem] w-[1.725rem]" />
                 </button>
                 <button
                   type="button"
@@ -5301,7 +5304,7 @@
                     : "Record row from MIDI keyboard (first note replaces row)"}
                 >
                   <RowRecordIcon
-                    class="pointer-events-none h-6 w-6"
+                    class="pointer-events-none h-[1.725rem] w-[1.725rem]"
                     recording={recordingRow === row}
                   />
                 </button>
