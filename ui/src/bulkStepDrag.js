@@ -25,18 +25,31 @@ export function blockMoveOrder(beforeIds, blockIds, shadowIndex) {
   const blockSet = new Set(blockIds);
   const block = beforeIds.filter((id) => blockSet.has(id));
   const rest = beforeIds.filter((id) => !blockSet.has(id));
-
-  let restInsertIndex = 0;
-
-  for (let index = 0; index < shadowIndex && index < beforeIds.length; index += 1) {
-    if (!blockSet.has(beforeIds[index])) restInsertIndex += 1;
-  }
+  const restInsertIndex = blockMoveRestInsertionIndex(beforeIds, blockIds, shadowIndex);
 
   return [
     ...rest.slice(0, restInsertIndex),
     ...block,
     ...rest.slice(restInsertIndex),
   ];
+}
+
+/**
+ * Insertion index within the row after the moved block has been removed.
+ *
+ * @param {string[]} beforeIds
+ * @param {string[]} blockIds
+ * @param {number} shadowIndex
+ */
+export function blockMoveRestInsertionIndex(beforeIds, blockIds, shadowIndex) {
+  const blockSet = new Set(blockIds);
+  let restInsertIndex = 0;
+
+  for (let index = 0; index < shadowIndex && index < beforeIds.length; index += 1) {
+    if (!blockSet.has(beforeIds[index])) restInsertIndex += 1;
+  }
+
+  return restInsertIndex;
 }
 
 /**
