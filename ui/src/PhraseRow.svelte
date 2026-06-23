@@ -21,6 +21,7 @@
   import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { preventTabFocus } from "./preventTabFocus.js";
   import {
+    insertionIndexFromCellMidpoints,
     isShadowItem,
     placementIndicatorLeftPx,
     withoutShadowItems,
@@ -253,6 +254,11 @@
   let draggedAsDuplicate = $state(false);
   let duplicateDropIndex = -1;
   let dropIndicatorIndex = $state(-1);
+  let lastDragClientX = null;
+  let lastDragClientY = null;
+  let dropIndicatorVisible = $state(false);
+  let dropIndicatorRefreshFrame = 0;
+  let dragPointerTrackingActive = false;
   let duplicateSourceRestoreFrame = 0;
   /** @type {string[] | null} */
   let bulkDragBlockIds = $state(null);
@@ -300,6 +306,110 @@
   const resizeCapture = { capture: true };
   const resizePassiveCapture = { capture: true, passive: true };
 
+  /** @param {number} index */
+  function clampDropIndicatorIndex(index) {
+    if (!Number.isFinite(index)) return -1;
+
+    return Math.min(stepIds.length, Math.max(0, Math.trunc(index)));
+  }
+
+  /** @param {number} index */
+  function setDropIndicatorIndex(index) {
+    const clamped = clampDropIndicatorIndex(index);
+
+    dropIndicatorIndex = clamped;
+
+    if (clamped >= 0) {
+      duplicateDropIndex = clamped;
+    }
+  }
+
+  function pointerIsInsideDropZone() {
+    if (!dndZoneElement || lastDragClientY === null) return false;
+
+    const rect = dndZoneElement.getBoundingClientRect();
+
+    return lastDragClientY >= rect.top && lastDragClientY <= rect.bottom;
+  }
+
+  function stableStepCellsForDropTarget() {
+    if (!dndZoneElement) return [];
+
+    const rect = dndZoneElement.getBoundingClientRect();
+    const leadingInset = layoutPx(stepCellPaddingPx());
+    const gap = layoutPx(stepInsertZoneWidthPx());
+    let left = rect.left;
+
+    return stableDropCellWidths.map((width, step) => {
+      left += step === 0 ? leadingInset : gap;
+
+      const cell = { step, left, width };
+      left += width;
+
+      return cell;
+    });
+  }
+
+  /** @param {number} fallbackIndex */
+  function syncDropIndicatorFromPointer(fallbackIndex = dropIndicatorIndex) {
+    if (lastDragClientX === null) {
+      setDropIndicatorIndex(fallbackIndex);
+      dropIndicatorVisible = fallbackIndex >= 0;
+      return;
+    }
+
+    dropIndicatorVisible = pointerIsInsideDropZone();
+
+    const cells = stableStepCellsForDropTarget();
+
+    if (cells.length === 0 && stepIds.length > 0) {
+      setDropIndicatorIndex(fallbackIndex);
+      return;
+    }
+
+    const pointerIndex = insertionIndexFromCellMidpoints(cells, lastDragClientX, stepIds.length);
+
+    setDropIndicatorIndex(pointerIndex);
+  }
+
+  /** @param {number} fallbackIndex */
+  function scheduleDropIndicatorRefresh(fallbackIndex = dropIndicatorIndex) {
+    if (dropIndicatorRefreshFrame) {
+      cancelAnimationFrame(dropIndicatorRefreshFrame);
+    }
+
+    dropIndicatorRefreshFrame = requestAnimationFrame(() => {
+      dropIndicatorRefreshFrame = 0;
+      syncDropIndicatorFromPointer(fallbackIndex);
+    });
+  }
+
+  /** @param {PointerEvent} event */
+  function trackDragPointer(event) {
+    if (!isDragging) return;
+
+    lastDragClientX = event.clientX;
+    lastDragClientY = event.clientY;
+    syncDropIndicatorFromPointer();
+  }
+
+  function beginDragPointerTracking() {
+    if (dragPointerTrackingActive) return;
+
+    document.addEventListener("pointermove", trackDragPointer, resizePassiveCapture);
+    dragPointerTrackingActive = true;
+  }
+
+  function clearDragPointerTracking() {
+    if (!dragPointerTrackingActive) return;
+
+    document.removeEventListener("pointermove", trackDragPointer, resizePassiveCapture);
+    dragPointerTrackingActive = false;
+    lastDragClientX = null;
+    lastDragClientY = null;
+    dropIndicatorVisible = false;
+  }
+
   function blockRemoveTemporarily() {
     removeBlocked = true;
 
@@ -315,6 +425,7 @@
 
   function beginDragSession() {
     isDragging = true;
+    beginDragPointerTracking();
     blockRemoveTemporarily();
 
     const rowHeightPx = phraseStepCellMinHeightPx();
@@ -338,7 +449,7 @@
     blockRemoveTemporarily();
     draggedAsDuplicate = false;
     duplicateDropIndex = -1;
-    dropIndicatorIndex = -1;
+    setDropIndicatorIndex(-1);
     onDuplicateDragChange(null);
     onBulkDragSessionChange(null);
     bulkDragBlockIds = null;
@@ -349,6 +460,8 @@
       dndZoneElement.style.removeProperty("min-height");
       dndZoneElement.style.removeProperty("height");
     }
+
+    clearDragPointerTracking();
   }
 
   /** @param {{ id: string }} item @param {string | null} stepIdForLayout */
@@ -580,7 +693,7 @@
     if (stepIds.length === 0 && trigger === TRIGGERS.DRAG_STARTED) return;
     const shadowIndex = event.detail.items.findIndex(isShadowItem);
 
-    dropIndicatorIndex = shadowIndex;
+    syncDropIndicatorFromPointer(shadowIndex);
 
     if (trigger === TRIGGERS.DRAG_STARTED) {
       beginDragSession();
@@ -592,7 +705,7 @@
       draggedAsDuplicate = draggedAsDuplicate || duplicateDragStepId === event.detail.info.id;
 
       if (draggedAsDuplicate) {
-        duplicateDropIndex = stepIndexFromId(event.detail.info.id);
+        syncDropIndicatorFromPointer(stepIndexFromId(event.detail.info.id));
         duplicateSourceRestoreFrame = requestAnimationFrame(() => {
           duplicateSourceRestoreFrame = 0;
           restoreDuplicateSourceItems();
@@ -610,41 +723,48 @@
       || trigger === TRIGGERS.DRAGGED_ENTERED_ANOTHER
     ) {
       isDragging = true;
+      beginDragPointerTracking();
       draggedStepId = event.detail.info.id;
       draggedAsDuplicate = duplicateDragStepId === event.detail.info.id;
     } else if (trigger === TRIGGERS.DRAGGED_LEFT && idsBeforeDrag === null) {
       isDragging = false;
       draggedStepId = null;
+      dropIndicatorVisible = false;
       resetDndItemsToRow();
+      clearDragPointerTracking();
     }
 
     if (bulkDragBlockIds && bulkDragBlockIds.length >= 2 && idsBeforeDrag) {
       if (shadowIndex >= 0) {
-        duplicateDropIndex = shadowIndex;
+        syncDropIndicatorFromPointer(shadowIndex);
       }
 
       if (draggedAsDuplicate && trigger !== TRIGGERS.DRAG_STARTED) {
         dndItems = event.detail.items;
         scheduleBulkDragGhostRefresh();
+        scheduleDropIndicatorRefresh(shadowIndex);
         return;
       }
 
       dndItems = event.detail.items;
       scheduleBulkDragGhostRefresh();
+      scheduleDropIndicatorRefresh(shadowIndex);
       void tick();
       return;
     }
 
     if (draggedAsDuplicate && idsBeforeDrag && trigger !== TRIGGERS.DRAG_STARTED) {
       if (shadowIndex >= 0) {
-        duplicateDropIndex = shadowIndex;
+        syncDropIndicatorFromPointer(shadowIndex);
       }
 
       restoreDuplicateSourceItems();
+      scheduleDropIndicatorRefresh(shadowIndex);
       return;
     }
 
     dndItems = event.detail.items;
+    scheduleDropIndicatorRefresh(shadowIndex);
   }
 
   /** @param {CustomEvent} event */
@@ -778,10 +898,16 @@
       return;
     }
 
-    onReorder(row, afterIds);
+    const stableAfterIds =
+      idsBeforeDrag && dropIndicatorIndex >= 0
+        ? blockMoveOrder(idsBeforeDrag, [movedStepId], dropIndicatorIndex)
+        : afterIds;
+
+    dndItems = dndItemsFromIds(stableAfterIds);
+    onReorder(row, stableAfterIds);
 
     if (idsBeforeDrag) {
-      await onMoveCommitted(row, idsBeforeDrag, afterIds);
+      await onMoveCommitted(row, idsBeforeDrag, stableAfterIds);
       idsBeforeDrag = null;
     }
 
@@ -793,6 +919,8 @@
   function transformDraggedElement(element) {
     if (!element) return;
 
+    const dragHeight = `${phraseStepCellHeightPx}px`;
+
     if (bulkDragBlockIds && bulkDragBlockIds.length >= 2 && bulkDragGhostSnapshots) {
       applyBulkStepDragGhost(
         element,
@@ -800,11 +928,17 @@
         bulkDragGhostSnapshots,
         draggedAsDuplicate,
       );
+      element.style.setProperty("height", dragHeight, "important");
+      element.style.setProperty("min-height", dragHeight, "important");
+      element.style.setProperty("overflow", "visible", "important");
       return;
     }
 
     element.style.setProperty("opacity", "1", "important");
     element.style.setProperty("visibility", "visible", "important");
+    element.style.setProperty("height", dragHeight, "important");
+    element.style.setProperty("min-height", dragHeight, "important");
+    element.style.setProperty("overflow", "visible", "important");
     element.style.setProperty("outline", "none", "important");
     element.style.setProperty("box-shadow", "none", "important");
     element.querySelector("[data-remove-button]")?.style.setProperty("display", "none");
@@ -1178,6 +1312,8 @@
 
   onDestroy(() => {
     if (duplicateSourceRestoreFrame) cancelAnimationFrame(duplicateSourceRestoreFrame);
+    if (dropIndicatorRefreshFrame) cancelAnimationFrame(dropIndicatorRefreshFrame);
+    clearDragPointerTracking();
     stopDragYLock();
     teardownActiveResize();
     clearCompactStepDrag();
@@ -1459,8 +1595,11 @@
       gapBefore: index > 0 && !collapsed,
     };
   }));
-  let dropIndicatorLeftPx = $derived(placementIndicatorLeftPx(
-    rowCellLayouts.map((layout) => layout.cellWidth),
+  let stableDropCellWidths = $derived(stepIds.map((id, step) =>
+    layoutPx(stepDisplayWidthPx(multiplierIndexForDataStep(step))),
+  ));
+  let stableDropIndicatorLeftPx = $derived(placementIndicatorLeftPx(
+    stableDropCellWidths,
     dropIndicatorIndex,
     layoutPx(stepCellPaddingPx()),
     layoutPx(stepInsertZoneWidthPx()),
@@ -1953,6 +2092,10 @@
     transition: none !important;
   }
 
+  :global([data-phrase-row-dragging] [data-bulk-step-cell]) {
+    transform: none !important;
+  }
+
   .step-drop-indicator {
     width: 3px;
     transform: translateX(-50%);
@@ -1967,7 +2110,7 @@
 </style>
 
 <div
-  class="flex min-w-0 flex-1 overflow-x-hidden overflow-y-visible"
+  class="flex min-w-0 flex-1 overflow-x-hidden overflow-y-hidden"
   role="presentation"
   style:padding-left="{layoutPx(rowTimingOffsetShiftPx(timingOffsetIndex) + timingOffsetVisualCompensationPx)}px"
   onpointerdown={handleBulkSelectPointerDown}
@@ -1978,7 +2121,7 @@
     aria-hidden="true"
   ></div>
   <div
-    class="flex min-w-0 flex-1 items-stretch overflow-x-hidden overflow-y-visible pt-2 pr-2 pb-2"
+    class="flex min-w-0 flex-1 items-stretch overflow-x-hidden overflow-y-hidden pt-2 pr-2 pb-2"
     role="presentation"
     style:min-height="{phraseRowMinHeightPx()}px"
   >
@@ -1998,17 +2141,17 @@
         {@render rowStartAddStepControl()}
         {@render emptyRowDndPlaceholders()}
       </div>
-      {#if isDragging && dropIndicatorIndex >= 0}
+      {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
         <div
           data-step-drop-indicator
           class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
-          style:left="{dropIndicatorLeftPx}px"
+          style:left="{stableDropIndicatorLeftPx}px"
           aria-hidden="true"
         ></div>
       {/if}
     </div>
   {:else if stretchToFit}
-    <div class="min-w-0 flex-1 overflow-x-hidden overflow-y-visible">
+    <div class="min-w-0 flex-1 overflow-x-hidden overflow-y-hidden">
       <div class="flex w-max min-w-0 items-stretch">
         <div
           class="relative flex w-max min-w-0 shrink-0 items-stretch overflow-visible"
@@ -2083,11 +2226,11 @@
           <div class="row-end-add-step-overlay absolute inset-y-0 right-0 flex items-center">
             {@render rowEndAddStepControl()}
           </div>
-          {#if isDragging && dropIndicatorIndex >= 0}
+          {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
             <div
               data-step-drop-indicator
               class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
-              style:left="{dropIndicatorLeftPx}px"
+              style:left="{stableDropIndicatorLeftPx}px"
               aria-hidden="true"
             ></div>
           {/if}
@@ -2095,7 +2238,7 @@
       </div>
     </div>
   {:else}
-    <div class="min-w-0 flex-1 overflow-x-auto overflow-y-visible">
+    <div class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
       <div class="flex w-max min-w-0 items-stretch">
       <div
         class="relative flex w-max min-w-0 shrink-0 items-stretch overflow-visible"
@@ -2155,11 +2298,11 @@
         <div class="row-end-add-step-overlay absolute inset-y-0 right-0 flex items-center">
           {@render rowEndAddStepControl()}
         </div>
-        {#if isDragging && dropIndicatorIndex >= 0}
+        {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
           <div
             data-step-drop-indicator
             class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
-            style:left="{dropIndicatorLeftPx}px"
+            style:left="{stableDropIndicatorLeftPx}px"
             aria-hidden="true"
           ></div>
         {/if}
