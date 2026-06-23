@@ -1029,6 +1029,17 @@ body:has(#dnd-action-dragged-el) .row-start-add-step-control {
   pointer-events: none;
 }
 
+.phrase-row-scrollport {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.phrase-row-scrollport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 /* svelte-dnd-action keyboard a11y — pointer-only in this plugin; suppress stray focus rings. */
 [role="list"]:focus,
 [role="list"]:focus-visible,

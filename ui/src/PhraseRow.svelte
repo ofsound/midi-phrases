@@ -29,6 +29,7 @@
   import {
     blockDuplicateInsertionIndex,
     blockMoveOrder,
+    blockMoveRestInsertionIndex,
     selectedIdsInRowOrder,
   } from "./bulkStepDrag.js";
   import {
@@ -254,10 +255,13 @@
   let draggedAsDuplicate = $state(false);
   let duplicateDropIndex = -1;
   let dropIndicatorIndex = $state(-1);
+  let dropIndicatorLeftPx = $state(0);
   let lastDragClientX = null;
   let lastDragClientY = null;
   let dropIndicatorVisible = $state(false);
   let dropIndicatorRefreshFrame = 0;
+  /** @type {{ cells: { step: number, left: number, width: number }[], boundaries: number[] } | null} */
+  let dropGeometry = null;
   let dragPointerTrackingActive = false;
   let duplicateSourceRestoreFrame = 0;
   /** @type {string[] | null} */
@@ -333,6 +337,7 @@
   }
 
   function stableStepCellsForDropTarget() {
+    if (dropGeometry) return dropGeometry.cells;
     if (!dndZoneElement) return [];
 
     const rect = dndZoneElement.getBoundingClientRect();
@@ -350,10 +355,101 @@
     });
   }
 
+  function captureDropGeometry() {
+    if (!dndZoneElement || !dropIndicatorHostElement) return;
+
+    const hostRect = dropIndicatorHostElement.getBoundingClientRect();
+    const leadingInset = layoutPx(stepCellPaddingPx());
+    const gap = layoutPx(stepInsertZoneWidthPx());
+    const fallbackBoundaries = Array.from({ length: stepIds.length + 1 }, (_, index) =>
+      placementIndicatorLeftPx(stableDropCellWidths, index, leadingInset, gap),
+    );
+    /** @type {{ step: number, left: number, width: number, localLeft: number, localRight: number }[]} */
+    const cells = [];
+
+    dndZoneElement.querySelectorAll("[data-bulk-step-cell]").forEach((element) => {
+      if (!(element instanceof HTMLElement)) return;
+
+      const step = Number(element.dataset.stepIndex);
+      const rect = element.getBoundingClientRect();
+
+      if (!Number.isFinite(step) || rect.width <= 0) return;
+
+      cells.push({
+        step,
+        left: rect.left,
+        width: rect.width,
+        localLeft: rect.left - hostRect.left,
+        localRight: rect.right - hostRect.left,
+      });
+    });
+
+    cells.sort((left, right) => left.step - right.step);
+
+    if (cells.length === 0) {
+      dropGeometry = { cells: [], boundaries: fallbackBoundaries };
+      return;
+    }
+
+    const cellsByStep = new Map(cells.map((cell) => [cell.step, cell]));
+    const boundaries = fallbackBoundaries.slice();
+
+    boundaries[0] = cells[0].localLeft - leadingInset / 2;
+
+    for (let step = 1; step < stepIds.length; step += 1) {
+      const previous = cellsByStep.get(step - 1);
+      const next = cellsByStep.get(step);
+
+      if (previous && next) {
+        boundaries[step] = (previous.localRight + next.localLeft) / 2;
+      }
+    }
+
+    boundaries[stepIds.length] = cells[cells.length - 1].localRight + gap / 2;
+
+    dropGeometry = {
+      cells: cells.map(({ step, left, width }) => ({ step, left, width })),
+      boundaries,
+    };
+  }
+
+  /** @param {number} index */
+  function syncDropIndicatorLeft(index) {
+    const clamped = clampDropIndicatorIndex(index);
+
+    if (idsBeforeDrag && draggedStepId && !draggedAsDuplicate && dropGeometry) {
+      const blockIds = bulkDragBlockIds?.includes(draggedStepId)
+        ? bulkDragBlockIds
+        : [draggedStepId];
+      const blockSet = new Set(blockIds);
+      const cellByStep = new Map(dropGeometry.cells.map((cell) => [cell.step, cell]));
+      const restWidths = idsBeforeDrag
+        .map((id, step) => (blockSet.has(id) ? null : (cellByStep.get(step)?.width ?? stableDropCellWidths[step])))
+        .filter((width) => width !== null);
+      const restInsertIndex = blockMoveRestInsertionIndex(idsBeforeDrag, blockIds, clamped);
+
+      dropIndicatorLeftPx = placementIndicatorLeftPx(
+        restWidths,
+        restInsertIndex,
+        layoutPx(stepCellPaddingPx()),
+        layoutPx(stepInsertZoneWidthPx()),
+      );
+      return;
+    }
+
+    dropIndicatorLeftPx = dropGeometry?.boundaries[clamped] ?? placementIndicatorLeftPx(
+      stableDropCellWidths,
+      clamped,
+      layoutPx(stepCellPaddingPx()),
+      layoutPx(stepInsertZoneWidthPx()),
+    );
+  }
+
   /** @param {number} fallbackIndex */
   function syncDropIndicatorFromPointer(fallbackIndex = dropIndicatorIndex) {
     if (lastDragClientX === null) {
       setDropIndicatorIndex(fallbackIndex);
+      syncDropIndicatorLeft(fallbackIndex);
       dropIndicatorVisible = fallbackIndex >= 0;
       return;
     }
@@ -364,12 +460,14 @@
 
     if (cells.length === 0 && stepIds.length > 0) {
       setDropIndicatorIndex(fallbackIndex);
+      syncDropIndicatorLeft(fallbackIndex);
       return;
     }
 
     const pointerIndex = insertionIndexFromCellMidpoints(cells, lastDragClientX, stepIds.length);
 
     setDropIndicatorIndex(pointerIndex);
+    syncDropIndicatorLeft(pointerIndex);
   }
 
   /** @param {number} fallbackIndex */
@@ -408,6 +506,7 @@
     lastDragClientX = null;
     lastDragClientY = null;
     dropIndicatorVisible = false;
+    dropGeometry = null;
   }
 
   function blockRemoveTemporarily() {
@@ -424,6 +523,7 @@
   }
 
   function beginDragSession() {
+    captureDropGeometry();
     isDragging = true;
     beginDragPointerTracking();
     blockRemoveTemporarily();
@@ -431,8 +531,14 @@
     const rowHeightPx = phraseStepCellMinHeightPx();
 
     if (dndZoneElement) {
+      const rowWidthPx = dndZoneElement.scrollWidth;
+
       dndZoneElement.style.minHeight = `${rowHeightPx}px`;
       dndZoneElement.style.height = `${rowHeightPx}px`;
+
+      if (rowWidthPx > 0) {
+        dndZoneElement.style.minWidth = `${rowWidthPx}px`;
+      }
     }
   }
 
@@ -450,6 +556,8 @@
     draggedAsDuplicate = false;
     duplicateDropIndex = -1;
     setDropIndicatorIndex(-1);
+    dropIndicatorLeftPx = 0;
+    dropGeometry = null;
     onDuplicateDragChange(null);
     onBulkDragSessionChange(null);
     bulkDragBlockIds = null;
@@ -459,6 +567,7 @@
     if (dndZoneElement) {
       dndZoneElement.style.removeProperty("min-height");
       dndZoneElement.style.removeProperty("height");
+      dndZoneElement.style.removeProperty("min-width");
     }
 
     clearDragPointerTracking();
@@ -631,6 +740,8 @@
 
   /** @type {HTMLDivElement | null} */
   let dndZoneElement = $state(null);
+  /** @type {HTMLDivElement | null} */
+  let dropIndicatorHostElement = $state(null);
 
   function clearDndZoneTransforms() {
     dndZoneElement?.querySelectorAll("[data-bulk-step-cell]").forEach((element) => {
@@ -692,6 +803,14 @@
 
     if (stepIds.length === 0 && trigger === TRIGGERS.DRAG_STARTED) return;
     const shadowIndex = event.detail.items.findIndex(isShadowItem);
+
+    if (
+      trigger === TRIGGERS.DRAG_STARTED
+      || trigger === TRIGGERS.DRAGGED_ENTERED
+      || trigger === TRIGGERS.DRAGGED_ENTERED_ANOTHER
+    ) {
+      captureDropGeometry();
+    }
 
     syncDropIndicatorFromPointer(shadowIndex);
 
@@ -1598,12 +1717,6 @@
   let stableDropCellWidths = $derived(stepIds.map((id, step) =>
     layoutPx(stepDisplayWidthPx(multiplierIndexForDataStep(step))),
   ));
-  let stableDropIndicatorLeftPx = $derived(placementIndicatorLeftPx(
-    stableDropCellWidths,
-    dropIndicatorIndex,
-    layoutPx(stepCellPaddingPx()),
-    layoutPx(stepInsertZoneWidthPx()),
-  ));
 </script>
 
 {#snippet stepHeaderRemoveButton(step, dimmed)}
@@ -2105,7 +2218,6 @@
       0 0 3px currentColor,
       0 0 8px currentColor,
       0 0 16px color-mix(in srgb, currentColor 78%, transparent);
-    transition: left 55ms cubic-bezier(0.2, 0.75, 0.25, 1);
   }
 </style>
 
@@ -2126,7 +2238,7 @@
     style:min-height="{phraseRowMinHeightPx()}px"
   >
   {#if isEmptyRow}
-    <div class="relative flex min-w-0 flex-1 items-stretch">
+    <div bind:this={dropIndicatorHostElement} class="relative flex min-w-0 flex-1 items-stretch">
       <div
         bind:this={dndZoneElement}
         use:dragHandleZone={dndZoneOptions}
@@ -2145,7 +2257,7 @@
         <div
           data-step-drop-indicator
           class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
-          style:left="{stableDropIndicatorLeftPx}px"
+          style:left="{dropIndicatorLeftPx}px"
           aria-hidden="true"
         ></div>
       {/if}
@@ -2154,6 +2266,7 @@
     <div class="min-w-0 flex-1 overflow-x-hidden overflow-y-hidden">
       <div class="flex w-max min-w-0 items-stretch">
         <div
+          bind:this={dropIndicatorHostElement}
           class="relative flex w-max min-w-0 shrink-0 items-stretch overflow-visible"
           style:min-height="{phraseStepCellMinHeightPx()}px"
           style:height="{phraseStepCellMinHeightPx()}px"
@@ -2230,7 +2343,7 @@
             <div
               data-step-drop-indicator
               class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
-              style:left="{stableDropIndicatorLeftPx}px"
+              style:left="{dropIndicatorLeftPx}px"
               aria-hidden="true"
             ></div>
           {/if}
@@ -2238,9 +2351,10 @@
       </div>
     </div>
   {:else}
-    <div class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+    <div class="phrase-row-scrollport min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
       <div class="flex w-max min-w-0 items-stretch">
       <div
+        bind:this={dropIndicatorHostElement}
         class="relative flex w-max min-w-0 shrink-0 items-stretch overflow-visible"
         style:min-height="{phraseStepCellMinHeightPx()}px"
         style:height="{phraseStepCellMinHeightPx()}px"
@@ -2302,7 +2416,7 @@
           <div
             data-step-drop-indicator
             class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
-            style:left="{stableDropIndicatorLeftPx}px"
+            style:left="{dropIndicatorLeftPx}px"
             aria-hidden="true"
           ></div>
         {/if}

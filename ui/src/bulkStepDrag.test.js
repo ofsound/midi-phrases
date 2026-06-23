@@ -3,6 +3,7 @@ import {
   blockCrossRowInsertionIndex,
   blockDuplicateInsertionIndex,
   blockMoveOrder,
+  blockMoveRestInsertionIndex,
   duplicateBlockInRow,
   selectedIdsInRowOrder,
 } from "./bulkStepDrag.js";
@@ -16,6 +17,11 @@ describe("selectedIdsInRowOrder", () => {
 describe("blockMoveOrder", () => {
   it("matches single-step move semantics", () => {
     expect(blockMoveOrder(["a", "b", "c", "d", "e"], ["b"], 3)).toEqual(["a", "c", "b", "d", "e"]);
+  });
+
+  it("keeps the original order when a single step is dropped back on its source boundary", () => {
+    expect(blockMoveOrder(["a", "b", "c", "d"], ["b"], 1)).toEqual(["a", "b", "c", "d"]);
+    expect(blockMoveOrder(["a", "b", "c", "d"], ["b"], 2)).toEqual(["a", "b", "c", "d"]);
   });
 
   it("moves a multi-step block as one unit", () => {
@@ -33,6 +39,13 @@ describe("blockMoveOrder", () => {
       "b",
       "d",
     ]);
+  });
+});
+
+describe("blockMoveRestInsertionIndex", () => {
+  it("maps both source boundaries to the same post-removal insertion gap", () => {
+    expect(blockMoveRestInsertionIndex(["a", "b", "c"], ["b"], 1)).toBe(1);
+    expect(blockMoveRestInsertionIndex(["a", "b", "c"], ["b"], 2)).toBe(1);
   });
 });
 
