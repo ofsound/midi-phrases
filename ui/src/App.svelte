@@ -4339,6 +4339,9 @@
     projectDescription = String(scalar("projectDescription", ""));
     projectCreatedAt = String(scalar("projectCreatedAt", ""));
     projectModifiedAt = String(scalar("projectModifiedAt", ""));
+    projectFileName = String(scalar("projectFileName", ""));
+    hasPreviousProject = Boolean(Number.parseInt(String(scalar("hasPreviousProject", 0)), 10));
+    hasNextProject = Boolean(Number.parseInt(String(scalar("hasNextProject", 0)), 10));
     themeMode = String(scalar("projectThemeMode", defaultThemeMode));
     stretchStepsToFit = Boolean(
       Number.parseInt(String(scalar("projectStretchStepsToFit", 0)), 10),
@@ -4803,6 +4806,7 @@
     resizeObserver.observe(appRoot ?? document.documentElement);
     updateUiScale();
     void refreshEditorFullscreenState();
+    void refreshProjectState();
 
     const handleKeydown = (event) => {
       if (event.key === "Escape" && patternClearArmed) {
@@ -5640,7 +5644,7 @@
         <div class="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            class="h-8 rounded border border-border-subtle bg-surface-raised px-4 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted transition-colors hover:border-accent/60 hover:text-text disabled:opacity-40"
+            class="h-8 rounded border border-border-subtle bg-surface-raised px-4 text-xs font-semibold uppercase tracking-[0.16em] text-text transition-colors hover:border-accent/60 disabled:opacity-40"
             disabled={projectOperationBusy || !nativeFunctionAvailable("newProject")}
             data-cursor="pointer"
             onclick={createNewProject}
@@ -5648,7 +5652,7 @@
           >New</button>
           <button
             type="button"
-            class="h-8 rounded border border-border-subtle bg-surface-raised px-4 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted transition-colors hover:border-accent/60 hover:text-text disabled:opacity-40"
+            class="h-8 rounded border border-border-subtle bg-surface-raised px-4 text-xs font-semibold uppercase tracking-[0.16em] text-text transition-colors hover:border-accent/60 disabled:opacity-40"
             disabled={projectOperationBusy || !nativeFunctionAvailable("loadProject")}
             data-cursor="pointer"
             onclick={loadProject}
@@ -5685,12 +5689,12 @@
             />
             <input
               aria-label="Project description"
-              class="w-[25ch] shrink-0 truncate border-0 bg-transparent p-0 text-xs text-text-muted outline-none placeholder:text-text-faint focus:text-text"
+              class="w-[25ch] shrink-0 truncate border-0 bg-transparent p-0 text-xs text-text outline-none placeholder:text-text-faint focus:text-text"
               maxlength="240"
               bind:value={projectDescription}
               placeholder="Add a project description…"
             />
-            <span class="shrink-0 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-text-faint">
+            <span class="shrink-0 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-text">
               {projectDateLabel}
             </span>
           </div>

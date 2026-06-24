@@ -225,15 +225,12 @@ juce::Array<juce::File> PluginEditor::getSiblingProjectFiles() const
 
 bool PluginEditor::hasPreviousProject() const
 {
-    const auto files = getSiblingProjectFiles();
-    return currentProjectFile.existsAsFile() && files.indexOf (currentProjectFile) > 0;
+    return getSiblingProjectFiles().size() > 1;
 }
 
 bool PluginEditor::hasNextProject() const
 {
-    const auto files = getSiblingProjectFiles();
-    const auto index = files.indexOf (currentProjectFile);
-    return index >= 0 && index + 1 < files.size();
+    return getSiblingProjectFiles().size() > 1;
 }
 
 juce::String PluginEditor::getCurrentProjectFileName() const
@@ -444,10 +441,34 @@ void PluginEditor::cycleProject (
     juce::WebBrowserComponent::NativeFunctionCompletion complete)
 {
     const auto files = getSiblingProjectFiles();
-    const auto currentIndex = files.indexOf (currentProjectFile);
-    const auto nextIndex = currentIndex + (direction < 0 ? -1 : 1);
 
-    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= files.size())
+    if (files.size() <= 1)
+    {
+        complete (projectOperationResult (
+            false,
+            files.isEmpty() ? juce::String ("No saved projects were found in the projects folder.")
+                            : juce::String()));
+        return;
+    }
+
+    auto currentIndex = files.indexOf (currentProjectFile);
+    int nextIndex = 0;
+
+    if (currentIndex < 0)
+    {
+        nextIndex = direction < 0 ? files.size() - 1 : 0;
+    }
+    else
+    {
+        nextIndex = currentIndex + (direction < 0 ? -1 : 1);
+
+        if (nextIndex < 0)
+            nextIndex = files.size() - 1;
+        else if (nextIndex >= files.size())
+            nextIndex = 0;
+    }
+
+    if (currentIndex >= 0 && nextIndex == currentIndex)
     {
         complete (projectOperationResult (false));
         return;

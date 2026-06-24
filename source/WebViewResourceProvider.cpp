@@ -497,6 +497,10 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                                 processor.getProjectUiScalePercent())
                        .withInitialisationData ("projectStretchStepsToFit",
                                                 processor.getProjectStretchStepsToFit() ? 1 : 0)
+                       .withInitialisationData ("projectFileName", editor.getCurrentProjectFileName())
+                       .withInitialisationData ("hasPreviousProject",
+                                                editor.hasPreviousProject() ? 1 : 0)
+                       .withInitialisationData ("hasNextProject", editor.hasNextProject() ? 1 : 0)
                        .withNativeFunction (
                            "getProjectState",
                            [&processor, &editor] (const juce::Array<juce::var>&,
