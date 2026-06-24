@@ -2379,10 +2379,10 @@
     </div>
   {:else if stretchToFit}
     <div class="min-w-0 flex-1 overflow-x-hidden overflow-y-hidden">
-      <div class="flex w-max min-w-0 items-stretch">
+      <div class="flex min-w-full w-max items-stretch">
         <div
           bind:this={dropIndicatorHostElement}
-          class="relative flex w-max min-w-0 shrink-0 items-stretch overflow-visible"
+          class="relative flex min-w-full w-max shrink-0 items-stretch overflow-visible"
           style:min-height="{phraseStepCellMinHeightPx()}px"
           style:height="{phraseStepCellMinHeightPx()}px"
         >
@@ -2392,7 +2392,7 @@
             onconsider={handleConsider}
             onfinalize={handleFinalize}
             data-phrase-row-dragging={isDragging ? true : undefined}
-            class="phrase-row-dnd-zone relative flex w-max shrink-0 items-stretch overflow-visible outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
+            class="phrase-row-dnd-zone relative flex min-w-full w-max shrink-0 items-stretch overflow-visible outline-none {isDragging ? 'compact-step-row-dragging' : ''}"
             style={phraseRowDndZoneStyle}
             style:padding-right="{phraseRowEndAddStepReservePx()}px"
           >
@@ -2453,7 +2453,10 @@
               </div>
             {/each}
           </div>
-          <div class="row-end-add-step-overlay absolute inset-y-0 right-0 flex items-center">
+          <div
+            class="row-end-add-step-overlay absolute inset-y-0 flex items-center"
+            style:left="{rowEndAddStepOverlayLeftPx}px"
+          >
             {@render rowEndAddStepControl()}
           </div>
           {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
