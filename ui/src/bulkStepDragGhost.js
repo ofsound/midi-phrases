@@ -152,7 +152,7 @@ export function applyBulkStepDragGhost(element, blockIds, snapshots, isDuplicate
     const content = document.createElement("div");
     content.className = "pointer-events-none h-full overflow-visible";
     content.innerHTML = snapshot.html;
-    content.querySelectorAll("[data-remove-button], [data-insert-slot], [data-multiplier-resize]")
+    content.querySelectorAll("[data-insert-slot], [data-multiplier-resize]")
       .forEach((node) => {
         if (node instanceof HTMLElement) node.style.display = "none";
       });

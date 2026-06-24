@@ -394,6 +394,7 @@
     const leadingInset = layoutPx(stepCellPaddingPx());
     const gap = layoutPx(stepInsertZoneWidthPx());
     const fallbackGeometry = stableDropGeometry();
+    const sameRowMoveActive = Boolean(idsBeforeDrag && draggedStepId && !draggedAsDuplicate);
     /** @type {{ step: number, left: number, width: number, localLeft: number, localRight: number }[]} */
     const cells = [];
 
@@ -416,11 +417,20 @@
 
     cells.sort((left, right) => left.step - right.step);
 
-    if (
-      stepIds.length === 0 ||
+    if (stepIds.length === 0) {
+      dropGeometry = fallbackGeometry;
+      return;
+    }
+
+    if (!sameRowMoveActive && (
       cells.length !== stepIds.length ||
       cells.some((cell, index) => cell.step !== index)
-    ) {
+    )) {
+      dropGeometry = fallbackGeometry;
+      return;
+    }
+
+    if (sameRowMoveActive && cells.length === 0) {
       dropGeometry = fallbackGeometry;
       return;
     }
@@ -523,6 +533,7 @@
 
     dropIndicatorRefreshFrame = requestAnimationFrame(() => {
       dropIndicatorRefreshFrame = 0;
+      captureDropGeometry();
       syncDropIndicatorFromPointer(fallbackIndex);
     });
   }
@@ -1197,7 +1208,6 @@
     element.style.setProperty("overflow", "visible", "important");
     element.style.setProperty("outline", "none", "important");
     element.style.setProperty("box-shadow", "none", "important");
-    element.querySelector("[data-remove-button]")?.style.setProperty("display", "none");
     element.querySelector("[data-insert-slot]")?.style.setProperty("display", "none");
     element.querySelector("[data-multiplier-resize]")?.style.setProperty("display", "none");
     applyDragCopyBadge(element, draggedAsDuplicate);
@@ -1835,8 +1845,25 @@
   );
   let rowStepLayout = $derived(rowStepLayoutsPx(layoutTimingMultipliers));
   let rowGridSpanPx = $derived(rowGridWidthPx(layoutTimingMultipliers));
+  let sourceDragRemainingTimingMultipliers = $derived.by(() => {
+    if (!isDragging || !idsBeforeDrag || !draggedStepId || draggedAsDuplicate) return null;
+
+    const blockIds = bulkDragBlockIds?.includes(draggedStepId)
+      ? bulkDragBlockIds
+      : [draggedStepId];
+    const blockSet = new Set(blockIds);
+
+    return idsBeforeDrag
+      .map((id, step) => (blockSet.has(id) ? null : stepTimingMultiplier[step]))
+      .filter((multiplierIndex) => multiplierIndex !== null);
+  });
+  let rowEndGridSpanPx = $derived(
+    sourceDragRemainingTimingMultipliers !== null
+      ? rowGridWidthPx(sourceDragRemainingTimingMultipliers)
+      : rowGridSpanPx,
+  );
   let rowEndAddStepOverlayLeftPx = $derived(
-    layoutPx(rowGridSpanPx - stepCellPaddingPx() + phraseRowEndStepTailPaddingPx()),
+    layoutPx(rowEndGridSpanPx - stepCellPaddingPx() + phraseRowEndStepTailPaddingPx()),
   );
   let trailingInsertLeftPx = $derived(insertLeftAtBoundary(rowGridSpanPx));
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
@@ -1867,7 +1894,7 @@
     data-cursor="pointer"
     aria-label="Remove step"
     disabled={removeBlocked}
-    class="step-remove-button pointer-events-auto absolute top-0 left-0 z-[80] flex h-5 w-5 items-center justify-center rounded-tl-lg p-0 transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 {dimmed
+    class="step-remove-button pointer-events-auto absolute top-0.5 left-0 z-[80] flex h-5 w-5 items-center justify-center rounded-tl-lg p-0 transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 {dimmed
       ? 'text-text-faint hover:text-text-muted'
       : `text-text-secondary hover:text-text ${accent.textAccentFocus}`}"
     onpointerdowncapture={(event) => event.stopPropagation()}
@@ -2508,7 +2535,7 @@
                 onpointerupcapture={handleCompactStepPointerEnd}
                 onpointercancelcapture={handleCompactStepPointerEnd}
               >
-                {#if !layout.isShadow}
+                {#if !collapsed}
                   <div
                     use:dragHandle
                     data-compact-step-drag-handle
@@ -2595,7 +2622,7 @@
               onclick={(event) => layout.step >= 0 && retargetOpenStepInspector(event, layout.step)}
               ondblclick={(event) => layout.step >= 0 && openFullStepInspector(event, layout.step)}
             >
-              {#if !isShadowItem(item)}
+              {#if !collapsed}
                 <div class="pointer-events-auto h-full overflow-visible">
                   {@render stepCell(layout.step, true)}
                 </div>
