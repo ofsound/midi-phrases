@@ -29,7 +29,16 @@ describe("boundaryDoubleClickCommand", () => {
     })).toEqual({ type: "duplicate", insertStep: 3 });
   });
 
-  it("rejects boundaries without a left source and full rows", () => {
+  it("inserts at the leading boundary", () => {
+    expect(boundaryDoubleClickCommand({
+      altKey: false,
+      insertStep: 0,
+      stepCount: 2,
+      maxStepCount: 64,
+    })).toEqual({ type: "insert", insertStep: 0 });
+  });
+
+  it("rejects leading-boundary duplicate and full rows", () => {
     expect(boundaryDoubleClickCommand({
       altKey: true,
       insertStep: 0,

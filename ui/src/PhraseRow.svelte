@@ -786,6 +786,11 @@
     return `left: ${layoutPx(boundaryResizeZoneLeftPxAtGridBoundaryPx(boundaryCenterPx))}px; width: ${layoutPx(stepBoundaryResizeZoneWidthPx())}px;`;
   }
 
+  /** @param {number} leftPx */
+  function leadingBoundaryInsertZoneStyle(leftPx) {
+    return `left: ${layoutPx(leftPx)}px; width: ${layoutPx(stepInsertZoneWidthPx() + stepBoundaryStartResizePx())}px;`;
+  }
+
   function trailingResizeZoneStyle() {
     const trailingHitWidth = stepBoundaryEndResizePx() + stepInsertZoneWidthPx();
 
@@ -2093,7 +2098,9 @@
     class="boundary-resize-zone pointer-events-none absolute top-0 bottom-5 z-[60]"
     style={mode === "between"
       ? boundaryResizeZoneStyle(boundaryCenterPx)
-      : insertSlotStyle(leftPx)}
+      : mode === "leading"
+        ? leadingBoundaryInsertZoneStyle(leftPx)
+        : insertSlotStyle(leftPx)}
   >
     {#if mode === "between" && insertStep > 0}
       <button
@@ -2119,15 +2126,38 @@
         style:right="{layoutPx(stepBoundaryStartResizePx())}px"
         aria-hidden="true"
       ></span>
+    {:else if mode === "leading" && insertStep === 0}
+      <button
+        type="button"
+        data-no-long-press
+        data-cursor="pointer"
+        aria-label="First step boundary; double-click to insert"
+        title="Double-click to insert"
+        disabled={isDragging || removeBlocked}
+        class="pointer-events-auto absolute top-0 right-0 bottom-5 left-0 z-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+        onpointerdown={(event) => event.stopPropagation()}
+        onmousedown={(event) => event.stopPropagation()}
+        ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
+      ></button>
+      <span
+        class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+        style:left="{layoutPx(stepInsertZoneWidthPx())}px"
+        aria-hidden="true"
+      ></span>
     {/if}
-    <StepInsertZone
-      {accent}
-      {muted}
-      {timingMultiplierOptions}
-      onInsert={mode === "leading"
-        ? (multiplierIndex) => onInsertStep(row, insertStep, multiplierIndex)
-        : undefined}
-    />
+    <div
+      class="pointer-events-none absolute top-0 bottom-0 left-0 z-10"
+      style:width="{layoutPx(stepInsertZoneWidthPx())}px"
+    >
+      <StepInsertZone
+        {accent}
+        {muted}
+        {timingMultiplierOptions}
+        onInsert={mode === "leading"
+          ? (multiplierIndex) => onInsertStep(row, insertStep, multiplierIndex)
+          : undefined}
+      />
+    </div>
   </div>
 {/snippet}
 

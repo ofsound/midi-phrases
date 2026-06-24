@@ -1,15 +1,17 @@
 /**
  * Resolve a full-size step-boundary double-click into an insertion command.
- * The source for duplication is always the step immediately left of insertStep.
+ * The source for duplication is always the step immediately left of insertStep,
+ * so the leading boundary can insert but cannot duplicate.
  *
  * @param {{ altKey: boolean, insertStep: number, stepCount: number, maxStepCount: number }} options
  * @returns {{ type: "insert" | "duplicate", insertStep: number } | null}
  */
 export function boundaryDoubleClickCommand({ altKey, insertStep, stepCount, maxStepCount }) {
   if (
-    insertStep <= 0
+    insertStep < 0
     || insertStep > stepCount
     || stepCount >= maxStepCount
+    || (altKey && insertStep <= 0)
   ) {
     return null;
   }
