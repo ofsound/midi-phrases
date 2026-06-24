@@ -7,12 +7,6 @@ export const basePhraseRowScrollPaddingLeftPx = 8;
 /** Matches PhraseRow scroll container `pt-1` + `pb-1` (16px root). */
 export const basePhraseRowScrollPaddingVerticalPx = 8;
 
-/**
- * WKWebView can reserve vertical space for a horizontal row scrollbar even when
- * the scrollbar is hidden. Keep that gutter outside the fixed-height step cell.
- */
-export const basePhraseRowScrollbarReservePx = 14;
-
 /** Matches PhraseRow scroll container left clip gutter. */
 export function phraseRowScrollPaddingLeftPx() {
   return scaledPx(basePhraseRowScrollPaddingLeftPx);
@@ -20,10 +14,6 @@ export function phraseRowScrollPaddingLeftPx() {
 
 export function phraseRowScrollPaddingVerticalPx() {
   return scaledPx(basePhraseRowScrollPaddingVerticalPx);
-}
-
-export function phraseRowScrollbarReservePx() {
-  return scaledPx(basePhraseRowScrollbarReservePx);
 }
 
 /** Matches PhraseRow scroll container `pt-1`. */
@@ -74,7 +64,7 @@ export function phraseStepDropIndicatorHeightPx() {
 
 /** PhraseRow scroll container min-height including vertical padding. */
 export function phraseRowMinHeightPx() {
-  return phraseStepCellMinHeightPx() + phraseRowScrollPaddingVerticalPx() + phraseRowScrollbarReservePx();
+  return phraseStepCellMinHeightPx() + phraseRowScrollPaddingVerticalPx();
 }
 
 /** Matches App row header `gap-1` between controls and before PhraseRow. */
