@@ -5662,7 +5662,7 @@
           >Load</button>
           <button
             type="button"
-            class="h-8 rounded border border-accent/50 bg-accent/10 px-4 text-xs font-semibold uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent/20 disabled:opacity-40"
+            class="h-8 rounded border border-border-subtle bg-surface-raised px-4 text-xs font-semibold uppercase tracking-[0.16em] text-text transition-colors hover:border-accent/60 disabled:opacity-40"
             disabled={projectOperationBusy || !nativeFunctionAvailable("saveProject")}
             data-cursor="pointer"
             onclick={saveProject}
