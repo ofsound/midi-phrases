@@ -454,12 +454,7 @@
     const gap = layoutPx(stepInsertZoneWidthPx());
 
     if (clamped === 0) {
-      dropIndicatorLeftPx = placementIndicatorLeftPx(
-        stableDropCellWidths,
-        0,
-        leadingInset,
-        gap,
-      );
+      dropIndicatorLeftPx = 0;
       return;
     }
 
@@ -878,6 +873,17 @@
   let dndZoneElement = $state(null);
   /** @type {HTMLDivElement | null} */
   let dropIndicatorHostElement = $state(null);
+
+  /** @param {HTMLDivElement} node */
+  function emptyRowDropZone(node) {
+    dndZoneElement = node;
+    dropIndicatorHostElement = node;
+
+    return () => {
+      if (dndZoneElement === node) dndZoneElement = null;
+      if (dropIndicatorHostElement === node) dropIndicatorHostElement = null;
+    };
+  }
 
   function clearDndZoneTransforms() {
     dndZoneElement?.querySelectorAll("[data-bulk-step-cell]").forEach((element) => {
@@ -2396,6 +2402,10 @@
       0 0 6px currentColor,
       0 0 12px color-mix(in srgb, currentColor 72%, transparent);
   }
+
+  .step-drop-indicator-leading {
+    transform: translate(0, -50%);
+  }
 </style>
 
 <div
@@ -2415,27 +2425,27 @@
     style:min-height="{phraseRowMinHeightPx()}px"
   >
   {#if isEmptyRow}
-    <div bind:this={dropIndicatorHostElement} class="relative flex min-w-0 flex-1 items-stretch">
+    <div
+      use:emptyRowDropZone
+      use:dragHandleZone={dndZoneOptions}
+      onconsider={handleConsider}
+      onfinalize={handleFinalize}
+      data-phrase-row-dragging={isDragging ? true : undefined}
+      class="phrase-row-dnd-zone relative flex min-w-0 flex-1 items-stretch outline-none {stretchToFit && isDragging
+        ? 'compact-step-row-dragging'
+        : ''}"
+      style={phraseRowDndZoneStyle}
+    >
       {@render rowStartAddStepControl()}
       <div class="relative flex min-w-0 flex-1 items-stretch">
-        <div
-          bind:this={dndZoneElement}
-          use:dragHandleZone={dndZoneOptions}
-          onconsider={handleConsider}
-          onfinalize={handleFinalize}
-          data-phrase-row-dragging={isDragging ? true : undefined}
-          class="phrase-row-dnd-zone flex min-w-0 flex-1 items-stretch outline-none {stretchToFit && isDragging
-            ? 'compact-step-row-dragging'
-            : ''}"
-          style={phraseRowDndZoneStyle}
-        >
-          {@render emptyRowDndPlaceholders()}
-        </div>
+        {@render emptyRowDndPlaceholders()}
       </div>
       {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
         <div
           data-step-drop-indicator
-          class="step-drop-indicator pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
+          class="step-drop-indicator {dropIndicatorIndex === 0
+            ? 'step-drop-indicator-leading'
+            : ''} pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
           style:left="{dropIndicatorLeftPx}px"
           style:height="{phraseStepDropIndicatorHeightPxValue}px"
           aria-hidden="true"
@@ -2527,7 +2537,9 @@
           {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
             <div
               data-step-drop-indicator
-              class="step-drop-indicator pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
+              class="step-drop-indicator {dropIndicatorIndex === 0
+                ? 'step-drop-indicator-leading'
+                : ''} pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
               style:left="{dropIndicatorLeftPx}px"
               style:height="{phraseStepDropIndicatorHeightPxValue}px"
               aria-hidden="true"
@@ -2604,7 +2616,9 @@
         {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
           <div
             data-step-drop-indicator
-            class="step-drop-indicator pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
+            class="step-drop-indicator {dropIndicatorIndex === 0
+              ? 'step-drop-indicator-leading'
+              : ''} pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
             style:left="{dropIndicatorLeftPx}px"
             style:height="{phraseStepDropIndicatorHeightPxValue}px"
             aria-hidden="true"
