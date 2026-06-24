@@ -57,7 +57,7 @@
     <div class="pointer-events-none absolute inset-0 z-10">
       {#each layout.blacks as { midi, centerPercent, widthPercent } (midi)}
         <div
-          class="absolute top-0 z-10 flex h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1.5 {pianoBlackKeyClass}"
+          class="absolute top-0 z-10 flex h-[58%] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1.5 {pianoBlackKeyClass}"
           style:left="{centerPercent}%"
           style:width="{widthPercent}%"
         >

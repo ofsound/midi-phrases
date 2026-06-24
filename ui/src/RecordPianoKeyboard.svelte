@@ -180,7 +180,7 @@
             data-cursor={usable ? "pointer" : "default"}
             class="{usable
               ? 'pointer-events-auto hover:brightness-110 active:brightness-125'
-              : 'pointer-events-none'} absolute top-0 z-10 flex h-[58%] max-w-[2.75rem] min-w-[0.75rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1 {isKeyHeld(midi)
+              : 'pointer-events-none'} absolute top-0 z-10 flex h-[58%] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1 {isKeyHeld(midi)
               ? accent.pianoNoteActive
               : pianoBlackKeyClass}"
             style:left="{centerPercent}%"

@@ -36,7 +36,7 @@
     "relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end last:border-r-0";
 
   const blackKeyClass =
-    "absolute top-0 z-10 flex h-[58%] max-w-[2rem] min-w-[0.5rem] -translate-x-1/2 flex-col items-center justify-end rounded-b-md";
+    "absolute top-0 z-10 flex h-[58%] -translate-x-1/2 flex-col items-center justify-end rounded-b-md";
 
   let octaveOffset = $state(0);
   let appliedStepKey = "";
