@@ -416,7 +416,11 @@
 
     cells.sort((left, right) => left.step - right.step);
 
-    if (cells.length !== stepIds.length || cells.some((cell, index) => cell.step !== index)) {
+    if (
+      stepIds.length === 0 ||
+      cells.length !== stepIds.length ||
+      cells.some((cell, index) => cell.step !== index)
+    ) {
       dropGeometry = fallbackGeometry;
       return;
     }
@@ -446,6 +450,18 @@
   /** @param {number} index */
   function syncDropIndicatorLeft(index) {
     const clamped = clampDropIndicatorIndex(index);
+    const leadingInset = layoutPx(stepCellPaddingPx());
+    const gap = layoutPx(stepInsertZoneWidthPx());
+
+    if (clamped === 0) {
+      dropIndicatorLeftPx = placementIndicatorLeftPx(
+        stableDropCellWidths,
+        0,
+        leadingInset,
+        gap,
+      );
+      return;
+    }
 
     if (idsBeforeDrag && draggedStepId && !draggedAsDuplicate && dropGeometry) {
       const blockIds = bulkDragBlockIds?.includes(draggedStepId)
@@ -461,8 +477,8 @@
       dropIndicatorLeftPx = placementIndicatorLeftPx(
         restWidths,
         restInsertIndex,
-        layoutPx(stepCellPaddingPx()),
-        layoutPx(stepInsertZoneWidthPx()),
+        leadingInset,
+        gap,
       );
       return;
     }
@@ -470,17 +486,21 @@
     dropIndicatorLeftPx = dropGeometry?.boundaries[clamped] ?? placementIndicatorLeftPx(
       stableDropCellWidths,
       clamped,
-      layoutPx(stepCellPaddingPx()),
-      layoutPx(stepInsertZoneWidthPx()),
+      leadingInset,
+      gap,
     );
   }
 
   /** @param {number} fallbackIndex */
   function syncDropIndicatorFromPointer(fallbackIndex = dropIndicatorIndex) {
+    const resolvedFallbackIndex = stepIds.length === 0 && fallbackIndex < 0
+      ? 0
+      : fallbackIndex;
+
     if (lastDragClientX === null) {
-      setDropIndicatorIndex(fallbackIndex);
-      syncDropIndicatorLeft(fallbackIndex);
-      dropIndicatorVisible = fallbackIndex >= 0;
+      setDropIndicatorIndex(resolvedFallbackIndex);
+      syncDropIndicatorLeft(resolvedFallbackIndex);
+      dropIndicatorVisible = resolvedFallbackIndex >= 0;
       return;
     }
 
@@ -489,8 +509,8 @@
     const cells = stableStepCellsForDropTarget();
 
     if (cells.length === 0 && stepIds.length > 0) {
-      setDropIndicatorIndex(fallbackIndex);
-      syncDropIndicatorLeft(fallbackIndex);
+      setDropIndicatorIndex(resolvedFallbackIndex);
+      syncDropIndicatorLeft(resolvedFallbackIndex);
       return;
     }
 
@@ -628,13 +648,41 @@
     );
   }
 
+  /** @param {{ id: string }} item */
+  function dataStepForDndItem(item) {
+    return isShadowItem(item)
+      ? stepIndexFromId(draggedStepId ?? "")
+      : stepIndexFromId(item.id);
+  }
+
+  /** @param {number} index */
+  function renderedDndSlotIsCollapsed(index) {
+    const item = renderedDndItems[index];
+
+    if (!item) return true;
+
+    const dataStep = dataStepForDndItem(item);
+    const stepIdForLayout = dataStep >= 0 ? stepIds[dataStep] : null;
+
+    return isCollapsedDndSlot(item, stepIdForLayout);
+  }
+
+  /** @param {number} index */
+  function hasVisibleDndSlotBefore(index) {
+    for (let previousIndex = 0; previousIndex < index; previousIndex += 1) {
+      if (!renderedDndSlotIsCollapsed(previousIndex)) return true;
+    }
+
+    return false;
+  }
+
   /** @param {number} index @param {boolean} collapsed */
   function dndSlotMarginLeftPx(index, collapsed) {
     if (collapsed) return 0;
 
-    return index === 0
-      ? layoutPx(stepCellPaddingPx())
-      : layoutPx(stepInsertZoneWidthPx());
+    return hasVisibleDndSlotBefore(index)
+      ? layoutPx(stepInsertZoneWidthPx())
+      : layoutPx(stepCellPaddingPx());
   }
 
   function refreshBulkDragGhost() {
@@ -1798,9 +1846,7 @@
   let trailingInsertLeftPx = $derived(insertLeftAtBoundary(rowGridSpanPx));
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
   let rowCellLayouts = $derived(renderedDndItems.map((item, index) => {
-    const dataStep = isShadowItem(item)
-      ? stepIndexFromId(draggedStepId ?? "")
-      : stepIndexFromId(item.id);
+    const dataStep = dataStepForDndItem(item);
     const stepIdForLayout = dataStep >= 0 ? stepIds[dataStep] : null;
     const collapsed = isCollapsedDndSlot(item, stepIdForLayout);
     const multiplierIndex = item.multiplierIndex
@@ -1809,7 +1855,7 @@
     return {
       cellWidth: collapsed ? 0 : layoutPx(stepDisplayWidthPx(multiplierIndex)),
       step: isShadowItem(item) ? -1 : dataStep,
-      gapBefore: index > 0 && !collapsed,
+      gapBefore: hasVisibleDndSlotBefore(index) && !collapsed,
     };
   }));
   let stableDropCellWidths = $derived(stepIds.map((id, step) =>
@@ -2369,9 +2415,9 @@
     style:min-height="{phraseRowMinHeightPx()}px"
   >
   {#if isEmptyRow}
-    <div class="relative flex min-w-0 flex-1 items-stretch">
+    <div bind:this={dropIndicatorHostElement} class="relative flex min-w-0 flex-1 items-stretch">
       {@render rowStartAddStepControl()}
-      <div bind:this={dropIndicatorHostElement} class="relative flex min-w-0 flex-1 items-stretch">
+      <div class="relative flex min-w-0 flex-1 items-stretch">
         <div
           bind:this={dndZoneElement}
           use:dragHandleZone={dndZoneOptions}
@@ -2385,16 +2431,16 @@
         >
           {@render emptyRowDndPlaceholders()}
         </div>
-        {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
-          <div
-            data-step-drop-indicator
-            class="step-drop-indicator pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
-            style:left="{dropIndicatorLeftPx}px"
-            style:height="{phraseStepDropIndicatorHeightPxValue}px"
-            aria-hidden="true"
-          ></div>
-        {/if}
       </div>
+      {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
+        <div
+          data-step-drop-indicator
+          class="step-drop-indicator pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
+          style:left="{dropIndicatorLeftPx}px"
+          style:height="{phraseStepDropIndicatorHeightPxValue}px"
+          aria-hidden="true"
+        ></div>
+      {/if}
     </div>
   {:else if stretchToFit}
     <div class="min-w-0 flex-1 overflow-x-hidden overflow-y-hidden">
