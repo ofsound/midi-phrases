@@ -34,6 +34,7 @@
   } from "./bulkStepDrag.js";
   import {
     applyBulkStepDragGhost,
+    applyDragCopyBadge,
     bulkGhostLayoutEntries,
     captureBulkStepGhostSnapshots,
     dragGhostOpacity,
@@ -56,6 +57,7 @@
     phraseGridOriginLeftOffsetPx,
     phraseRowEndAddStepInsetPx,
     phraseRowEndAddStepReservePx,
+    phraseRowEndStepTailPaddingPx,
     phraseRowMinHeightPx,
     phraseStepCellMinHeightPx,
     phraseStepDropIndicatorHeightPx,
@@ -357,15 +359,38 @@
     });
   }
 
+  function stableDropGeometry() {
+    const leadingInset = layoutPx(stepCellPaddingPx());
+    const gap = layoutPx(stepInsertZoneWidthPx());
+    const boundaries = Array.from({ length: stepIds.length + 1 }, (_, index) =>
+      placementIndicatorLeftPx(stableDropCellWidths, index, leadingInset, gap),
+    );
+
+    if (!dndZoneElement) return { cells: [], boundaries };
+
+    const rect = dndZoneElement.getBoundingClientRect();
+    let left = rect.left;
+
+    return {
+      cells: stableDropCellWidths.map((width, step) => {
+        left += step === 0 ? leadingInset : gap;
+
+        const cell = { step, left, width };
+        left += width;
+
+        return cell;
+      }),
+      boundaries,
+    };
+  }
+
   function captureDropGeometry() {
     if (!dndZoneElement || !dropIndicatorHostElement) return;
 
     const hostRect = dropIndicatorHostElement.getBoundingClientRect();
     const leadingInset = layoutPx(stepCellPaddingPx());
     const gap = layoutPx(stepInsertZoneWidthPx());
-    const fallbackBoundaries = Array.from({ length: stepIds.length + 1 }, (_, index) =>
-      placementIndicatorLeftPx(stableDropCellWidths, index, leadingInset, gap),
-    );
+    const fallbackGeometry = stableDropGeometry();
     /** @type {{ step: number, left: number, width: number, localLeft: number, localRight: number }[]} */
     const cells = [];
 
@@ -388,13 +413,13 @@
 
     cells.sort((left, right) => left.step - right.step);
 
-    if (cells.length === 0) {
-      dropGeometry = { cells: [], boundaries: fallbackBoundaries };
+    if (cells.length !== stepIds.length || cells.some((cell, index) => cell.step !== index)) {
+      dropGeometry = fallbackGeometry;
       return;
     }
 
     const cellsByStep = new Map(cells.map((cell) => [cell.step, cell]));
-    const boundaries = fallbackBoundaries.slice();
+    const boundaries = fallbackGeometry.boundaries.slice();
 
     boundaries[0] = cells[0].localLeft - leadingInset / 2;
 
@@ -1071,6 +1096,7 @@
     element.querySelector("[data-remove-button]")?.style.setProperty("display", "none");
     element.querySelector("[data-insert-slot]")?.style.setProperty("display", "none");
     element.querySelector("[data-multiplier-resize]")?.style.setProperty("display", "none");
+    applyDragCopyBadge(element, draggedAsDuplicate);
 
     element.querySelectorAll(".border-2").forEach((node) => {
       if (node instanceof HTMLElement) {
@@ -1705,6 +1731,9 @@
   );
   let rowStepLayout = $derived(rowStepLayoutsPx(layoutTimingMultipliers));
   let rowGridSpanPx = $derived(rowGridWidthPx(layoutTimingMultipliers));
+  let rowEndAddStepOverlayLeftPx = $derived(
+    layoutPx(rowGridSpanPx - stepCellPaddingPx() + phraseRowEndStepTailPaddingPx()),
+  );
   let trailingInsertLeftPx = $derived(insertLeftAtBoundary(rowGridSpanPx));
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
   let rowCellLayouts = $derived(renderedDndItems.map((item, index) => {
@@ -1795,7 +1824,7 @@
 
 {#snippet multiplierResizeHandle(step)}
   <div
-    class="trailing-multiplier-resize-zone pointer-events-none absolute top-0 bottom-5 z-[60]"
+    class="trailing-multiplier-resize-zone pointer-events-none absolute top-0 bottom-0 z-[60]"
     style={trailingResizeZoneStyle()}
   >
     <button
@@ -1806,13 +1835,13 @@
       aria-label="Resize final step boundary; double-click to insert; Option-double-click to duplicate"
       title="Double-click to insert · Option-double-click to duplicate"
       disabled={isDragging || removeBlocked}
-      class="pointer-events-auto absolute top-0 right-0 bottom-5 left-0 touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+      class="pointer-events-auto absolute top-0 right-0 bottom-0 left-0 touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
       onpointerdown={(event) => beginMultiplierResize(event, step)}
       onmousedown={(event) => beginMultiplierResize(event, step)}
       ondblclick={(event) => handleBoundaryDoubleClick(event, step + 1)}
     ></button>
     <span
-      class="boundary-edge-handle pointer-events-none absolute top-[calc(50%+0.625rem)] z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+      class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
       style:left="{layoutPx(stepBoundaryEndResizePx())}px"
       aria-hidden="true"
     ></span>
@@ -2098,7 +2127,7 @@
   {@const boundaryCenterPx = leftPx + stepInsertZoneWidthPx() / 2}
   <div
     data-insert-slot
-    class="boundary-resize-zone pointer-events-none absolute top-0 bottom-5 z-[60]"
+    class="boundary-resize-zone pointer-events-none absolute top-0 bottom-0 z-[60]"
     style={mode === "between"
       ? boundaryResizeZoneStyle(boundaryCenterPx)
       : mode === "leading"
@@ -2114,18 +2143,18 @@
         aria-label="Resize step boundary; double-click to insert; Option-double-click to duplicate"
         title="Double-click to insert · Option-double-click to duplicate"
         disabled={isDragging || removeBlocked}
-        class="pointer-events-auto absolute top-0 right-0 bottom-5 left-0 z-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+        class="pointer-events-auto absolute top-0 right-0 bottom-0 left-0 z-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
         onpointerdown={(event) => beginMultiplierResize(event, insertStep - 1)}
         onmousedown={(event) => beginMultiplierResize(event, insertStep - 1)}
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
       ></button>
       <span
-        class="boundary-edge-handle pointer-events-none absolute top-[calc(50%+0.625rem)] z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+        class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
         style:left="{layoutPx(stepBoundaryEndResizePx())}px"
         aria-hidden="true"
       ></span>
       <span
-        class="boundary-edge-handle pointer-events-none absolute top-[calc(50%+0.625rem)] z-10 h-7 w-1 translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+        class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
         style:right="{layoutPx(stepBoundaryStartResizePx())}px"
         aria-hidden="true"
       ></span>
@@ -2137,13 +2166,13 @@
         aria-label="First step boundary; double-click to insert"
         title="Double-click to insert"
         disabled={isDragging || removeBlocked}
-        class="pointer-events-auto absolute top-0 right-0 bottom-5 left-0 z-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+        class="pointer-events-auto absolute top-0 right-0 bottom-0 left-0 z-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
         onpointerdown={(event) => event.stopPropagation()}
         onmousedown={(event) => event.stopPropagation()}
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
       ></button>
       <span
-        class="boundary-edge-handle pointer-events-none absolute top-[calc(50%+0.625rem)] z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+        class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
         style:left="{layoutPx(stepInsertZoneWidthPx())}px"
         aria-hidden="true"
       ></span>
@@ -2390,10 +2419,10 @@
     </div>
   {:else}
     <div class="phrase-row-scrollport min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
-      <div class="flex w-max min-w-0 items-stretch">
+      <div class="flex min-w-full w-max items-stretch">
       <div
         bind:this={dropIndicatorHostElement}
-        class="relative flex w-max min-w-0 shrink-0 items-stretch overflow-visible"
+        class="relative flex min-w-full w-max shrink-0 items-stretch overflow-visible"
         style:min-height="{phraseStepCellMinHeightPx()}px"
         style:height="{phraseStepCellMinHeightPx()}px"
       >
@@ -2405,7 +2434,7 @@
           onconsider={handleConsider}
           onfinalize={handleFinalize}
           data-phrase-row-dragging={isDragging ? true : undefined}
-          class="phrase-row-dnd-zone relative flex w-max shrink-0 items-stretch overflow-visible outline-none"
+          class="phrase-row-dnd-zone relative flex min-w-full w-max shrink-0 items-stretch overflow-visible outline-none"
           style={phraseRowDndZoneStyle}
           style:padding-right="{phraseRowEndAddStepReservePx()}px"
         >
@@ -2447,7 +2476,10 @@
             </div>
           {/each}
         </div>
-        <div class="row-end-add-step-overlay absolute inset-y-0 right-0 flex items-center">
+        <div
+          class="row-end-add-step-overlay absolute inset-y-0 flex items-center"
+          style:left="{rowEndAddStepOverlayLeftPx}px"
+        >
           {@render rowEndAddStepControl()}
         </div>
         {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}

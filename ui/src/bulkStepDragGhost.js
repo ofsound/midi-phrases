@@ -3,6 +3,44 @@
  */
 
 export const dragGhostOpacity = "0.72";
+const copyBadgeSelector = "[data-drag-copy-badge]";
+
+/** @param {HTMLElement} badge */
+function styleDragCopyBadge(badge) {
+  badge.style.setProperty("position", "absolute", "important");
+  badge.style.setProperty("right", "-8px", "important");
+  badge.style.setProperty("bottom", "-8px", "important");
+  badge.style.setProperty("z-index", "1000", "important");
+  badge.style.setProperty("display", "flex", "important");
+  badge.style.setProperty("width", "20px", "important");
+  badge.style.setProperty("height", "20px", "important");
+  badge.style.setProperty("align-items", "center", "important");
+  badge.style.setProperty("justify-content", "center", "important");
+  badge.style.setProperty("border-radius", "9999px", "important");
+  badge.style.setProperty("border", "1px solid color-mix(in srgb, #fff 76%, transparent)", "important");
+  badge.style.setProperty("background", "var(--color-accent, #2fd6a3)", "important");
+  badge.style.setProperty("box-shadow", "0 2px 8px color-mix(in srgb, #000 45%, transparent)", "important");
+  badge.style.setProperty("color", "var(--color-app, #06100d)", "important");
+  badge.style.setProperty("font", "700 16px/1 system-ui, -apple-system, BlinkMacSystemFont, sans-serif", "important");
+  badge.style.setProperty("pointer-events", "none", "important");
+}
+
+/**
+ * @param {HTMLElement} element
+ * @param {boolean} show
+ */
+export function applyDragCopyBadge(element, show) {
+  element.querySelectorAll(copyBadgeSelector).forEach((node) => node.remove());
+
+  if (!show) return;
+
+  const badge = document.createElement("span");
+  badge.dataset.dragCopyBadge = "true";
+  badge.setAttribute("aria-hidden", "true");
+  badge.textContent = "+";
+  styleDragCopyBadge(badge);
+  element.appendChild(badge);
+}
 
 /**
  * @param {ParentNode | null | undefined} zone
@@ -67,6 +105,7 @@ export function applyBulkStepDragGhost(element, blockIds, snapshots, isDuplicate
     element.dataset.bulkGhostKey === ghostKey
     && element.querySelector("[data-bulk-drag-ghost-row]")
   ) {
+    applyDragCopyBadge(element, isDuplicate);
     return;
   }
 
@@ -130,4 +169,5 @@ export function applyBulkStepDragGhost(element, blockIds, snapshots, isDuplicate
 
   element.replaceChildren(row);
   element.style.setProperty("width", `${totalWidth}px`, "important");
+  applyDragCopyBadge(element, isDuplicate);
 }
