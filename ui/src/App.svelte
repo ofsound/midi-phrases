@@ -4894,7 +4894,12 @@
   });
 </script>
 
-<main {@attach appRootAttachment} class="flex h-full flex-col overflow-hidden px-6 pt-2 transition-[filter,opacity] duration-150 {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}">
+<main
+  {@attach appRootAttachment}
+  class="flex h-full flex-col overflow-hidden px-6 transition-[filter,opacity] duration-150 {standaloneTransportAvailable
+    ? 'pt-2'
+    : 'mp-plugin-shell pt-0'} {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}"
+>
   <div class="shrink-0 -mx-6">
     {#if standaloneTransportAvailable}
       <div class="flex items-center justify-end gap-2 px-6 pb-2">
@@ -4927,7 +4932,7 @@
         </label>
       </div>
     {/if}
-    <div class="mp-honeycomb-rail relative z-20">
+    <div class="mp-honeycomb-rail mp-top-honeycomb-rail relative z-20">
   <header class="flex w-full items-center gap-x-2 px-6 py-3">
     <div class="relative z-30 flex shrink-0 items-center gap-1.5">
       <div class="flex flex-col items-start gap-[3px]">

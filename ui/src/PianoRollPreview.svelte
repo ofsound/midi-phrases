@@ -16,7 +16,7 @@ import {
   buildPhraseScheduleWindowBeforeBandpass,
   DEFAULT_PREVIEW_LENGTH_QUARTERS,
   isBlackKey,
-  isScheduledNoteActiveAtPlaybackBeat,
+  isScheduledNoteActiveAtBeat,
   mapPlaybackBeatForPianoRoll,
   patternRepeatLengthQuarters,
 } from "./phraseSchedule.js";
@@ -751,10 +751,7 @@ import { scaledPx } from "./uiScale.svelte.js";
     const windowLeftPx = renderWindowStart * pxPerQuarter;
 
     for (const note of scheduled) {
-      const noteIsActive = isScheduledNoteActiveAtPlaybackBeat(note, displayPlaybackBeat, {
-        loopEnabled,
-        patternLengthQuarters: patternRepeatQuarters,
-      });
+      const noteIsActive = isScheduledNoteActiveAtBeat(note, displayPlaybackBeat);
 
       if (note.velocity <= 0 || !noteIsActive) continue;
 

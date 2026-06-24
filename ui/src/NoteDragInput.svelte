@@ -37,6 +37,7 @@
   } = $props();
 
   const pixelsPerStep = 10;
+  const semitonesPerOctave = 12;
 
   let dragging = $state(false);
   let dragStartY = 0;
@@ -51,8 +52,18 @@
     return Math.min(127, Math.max(0, Math.round(note)));
   }
 
-  function noteFromDrag(clientY) {
+  /** @param {number} octaveSteps */
+  function octaveValue(octaveSteps) {
+    return clampMidi(dragStartValue + octaveSteps * semitonesPerOctave);
+  }
+
+  /** @param {number} clientY @param {boolean} octaveDrag */
+  function noteFromDrag(clientY, octaveDrag) {
     const steps = Math.round((dragStartY - clientY) / pixelsPerStep);
+
+    if (octaveDrag) {
+      return octaveValue(steps);
+    }
 
     return clampMidi(stepValue(dragStartValue, steps));
   }
@@ -125,7 +136,7 @@
   function onPointerMove(event) {
     if (!dragging) return;
 
-    schedulePreview(noteFromDrag(event.clientY));
+    schedulePreview(noteFromDrag(event.clientY, event.shiftKey));
   }
 
   /** @param {PointerEvent} event */
@@ -141,7 +152,7 @@
     }
 
     const finalValue =
-      pendingPreviewValue ?? clampMidi(stepValue(dragStartValue, Math.round((dragStartY - event.clientY) / pixelsPerStep)));
+      pendingPreviewValue ?? noteFromDrag(event.clientY, event.shiftKey);
 
     cancelPreviewFrame();
     pendingPreviewValue = null;
@@ -187,16 +198,16 @@
   onpointerup={onPointerUp}
   onpointercancel={onPointerUp}
   ondblclick={onDoubleClick}
-  title={resetValue !== undefined ? "Drag to change · double-click to reset" : undefined}
+  title={resetValue !== undefined ? "Drag to change · Shift-drag jumps octaves · double-click to reset" : "Drag to change · Shift-drag jumps octaves"}
   onkeydown={(event) => {
     if (event.key === "ArrowUp") {
       event.preventDefault();
 
-      if (value < 127) applyValue(clampMidi(stepValue(value, 1)));
+      if (value < 127) applyValue(clampMidi(event.shiftKey ? value + semitonesPerOctave : stepValue(value, 1)));
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
 
-      if (value > 0) applyValue(clampMidi(stepValue(value, -1)));
+      if (value > 0) applyValue(clampMidi(event.shiftKey ? value - semitonesPerOctave : stepValue(value, -1)));
     }
   }}
 >

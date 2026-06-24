@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isScheduledNoteActiveAtBeat,
   isScheduledNoteActiveAtPatternBeat,
   mapPlaybackBeatForPianoRoll,
   patternRepeatLengthQuarters,
@@ -86,5 +87,15 @@ describe("isScheduledNoteActiveAtPatternBeat", () => {
 
     expect(isScheduledNoteActiveAtPatternBeat(note, 10, 8)).toBe(true);
     expect(isScheduledNoteActiveAtPatternBeat(note, 11, 8)).toBe(false);
+  });
+
+  it("does not mark future rendered repeats active at the displayed playhead", () => {
+    const displayBeat = mapPlaybackBeatForPianoRoll(1, { patternLengthQuarters: 4 });
+    const noteUnderPlayhead = { start: 1, end: 2, midi: 60, velocity: 100, row: 0, step: 0 };
+    const futureRepeat = { ...noteUnderPlayhead, start: 5, end: 6 };
+
+    expect(isScheduledNoteActiveAtPatternBeat(futureRepeat, displayBeat, 4)).toBe(true);
+    expect(isScheduledNoteActiveAtBeat(noteUnderPlayhead, displayBeat)).toBe(true);
+    expect(isScheduledNoteActiveAtBeat(futureRepeat, displayBeat)).toBe(false);
   });
 });

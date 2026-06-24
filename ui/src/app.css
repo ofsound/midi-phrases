@@ -329,6 +329,10 @@
     mask-position: left top;
   }
 
+  .mp-plugin-shell .mp-top-honeycomb-rail {
+    border-top: 0;
+  }
+
   :root[data-theme="light"] .combination-mode-rail,
   :root[data-theme="light"] .mp-honeycomb-rail {
     --honeycomb-cell-tint: var(--color-border-subtle);
