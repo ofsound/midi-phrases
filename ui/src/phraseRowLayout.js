@@ -55,6 +55,13 @@ export function phraseStepCellMinHeightPx() {
   return scaledPx(basePhraseStepCellMinHeightPx);
 }
 
+/** Matches step footer `h-5`. */
+export const baseStepFooterHeightPx = 20;
+
+export function stepFooterHeightPx() {
+  return scaledPx(baseStepFooterHeightPx);
+}
+
 /** Drop-guide line height inside the step row band (room for glow without clipping). */
 export const basePhraseStepDropIndicatorHeightPx = 64;
 

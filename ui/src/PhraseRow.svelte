@@ -61,6 +61,7 @@
     phraseRowMinHeightPx,
     phraseStepCellMinHeightPx,
     phraseStepDropIndicatorHeightPx,
+    stepFooterHeightPx,
   } from "./phraseRowLayout.js";
   import {
     defaultStepTimingMultiplierIndex,
@@ -804,6 +805,15 @@
   /** @param {number} px */
   function layoutPx(px) {
     return px * layoutScale;
+  }
+
+  function stepFooterStackClearanceStyle() {
+    return `bottom: ${layoutPx(stepFooterHeightPx())}px`;
+  }
+
+  /** @param {string} style */
+  function aboveStepFooterStyle(style) {
+    return `${style}; ${stepFooterStackClearanceStyle()}`;
   }
 
   /** @param {number} dataStep */
@@ -1875,8 +1885,8 @@
 
 {#snippet multiplierResizeHandle(step)}
   <div
-    class="trailing-multiplier-resize-zone pointer-events-none absolute top-0 bottom-0 z-[60]"
-    style={trailingResizeZoneStyle()}
+    class="trailing-multiplier-resize-zone pointer-events-none absolute top-0 z-[60]"
+    style={aboveStepFooterStyle(trailingResizeZoneStyle())}
   >
     <button
       type="button"
@@ -1886,7 +1896,7 @@
       aria-label="Resize final step boundary; double-click to insert; Option-double-click to duplicate"
       title="Double-click to insert · Option-double-click to duplicate"
       disabled={isDragging || removeBlocked}
-      class="pointer-events-auto absolute top-0 right-0 bottom-0 left-0 touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+      class="step-boundary-resize-hit pointer-events-auto absolute top-0 right-0 left-0 touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
       onpointerdown={(event) => beginMultiplierResize(event, step)}
       onmousedown={(event) => beginMultiplierResize(event, step)}
       ondblclick={(event) => handleBoundaryDoubleClick(event, step + 1)}
@@ -1910,10 +1920,11 @@
   {@const footerShellClass = footerDimmed
     ? "border-t border-border-subtle/90 bg-surface/70"
     : "border-t border-border-subtle bg-surface-muted/60"}
-  {@const footerButtonClass = `flex h-full shrink-0 items-center justify-center border-0 bg-surface-muted/30 p-0 outline-none focus-visible:outline-none ${accent.ringFocusWithWidth}`}
+  {@const footerButtonClass = `flex h-full shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none focus-visible:outline-none ${accent.ringFocusWithWidth}`}
+  {@const footerStepIconClass = "pointer-events-none h-3.5 w-3.5"}
   {@const footerSlotStyle = `width: ${stepFooterActionSlotWidthPx()}px`}
   <div
-    class="relative z-[65] flex h-5 w-full shrink-0 {isQuarterStep
+    class="relative z-[80] flex h-5 w-full shrink-0 {isQuarterStep
       ? 'divide-x divide-border-subtle'
       : 'justify-between'} {footerShellClass}"
     data-no-long-press
@@ -1924,7 +1935,7 @@
         {muted}
         value={stepIsSkipped}
         buttonClass={`${footerButtonClass} min-w-0 flex-1 basis-0`}
-        iconClass="pointer-events-none h-3 w-3"
+        iconClass={footerStepIconClass}
         ariaLabel="Skip step in sequence"
         onValueChange={(value) => onStepSkipChange(row, step, value)}
       />
@@ -1933,7 +1944,7 @@
         {muted}
         value={stepIsMuted}
         buttonClass={`${footerButtonClass} min-w-0 flex-1 basis-0`}
-        iconClass="pointer-events-none h-3 w-3"
+        iconClass={footerStepIconClass}
         ariaLabel="Mute step"
         onValueChange={(value) => onStepMuteChange(row, step, value)}
       />
@@ -1962,7 +1973,7 @@
           {muted}
           value={stepIsSkipped}
           buttonClass={footerButtonClass}
-          iconClass="pointer-events-none h-3 w-3"
+          iconClass={footerStepIconClass}
           ariaLabel="Skip step in sequence"
           onValueChange={(value) => onStepSkipChange(row, step, value)}
           style={footerSlotStyle}
@@ -1972,7 +1983,7 @@
           {muted}
           value={stepIsMuted}
           buttonClass={footerButtonClass}
-          iconClass="pointer-events-none h-3 w-3"
+          iconClass={footerStepIconClass}
           ariaLabel="Mute step"
           onValueChange={(value) => onStepMuteChange(row, step, value)}
           style={footerSlotStyle}
@@ -2178,12 +2189,14 @@
   {@const boundaryCenterPx = leftPx + stepInsertZoneWidthPx() / 2}
   <div
     data-insert-slot
-    class="boundary-resize-zone pointer-events-none absolute top-0 bottom-0 z-[60]"
-    style={mode === "between"
-      ? boundaryResizeZoneStyle(boundaryCenterPx)
-      : mode === "leading"
-        ? leadingBoundaryInsertZoneStyle(leftPx)
-        : insertSlotStyle(leftPx)}
+    class="boundary-resize-zone pointer-events-none absolute top-0 z-[60]"
+    style={aboveStepFooterStyle(
+      mode === "between"
+        ? boundaryResizeZoneStyle(boundaryCenterPx)
+        : mode === "leading"
+          ? leadingBoundaryInsertZoneStyle(leftPx)
+          : insertSlotStyle(leftPx),
+    )}
   >
     {#if mode === "between" && insertStep > 0}
       <button
@@ -2194,7 +2207,7 @@
         aria-label="Resize step boundary; double-click to insert; Option-double-click to duplicate"
         title="Double-click to insert · Option-double-click to duplicate"
         disabled={isDragging || removeBlocked}
-        class="pointer-events-auto absolute top-0 right-0 bottom-0 left-0 z-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+        class="step-boundary-resize-hit pointer-events-auto absolute top-0 right-0 left-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
         onpointerdown={(event) => beginMultiplierResize(event, insertStep - 1)}
         onmousedown={(event) => beginMultiplierResize(event, insertStep - 1)}
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
@@ -2217,7 +2230,7 @@
         aria-label="First step boundary; double-click to insert"
         title="Double-click to insert"
         disabled={isDragging || removeBlocked}
-        class="pointer-events-auto absolute top-0 right-0 bottom-0 left-0 z-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+        class="step-boundary-resize-hit pointer-events-auto absolute top-0 right-0 left-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
         onpointerdown={(event) => event.stopPropagation()}
         onmousedown={(event) => event.stopPropagation()}
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
@@ -2312,6 +2325,10 @@
   .trailing-multiplier-resize-zone:hover .boundary-edge-handle,
   .trailing-multiplier-resize-zone:focus-within .boundary-edge-handle {
     opacity: 1;
+  }
+
+  .step-boundary-resize-hit {
+    bottom: 0;
   }
 
   :global(.compact-step-row-dragging) > * {

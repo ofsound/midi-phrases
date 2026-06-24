@@ -173,7 +173,7 @@
   .step-view-mode-thumb {
     top: var(--svm-track-pad);
     bottom: var(--svm-track-pad);
-    left: var(--svm-track-pad);
+    left: calc(var(--svm-track-pad) + var(--svm-thumb-gap) / 4);
     width: calc((100% - 2 * var(--svm-track-pad) - var(--svm-thumb-gap)) / 2);
     transform: translate3d(0, 0, 0);
     transition: transform 300ms ease-out;
@@ -196,8 +196,8 @@
   }
 
   .step-view-mode-thumb-compact {
-    /* 100% is thumb width; add the inter-thumb gap so both ovals share the same inset. */
-    transform: translate3d(calc(100% + var(--svm-thumb-gap)), 0, 0);
+    /* Slide one column width; gap/2 keeps the oval centered on the right icon slot. */
+    transform: translate3d(calc(100% + var(--svm-thumb-gap) / 2), 0, 0);
   }
 
   .icon-slot {
