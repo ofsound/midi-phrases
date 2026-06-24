@@ -12,6 +12,7 @@
   stroke-linejoin="round"
   aria-hidden="true"
 >
-  <path d="M3 5v14M21 5v14" />
-  <path d="M8 9 5 12l3 3M16 9l3 3-3 3M5 12h14" />
+  <rect x="5" y="3.5" width="14" height="17" rx="2" />
+  <path d="M5 8h14" />
+  <path d="M5 17.5h14" />
 </svg>

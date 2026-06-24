@@ -1,6 +1,6 @@
 <script>
+  import CompactStepIcon from "./CompactStepIcon.svelte";
   import FullStepControlsIcon from "./FullStepControlsIcon.svelte";
-  import StretchToFitIcon from "./StretchToFitIcon.svelte";
   import { interfaceAccent } from "./rowAccentTheme.js";
 
   /**
@@ -122,7 +122,7 @@
           ? 'text-zinc-950'
           : 'text-text-muted/60'}"
       >
-        <StretchToFitIcon class="pointer-events-none block shrink-0" />
+        <CompactStepIcon class="pointer-events-none block shrink-0" />
       </div>
     </div>
   </button>
