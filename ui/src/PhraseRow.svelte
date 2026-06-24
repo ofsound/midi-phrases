@@ -36,6 +36,7 @@
     applyBulkStepDragGhost,
     bulkGhostLayoutEntries,
     captureBulkStepGhostSnapshots,
+    dragGhostOpacity,
   } from "./bulkStepDragGhost.js";
   import {
     defaultStepCycle,
@@ -1060,7 +1061,7 @@
       return;
     }
 
-    element.style.setProperty("opacity", "1", "important");
+    element.style.setProperty("opacity", dragGhostOpacity, "important");
     element.style.setProperty("visibility", "visible", "important");
     element.style.setProperty("height", dragHeight, "important");
     element.style.setProperty("min-height", dragHeight, "important");
@@ -1811,7 +1812,7 @@
       ondblclick={(event) => handleBoundaryDoubleClick(event, step + 1)}
     ></button>
     <span
-      class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+      class="boundary-edge-handle pointer-events-none absolute top-[calc(50%+0.625rem)] z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
       style:left="{layoutPx(stepBoundaryEndResizePx())}px"
       aria-hidden="true"
     ></span>
@@ -2119,12 +2120,12 @@
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
       ></button>
       <span
-        class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+        class="boundary-edge-handle pointer-events-none absolute top-[calc(50%+0.625rem)] z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
         style:left="{layoutPx(stepBoundaryEndResizePx())}px"
         aria-hidden="true"
       ></span>
       <span
-        class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+        class="boundary-edge-handle pointer-events-none absolute top-[calc(50%+0.625rem)] z-10 h-7 w-1 translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
         style:right="{layoutPx(stepBoundaryStartResizePx())}px"
         aria-hidden="true"
       ></span>
@@ -2142,7 +2143,7 @@
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
       ></button>
       <span
-        class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
+        class="boundary-edge-handle pointer-events-none absolute top-[calc(50%+0.625rem)] z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
         style:left="{layoutPx(stepInsertZoneWidthPx())}px"
         aria-hidden="true"
       ></span>

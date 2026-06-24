@@ -2,6 +2,8 @@
  * @typedef {{ widthPx: number, gapBeforePx: number, html: string }} BulkStepGhostSnapshot
  */
 
+export const dragGhostOpacity = "0.72";
+
 /**
  * @param {ParentNode | null | undefined} zone
  * @param {string[]} blockIds
@@ -85,7 +87,7 @@ export function applyBulkStepDragGhost(element, blockIds, snapshots, isDuplicate
       : "0 10px 28px color-mix(in srgb, #000 38%, transparent)",
     "important",
   );
-  element.style.setProperty("opacity", "1", "important");
+  element.style.setProperty("opacity", dragGhostOpacity, "important");
   element.style.setProperty("visibility", "visible", "important");
   element.style.setProperty("outline", "none", "important");
 
