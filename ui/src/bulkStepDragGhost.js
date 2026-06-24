@@ -18,7 +18,7 @@ function styleDragCopyBadge(badge) {
   badge.style.setProperty("justify-content", "center", "important");
   badge.style.setProperty("border-radius", "9999px", "important");
   badge.style.setProperty("border", "1px solid color-mix(in srgb, #fff 76%, transparent)", "important");
-  badge.style.setProperty("background", "var(--color-accent, #2fd6a3)", "important");
+  badge.style.setProperty("background", "var(--color-accent, #62f5b4)", "important");
   badge.style.setProperty("box-shadow", "0 2px 8px color-mix(in srgb, #000 45%, transparent)", "important");
   badge.style.setProperty("color", "var(--color-app, #06100d)", "important");
   badge.style.setProperty("font", "700 16px/1 system-ui, -apple-system, BlinkMacSystemFont, sans-serif", "important");

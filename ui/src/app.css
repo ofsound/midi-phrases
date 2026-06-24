@@ -418,16 +418,18 @@
     background: color-mix(in srgb, var(--color-control-ghost-hover) 53%, transparent);
   }
 
-  .combination-mode-button:active,
-  .combination-mode-button[aria-pressed="true"] {
+  .combination-mode-button:active {
     box-shadow:
       0 0 3.5px color-mix(in srgb, var(--color-accent) 19%, transparent),
       0 0 8px color-mix(in srgb, var(--color-accent) 10%, transparent),
       0 0 13px color-mix(in srgb, var(--color-accent) 5%, transparent);
   }
 
-  .combination-mode-button:active::after,
-  .combination-mode-button[aria-pressed="true"]::after {
+  .combination-mode-button[aria-pressed="true"] {
+    box-shadow: none;
+  }
+
+  .combination-mode-button:active::after {
     content: "";
     position: absolute;
     inset: -1px;
@@ -437,6 +439,10 @@
     box-shadow:
       0 0 5px color-mix(in srgb, var(--color-accent) 21%, transparent),
       0 0 10px color-mix(in srgb, var(--color-accent) 11%, transparent);
+  }
+
+  .combination-mode-button[aria-pressed="true"]::after {
+    content: none;
   }
 
   .combination-mode-button:active .combination-mode-button-face,

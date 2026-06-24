@@ -33,7 +33,7 @@
   } = $props();
 
   const scaleToneMarkerClass =
-    "pointer-events-none mb-1 h-2 w-2 shrink-0 rounded-full bg-accent shadow-[0_0_6px_rgba(52,211,153,0.8)]";
+    "pointer-events-none mb-1 h-2 w-2 shrink-0 rounded-full bg-accent shadow-[0_0_6px_color-mix(in_srgb,var(--color-accent)_80%,transparent)]";
 
   /** Default view: three octave-up steps from the bottom (starts ~C1, not C-2). */
   let octaveOffset = $state(3);

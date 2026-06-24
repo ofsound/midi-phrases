@@ -21,7 +21,7 @@
   } = $props();
 
   const scaleToneMarkerClass =
-    "pointer-events-none h-2 w-2 shrink-0 rounded-full bg-accent shadow-[0_0_6px_rgba(52,211,153,0.8)]";
+    "pointer-events-none h-2 w-2 shrink-0 rounded-full bg-accent shadow-[0_0_6px_color-mix(in_srgb,var(--color-accent)_80%,transparent)]";
 
   let range = $derived(scalePreviewMidiRange(root));
   let layout = $derived(
