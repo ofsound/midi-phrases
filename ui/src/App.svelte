@@ -259,6 +259,17 @@
   let duplicateDragStepId = $state(null);
   /** @type {string[] | null} */
   let bulkDragStepIds = $state(null);
+  let stepTimingMultiplierById = $derived.by(() => {
+    const byId = new SvelteMap();
+
+    stepIds.forEach((ids, row) => {
+      ids.forEach((id, step) => {
+        byId.set(id, stepTimingMultiplier[row]?.[step] ?? defaultStepTimingMultiplierIndex);
+      });
+    });
+
+    return byId;
+  });
 
   let playbackPollTimerId = 0;
   let playbackPollInFlight = false;
@@ -5344,6 +5355,7 @@
               notes={grid[row]}
               stepDurationFraction={stepDurationFraction[row]}
               stepTimingMultiplier={stepTimingMultiplier[row]}
+              {stepTimingMultiplierById}
               stepVelocity={stepVelocity[row]}
               stepMuted={stepMuted[row]}
               stepSkipped={stepSkipped[row]}

@@ -125,6 +125,7 @@
    * @property {number[]} [notes]
    * @property {number[]} [stepDurationFraction]
    * @property {number[]} [stepTimingMultiplier]
+   * @property {Map<string, number>} [stepTimingMultiplierById]
    * @property {number[]} [stepVelocity]
    * @property {boolean[]} [stepMuted]
    * @property {boolean[]} [stepSkipped]
@@ -190,6 +191,7 @@
     notes = [],
     stepDurationFraction = [],
     stepTimingMultiplier = [],
+    stepTimingMultiplierById = new Map(),
     stepVelocity = [],
     stepMuted = [],
     stepSkipped = [],
@@ -538,6 +540,16 @@
     });
   }
 
+  /** @param {void | Promise<void>} commit */
+  async function finishDropAfterCommitPaint(commit) {
+    await tick();
+    resetDndItemsToRow();
+    idsBeforeDrag = null;
+    await tick();
+    endDragSession();
+    await commit;
+  }
+
   /** @param {PointerEvent} event */
   function trackDragPointer(event) {
     if (!isDragging) return;
@@ -654,8 +666,10 @@
     );
   }
 
-  /** @param {{ id: string }} item */
+  /** @param {{ id: string, sourceStepIndex?: number }} item */
   function dataStepForDndItem(item) {
+    if (Number.isInteger(item.sourceStepIndex)) return item.sourceStepIndex;
+
     return isShadowItem(item)
       ? stepIndexFromId(draggedStepId ?? "")
       : stepIndexFromId(item.id);
@@ -727,21 +741,77 @@
     applyDragCopyBadge(draggedEl, draggedAsDuplicate);
   }
 
+  /** @param {string} id */
+  function multiplierIndexForDndId(id) {
+    const stableStep = idsBeforeDrag?.indexOf(id) ?? -1;
+
+    if (stableStep >= 0) return multiplierIndexForDataStep(stableStep);
+
+    const localStep = stepIndexFromId(id);
+
+    if (localStep >= 0) return multiplierIndexForDataStep(localStep);
+
+    return stepTimingMultiplierById.get(id) ?? defaultStepTimingMultiplierIndex;
+  }
+
+  /** @param {{ id: string, multiplierIndex?: number, sourceStepIndex?: number } & Record<string, unknown>} item */
+  function withDndMultiplier(item) {
+    if (isShadowItem(item)) return item;
+
+    return {
+      ...item,
+      multiplierIndex: item.multiplierIndex
+        ?? (item.sourceStepIndex != null
+          ? multiplierIndexForDataStep(item.sourceStepIndex)
+          : multiplierIndexForDndId(item.id)),
+    };
+  }
+
+  /** @param {({ id: string, multiplierIndex?: number, sourceStepIndex?: number } & Record<string, unknown>)[]} items */
+  function normalizeDndItems(items) {
+    return items.map(withDndMultiplier);
+  }
+
   /** @param {string[]} orderIds */
   function dndItemsFromIds(orderIds) {
     return orderIds.map((id) => ({
       id,
-      multiplierIndex: multiplierIndexForDataStep(
-        idsBeforeDrag?.indexOf(id) ?? stepIndexFromId(id),
-      ),
+      multiplierIndex: multiplierIndexForDndId(id),
     }));
   }
 
   function resetDndItemsToRow() {
-    dndItems = stepIds.map((id, step) => ({
-      id,
-      multiplierIndex: multiplierIndexForDataStep(step),
-    }));
+    dndItems = dndItemsFromIds(stepIds);
+  }
+
+  /**
+   * @param {string[]} blockIds
+   * @param {number} insertionIndex
+   */
+  function duplicatePreviewDndItems(blockIds, insertionIndex) {
+    if (!idsBeforeDrag) return dndItemsFromIds(stepIds);
+
+    const clampedIndex = Math.min(idsBeforeDrag.length, Math.max(0, insertionIndex));
+    const sourceItems = dndItemsFromIds(idsBeforeDrag);
+    const duplicateItems = blockIds
+      .map((id) => {
+        const sourceStepIndex = idsBeforeDrag?.indexOf(id) ?? -1;
+
+        if (sourceStepIndex < 0) return null;
+
+        return {
+          id: `duplicate-preview-${id}-${clampedIndex}`,
+          sourceStepIndex,
+          multiplierIndex: multiplierIndexForDataStep(sourceStepIndex),
+        };
+      })
+      .filter((item) => item !== null);
+
+    return [
+      ...sourceItems.slice(0, clampedIndex),
+      ...duplicateItems,
+      ...sourceItems.slice(clampedIndex),
+    ];
   }
 
   function bulkDropShadowIndex() {
@@ -797,10 +867,7 @@
   function restoreDuplicateSourceItems() {
     if (!draggedAsDuplicate || !idsBeforeDrag) return;
 
-    dndItems = idsBeforeDrag.map((id, step) => ({
-      id,
-      multiplierIndex: multiplierIndexForDataStep(step),
-    }));
+    dndItems = dndItemsFromIds(idsBeforeDrag);
   }
 
   /** @param {boolean} enabled */
@@ -950,7 +1017,8 @@
 
     if (stepIds.length === 0 && trigger === TRIGGERS.DRAG_STARTED) return;
     const shadowIndex = event.detail.items.findIndex(isShadowItem);
-    latestDragPreviewItems = event.detail.items.slice();
+    const previewItems = normalizeDndItems(event.detail.items);
+    latestDragPreviewItems = previewItems;
 
     if (
       trigger === TRIGGERS.DRAG_STARTED
@@ -1007,13 +1075,13 @@
       }
 
       if (draggedAsDuplicate && trigger !== TRIGGERS.DRAG_STARTED) {
-        dndItems = event.detail.items;
+        dndItems = previewItems;
         scheduleBulkDragGhostRefresh();
         scheduleDropIndicatorRefresh(shadowIndex);
         return;
       }
 
-      dndItems = event.detail.items;
+      dndItems = previewItems;
       scheduleBulkDragGhostRefresh();
       scheduleDropIndicatorRefresh(shadowIndex);
       void tick();
@@ -1030,7 +1098,7 @@
       return;
     }
 
-    dndItems = event.detail.items;
+    dndItems = previewItems;
     scheduleDropIndicatorRefresh(shadowIndex);
   }
 
@@ -1038,12 +1106,12 @@
   async function handleFinalize(event) {
     const trigger = event.detail.info.trigger;
     const movedStepId = event.detail.info.id;
-    const filtered = withoutShadowItems(event.detail.items);
+    const filtered = normalizeDndItems(withoutShadowItems(event.detail.items));
     const isDuplicateDrop = draggedAsDuplicate || duplicateDragStepId === movedStepId;
 
     if (trigger === TRIGGERS.DROPPED_INTO_ANOTHER) {
       if (idsBeforeDrag) {
-        dndItems = idsBeforeDrag.map((id) => ({ id }));
+        dndItems = dndItemsFromIds(idsBeforeDrag);
       } else {
         resetDndItemsToRow();
       }
@@ -1055,7 +1123,7 @@
 
     if (trigger === TRIGGERS.DROPPED_OUTSIDE_OF_ANY) {
       if (idsBeforeDrag) {
-        dndItems = idsBeforeDrag.map((id) => ({ id }));
+        dndItems = dndItemsFromIds(idsBeforeDrag);
       } else {
         resetDndItemsToRow();
       }
@@ -1076,29 +1144,33 @@
       const bulkShadowIndex = bulkDropShadowIndex();
 
       if (isDuplicateDrop && bulkShadowIndex >= 0) {
-        dndItems = idsBeforeDrag.map((id) => ({ id }));
-        await onBulkStepDuplicateDrop(row, bulkDragBlockIds, blockDuplicateInsertionIndex(
+        const duplicateInsertionIndex = blockDuplicateInsertionIndex(
           idsBeforeDrag,
           bulkDragBlockIds,
           bulkShadowIndex,
+        );
+        dndItems = duplicatePreviewDndItems(bulkDragBlockIds, duplicateInsertionIndex);
+        await finishDropAfterCommitPaint(onBulkStepDuplicateDrop(
+          row,
+          bulkDragBlockIds,
+          duplicateInsertionIndex,
         ));
+        return;
       } else if (bulkShadowIndex >= 0) {
         const afterIds = blockMoveOrder(idsBeforeDrag, bulkDragBlockIds, bulkShadowIndex);
 
         if (afterIds.some((id, index) => id !== idsBeforeDrag[index])) {
           dndItems = dndItemsFromIds(afterIds);
           onReorder(row, afterIds);
-          await onBulkMoveCommitted(row, idsBeforeDrag, afterIds);
+          await finishDropAfterCommitPaint(onBulkMoveCommitted(row, idsBeforeDrag, afterIds));
+          return;
         } else {
-          dndItems = idsBeforeDrag.map((id) => ({ id }));
+          dndItems = dndItemsFromIds(idsBeforeDrag);
         }
       } else {
-        dndItems = idsBeforeDrag.map((id) => ({ id }));
+        dndItems = dndItemsFromIds(idsBeforeDrag);
       }
-
-      idsBeforeDrag = null;
-      await tick();
-      endDragSession();
+      await finishDropAfterCommitPaint();
       return;
     }
 
@@ -1109,36 +1181,34 @@
 
       if (inboundBulkDrag && bulkDragStepIds) {
         if (isDuplicateDrop && bulkShadowIndex >= 0) {
-          await onBulkCrossRowDuplicateDrop(
+          await finishDropAfterCommitPaint(onBulkCrossRowDuplicateDrop(
             row,
             movedStepId,
             bulkDragStepIds,
             previewIds,
             bulkShadowIndex,
-          );
+          ));
         } else {
-          await onBulkCrossRowMove(
+          await finishDropAfterCommitPaint(onBulkCrossRowMove(
             row,
             movedStepId,
             bulkDragStepIds,
             previewIds,
             bulkShadowIndex,
-          );
+          ));
         }
       } else if (isDuplicateDrop) {
-        await onStepDuplicateDrop(row, movedStepId, previewIds, dropIndicatorIndex);
+        await finishDropAfterCommitPaint(onStepDuplicateDrop(row, movedStepId, previewIds, dropIndicatorIndex));
       } else {
-        await onCrossRowMove(row, movedStepId, previewIds, dropIndicatorIndex);
+        await finishDropAfterCommitPaint(onCrossRowMove(row, movedStepId, previewIds, dropIndicatorIndex));
       }
 
-      await tick();
-      endDragSession();
       return;
     }
 
     if (filtered.length !== stepIds.length) {
       if (idsBeforeDrag) {
-        dndItems = idsBeforeDrag.map((id) => ({ id }));
+        dndItems = dndItemsFromIds(idsBeforeDrag);
       } else {
         resetDndItemsToRow();
       }
@@ -1155,13 +1225,12 @@
       const sourceIndex = idsBeforeDrag?.indexOf(movedStepId) ?? -1;
 
       if (idsBeforeDrag && duplicateDropIndex >= 0 && duplicateDropIndex !== sourceIndex) {
-        dndItems = idsBeforeDrag.map((id) => ({ id }));
-        await onStepDuplicateDrop(row, movedStepId, afterIds, duplicateDropIndex);
+        dndItems = duplicatePreviewDndItems([movedStepId], duplicateDropIndex);
+        await finishDropAfterCommitPaint(onStepDuplicateDrop(row, movedStepId, afterIds, duplicateDropIndex));
+        return;
       }
 
-      idsBeforeDrag = null;
-      await tick();
-      endDragSession();
+      await finishDropAfterCommitPaint();
       return;
     }
 
@@ -1174,12 +1243,11 @@
     onReorder(row, stableAfterIds);
 
     if (idsBeforeDrag) {
-      await onMoveCommitted(row, idsBeforeDrag, stableAfterIds);
-      idsBeforeDrag = null;
+      await finishDropAfterCommitPaint(onMoveCommitted(row, idsBeforeDrag, stableAfterIds));
+      return;
     }
 
-    await tick();
-    endDragSession();
+    await finishDropAfterCommitPaint();
   }
 
   /** @type {import('svelte-dnd-action').TransformDraggedElementFunction} */
@@ -1862,8 +1930,15 @@
       ? rowGridWidthPx(sourceDragRemainingTimingMultipliers)
       : rowGridSpanPx,
   );
+  let sourceDragVisuallyEmpty = $derived(
+    sourceDragRemainingTimingMultipliers !== null
+      && sourceDragRemainingTimingMultipliers.length === 0,
+  );
+  let addStepIsFirstVisible = $derived(isEmptyRow || sourceDragVisuallyEmpty);
   let rowEndAddStepOverlayLeftPx = $derived(
-    layoutPx(rowEndGridSpanPx - stepCellPaddingPx() + phraseRowEndStepTailPaddingPx()),
+    sourceDragVisuallyEmpty
+      ? layoutPx(stepCellPaddingPx() - phraseRowEndAddStepInsetPx())
+      : layoutPx(rowEndGridSpanPx - stepCellPaddingPx() + phraseRowEndStepTailPaddingPx()),
   );
   let trailingInsertLeftPx = $derived(insertLeftAtBoundary(rowGridSpanPx));
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
@@ -2212,7 +2287,7 @@
     {muted}
     ariaLabel={label}
     variant="large"
-    contentClass={isEmptyRow ? "" : "-translate-x-4"}
+    contentClass={addStepIsFirstVisible ? "" : "-translate-x-4"}
     options={insertMultiplierOptions}
     defaultIndex={defaultStepTimingMultiplierIndex}
     onConfirm={(multiplierIndex) => onInsertStep(row, insertStep, multiplierIndex)}
@@ -2247,8 +2322,8 @@
     style:margin-left="{phraseRowEndAddStepInsetPx()}px"
   >
     {@render largeAddStepButton(
-      isEmptyRow ? "Add first step" : "Add step to end of row",
-      stepIds.length,
+      addStepIsFirstVisible ? "Add first step" : "Add step to end of row",
+      addStepIsFirstVisible ? 0 : stepIds.length,
     )}
   </div>
 {/snippet}
