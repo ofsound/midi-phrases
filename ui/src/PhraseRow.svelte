@@ -2369,30 +2369,32 @@
     style:min-height="{phraseRowMinHeightPx()}px"
   >
   {#if isEmptyRow}
-    <div bind:this={dropIndicatorHostElement} class="relative flex min-w-0 flex-1 items-stretch">
-      <div
-        bind:this={dndZoneElement}
-        use:dragHandleZone={dndZoneOptions}
-        onconsider={handleConsider}
-        onfinalize={handleFinalize}
-        data-phrase-row-dragging={isDragging ? true : undefined}
-        class="phrase-row-dnd-zone flex min-w-0 flex-1 items-stretch outline-none {stretchToFit && isDragging
-          ? 'compact-step-row-dragging'
-          : ''}"
-        style={phraseRowDndZoneStyle}
-      >
-        {@render rowStartAddStepControl()}
-        {@render emptyRowDndPlaceholders()}
-      </div>
-      {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
+    <div class="relative flex min-w-0 flex-1 items-stretch">
+      {@render rowStartAddStepControl()}
+      <div bind:this={dropIndicatorHostElement} class="relative flex min-w-0 flex-1 items-stretch">
         <div
-          data-step-drop-indicator
-          class="step-drop-indicator pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
-          style:left="{dropIndicatorLeftPx}px"
-          style:height="{phraseStepDropIndicatorHeightPxValue}px"
-          aria-hidden="true"
-        ></div>
-      {/if}
+          bind:this={dndZoneElement}
+          use:dragHandleZone={dndZoneOptions}
+          onconsider={handleConsider}
+          onfinalize={handleFinalize}
+          data-phrase-row-dragging={isDragging ? true : undefined}
+          class="phrase-row-dnd-zone flex min-w-0 flex-1 items-stretch outline-none {stretchToFit && isDragging
+            ? 'compact-step-row-dragging'
+            : ''}"
+          style={phraseRowDndZoneStyle}
+        >
+          {@render emptyRowDndPlaceholders()}
+        </div>
+        {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
+          <div
+            data-step-drop-indicator
+            class="step-drop-indicator pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
+            style:left="{dropIndicatorLeftPx}px"
+            style:height="{phraseStepDropIndicatorHeightPxValue}px"
+            aria-hidden="true"
+          ></div>
+        {/if}
+      </div>
     </div>
   {:else if stretchToFit}
     <div class="min-w-0 flex-1 overflow-x-hidden overflow-y-hidden">

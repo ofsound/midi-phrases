@@ -97,11 +97,17 @@ export function duplicateStepBetweenRows(
   const sourceIndex = stepIds[sourceRow].indexOf(stepId);
   const previewIndex = orderedTargetIds.indexOf(stepId);
 
-  if (sourceIndex < 0 || previewIndex < 0) return null;
+  if (sourceIndex < 0) return null;
 
-  const expectedIds = sourceRow === targetRow
-    ? stepIds[targetRow]
-    : [...stepIds[targetRow], stepId];
+  if (previewIndex < 0 && insertionIndexOverride === null) return null;
+
+  const expectedIds = previewIndex >= 0
+    ? (
+      sourceRow === targetRow
+        ? stepIds[targetRow]
+        : [...stepIds[targetRow], stepId]
+    )
+    : stepIds[targetRow];
 
   if (orderedTargetIds.length !== expectedIds.length) return null;
   if (new Set(orderedTargetIds).size !== orderedTargetIds.length) return null;

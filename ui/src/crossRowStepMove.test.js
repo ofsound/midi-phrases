@@ -237,6 +237,42 @@ describe("duplicateStepBetweenRows", () => {
       stepIds: [["a", "b", "c", "copy-b"]],
     });
   });
+
+  it("accepts an explicit insertion index when a target row preview omits the copied step", () => {
+    const result = duplicateStepBetweenRows(
+      { notes: [[60], [62, 64]] },
+      [["a"], ["x", "y"]],
+      0,
+      1,
+      "a",
+      ["x", "y"],
+      "copy-a",
+      2,
+    );
+
+    expect(result).toEqual({
+      matrices: { notes: [[60], [62, 64, 60]] },
+      stepIds: [["a"], ["x", "y", "copy-a"]],
+    });
+  });
+
+  it("copies a step into an empty target row with an explicit insertion index", () => {
+    const result = duplicateStepBetweenRows(
+      { notes: [[60], []] },
+      [["a"], []],
+      0,
+      1,
+      "a",
+      [],
+      "copy-a",
+      0,
+    );
+
+    expect(result).toEqual({
+      matrices: { notes: [[60], [60]] },
+      stepIds: [["a"], ["copy-a"]],
+    });
+  });
 });
 
 describe("duplicateBlockBetweenRows", () => {
