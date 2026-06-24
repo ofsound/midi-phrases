@@ -5682,14 +5682,14 @@
           >
             <input
               aria-label="Project name"
-              class="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-semibold tracking-wide text-text outline-none placeholder:text-text-faint focus:text-accent"
+              class="w-[250px] shrink-0 truncate border-0 bg-transparent p-0 text-sm font-semibold tracking-wide text-text outline-none placeholder:text-text-faint focus:text-accent"
               maxlength="96"
               bind:value={projectName}
               placeholder="Untitled Project"
             />
             <input
               aria-label="Project description"
-              class="w-[25ch] shrink-0 truncate border-0 bg-transparent p-0 text-xs text-text outline-none placeholder:text-text-faint focus:text-text"
+              class="min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-xs text-text outline-none placeholder:text-text-faint focus:text-text"
               maxlength="240"
               bind:value={projectDescription}
               placeholder="Add a project description…"
