@@ -5561,8 +5561,6 @@
         onShapeVelocitiesCommit={commitPhraseRowVelocityShape}
         onStepMove={movePhraseStepFromPianoRoll}
         onStepResize={selectStepTimingMultiplier}
-        onDurationPreview={previewPhraseStepDuration}
-        onDurationCommit={commitPhraseStepDuration}
         onStepBulkGestureStart={beginPhraseStepBulkGesture}
         onOpenAdvancedInspector={openStepInspector}
         onInsertStep={insertStep}
