@@ -65,6 +65,13 @@ export function phraseStepCellMinHeightPx() {
   return scaledPx(basePhraseStepCellMinHeightPx);
 }
 
+/** Drop-guide line height inside the step row band (room for glow without clipping). */
+export const basePhraseStepDropIndicatorHeightPx = 64;
+
+export function phraseStepDropIndicatorHeightPx() {
+  return scaledPx(basePhraseStepDropIndicatorHeightPx);
+}
+
 /** PhraseRow scroll container min-height including vertical padding. */
 export function phraseRowMinHeightPx() {
   return phraseStepCellMinHeightPx() + phraseRowScrollPaddingVerticalPx() + phraseRowScrollbarReservePx();

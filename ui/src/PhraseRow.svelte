@@ -57,6 +57,7 @@
     phraseRowEndAddStepReservePx,
     phraseRowMinHeightPx,
     phraseStepCellMinHeightPx,
+    phraseStepDropIndicatorHeightPx,
   } from "./phraseRowLayout.js";
   import {
     defaultStepTimingMultiplierIndex,
@@ -719,6 +720,7 @@
 
   let layoutScale = $derived(Math.min(1, contentFitScale));
   let phraseStepCellHeightPx = $derived(phraseStepCellMinHeightPx());
+  let phraseStepDropIndicatorHeightPxValue = $derived(phraseStepDropIndicatorHeightPx());
   let phraseRowDndZoneStyle = $derived(
     `min-height: ${phraseStepCellHeightPx}px; height: ${phraseStepCellHeightPx}px;`,
   );
@@ -2241,13 +2243,14 @@
 
   .step-drop-indicator {
     width: 3px;
-    transform: translateX(-50%);
+    top: 50%;
+    transform: translate(-50%, -50%);
     border-radius: 9999px;
     background: currentColor;
     box-shadow:
-      0 0 3px currentColor,
-      0 0 8px currentColor,
-      0 0 16px color-mix(in srgb, currentColor 78%, transparent);
+      0 0 2px currentColor,
+      0 0 6px currentColor,
+      0 0 12px color-mix(in srgb, currentColor 72%, transparent);
   }
 </style>
 
@@ -2286,8 +2289,9 @@
       {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
         <div
           data-step-drop-indicator
-          class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
+          class="step-drop-indicator pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
           style:left="{dropIndicatorLeftPx}px"
+          style:height="{phraseStepDropIndicatorHeightPxValue}px"
           aria-hidden="true"
         ></div>
       {/if}
@@ -2374,8 +2378,9 @@
           {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
             <div
               data-step-drop-indicator
-              class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
+              class="step-drop-indicator pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
               style:left="{dropIndicatorLeftPx}px"
+              style:height="{phraseStepDropIndicatorHeightPxValue}px"
               aria-hidden="true"
             ></div>
           {/if}
@@ -2447,8 +2452,9 @@
         {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
           <div
             data-step-drop-indicator
-            class="step-drop-indicator pointer-events-none absolute -top-1 -bottom-1 z-[70] {accent.textAccentLight}"
+            class="step-drop-indicator pointer-events-none absolute top-1/2 z-[70] {accent.textAccentLight}"
             style:left="{dropIndicatorLeftPx}px"
+            style:height="{phraseStepDropIndicatorHeightPxValue}px"
             aria-hidden="true"
           ></div>
         {/if}
