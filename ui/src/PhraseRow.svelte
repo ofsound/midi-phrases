@@ -2347,7 +2347,7 @@
     aria-hidden="true"
   ></div>
   <div
-    class="flex min-w-0 flex-1 items-stretch overflow-x-hidden overflow-y-hidden pt-2 pr-2 pb-2"
+    class="flex min-w-0 flex-1 items-stretch overflow-x-hidden overflow-y-hidden pt-1 pr-2 pb-1"
     role="presentation"
     style:min-height="{phraseRowMinHeightPx()}px"
   >

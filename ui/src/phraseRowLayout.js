@@ -4,8 +4,8 @@ import { scaledPx } from "./uiScale.svelte.js";
 /** Leading inset before the quarter grid (half of PhraseRow’s scroll clip gutter). */
 export const basePhraseRowScrollPaddingLeftPx = 8;
 
-/** Matches PhraseRow scroll container `pt-2` + `pb-2` (16px root). */
-export const basePhraseRowScrollPaddingVerticalPx = 16;
+/** Matches PhraseRow scroll container `pt-1` + `pb-1` (16px root). */
+export const basePhraseRowScrollPaddingVerticalPx = 8;
 
 /**
  * WKWebView can reserve vertical space for a horizontal row scrollbar even when
@@ -13,7 +13,7 @@ export const basePhraseRowScrollPaddingVerticalPx = 16;
  */
 export const basePhraseRowScrollbarReservePx = 14;
 
-/** Matches PhraseRow scroll container `pt-2`. */
+/** Matches PhraseRow scroll container left clip gutter. */
 export function phraseRowScrollPaddingLeftPx() {
   return scaledPx(basePhraseRowScrollPaddingLeftPx);
 }
@@ -26,12 +26,12 @@ export function phraseRowScrollbarReservePx() {
   return scaledPx(basePhraseRowScrollbarReservePx);
 }
 
-/** Matches PhraseRow scroll container `pt-2`. */
+/** Matches PhraseRow scroll container `pt-1`. */
 export function phraseRowScrollPaddingTopPx() {
   return phraseRowScrollPaddingVerticalPx() / 2;
 }
 
-/** Matches PhraseRow scroll container `pb-2`. */
+/** Matches PhraseRow scroll container `pb-1`. */
 export function phraseRowScrollPaddingBottomPx() {
   return phraseRowScrollPaddingVerticalPx() / 2;
 }
@@ -232,7 +232,7 @@ export function phraseBeatGuideGlobalLeftPx(visualCompensationPx = 0) {
 
 /**
  * How far the beat-one guide extends past the top/bottom of step cells.
- * Matches PhraseRow vertical scroll padding (`pt-2` / `pb-2`).
+ * Matches PhraseRow vertical scroll padding (`pt-1` / `pb-1`).
  */
 export function phraseBeatGuideVerticalOverhangPx() {
   return phraseRowScrollPaddingBottomPx();
