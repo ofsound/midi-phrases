@@ -59,6 +59,21 @@ describe("compact stretch-to-fit shell spacing", () => {
   });
 });
 
+describe("0.25x step text fit benchmark", () => {
+  it("preserves enough full-step face budget for D#4 127 at 100% UI scale", () => {
+    const quarterStepShellWidthPx = stepDisplayWidthPx(0);
+    const cellBorderX = 4; // border-2 on both sides.
+    const bodyPaddingX = 8; // px-1 on both sides.
+    const noteVelocityGap = 4; // gap-1 between note and velocity labels.
+    const dSharpOctaveLabelWidth = 24;
+    const maxVelocityLabelWidth = 18;
+
+    expect(
+      quarterStepShellWidthPx - cellBorderX - bodyPaddingX - noteVelocityGap,
+    ).toBeGreaterThanOrEqual(dSharpOctaveLabelWidth + maxVelocityLabelWidth);
+  });
+});
+
 describe("phraseRowsScrollContentWidthPx", () => {
   it("matches the shared compact grid span in px", () => {
     const rows = [

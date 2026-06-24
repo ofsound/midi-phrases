@@ -2069,8 +2069,8 @@
               onValueCommit={(fraction) => onDurationCommit(row, step, fraction)}
             />
           </div>
-          <div class="flex min-w-0 items-center">
-            <div class="flex min-w-0 items-baseline gap-1.5">
+          <div class="flex min-w-0 items-center overflow-hidden">
+            <div class="flex shrink-0 items-baseline gap-1">
               <NoteDragInput
                 {accent}
                 muted={stepDimmed}
@@ -2095,7 +2095,7 @@
                 onValueCommit={(value) => onVelocityCommit(row, step, value)}
               />
             </div>
-            <div class="min-h-5 min-w-4 flex-1 touch-none" role="presentation"></div>
+            <div class="min-h-5 min-w-0 flex-1 touch-none" role="presentation"></div>
           </div>
         </div>
 
