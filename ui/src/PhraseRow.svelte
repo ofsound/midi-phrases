@@ -874,17 +874,6 @@
   /** @type {HTMLDivElement | null} */
   let dropIndicatorHostElement = $state(null);
 
-  /** @param {HTMLDivElement} node */
-  function emptyRowDropZone(node) {
-    dndZoneElement = node;
-    dropIndicatorHostElement = node;
-
-    return () => {
-      if (dndZoneElement === node) dndZoneElement = null;
-      if (dropIndicatorHostElement === node) dropIndicatorHostElement = null;
-    };
-  }
-
   function clearDndZoneTransforms() {
     dndZoneElement?.querySelectorAll("[data-bulk-step-cell]").forEach((element) => {
       if (element instanceof HTMLElement) {
@@ -2426,19 +2415,26 @@
   >
   {#if isEmptyRow}
     <div
-      use:emptyRowDropZone
-      use:dragHandleZone={dndZoneOptions}
-      onconsider={handleConsider}
-      onfinalize={handleFinalize}
-      data-phrase-row-dragging={isDragging ? true : undefined}
-      class="phrase-row-dnd-zone relative flex min-w-0 flex-1 items-stretch outline-none {stretchToFit && isDragging
-        ? 'compact-step-row-dragging'
-        : ''}"
+      bind:this={dropIndicatorHostElement}
+      class="relative flex min-w-0 flex-1 items-stretch"
       style={phraseRowDndZoneStyle}
     >
-      {@render rowStartAddStepControl()}
-      <div class="relative flex min-w-0 flex-1 items-stretch">
+      <div
+        bind:this={dndZoneElement}
+        use:dragHandleZone={dndZoneOptions}
+        onconsider={handleConsider}
+        onfinalize={handleFinalize}
+        data-phrase-row-dragging={isDragging ? true : undefined}
+        class="phrase-row-dnd-zone absolute inset-0 z-0 flex min-w-0 flex-1 items-stretch outline-none {stretchToFit && isDragging
+          ? 'compact-step-row-dragging'
+          : ''}"
+        style={phraseRowDndZoneStyle}
+      >
         {@render emptyRowDndPlaceholders()}
+      </div>
+      <div class="relative z-10 flex min-w-0 flex-1 items-stretch">
+        {@render rowStartAddStepControl()}
+        <div class="min-w-0 flex-1" aria-hidden="true"></div>
       </div>
       {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
         <div
