@@ -110,19 +110,19 @@
       ></div>
 
       <div
-        class="icon-slot pointer-events-auto relative z-10 flex shrink-0 items-center justify-center rounded-full {!compact
+        class="icon-slot pointer-events-auto relative z-10 rounded-full {!compact
           ? 'text-zinc-950'
           : 'text-text-muted/60'}"
       >
-        <FullStepControlsIcon class="pointer-events-none block shrink-0" />
+        <FullStepControlsIcon class="pointer-events-none" />
       </div>
 
       <div
-        class="icon-slot pointer-events-auto relative z-10 flex shrink-0 items-center justify-center rounded-full {compact
+        class="icon-slot pointer-events-auto relative z-10 rounded-full {compact
           ? 'text-zinc-950'
           : 'text-text-muted/60'}"
       >
-        <CompactStepIcon class="pointer-events-none block shrink-0" />
+        <CompactStepIcon class="pointer-events-none" />
       </div>
     </div>
   </button>
@@ -161,18 +161,20 @@
   }
 
   .step-view-mode-track {
+    --svm-track-pad: calc(0.125rem * var(--svm));
+    --svm-thumb-gap: calc(0.25rem * var(--svm));
     z-index: 1;
     contain: layout style paint;
     inset: calc(7px * var(--svm)) calc(10.5px * var(--svm));
-    padding: calc(0.125rem * var(--svm));
+    padding: var(--svm-track-pad);
     box-shadow: inset 0 calc(2px * var(--svm)) calc(4px * var(--svm)) rgba(0, 0, 0, 0.7);
   }
 
   .step-view-mode-thumb {
-    top: calc(0.125rem * var(--svm));
-    bottom: calc(0.125rem * var(--svm));
-    left: calc(0.125rem * var(--svm));
-    width: calc(50% - 0.2rem * var(--svm));
+    top: var(--svm-track-pad);
+    bottom: var(--svm-track-pad);
+    left: var(--svm-track-pad);
+    width: calc((100% - 2 * var(--svm-track-pad) - var(--svm-thumb-gap)) / 2);
     transform: translate3d(0, 0, 0);
     transition: transform 300ms ease-out;
     will-change: transform;
@@ -194,16 +196,23 @@
   }
 
   .step-view-mode-thumb-compact {
-    transform: translate3d(100%, 0, 0);
+    /* 100% is thumb width; add the inter-thumb gap so both ovals share the same inset. */
+    transform: translate3d(calc(100% + var(--svm-thumb-gap)), 0, 0);
   }
 
   .icon-slot {
     contain: layout style paint;
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    min-height: 0;
   }
 
   .icon-slot :global(svg) {
+    display: block;
     width: calc(1.25rem * var(--svm));
     height: calc(1.25rem * var(--svm));
+    flex-shrink: 0;
   }
 
   .step-view-mode-frame:focus-visible {

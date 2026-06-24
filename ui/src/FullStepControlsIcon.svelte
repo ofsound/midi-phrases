@@ -1,18 +1,28 @@
 <script>
+  import {
+    stepIconHeight,
+    stepIconRx,
+    stepIconViewBox,
+    stepIconWidth,
+    stepIconX,
+    stepIconY,
+    stepIconStrokeWidth,
+  } from "./stepIconGeometry.js";
+
   let { class: className = "" } = $props();
 </script>
 
 <svg
   class={className}
-  viewBox="0 0 24 24"
+  viewBox={stepIconViewBox}
   fill="none"
   stroke="currentColor"
-  stroke-width="1.8"
+  stroke-width={stepIconStrokeWidth}
   stroke-linecap="round"
   stroke-linejoin="round"
   aria-hidden="true"
 >
-  <rect x="5" y="3.5" width="14" height="17" rx="2" />
+  <rect x={stepIconX} y={stepIconY} width={stepIconWidth} height={stepIconHeight} rx={stepIconRx} />
   <path d="M5 8h14" />
   <path d="M7.5 11.5h9" />
   <path d="M7.5 14.5h5.5" />
