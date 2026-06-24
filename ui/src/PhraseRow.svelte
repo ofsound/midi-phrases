@@ -267,6 +267,8 @@
   /** @type {{ cells: { step: number, left: number, width: number }[], boundaries: number[] } | null} */
   let dropGeometry = null;
   let dragPointerTrackingActive = false;
+  /** @type {{ id: string, multiplierIndex?: number }[] | null} */
+  let latestDragPreviewItems = null;
   let duplicateSourceRestoreFrame = 0;
   /** @type {string[] | null} */
   let bulkDragBlockIds = $state(null);
@@ -515,13 +517,23 @@
 
     lastDragClientX = event.clientX;
     lastDragClientY = event.clientY;
+    setDragDuplicateModifier(event.altKey);
     syncDropIndicatorFromPointer();
+  }
+
+  /** @param {KeyboardEvent} event */
+  function trackDragModifierKey(event) {
+    if (!isDragging) return;
+
+    setDragDuplicateModifier(event.altKey);
   }
 
   function beginDragPointerTracking() {
     if (dragPointerTrackingActive) return;
 
     document.addEventListener("pointermove", trackDragPointer, resizePassiveCapture);
+    document.addEventListener("keydown", trackDragModifierKey, true);
+    document.addEventListener("keyup", trackDragModifierKey, true);
     dragPointerTrackingActive = true;
   }
 
@@ -529,6 +541,8 @@
     if (!dragPointerTrackingActive) return;
 
     document.removeEventListener("pointermove", trackDragPointer, resizePassiveCapture);
+    document.removeEventListener("keydown", trackDragModifierKey, true);
+    document.removeEventListener("keyup", trackDragModifierKey, true);
     dragPointerTrackingActive = false;
     lastDragClientX = null;
     lastDragClientY = null;
@@ -581,6 +595,7 @@
     clearDndZoneTransforms();
     blockRemoveTemporarily();
     draggedAsDuplicate = false;
+    latestDragPreviewItems = null;
     duplicateDropIndex = -1;
     setDropIndicatorIndex(-1);
     dropIndicatorLeftPx = 0;
@@ -644,6 +659,19 @@
     });
   }
 
+  function refreshDraggedElementCopyBadge() {
+    const draggedEl = document.getElementById(DRAGGED_ELEMENT_ID);
+
+    if (!(draggedEl instanceof HTMLElement)) return;
+
+    if (bulkDragBlockIds && bulkDragBlockIds.length >= 2 && bulkDragGhostSnapshots) {
+      refreshBulkDragGhost();
+      return;
+    }
+
+    applyDragCopyBadge(draggedEl, draggedAsDuplicate);
+  }
+
   /** @param {string[]} orderIds */
   function dndItemsFromIds(orderIds) {
     return orderIds.map((id) => ({
@@ -696,6 +724,7 @@
   /** @param {PointerEvent} event @param {number} step */
   function prepareStepDrag(event, step) {
     draggedAsDuplicate = event.altKey;
+    latestDragPreviewItems = null;
     duplicateDropIndex = step;
     const stepId = stepIds[step];
     onDuplicateDragChange(event.altKey ? stepId : null);
@@ -717,6 +746,27 @@
       id,
       multiplierIndex: multiplierIndexForDataStep(step),
     }));
+  }
+
+  /** @param {boolean} enabled */
+  function setDragDuplicateModifier(enabled) {
+    const nextDraggedAsDuplicate = Boolean(enabled);
+
+    if (!isDragging || !draggedStepId || draggedAsDuplicate === nextDraggedAsDuplicate) return;
+
+    draggedAsDuplicate = nextDraggedAsDuplicate;
+    onDuplicateDragChange(nextDraggedAsDuplicate ? draggedStepId : null);
+
+    if (nextDraggedAsDuplicate) {
+      restoreDuplicateSourceItems();
+    } else if (latestDragPreviewItems) {
+      dndItems = latestDragPreviewItems;
+    }
+
+    syncDropIndicatorFromPointer();
+    scheduleDropIndicatorRefresh();
+    scheduleBulkDragGhostRefresh();
+    refreshDraggedElementCopyBadge();
   }
 
   /** @param {string} stepId */
@@ -836,6 +886,7 @@
 
     if (stepIds.length === 0 && trigger === TRIGGERS.DRAG_STARTED) return;
     const shadowIndex = event.detail.items.findIndex(isShadowItem);
+    latestDragPreviewItems = event.detail.items.slice();
 
     if (
       trigger === TRIGGERS.DRAG_STARTED
