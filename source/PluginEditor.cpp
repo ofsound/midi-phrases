@@ -8,6 +8,10 @@
 
 namespace
 {
+constexpr int defaultEditorWidth = 1670;
+constexpr int defaultPluginEditorHeight = 980;
+constexpr int defaultStandaloneEditorHeight = 1044;
+
 juce::MouseCursor mouseCursorFromWebName (const juce::String& name)
 {
     if (name == "pointer")
@@ -176,12 +180,17 @@ PluginEditor::PluginEditor (PluginProcessor& p)
 #endif
 
 #if JUCE_WEB_BROWSER
+    scaleMinimumWidth = defaultEditorWidth;
+    scaleMinimumHeight = processorRef.hasStandaloneTransport() ? defaultStandaloneEditorHeight
+                                                               : defaultPluginEditorHeight;
     applyNormalResizeLimits();
 #else
     setResizeLimits (1000, 480, 2000, 1280);
 #endif
     setResizable (true, true);
-    setSize (1670, processorRef.hasStandaloneTransport() ? 1044 : 980);
+    setSize (defaultEditorWidth,
+             processorRef.hasStandaloneTransport() ? defaultStandaloneEditorHeight
+                                                   : defaultPluginEditorHeight);
 }
 
 PluginEditor::~PluginEditor()
@@ -646,14 +655,22 @@ juce::var PluginEditor::handleEditorFullscreenRequest (const int mode)
 
 juce::var PluginEditor::handleEditorScaleMinimumRequest (const int minWidth, const int minHeight)
 {
+    const auto previousMinimumWidth = scaleMinimumWidth;
+    const auto previousMinimumHeight = scaleMinimumHeight;
+    const auto followsScaleMinimum = getWidth() == previousMinimumWidth
+                                  && getHeight() == previousMinimumHeight;
+
     scaleMinimumWidth = juce::jlimit (900, 2400, minWidth);
     scaleMinimumHeight = juce::jlimit (480, 1800, minHeight);
 
     if (! editorFullscreen)
     {
         applyNormalResizeLimits();
-        setSize (juce::jmax (getWidth(), scaleMinimumWidth),
-                 juce::jmax (getHeight(), scaleMinimumHeight));
+        const auto nextWidth = followsScaleMinimum ? scaleMinimumWidth
+                                                   : juce::jmax (getWidth(), scaleMinimumWidth);
+        const auto nextHeight = followsScaleMinimum ? scaleMinimumHeight
+                                                    : juce::jmax (getHeight(), scaleMinimumHeight);
+        setSize (nextWidth, nextHeight);
     }
 
     auto object = std::make_unique<juce::DynamicObject>();
