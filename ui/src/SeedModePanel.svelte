@@ -11,7 +11,6 @@
 
   let {
     settings = { ...defaultSeedingSettings },
-    activeScaleName = "C Chromatic",
     root = 0,
     modeIndex = 0,
     busy = false,
@@ -55,11 +54,6 @@
 
 <div class="grid min-h-[29rem] gap-5 border-y border-border-subtle bg-surface/20 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(20rem,25rem)_minmax(0,1fr)]">
   <div class="grid content-start gap-4">
-    <div class="min-w-0">
-      <p class="text-xs font-semibold uppercase tracking-[0.28em] text-text-muted">Scale</p>
-      <h2 class="mt-1 truncate text-lg font-semibold text-text">{activeScaleName}</h2>
-    </div>
-
     <div class="grid gap-3">
       <label class="grid gap-1">
         <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
@@ -183,12 +177,7 @@
   </div>
 
   <div class="grid min-h-0 content-start gap-3">
-    <div class="flex items-center justify-between gap-3">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.28em] text-text-muted">Preview</p>
-        <h2 class="mt-1 text-lg font-semibold text-text">4 phrases</h2>
-      </div>
-      <div class="flex shrink-0 items-center gap-2">
+    <div class="flex shrink-0 items-center justify-end gap-2">
         <button
           type="button"
           data-cursor="pointer"
@@ -207,7 +196,6 @@
         >
           Shuffle
         </button>
-      </div>
     </div>
 
     <SeedPhrasePreview {preview} />

@@ -5505,7 +5505,6 @@
       {#if seedModeActive}
         <SeedModePanel
           settings={seedModeSettings}
-          {activeScaleName}
           root={scaleRoot}
           modeIndex={scaleModeIndex}
           busy={projectOperationBusy}
