@@ -314,6 +314,7 @@
    * } | null} */
   let compactStepDrag = $state(null);
   let suppressCompactStepClick = false;
+  let suppressStepInspectorClick = false;
   /** @type {[string, EventListener, AddEventListenerOptions | boolean][]} */
   let resizeListenerEntries = [];
   const resizeCapture = { capture: true };
@@ -629,6 +630,10 @@
     }
 
     isDragging = false;
+    suppressStepInspectorClick = true;
+    requestAnimationFrame(() => {
+      suppressStepInspectorClick = false;
+    });
     draggedStepId = null;
     resetDndItemsToRow();
     clearDndZoneTransforms();
@@ -1408,12 +1413,18 @@
     event.stopImmediatePropagation();
   }
 
+  function shouldSuppressStepInspectorClick() {
+    return suppressStepInspectorClick;
+  }
+
   /** @param {MouseEvent} event @param {number} step */
   function openCompactStepInspector(event, step) {
     if (suppressCompactStepClick) {
       suppressCompactStepClick = false;
       return;
     }
+
+    if (shouldSuppressStepInspectorClick()) return;
 
     if (stepInspectorInteractionDisabled || event.defaultPrevented || event.shiftKey) return;
 
@@ -1444,6 +1455,8 @@
     const stepId = stepIds[step];
 
     if (
+      isDragging ||
+      shouldSuppressStepInspectorClick() ||
       !stepInspectorOpen ||
       stepInspectorInteractionDisabled ||
       event.defaultPrevented ||
@@ -1477,6 +1490,7 @@
     const stepId = stepIds[step];
 
     if (
+      shouldSuppressStepInspectorClick() ||
       stepInspectorInteractionDisabled ||
       event.defaultPrevented ||
       event.shiftKey ||

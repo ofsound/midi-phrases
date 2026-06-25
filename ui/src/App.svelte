@@ -2484,7 +2484,6 @@
 
     setSelectedStepKeys(nextSelectedKeys);
     syncBulkControlsFromSelection();
-    inspectedStep = { row: targetRow, stepId: result.newIds[result.newIds.length - 1] };
 
     await tick();
     await pushCurrentPhraseRow(targetRow);
@@ -2561,7 +2560,6 @@
 
     const after = createHistorySnapshot();
     pushHistoryEntry("Duplicate step", before, after);
-    inspectedStep = { row: targetRow, stepId: duplicateId };
 
     await tick();
     await pushCurrentPhraseRow(targetRow);
@@ -3115,10 +3113,6 @@
 
     setSelectedStepKeys(nextSelectedKeys);
     syncBulkControlsFromSelection();
-
-    if (result.newIds.length > 0) {
-      inspectedStep = { row, stepId: result.newIds[0] };
-    }
 
     await tick();
     await pushCurrentPhraseRow(row);
