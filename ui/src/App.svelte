@@ -28,7 +28,7 @@
   import RowRecordIcon from "./RowRecordIcon.svelte";
   import BulkStepEditControls from "./BulkStepEditControls.svelte";
   import ScaleModeDialog from "./ScaleModeDialog.svelte";
-  import SeedingDialog from "./SeedingDialog.svelte";
+  import SeedModePanel from "./SeedModePanel.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
   import PhraseRow from "./PhraseRow.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
@@ -103,6 +103,11 @@
   import UiScaleDragInput from "./UiScaleDragInput.svelte";
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import SaplingIcon from "./SaplingIcon.svelte";
+  import {
+    defaultSeedingSettings,
+    generateSeededPhraseRows,
+    normalizeSeedingSettings,
+  } from "./seeding.js";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
     phraseGridOriginLeftOffsetPx,
@@ -340,7 +345,12 @@
   let shimmerFeedbackPercent = $state(defaultShimmerFeedbackPercent);
   let shimmerMixPercent = $state(defaultShimmerMixPercent);
   let scaleDialogOpen = $state(false);
-  let seedingDialogOpen = $state(false);
+  let seedModeActive = $state(false);
+  let seedModeSettings = $state({ ...defaultSeedingSettings });
+  /** @type {ReturnType<typeof createHistorySnapshot> | null} */
+  let seedModeHistoryBefore = null;
+  let seedModeDirty = false;
+  let seedModeApplyVersion = 0;
   let pulseIndex = $state(defaultPulseIndex);
   let swingPercent = $state(0);
   let velocityHumanizePercent = $state(0);
@@ -1223,6 +1233,12 @@
   }
 
   async function setPatternScale(nextRoot, nextModeIndex) {
+    if (seedModeActive) {
+      await applyPatternScale(nextRoot, nextModeIndex);
+      await applySeedModeSettings(seedModeSettings);
+      return;
+    }
+
     await commitHistory("Change scale mode", async () => {
       await applyPatternScale(nextRoot, nextModeIndex);
     });
@@ -2023,6 +2039,9 @@
     bulkDurationPercent = 0;
     bulkVelocityPercent = 0;
     bulkTransposeSemitones = 0;
+    seedModeActive = false;
+    seedModeHistoryBefore = null;
+    seedModeDirty = false;
     undoStack = [];
     redoStack = [];
   }
@@ -2184,6 +2203,11 @@
   }
 
   async function undo() {
+    if (seedModeActive) {
+      finalizeSeedModeHistory();
+      seedModeActive = false;
+    }
+
     const entry = undoStack[undoStack.length - 1];
 
     if (!entry) return;
@@ -2194,6 +2218,11 @@
   }
 
   async function redo() {
+    if (seedModeActive) {
+      finalizeSeedModeHistory();
+      seedModeActive = false;
+    }
+
     const entry = redoStack[redoStack.length - 1];
 
     if (!entry) return;
@@ -2685,45 +2714,159 @@
     void runProjectOperation("newProject", [], { loadProjectContent: true });
   }
 
-  async function overwriteCurrentPatternWithSeed({ generated }) {
-    seedingDialogOpen = false;
+  function assignGeneratedPhraseRows(generated) {
+    const nextNotes = cloneMatrix(generated.notes);
 
+    grid = nextNotes;
+    rowTimingOffset = [...generated.rowTimingOffset];
+    stepDurationFraction = cloneMatrix(generated.stepDurationFraction);
+    stepTimingMultiplier = cloneMatrix(generated.stepTimingMultiplier);
+    stepVelocity = cloneMatrix(generated.stepVelocity);
+    stepMuted = cloneMatrix(generated.stepMuted);
+    stepSkipped = cloneMatrix(generated.stepSkipped);
+    stepProbability = cloneMatrix(generated.stepProbability);
+    stepCycle = cloneMatrix(generated.stepCycle);
+    stepCycleOffset = cloneMatrix(generated.stepCycleOffset);
+    activeGates = nextNotes.map((row) => row.map(() => false));
+    stepIds = createStepIdsForGrid(nextNotes);
+    setSelectedStepKeys(new Set());
+    bulkDurationPercent = 0;
+    bulkVelocityPercent = 0;
+    bulkTransposeSemitones = 0;
+  }
+
+  async function syncGeneratedPhraseRowsToNative(applyVersion = null) {
+    for (let row = 0; row < grid.length; row += 1) {
+      if (applyVersion !== null && applyVersion !== seedModeApplyVersion) return;
+
+      await pushCurrentPhraseRow(row);
+
+      if (applyVersion !== null && applyVersion !== seedModeApplyVersion) return;
+
+      await pushRowTimingOffset(row);
+    }
+  }
+
+  async function applyGeneratedPhraseRows(generated, applyVersion = null) {
+    assignGeneratedPhraseRows(generated);
+    await syncGeneratedPhraseRowsToNative(applyVersion);
+  }
+
+  function beginSeedModeHistory() {
+    if (seedModeHistoryBefore !== null) return;
+
+    seedModeHistoryBefore = createHistorySnapshot();
+    seedModeDirty = false;
+  }
+
+  function finalizeSeedModeHistory() {
+    if (seedModeHistoryBefore === null) return;
+
+    const before = seedModeHistoryBefore;
+    seedModeHistoryBefore = null;
+
+    if (seedModeDirty) {
+      pushHistoryEntry("Seed pattern", before, createHistorySnapshot());
+    }
+
+    seedModeDirty = false;
+  }
+
+  function normalizeSeedModeSettings(settings) {
+    const normalized = normalizeSeedingSettings({
+      ...settings,
+      root: scaleRoot,
+      modeIndex: scaleModeIndex,
+    });
+
+    return {
+      presetId: normalized.presetId,
+      phraseLength: normalized.phraseLength,
+      rangeIndex: normalized.rangeIndex,
+      repetition: normalized.repetition,
+      complexity: normalized.complexity,
+      randomness: normalized.randomness,
+      symmetry: normalized.symmetry,
+      rhythmMode: normalized.rhythmMode,
+      seed: normalized.seed,
+    };
+  }
+
+  async function applySeedModeSettings(settings) {
     if (projectOperationBusy) return;
 
-    projectOperationBusy = true;
+    beginSeedModeHistory();
+    seedModeSettings = normalizeSeedModeSettings(settings);
+    seedModeDirty = true;
+
+    const applyVersion = ++seedModeApplyVersion;
+    const generated = generateSeededPhraseRows({
+      ...seedModeSettings,
+      root: scaleRoot,
+      modeIndex: scaleModeIndex,
+    });
 
     try {
-      await commitHistory("Seed pattern", async () => {
-        const nextNotes = cloneMatrix(generated.notes);
-
-        grid = nextNotes;
-        rowTimingOffset = [...generated.rowTimingOffset];
-        stepDurationFraction = cloneMatrix(generated.stepDurationFraction);
-        stepTimingMultiplier = cloneMatrix(generated.stepTimingMultiplier);
-        stepVelocity = cloneMatrix(generated.stepVelocity);
-        stepMuted = cloneMatrix(generated.stepMuted);
-        stepSkipped = cloneMatrix(generated.stepSkipped);
-        stepProbability = cloneMatrix(generated.stepProbability);
-        stepCycle = cloneMatrix(generated.stepCycle);
-        stepCycleOffset = cloneMatrix(generated.stepCycleOffset);
-        activeGates = nextNotes.map((row) => row.map(() => false));
-        stepIds = createStepIdsForGrid(nextNotes);
-        recordingRow = null;
-        setSelectedStepKeys(new Set());
-        bulkDurationPercent = 0;
-        bulkVelocityPercent = 0;
-        bulkTransposeSemitones = 0;
-
-        for (let row = 0; row < grid.length; row += 1) {
-          await pushCurrentPhraseRow(row);
-          await pushRowTimingOffset(row);
-        }
-      });
+      await applyGeneratedPhraseRows(generated, applyVersion);
     } catch {
       projectOperationError = "The pattern could not be seeded.";
-    } finally {
-      projectOperationBusy = false;
     }
+  }
+
+  async function enterSeedMode() {
+    if (projectOperationBusy || seedModeActive) return;
+
+    if (recordingRow !== null) {
+      await finishRowRecording();
+    }
+
+    dismissPhraseEditingFocus();
+    seedModeActive = true;
+    beginSeedModeHistory();
+    await applySeedModeSettings(seedModeSettings);
+  }
+
+  function exitSeedMode() {
+    if (!seedModeActive) return;
+
+    finalizeSeedModeHistory();
+    seedModeActive = false;
+  }
+
+  async function toggleSeedMode() {
+    if (seedModeActive) {
+      exitSeedMode();
+      return;
+    }
+
+    await enterSeedMode();
+  }
+
+  function previewSeedModeSettings(settings) {
+    void applySeedModeSettings(settings);
+  }
+
+  function commitSeedModeSettings(settings) {
+    void applySeedModeSettings(settings);
+  }
+
+  function nextSeedModeSeed() {
+    void applySeedModeSettings({
+      ...seedModeSettings,
+      seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
+    });
+  }
+
+  function shuffleSeedModeSettings() {
+    void applySeedModeSettings({
+      ...seedModeSettings,
+      repetition: Math.round(Math.min(100, Math.max(0, 18 + Math.random() * 70))),
+      complexity: Math.round(Math.min(100, Math.max(0, 20 + Math.random() * 72))),
+      randomness: Math.round(Math.min(100, Math.max(0, 24 + Math.random() * 68))),
+      symmetry: Math.random() > 0.62,
+      rhythmMode: Math.random() > 0.5 ? "overlap" : "interleave",
+      seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
+    });
   }
 
   function cycleProject(direction) {
@@ -4953,7 +5096,7 @@
   {@attach appRootAttachment}
   class="flex h-full flex-col overflow-hidden px-6 transition-[filter,opacity] duration-150 {standaloneTransportAvailable
     ? 'pt-2'
-    : 'mp-plugin-shell pt-0'} {scaleDialogOpen || seedingDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}"
+    : 'mp-plugin-shell pt-0'} {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}"
 >
   <div class="shrink-0 -mx-6">
     {#if standaloneTransportAvailable}
@@ -5207,14 +5350,16 @@
         </button>
         <button
           type="button"
-          aria-label={`Seed pattern ${activePatternSlot >= 0 ? activePatternSlot + 1 : viewPatternSlot + 1} in ${activeScaleName}`}
-          aria-pressed={seedingDialogOpen}
-          title="Seed current pattern"
+          aria-label={`${seedModeActive ? "Leave" : "Enter"} seed mode for pattern ${activePatternSlot >= 0 ? activePatternSlot + 1 : viewPatternSlot + 1} in ${activeScaleName}`}
+          aria-pressed={seedModeActive}
+          title={seedModeActive ? "Leave seed mode" : "Enter seed mode"}
           disabled={projectOperationBusy}
           data-cursor="pointer"
-          class="flex w-12 shrink-0 items-center justify-center rounded-md border border-border bg-surface/30 text-accent outline-none transition-[border-color,opacity] hover:border-border-strong hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring disabled:opacity-40"
+          class="flex w-12 shrink-0 items-center justify-center rounded-md border outline-none transition-[border-color,opacity,box-shadow] hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring disabled:opacity-40 {seedModeActive
+            ? 'border-accent bg-accent text-control-primary-text shadow-accent-selection'
+            : 'border-border bg-surface/30 text-accent hover:border-border-strong'}"
           onclick={() => {
-            seedingDialogOpen = true;
+            void toggleSeedMode();
           }}
         >
           <SaplingIcon class="pointer-events-none h-7 w-7" />
@@ -5310,6 +5455,18 @@
 
   <section class="flex min-h-0 flex-1 flex-col">
     <div class="w-full shrink-0">
+      {#if seedModeActive}
+        <SeedModePanel
+          settings={seedModeSettings}
+          {activeScaleName}
+          busy={projectOperationBusy}
+          onGestureStart={beginSeedModeHistory}
+          onSettingsPreview={previewSeedModeSettings}
+          onSettingsCommit={commitSeedModeSettings}
+          onShuffle={shuffleSeedModeSettings}
+          onNextSeed={nextSeedModeSeed}
+        />
+      {:else}
       <div data-phrase-grid-field class="relative flex flex-col" {@attach phraseGridFieldAttachment}>
         <div
           data-phrase-grid-marquee-zone="top"
@@ -5502,6 +5659,7 @@
           onpointerdown={handleRowGapBulkSelectPointerDown}
         ></div>
       </div>
+      {/if}
     </div>
 
     <div class="-mx-6 shrink-0">
@@ -5838,23 +5996,5 @@
       scaleDialogOpen = false;
     }}
     onChange={setPatternScale}
-  />
-{/if}
-
-{#if seedingDialogOpen}
-  <SeedingDialog
-    root={scaleRoot}
-    modeIndex={scaleModeIndex}
-    patternSlot={activePatternSlot >= 0 ? activePatternSlot : viewPatternSlot}
-    busy={projectOperationBusy}
-    scaleLocked
-    confirmLabel="Write To Pattern"
-    onClose={() => {
-      seedingDialogOpen = false;
-    }}
-    onSeed={(options) => {
-      seedingDialogOpen = false;
-      void overwriteCurrentPatternWithSeed(options);
-    }}
   />
 {/if}
