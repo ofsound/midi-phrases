@@ -1,0 +1,283 @@
+import { defaultStepCycle, defaultStepCycleMask } from "./cyclePattern.js";
+import { defaultStepNoteForScaleRoot } from "./midiNoteNames.js";
+import { maxPercentValue } from "./percentLimits.js";
+import { timingOffsetValues } from "./stepCellLayout.js";
+import {
+  clampScaleModeIndex,
+  clampScaleRoot,
+  snapMidiToScale,
+  transposeMidiByScaleDegrees,
+} from "./scaleUtils.js";
+
+export const seedingPhraseLengthMin = 2;
+export const seedingPhraseLengthMax = 32;
+
+export const seedingRangeOptions = [
+  { index: 0, label: "Tight", degrees: 5 },
+  { index: 1, label: "Mid", degrees: 8 },
+  { index: 2, label: "Wide", degrees: 12 },
+  { index: 3, label: "Full", degrees: 16 },
+];
+
+export const seedingRhythmOptions = [
+  { value: "interleave", label: "Interleave" },
+  { value: "overlap", label: "Overlap" },
+];
+
+export const seedingPresets = [
+  {
+    id: "balanced",
+    label: "Balanced",
+    settings: {
+      phraseLength: 16,
+      rangeIndex: 1,
+      repetition: 45,
+      complexity: 50,
+      randomness: 45,
+      symmetry: false,
+      rhythmMode: "interleave",
+    },
+  },
+  {
+    id: "minimal",
+    label: "Minimal",
+    settings: {
+      phraseLength: 12,
+      rangeIndex: 0,
+      repetition: 78,
+      complexity: 25,
+      randomness: 28,
+      symmetry: true,
+      rhythmMode: "interleave",
+    },
+  },
+  {
+    id: "kinetic",
+    label: "Kinetic",
+    settings: {
+      phraseLength: 24,
+      rangeIndex: 2,
+      repetition: 22,
+      complexity: 78,
+      randomness: 68,
+      symmetry: false,
+      rhythmMode: "overlap",
+    },
+  },
+  {
+    id: "mirror",
+    label: "Mirror",
+    settings: {
+      phraseLength: 16,
+      rangeIndex: 2,
+      repetition: 38,
+      complexity: 58,
+      randomness: 34,
+      symmetry: true,
+      rhythmMode: "overlap",
+    },
+  },
+];
+
+export const defaultSeedingSettings = {
+  presetId: "balanced",
+  phraseLength: 16,
+  rangeIndex: 1,
+  repetition: 45,
+  complexity: 50,
+  randomness: 45,
+  symmetry: false,
+  rhythmMode: "interleave",
+  seed: 1,
+};
+
+/** @param {number} value @param {number} min @param {number} max */
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
+}
+
+/** @param {number} value */
+function clampPercent(value) {
+  return clamp(Math.round(value), 0, 100);
+}
+
+/** @param {number} value */
+function clampPhraseLength(value) {
+  return Math.round(clamp(value, seedingPhraseLengthMin, seedingPhraseLengthMax));
+}
+
+/** @param {number} seed */
+function mulberry32(seed) {
+  let state = seed >>> 0;
+
+  return () => {
+    state += 0x6D2B79F5;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** @param {() => number} random @param {number} min @param {number} max */
+function randomInt(random, min, max) {
+  return Math.floor(random() * (max - min + 1)) + min;
+}
+
+/** @param {number} value */
+function timingMultiplierIndexForValue(value) {
+  return Math.min(15, Math.max(0, Math.round((value - 0.25) / 0.25)));
+}
+
+/** @param {number} root @param {number} modeIndex @param {number} degree */
+function midiForScaleDegree(root, modeIndex, degree) {
+  const base = snapMidiToScale(defaultStepNoteForScaleRoot(root), root, modeIndex);
+  return transposeMidiByScaleDegrees(base, degree, root, modeIndex);
+}
+
+/** @param {number} index */
+function rangeDegreeSpan(index) {
+  return seedingRangeOptions.find((option) => option.index === index)?.degrees
+    ?? seedingRangeOptions[1].degrees;
+}
+
+/**
+ * @param {Partial<typeof defaultSeedingSettings> & { root?: number, modeIndex?: number }} settings
+ */
+export function normalizeSeedingSettings(settings = {}) {
+  const preset = seedingPresets.find((item) => item.id === settings.presetId);
+  const merged = {
+    ...defaultSeedingSettings,
+    ...(preset?.settings ?? {}),
+    ...settings,
+  };
+  const rhythmMode = seedingRhythmOptions.some((option) => option.value === merged.rhythmMode)
+    ? merged.rhythmMode
+    : defaultSeedingSettings.rhythmMode;
+
+  return {
+    root: clampScaleRoot(merged.root ?? 0),
+    modeIndex: clampScaleModeIndex(merged.modeIndex ?? 0),
+    presetId: String(merged.presetId ?? defaultSeedingSettings.presetId),
+    phraseLength: clampPhraseLength(merged.phraseLength),
+    rangeIndex: Math.min(
+      seedingRangeOptions[seedingRangeOptions.length - 1].index,
+      Math.max(seedingRangeOptions[0].index, Math.round(merged.rangeIndex)),
+    ),
+    repetition: clampPercent(merged.repetition),
+    complexity: clampPercent(merged.complexity),
+    randomness: clampPercent(merged.randomness),
+    symmetry: Boolean(merged.symmetry),
+    rhythmMode,
+    seed: Math.max(1, Math.round(clamp(merged.seed, 1, 2147483647))),
+  };
+}
+
+/**
+ * Generate four independent monophonic phrase rows.
+ *
+ * @param {Partial<typeof defaultSeedingSettings> & { root?: number, modeIndex?: number }} settings
+ */
+export function generateSeededPhraseRows(settings = {}) {
+  const options = normalizeSeedingSettings(settings);
+  const random = mulberry32(options.seed);
+  const span = rangeDegreeSpan(options.rangeIndex);
+  const halfSpan = Math.max(2, Math.floor(span / 2));
+  const complexityRatio = options.complexity / 100;
+  const repetitionRatio = options.repetition / 100;
+  const randomnessRatio = options.randomness / 100;
+  const rowTimingOffset = options.rhythmMode === "overlap" ? [3, 2, 4, 3] : [3, 4, 2, 5];
+  const rows = {
+    notes: [],
+    stepTimingMultiplier: [],
+    stepDurationFraction: [],
+    stepVelocity: [],
+    stepMuted: [],
+    stepSkipped: [],
+    stepProbability: [],
+    stepCycle: [],
+    stepCycleOffset: [],
+    rowTimingOffset: rowTimingOffset.map((index) => (
+      timingOffsetValues[index] === undefined ? 3 : index
+    )),
+  };
+
+  for (let row = 0; row < 4; row += 1) {
+    const motifLength = options.symmetry ? Math.ceil(options.phraseLength / 2) : options.phraseLength;
+    const motif = [];
+    const center = Math.round((row - 1.5) * Math.max(1, span / 6));
+    let previous = center;
+
+    for (let step = 0; step < motifLength; step += 1) {
+      const reusePrevious = step > 0 && random() < repetitionRatio * 0.54;
+      const reuseEarlier = step > 3 && random() < repetitionRatio * 0.28;
+
+      if (reusePrevious) {
+        motif.push(previous);
+        continue;
+      }
+
+      if (reuseEarlier) {
+        previous = motif[Math.max(0, step - randomInt(random, 2, Math.min(6, step)))] ?? previous;
+        motif.push(previous);
+        continue;
+      }
+
+      const periodic = Math.sin((step / Math.max(1, motifLength - 1)) * Math.PI * (1.25 + row * 0.28));
+      const directed = Math.round(periodic * halfSpan * (0.35 + complexityRatio * 0.45));
+      const leap = randomInt(
+        random,
+        -Math.max(1, Math.round(1 + complexityRatio * halfSpan)),
+        Math.max(1, Math.round(1 + complexityRatio * halfSpan)),
+      );
+      const randomPush = random() < randomnessRatio ? leap : Math.sign(leap);
+
+      previous = Math.round(clamp(center + directed + randomPush, -halfSpan, halfSpan));
+      motif.push(previous);
+    }
+
+    const degrees = options.symmetry
+      ? [...motif, ...motif.slice(0, options.phraseLength - motif.length).reverse()]
+      : motif;
+    const timingPool = complexityRatio > 0.65
+      ? [0.5, 0.75, 1, 1.25, 1.5]
+      : complexityRatio > 0.35
+        ? [0.75, 1, 1, 1.25]
+        : [1, 1, 1, 1.25];
+    const velocityBase = 78 + row * 6;
+    const velocitySwing = Math.round(10 + complexityRatio * 28);
+
+    rows.notes[row] = degrees.map((degree) => midiForScaleDegree(options.root, options.modeIndex, degree));
+    rows.stepTimingMultiplier[row] = degrees.map((_, step) => {
+      if (options.rhythmMode === "interleave" && (step + row) % 4 === 0) {
+        return timingMultiplierIndexForValue(0.5);
+      }
+
+      return timingMultiplierIndexForValue(timingPool[randomInt(random, 0, timingPool.length - 1)]);
+    });
+    rows.stepDurationFraction[row] = degrees.map((_, step) => {
+      const accent = (step + row) % 4 === 0 ? 0.95 : 0.72 + random() * 0.2;
+      return Number(clamp(options.rhythmMode === "overlap" ? accent : accent - 0.16, 0.35, 1).toFixed(2));
+    });
+    rows.stepVelocity[row] = degrees.map((_, step) => (
+      Math.round(clamp(
+        velocityBase + Math.sin((step + row) * 1.7) * velocitySwing + randomInt(random, -9, 9),
+        28,
+        127,
+      ))
+    ));
+    rows.stepMuted[row] = degrees.map(() => false);
+    rows.stepSkipped[row] = degrees.map((_, step) => (
+      complexityRatio < 0.3 && random() < 0.08 && step % 4 !== row % 4
+    ));
+    rows.stepProbability[row] = degrees.map((_, step) => (
+      random() < randomnessRatio * 0.24 && step % 4 !== 0
+        ? Math.round(clamp(100 - randomnessRatio * randomInt(random, 18, 42), 20, 100))
+        : maxPercentValue
+    ));
+    rows.stepCycle[row] = degrees.map(() => defaultStepCycle);
+    rows.stepCycleOffset[row] = degrees.map(() => defaultStepCycleMask);
+  }
+
+  return rows;
+}

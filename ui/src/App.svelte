@@ -28,6 +28,7 @@
   import RowRecordIcon from "./RowRecordIcon.svelte";
   import BulkStepEditControls from "./BulkStepEditControls.svelte";
   import ScaleModeDialog from "./ScaleModeDialog.svelte";
+  import SeedingDialog from "./SeedingDialog.svelte";
   import BipolarKnob from "./BipolarKnob.svelte";
   import PhraseRow from "./PhraseRow.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
@@ -101,6 +102,7 @@
   import MidiPhrasesLogo from "./MidiPhrasesLogo.svelte";
   import UiScaleDragInput from "./UiScaleDragInput.svelte";
   import RemoveXIcon from "./RemoveXIcon.svelte";
+  import SaplingIcon from "./SaplingIcon.svelte";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
     phraseGridOriginLeftOffsetPx,
@@ -338,6 +340,7 @@
   let shimmerFeedbackPercent = $state(defaultShimmerFeedbackPercent);
   let shimmerMixPercent = $state(defaultShimmerMixPercent);
   let scaleDialogOpen = $state(false);
+  let seedingDialogOpen = $state(false);
   let pulseIndex = $state(defaultPulseIndex);
   let swingPercent = $state(0);
   let velocityHumanizePercent = $state(0);
@@ -1207,17 +1210,21 @@
     });
   }
 
-  async function setPatternScale(nextRoot, nextModeIndex) {
+  async function applyPatternScale(nextRoot, nextModeIndex) {
     const root = clampScaleRoot(nextRoot);
     const mode = clampScaleModeIndex(nextModeIndex);
 
-    await commitHistory("Change scale mode", async () => {
-      scaleRoot = root;
-      scaleModeIndex = mode;
+    scaleRoot = root;
+    scaleModeIndex = mode;
 
-      if (nativeFunctionAvailable("setPatternScale")) {
-        await getNativeFunction("setPatternScale")(root, mode);
-      }
+    if (nativeFunctionAvailable("setPatternScale")) {
+      await getNativeFunction("setPatternScale")(root, mode);
+    }
+  }
+
+  async function setPatternScale(nextRoot, nextModeIndex) {
+    await commitHistory("Change scale mode", async () => {
+      await applyPatternScale(nextRoot, nextModeIndex);
     });
   }
 
@@ -2640,7 +2647,7 @@
   }
 
   async function runProjectOperation(nativeName, args = [], { loadProjectContent = false } = {}) {
-    if (projectOperationBusy || !nativeFunctionAvailable(nativeName)) return;
+    if (projectOperationBusy || !nativeFunctionAvailable(nativeName)) return false;
 
     projectOperationBusy = true;
     projectOperationError = "";
@@ -2651,8 +2658,10 @@
 
       if (error) projectOperationError = error;
       if (success) await refreshProjectState({ loadProjectContent });
+      return success;
     } catch {
       projectOperationError = "The project operation could not be completed.";
+      return false;
     } finally {
       projectOperationBusy = false;
     }
@@ -2674,6 +2683,46 @@
 
   function createNewProject() {
     void runProjectOperation("newProject", [], { loadProjectContent: true });
+  }
+
+  async function overwriteCurrentPatternWithSeed({ generated }) {
+    if (projectOperationBusy) return;
+
+    seedingDialogOpen = false;
+    projectOperationBusy = true;
+
+    try {
+      await commitHistory("Seed pattern", async () => {
+        const nextNotes = cloneMatrix(generated.notes);
+
+        grid = nextNotes;
+        rowTimingOffset = [...generated.rowTimingOffset];
+        stepDurationFraction = cloneMatrix(generated.stepDurationFraction);
+        stepTimingMultiplier = cloneMatrix(generated.stepTimingMultiplier);
+        stepVelocity = cloneMatrix(generated.stepVelocity);
+        stepMuted = cloneMatrix(generated.stepMuted);
+        stepSkipped = cloneMatrix(generated.stepSkipped);
+        stepProbability = cloneMatrix(generated.stepProbability);
+        stepCycle = cloneMatrix(generated.stepCycle);
+        stepCycleOffset = cloneMatrix(generated.stepCycleOffset);
+        activeGates = nextNotes.map((row) => row.map(() => false));
+        stepIds = createStepIdsForGrid(nextNotes);
+        recordingRow = null;
+        setSelectedStepKeys(new Set());
+        bulkDurationPercent = 0;
+        bulkVelocityPercent = 0;
+        bulkTransposeSemitones = 0;
+
+        for (let row = 0; row < grid.length; row += 1) {
+          await pushCurrentPhraseRow(row);
+          await pushRowTimingOffset(row);
+        }
+      });
+    } catch {
+      projectOperationError = "The pattern could not be seeded.";
+    } finally {
+      projectOperationBusy = false;
+    }
   }
 
   function cycleProject(direction) {
@@ -4903,7 +4952,7 @@
   {@attach appRootAttachment}
   class="flex h-full flex-col overflow-hidden px-6 transition-[filter,opacity] duration-150 {standaloneTransportAvailable
     ? 'pt-2'
-    : 'mp-plugin-shell pt-0'} {scaleDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}"
+    : 'mp-plugin-shell pt-0'} {scaleDialogOpen || seedingDialogOpen ? 'pointer-events-none blur-[3px] opacity-45' : ''}"
 >
   <div class="shrink-0 -mx-6">
     {#if standaloneTransportAvailable}
@@ -5134,26 +5183,42 @@
 
       <div class="min-w-0 flex-1" aria-hidden="true"></div>
 
-      <button
-        type="button"
-        aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
-        aria-pressed={scaleDialogOpen}
-        title={activeScaleName}
-        data-cursor="pointer"
-        class="flex min-w-[6.25rem] shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface/30 px-1.5 py-1.5 text-center outline-none transition-[border-color,opacity] hover:border-border-strong hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
-        onclick={() => {
-          scaleDialogOpen = true;
-        }}
-      >
-        <span
-          class="pointer-events-none text-[1.5rem] font-bold leading-[0.85] tracking-tight text-text"
-          >{activeKeyCenterLabel}</span
+      <div class="flex shrink-0 items-stretch gap-1.5">
+        <button
+          type="button"
+          aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
+          aria-pressed={scaleDialogOpen}
+          title={activeScaleName}
+          data-cursor="pointer"
+          class="flex min-w-[6.25rem] shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface/30 px-1.5 py-1.5 text-center outline-none transition-[border-color,opacity] hover:border-border-strong hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
+          onclick={() => {
+            scaleDialogOpen = true;
+          }}
         >
-        <span
-          class="pointer-events-none max-w-[6.25rem] truncate text-xs font-semibold leading-none text-accent"
-          >{activeScaleModeLabel}</span
+          <span
+            class="pointer-events-none text-[1.5rem] font-bold leading-[0.85] tracking-tight text-text"
+            >{activeKeyCenterLabel}</span
+          >
+          <span
+            class="pointer-events-none max-w-[6.25rem] truncate text-xs font-semibold leading-none text-accent"
+            >{activeScaleModeLabel}</span
+          >
+        </button>
+        <button
+          type="button"
+          aria-label={`Seed pattern ${activePatternSlot >= 0 ? activePatternSlot + 1 : viewPatternSlot + 1} in ${activeScaleName}`}
+          aria-pressed={seedingDialogOpen}
+          title="Seed current pattern"
+          disabled={projectOperationBusy}
+          data-cursor="pointer"
+          class="flex w-12 shrink-0 items-center justify-center rounded-md border border-border bg-surface/30 text-accent outline-none transition-[border-color,opacity] hover:border-border-strong hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring disabled:opacity-40"
+          onclick={() => {
+            seedingDialogOpen = true;
+          }}
         >
-      </button>
+          <SaplingIcon class="pointer-events-none h-7 w-7" />
+        </button>
+      </div>
 
       <div class="min-w-0 flex-1" aria-hidden="true"></div>
 
@@ -5772,5 +5837,22 @@
       scaleDialogOpen = false;
     }}
     onChange={setPatternScale}
+  />
+{/if}
+
+{#if seedingDialogOpen}
+  <SeedingDialog
+    root={scaleRoot}
+    modeIndex={scaleModeIndex}
+    patternSlot={activePatternSlot >= 0 ? activePatternSlot : viewPatternSlot}
+    busy={projectOperationBusy}
+    scaleLocked
+    confirmLabel="Write To Pattern"
+    onClose={() => {
+      if (!projectOperationBusy) seedingDialogOpen = false;
+    }}
+    onSeed={(options) => {
+      void overwriteCurrentPatternWithSeed(options);
+    }}
   />
 {/if}

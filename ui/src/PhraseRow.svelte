@@ -140,6 +140,8 @@
    * @property {boolean} [stretchToFit]
    * @property {number} [contentFitScale]
    * @property {number} [fitGridColumns]
+   * @property {boolean} [allowContentFitGrow]
+   * @property {boolean} [showAddStepControls]
    * @property {string | null} [inspectedStepId]
    * @property {string | null} [stepInspectorHighlightedId]
    * @property {(value: number, delta: number) => number} [stepNoteValue]
@@ -206,6 +208,8 @@
     stretchToFit = false,
     contentFitScale = 1,
     fitGridColumns = 1,
+    allowContentFitGrow = false,
+    showAddStepControls = true,
     inspectedStepId = null,
     stepInspectorHighlightedId = null,
     stepNoteValue = (value, delta) => value + delta,
@@ -921,7 +925,7 @@
     return stepDisplayWidthPx(multiplierIndexForDataStep(dataStep));
   }
 
-  let layoutScale = $derived(Math.min(1, contentFitScale));
+  let layoutScale = $derived(allowContentFitGrow ? Math.max(0.05, contentFitScale) : Math.min(1, contentFitScale));
   let phraseStepCellHeightPx = $derived(phraseStepCellMinHeightPx());
   let phraseStepDropIndicatorHeightPxValue = $derived(phraseStepDropIndicatorHeightPx());
   let phraseRowDndZoneStyle = $derived(
@@ -2551,7 +2555,9 @@
         {@render emptyRowDndPlaceholders()}
       </div>
       <div class="relative z-10 flex min-w-0 flex-1 items-stretch">
-        {@render rowStartAddStepControl()}
+        {#if showAddStepControls}
+          {@render rowStartAddStepControl()}
+        {/if}
         <div class="min-w-0 flex-1" aria-hidden="true"></div>
       </div>
       {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
@@ -2642,12 +2648,14 @@
               </div>
             {/each}
           </div>
-          <div
-            class="row-end-add-step-overlay absolute inset-y-0 flex items-center"
-            style:left="{rowEndAddStepOverlayLeftPx}px"
-          >
-            {@render rowEndAddStepControl()}
-          </div>
+          {#if showAddStepControls}
+            <div
+              class="row-end-add-step-overlay absolute inset-y-0 flex items-center"
+              style:left="{rowEndAddStepOverlayLeftPx}px"
+            >
+              {@render rowEndAddStepControl()}
+            </div>
+          {/if}
           {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
             <div
               data-step-drop-indicator
@@ -2671,7 +2679,9 @@
         style:min-height="{phraseStepCellMinHeightPx()}px"
         style:height="{phraseStepCellMinHeightPx()}px"
       >
-      {@render rowInsertSlots()}
+      {#if showAddStepControls}
+        {@render rowInsertSlots()}
+      {/if}
 
         <div
           bind:this={dndZoneElement}
@@ -2721,12 +2731,14 @@
             </div>
           {/each}
         </div>
-        <div
-          class="row-end-add-step-overlay absolute inset-y-0 flex items-center"
-          style:left="{rowEndAddStepOverlayLeftPx}px"
-        >
-          {@render rowEndAddStepControl()}
-        </div>
+          {#if showAddStepControls}
+            <div
+              class="row-end-add-step-overlay absolute inset-y-0 flex items-center"
+              style:left="{rowEndAddStepOverlayLeftPx}px"
+            >
+              {@render rowEndAddStepControl()}
+            </div>
+          {/if}
         {#if isDragging && dropIndicatorVisible && dropIndicatorIndex >= 0}
           <div
             data-step-drop-indicator
