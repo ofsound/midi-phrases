@@ -1,15 +1,5 @@
 <script>
-  import { SvelteMap } from "svelte/reactivity";
-  import PhraseRow from "./PhraseRow.svelte";
-  import { defaultStepNoteForScaleRoot } from "./midiNoteNames.js";
-  import {
-    phraseGridOriginLeftOffsetPx,
-    phraseGridVisualOffsetCompensationPx,
-    phraseRowInterRowGapPx,
-    phraseRowMinHeightPx,
-    phraseRowScrollPaddingRightPx,
-  } from "./phraseRowLayout.js";
-  import { rowAccentFor } from "./rowAccentTheme.js";
+  import SeedPhrasePreview from "./SeedPhrasePreview.svelte";
   import {
     defaultSeedingSettings,
     generateSeededPhraseRows,
@@ -19,12 +9,6 @@
     seedingRangeOptions,
     seedingRhythmOptions,
   } from "./seeding.js";
-  import {
-    compactPhraseGridLayout,
-    phraseRowsScrollContentWidthPx,
-    rowTimingOffsetShiftPx,
-    timingMultiplierOptions,
-  } from "./stepCellLayout.js";
 
   let {
     settings = { ...defaultSeedingSettings },
@@ -39,92 +23,11 @@
     onNextSeed = () => {},
   } = $props();
 
-  let previewViewportWidth = $state(0);
-  let previewViewportHeight = $state(0);
-  const previewViewportPaddingPx = 12;
-
   let preview = $derived(generateSeededPhraseRows({
     ...settings,
     root,
     modeIndex,
   }));
-  let previewStepIds = $derived(preview.notes.map((rowNotes, row) => (
-    rowNotes.map((_, stepIndex) => `seed-preview-${settings.seed}-${row}-${stepIndex}`)
-  )));
-  let previewTimingMultiplierById = $derived.by(() => {
-    const byId = new SvelteMap();
-
-    previewStepIds.forEach((ids, row) => {
-      ids.forEach((id, stepIndex) => {
-        byId.set(id, preview.stepTimingMultiplier[row]?.[stepIndex] ?? 3);
-      });
-    });
-
-    return byId;
-  });
-  let previewActiveGates = $derived(preview.notes.map((rowNotes) => rowNotes.map(() => false)));
-  let previewDefaultStepNote = $derived(defaultStepNoteForScaleRoot(root));
-  let previewVisualOffsetCompensationPx = $derived(
-    phraseGridVisualOffsetCompensationPx(preview.rowTimingOffset),
-  );
-  let previewCompactGridLayout = $derived(
-    compactPhraseGridLayout(preview.stepTimingMultiplier, preview.rowTimingOffset),
-  );
-  let previewMaxTimingPaddingPx = $derived.by(() => {
-    let maxPadding = 0;
-
-    for (const offsetIndex of preview.rowTimingOffset) {
-      const padding = rowTimingOffsetShiftPx(offsetIndex) + previewVisualOffsetCompensationPx;
-
-      if (padding > maxPadding) {
-        maxPadding = padding;
-      }
-    }
-
-    return maxPadding;
-  });
-  let previewStepsScrollContentWidthPx = $derived(
-    phraseRowsScrollContentWidthPx(preview.stepTimingMultiplier, preview.rowTimingOffset),
-  );
-  let previewStageNaturalWidthPx = $derived(
-    previewMaxTimingPaddingPx
-      + phraseGridOriginLeftOffsetPx()
-      + previewStepsScrollContentWidthPx
-      + phraseRowScrollPaddingRightPx(),
-  );
-  let previewStageNaturalHeightPx = $derived(
-    (preview.notes.length * phraseRowMinHeightPx())
-      + (Math.max(0, preview.notes.length - 1) * phraseRowInterRowGapPx()),
-  );
-  let previewStageAvailableWidthPx = $derived(Math.max(1, previewViewportWidth - previewViewportPaddingPx * 2));
-  let previewStageAvailableHeightPx = $derived(Math.max(1, previewViewportHeight - previewViewportPaddingPx * 2));
-  let previewStageScale = $derived.by(() => {
-    if (previewStageNaturalWidthPx <= 0 || previewStageNaturalHeightPx <= 0) return 1;
-
-    return Math.min(
-      previewStageAvailableWidthPx / previewStageNaturalWidthPx,
-      previewStageAvailableHeightPx / previewStageNaturalHeightPx,
-    );
-  });
-
-  /** @param {HTMLElement} node */
-  function previewViewportAttachment(node) {
-    const updateSize = () => {
-      const rect = node.getBoundingClientRect();
-      previewViewportWidth = rect.width;
-      previewViewportHeight = rect.height;
-    };
-    const observer = new ResizeObserver(updateSize);
-
-    updateSize();
-    observer.observe(node);
-
-    return () => {
-      observer.disconnect();
-      previewViewportWidth = 0;
-      previewViewportHeight = 0;
-    };
-  }
 
   /** @param {number} value */
   function clampPercent(value) {
@@ -334,68 +237,6 @@
       </div>
     </div>
 
-    <div
-      {@attach previewViewportAttachment}
-      class="flex h-[24rem] items-center justify-center overflow-hidden border border-border-subtle bg-surface/50 p-3"
-    >
-      <div
-        class="pointer-events-none min-w-0 select-none"
-        style={`width: ${previewStageNaturalWidthPx * previewStageScale}px; height: ${previewStageNaturalHeightPx * previewStageScale}px;`}
-      >
-        <div
-          class="relative flex flex-col"
-          style={`width: ${previewStageNaturalWidthPx}px; height: ${previewStageNaturalHeightPx}px; transform: scale(${previewStageScale}); transform-origin: top left;`}
-        >
-          {#each preview.notes as rowNotes, row (row)}
-            {@const rowAccent = rowAccentFor(row, true)}
-            <div
-              class="relative z-10 min-w-0 shrink-0 overflow-hidden"
-              style={`width: ${previewStageNaturalWidthPx}px; height: ${phraseRowMinHeightPx()}px;`}
-            >
-              <div
-                class="flex min-w-0 items-stretch"
-                style={`width: ${previewStageNaturalWidthPx}px;`}
-              >
-                <PhraseRow
-                  {row}
-                  muted={false}
-                  accent={rowAccent}
-                  timingOffsetIndex={preview.rowTimingOffset[row]}
-                  timingOffsetVisualCompensationPx={previewVisualOffsetCompensationPx}
-                  pulseIndex={1}
-                  stepIds={previewStepIds[row]}
-                  notes={rowNotes}
-                  stepDurationFraction={preview.stepDurationFraction[row]}
-                  stepTimingMultiplier={preview.stepTimingMultiplier[row]}
-                  stepTimingMultiplierById={previewTimingMultiplierById}
-                  stepVelocity={preview.stepVelocity[row]}
-                  stepMuted={preview.stepMuted[row]}
-                  stepSkipped={preview.stepSkipped[row]}
-                  stepProbability={preview.stepProbability[row]}
-                  stepCycle={preview.stepCycle[row]}
-                  stepCycleOffset={preview.stepCycleOffset[row]}
-                  activeGates={previewActiveGates[row]}
-                  selectedStepIds={[]}
-                  stepInspectionActive={false}
-                  stepInspectorOpen={false}
-                  stretchToFit
-                  contentFitScale={1}
-                  fitGridColumns={previewCompactGridLayout.totalColumns}
-                  showAddStepControls={false}
-                  inspectedStepId={null}
-                  stepInspectorHighlightedId={null}
-                  stepNoteValue={(value) => value}
-                  defaultStepNote={previewDefaultStepNote}
-                  {timingMultiplierOptions}
-                />
-              </div>
-            </div>
-            {#if row < preview.notes.length - 1}
-              <div class="shrink-0" style:height="{phraseRowInterRowGapPx()}px"></div>
-            {/if}
-          {/each}
-        </div>
-      </div>
-    </div>
+    <SeedPhrasePreview {preview} />
   </div>
 </div>

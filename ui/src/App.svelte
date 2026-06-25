@@ -2799,7 +2799,7 @@
     };
   }
 
-  async function applySeedModeSettings(settings) {
+  async function applySeedModeSettings(settings, { syncNative = true } = {}) {
     if (projectOperationBusy) return;
 
     beginSeedModeHistory();
@@ -2814,7 +2814,11 @@
     });
 
     try {
-      await applyGeneratedPhraseRows(generated, applyVersion);
+      assignGeneratedPhraseRows(generated);
+
+      if (syncNative) {
+        await syncGeneratedPhraseRowsToNative(applyVersion);
+      }
     } catch {
       projectOperationError = "The pattern could not be seeded.";
     }
@@ -2833,8 +2837,16 @@
     await applySeedModeSettings(seedModeSettings);
   }
 
-  function exitSeedMode() {
+  async function exitSeedMode() {
     if (!seedModeActive) return;
+
+    if (seedModeDirty) {
+      try {
+        await syncGeneratedPhraseRowsToNative();
+      } catch {
+        projectOperationError = "The pattern could not be seeded.";
+      }
+    }
 
     finalizeSeedModeHistory();
     seedModeActive = false;
@@ -2842,7 +2854,7 @@
 
   async function toggleSeedMode() {
     if (seedModeActive) {
-      exitSeedMode();
+      await exitSeedMode();
       return;
     }
 
@@ -2850,11 +2862,11 @@
   }
 
   function previewSeedModeSettings(settings) {
-    void applySeedModeSettings(settings);
+    void applySeedModeSettings(settings, { syncNative: false });
   }
 
   function commitSeedModeSettings(settings) {
-    void applySeedModeSettings(settings);
+    void applySeedModeSettings(settings, { syncNative: true });
   }
 
   function nextSeedModeSeed() {
@@ -2919,13 +2931,36 @@
     return nextActiveGates;
   }
 
+  function gateMatricesEqual(a, b) {
+    if (a.length !== b.length) return false;
+
+    for (let row = 0; row < a.length; row += 1) {
+      if (a[row].length !== b[row].length) return false;
+
+      for (let step = 0; step < a[row].length; step += 1) {
+        if (a[row][step] !== b[row][step]) return false;
+      }
+    }
+
+    return true;
+  }
+
   function updateActiveGatesForBeat(beat) {
     const rawGates = gateSnapshotForBeat(beat);
 
     if (beat < 0) {
       previousGateSnapshot = rawGates;
-      activeGateHoldUntil = inactiveGateMatrix().map((row) => row.map(() => 0));
-      activeGates = rawGates;
+
+      const clearedHoldUntil = inactiveGateMatrix().map((row) => row.map(() => 0));
+
+      if (!gateMatricesEqual(activeGateHoldUntil, clearedHoldUntil)) {
+        activeGateHoldUntil = clearedHoldUntil;
+      }
+
+      if (!gateMatricesEqual(activeGates, rawGates)) {
+        activeGates = rawGates;
+      }
+
       return;
     }
 
@@ -2945,8 +2980,14 @@
     );
 
     previousGateSnapshot = rawGates;
-    activeGateHoldUntil = nextHoldUntil;
-    activeGates = nextActiveGates;
+
+    if (!gateMatricesEqual(activeGateHoldUntil, nextHoldUntil)) {
+      activeGateHoldUntil = nextHoldUntil;
+    }
+
+    if (!gateMatricesEqual(activeGates, nextActiveGates)) {
+      activeGates = nextActiveGates;
+    }
   }
 
   if (window.__JUCE__?.initialisationData?.pluginName?.[0]) {

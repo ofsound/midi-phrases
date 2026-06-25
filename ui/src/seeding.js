@@ -29,7 +29,7 @@ export const seedingPresets = [
     id: "balanced",
     label: "Balanced",
     settings: {
-      phraseLength: 16,
+      phraseLength: 3,
       rangeIndex: 1,
       repetition: 45,
       complexity: 50,
@@ -81,7 +81,7 @@ export const seedingPresets = [
 
 export const defaultSeedingSettings = {
   presetId: "balanced",
-  phraseLength: 16,
+  phraseLength: 3,
   rangeIndex: 1,
   repetition: 45,
   complexity: 50,
