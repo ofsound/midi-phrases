@@ -5466,48 +5466,14 @@
         <SeedModePanel
           settings={seedModeSettings}
           {activeScaleName}
-          notes={grid}
-          {rowColorsEnabled}
-          {rowMuted}
-          {rowTimingOffset}
-          {stepDurationFraction}
-          {stepTimingMultiplier}
-          {stepVelocity}
-          {stepMuted}
-          {stepSkipped}
-          stepProbability={stepProbability}
-          stepCycle={stepCycle}
-          stepCycleOffset={stepCycleOffset}
-          {combinationModeMask}
           root={scaleRoot}
           modeIndex={scaleModeIndex}
-          noteBandpassLowMidi={noteBandpassLowMidi}
-          noteBandpassHighMidi={noteBandpassHighMidi}
-          velocityTiltPivotMidi={velocityTiltPivotMidi}
-          velocityTiltAmount={velocityTiltAmount}
-          globalTransposeSemitones={globalTransposeSemitones}
-          octavizerDown8vaEnabled={octavizerDown8vaEnabled}
-          octavizerUp8vaEnabled={octavizerUp8vaEnabled}
-          octavizerDown8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}
-          octavizerUp8vaRelativeVelocity={octavizerUp8vaRelativeVelocity}
-          shimmerEnabled={shimmerEnabled}
-          shimmerDelayMultiplierIndex={shimmerDelayMultiplierIndex}
-          shimmerFeedbackPercent={shimmerFeedbackPercent}
-          shimmerMixPercent={shimmerMixPercent}
-          {pulseIndex}
-          {swingPercent}
-          {swingSubdivisionIndex}
-          loopEnabled={loopBraceEnabled}
-          loopStart={loopBraceStart}
-          loopEnd={loopBraceEnd}
-          {playbackBeat}
           busy={projectOperationBusy}
           onGestureStart={beginSeedModeHistory}
           onSettingsPreview={previewSeedModeSettings}
           onSettingsCommit={commitSeedModeSettings}
           onShuffle={shuffleSeedModeSettings}
           onNextSeed={nextSeedModeSeed}
-          onLoopBraceChange={updateLoopBrace}
         />
       {:else}
       <div data-phrase-grid-field class="relative flex flex-col" {@attach phraseGridFieldAttachment}>

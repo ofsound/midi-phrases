@@ -1667,7 +1667,6 @@
     if (duplicateSourceRestoreFrame) cancelAnimationFrame(duplicateSourceRestoreFrame);
     if (dropIndicatorRefreshFrame) cancelAnimationFrame(dropIndicatorRefreshFrame);
     clearDragPointerTracking();
-    stopDragYLock();
     teardownActiveResize();
     clearCompactStepDrag();
   });
