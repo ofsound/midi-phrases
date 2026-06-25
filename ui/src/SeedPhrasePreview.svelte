@@ -11,6 +11,8 @@
   } from "./phraseRowLayout.js";
   import {
     compactPhraseGridLayout,
+    compactStepShellPaddingPercent,
+    compactStepShellTrailingPaddingPercent,
     phraseRowsScrollContentWidthPx,
     quarterGridColumnsForMultiplierIndex,
     rowTimingOffsetShiftPx,
@@ -120,6 +122,8 @@
               <div style:grid-column={`span ${rowStartColumn}`} aria-hidden="true"></div>
             {/if}
             {#each rowNotes as note, step (step)}
+              {@const multiplierIndex = preview.stepTimingMultiplier[row]?.[step] ?? 3}
+              {@const isLastStep = step === rowNotes.length - 1}
               {@const skipped = preview.stepSkipped[row]?.[step] ?? false}
               {@const muted = preview.stepMuted[row]?.[step] ?? false}
               {@const velocityOpacity = compactStepVelocityOpacity(
@@ -127,22 +131,28 @@
                 skipped,
               )}
               <div
-                style:grid-column={`span ${quarterGridColumnsForMultiplierIndex(
-                  preview.stepTimingMultiplier[row]?.[step] ?? 3,
-                )}`}
-                class="relative min-h-full overflow-hidden rounded-md mp-duration-track-gradient bg-surface"
+                style:grid-column={`span ${quarterGridColumnsForMultiplierIndex(multiplierIndex)}`}
+                class="relative box-border min-h-full"
+                style:padding-left="{compactStepShellPaddingPercent(multiplierIndex)}%"
+                style:padding-right="{isLastStep
+                  ? compactStepShellTrailingPaddingPercent(multiplierIndex)
+                  : compactStepShellPaddingPercent(multiplierIndex)}%"
               >
                 <div
-                  class="pointer-events-none absolute inset-0 mp-duration-fill-gradient {rowAccent.bgAccent}"
-                  style:opacity={velocityOpacity}
-                  aria-hidden="true"
-                ></div>
-                <div class="relative z-10 flex h-full min-w-0 items-center justify-center px-1">
-                  <span
-                    class="truncate font-sans text-lg leading-none font-black tabular-nums text-white"
-                  >
-                    {midiToNoteName(note)}
-                  </span>
+                  class="relative h-full min-h-full overflow-hidden rounded-md mp-duration-track-gradient bg-surface"
+                >
+                  <div
+                    class="pointer-events-none absolute inset-0 mp-duration-fill-gradient {rowAccent.bgAccent}"
+                    style:opacity={velocityOpacity}
+                    aria-hidden="true"
+                  ></div>
+                  <div class="relative z-10 flex h-full min-w-0 items-center justify-center px-1">
+                    <span
+                      class="truncate font-sans text-lg leading-none font-black tabular-nums text-white"
+                    >
+                      {midiToNoteName(note)}
+                    </span>
+                  </div>
                 </div>
               </div>
             {/each}
