@@ -2787,7 +2787,6 @@
     });
 
     return {
-      presetId: normalized.presetId,
       phraseLength: normalized.phraseLength,
       rangeIndex: normalized.rangeIndex,
       repetition: normalized.repetition,

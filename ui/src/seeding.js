@@ -24,63 +24,7 @@ export const seedingRhythmOptions = [
   { value: "overlap", label: "Overlap" },
 ];
 
-export const seedingPresets = [
-  {
-    id: "balanced",
-    label: "Balanced",
-    settings: {
-      phraseLength: 3,
-      rangeIndex: 1,
-      repetition: 45,
-      complexity: 50,
-      randomness: 45,
-      symmetry: false,
-      rhythmMode: "interleave",
-    },
-  },
-  {
-    id: "minimal",
-    label: "Minimal",
-    settings: {
-      phraseLength: 12,
-      rangeIndex: 0,
-      repetition: 78,
-      complexity: 25,
-      randomness: 28,
-      symmetry: true,
-      rhythmMode: "interleave",
-    },
-  },
-  {
-    id: "kinetic",
-    label: "Kinetic",
-    settings: {
-      phraseLength: 24,
-      rangeIndex: 2,
-      repetition: 22,
-      complexity: 78,
-      randomness: 68,
-      symmetry: false,
-      rhythmMode: "overlap",
-    },
-  },
-  {
-    id: "mirror",
-    label: "Mirror",
-    settings: {
-      phraseLength: 16,
-      rangeIndex: 2,
-      repetition: 38,
-      complexity: 58,
-      randomness: 34,
-      symmetry: true,
-      rhythmMode: "overlap",
-    },
-  },
-];
-
 export const defaultSeedingSettings = {
-  presetId: "balanced",
   phraseLength: 3,
   rangeIndex: 1,
   repetition: 45,
@@ -145,10 +89,8 @@ function rangeDegreeSpan(index) {
  * @param {Partial<typeof defaultSeedingSettings> & { root?: number, modeIndex?: number }} settings
  */
 export function normalizeSeedingSettings(settings = {}) {
-  const preset = seedingPresets.find((item) => item.id === settings.presetId);
   const merged = {
     ...defaultSeedingSettings,
-    ...(preset?.settings ?? {}),
     ...settings,
   };
   const rhythmMode = seedingRhythmOptions.some((option) => option.value === merged.rhythmMode)
@@ -158,7 +100,6 @@ export function normalizeSeedingSettings(settings = {}) {
   return {
     root: clampScaleRoot(merged.root ?? 0),
     modeIndex: clampScaleModeIndex(merged.modeIndex ?? 0),
-    presetId: String(merged.presetId ?? defaultSeedingSettings.presetId),
     phraseLength: clampPhraseLength(merged.phraseLength),
     rangeIndex: Math.min(
       seedingRangeOptions[seedingRangeOptions.length - 1].index,

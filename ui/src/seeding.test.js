@@ -28,6 +28,7 @@ describe("normalizeSeedingSettings", () => {
 
     expect(settings.phraseLength).toBe(2);
   });
+
 });
 
 describe("generateSeededPhraseRows", () => {

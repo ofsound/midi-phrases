@@ -5,7 +5,6 @@
     generateSeededPhraseRows,
     seedingPhraseLengthMax,
     seedingPhraseLengthMin,
-    seedingPresets,
     seedingRangeOptions,
     seedingRhythmOptions,
   } from "./seeding.js";
@@ -52,15 +51,6 @@
     onSettingsCommit(nextSettings(updates));
   }
 
-  /** @param {{ id: string, settings: Partial<typeof defaultSeedingSettings> }} preset */
-  function applyPreset(preset) {
-    onSettingsCommit({
-      ...settings,
-      ...preset.settings,
-      presetId: preset.id,
-      seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
-    });
-  }
 </script>
 
 <div class="grid min-h-[29rem] gap-5 border-y border-border-subtle bg-surface/20 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(20rem,25rem)_minmax(0,1fr)]">
@@ -68,23 +58,6 @@
     <div class="min-w-0">
       <p class="text-xs font-semibold uppercase tracking-[0.28em] text-text-muted">Scale</p>
       <h2 class="mt-1 truncate text-lg font-semibold text-text">{activeScaleName}</h2>
-    </div>
-
-    <div class="grid grid-cols-2 gap-2">
-      {#each seedingPresets as preset (preset.id)}
-        <button
-          type="button"
-          aria-pressed={settings.presetId === preset.id}
-          data-cursor="pointer"
-          disabled={busy}
-          class="h-10 border px-3 text-center text-sm font-semibold outline-none transition-colors focus:ring-1 focus:ring-focus-ring disabled:opacity-40 {settings.presetId === preset.id
-            ? 'border-accent bg-accent text-control-primary-text'
-            : 'border-border bg-surface text-text hover:border-border-strong'}"
-          onclick={() => applyPreset(preset)}
-        >
-          {preset.label}
-        </button>
-      {/each}
     </div>
 
     <div class="grid gap-3">
