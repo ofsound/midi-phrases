@@ -2686,9 +2686,10 @@
   }
 
   async function overwriteCurrentPatternWithSeed({ generated }) {
+    seedingDialogOpen = false;
+
     if (projectOperationBusy) return;
 
-    seedingDialogOpen = false;
     projectOperationBusy = true;
 
     try {
@@ -5849,9 +5850,10 @@
     scaleLocked
     confirmLabel="Write To Pattern"
     onClose={() => {
-      if (!projectOperationBusy) seedingDialogOpen = false;
+      seedingDialogOpen = false;
     }}
     onSeed={(options) => {
+      seedingDialogOpen = false;
       void overwriteCurrentPatternWithSeed(options);
     }}
   />

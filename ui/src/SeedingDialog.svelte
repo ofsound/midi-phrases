@@ -200,6 +200,7 @@
   }
 
   function startSeeded() {
+    onClose();
     onSeed({
       root: draftRoot,
       modeIndex: draftModeIndex,
