@@ -2612,6 +2612,29 @@
     return raw;
   }
 
+  /** Native completion payloads may be wrapped as [object]. */
+  function unwrapJuceNativeResult(result) {
+    if (Array.isArray(result) && result.length === 1) {
+      const [only] = result;
+
+      if (only !== null && typeof only === "object") return only;
+      return only;
+    }
+
+    return result;
+  }
+
+  function nativeScalar(value, fallback = "") {
+    if (value === null || value === undefined) return fallback;
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) return fallback;
+      return nativeScalar(value[0], fallback);
+    }
+
+    return value;
+  }
+
   function nativeFunctionAvailable(name) {
     return window.__JUCE__?.initialisationData?.__juce__functions?.includes?.(name) ?? false;
   }
@@ -2630,22 +2653,24 @@
   }
 
   function assignProjectMetadata(state) {
-    if (!state || typeof state !== "object") return;
+    if (!state || typeof state !== "object" || Array.isArray(state)) return;
 
-    projectName = String(state.projectName ?? "Untitled Project");
-    projectDescription = String(state.projectDescription ?? "");
-    projectCreatedAt = String(state.projectCreatedAt ?? "");
-    projectModifiedAt = String(state.projectModifiedAt ?? "");
-    projectFileName = String(state.projectFileName ?? "");
-    hasPreviousProject = Boolean(Number.parseInt(String(state.hasPreviousProject ?? 0), 10));
-    hasNextProject = Boolean(Number.parseInt(String(state.hasNextProject ?? 0), 10));
+    projectName = String(nativeScalar(state.projectName, "Untitled Project"));
+    projectDescription = String(nativeScalar(state.projectDescription, ""));
+    projectCreatedAt = String(nativeScalar(state.projectCreatedAt, ""));
+    projectModifiedAt = String(nativeScalar(state.projectModifiedAt, ""));
+    projectFileName = String(nativeScalar(state.projectFileName, ""));
+    hasPreviousProject = Boolean(
+      Number.parseInt(String(nativeScalar(state.hasPreviousProject, 0)), 10),
+    );
+    hasNextProject = Boolean(Number.parseInt(String(nativeScalar(state.hasNextProject, 0)), 10));
   }
 
   async function refreshProjectState({ loadProjectContent = false } = {}) {
     if (!nativeFunctionAvailable("getProjectState")) return;
 
-    const state = await getNativeFunction("getProjectState")();
-    if (!state || typeof state !== "object") return;
+    const state = unwrapJuceNativeResult(await getNativeFunction("getProjectState")());
+    if (!state || typeof state !== "object" || Array.isArray(state)) return;
 
     assignProjectMetadata(state);
     if (!loadProjectContent) return;
@@ -2681,12 +2706,15 @@
     projectOperationBusy = true;
     projectOperationError = "";
     try {
-      const result = await getNativeFunction(nativeName)(...args);
-      const success = Boolean(Number.parseInt(String(result?.success ?? 0), 10));
-      const error = String(result?.error ?? "");
+      const result = unwrapJuceNativeResult(await getNativeFunction(nativeName)(...args));
+      const success = Boolean(Number.parseInt(String(nativeScalar(result?.success, 0)), 10));
+      const error = String(nativeScalar(result?.error, ""));
 
       if (error) projectOperationError = error;
-      if (success) await refreshProjectState({ loadProjectContent });
+      if (success) {
+        assignProjectMetadata(result);
+        await refreshProjectState({ loadProjectContent });
+      }
       return success;
     } catch {
       projectOperationError = "The project operation could not be completed.";

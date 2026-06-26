@@ -79,8 +79,8 @@ private:
     juce::Array<juce::File> getSiblingProjectFiles() const;
     bool loadProjectFile (const juce::File& file, juce::String& errorMessage);
     bool saveProjectFile (const juce::File& file, juce::String& errorMessage);
-    static juce::var projectOperationResult (bool success,
-                                             const juce::String& errorMessage = {});
+    juce::var projectOperationResult (bool success,
+                                      const juce::String& errorMessage = {}) const;
 
     HostCursorLookAndFeel hostCursorLookAndFeel { *this };
     std::unique_ptr<juce::WebBrowserComponent> webView;

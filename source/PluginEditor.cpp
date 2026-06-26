@@ -248,11 +248,23 @@ juce::String PluginEditor::getCurrentProjectFileName() const
 }
 
 juce::var PluginEditor::projectOperationResult (const bool success,
-                                                 const juce::String& errorMessage)
+                                                 const juce::String& errorMessage) const
 {
     auto object = std::make_unique<juce::DynamicObject>();
     object->setProperty ("success", success ? 1 : 0);
     object->setProperty ("error", errorMessage);
+
+    if (success)
+    {
+        object->setProperty ("projectName", processorRef.getProjectName());
+        object->setProperty ("projectDescription", processorRef.getProjectDescription());
+        object->setProperty ("projectCreatedAt", processorRef.getProjectCreatedAt());
+        object->setProperty ("projectModifiedAt", processorRef.getProjectModifiedAt());
+        object->setProperty ("projectFileName", getCurrentProjectFileName());
+        object->setProperty ("hasPreviousProject", hasPreviousProject() ? 1 : 0);
+        object->setProperty ("hasNextProject", hasNextProject() ? 1 : 0);
+    }
+
     return juce::var (object.release());
 }
 
@@ -299,6 +311,23 @@ bool PluginEditor::loadProjectFile (const juce::File& file, juce::String& errorM
                                          "dark",
                                          100,
                                          false);
+    }
+    else
+    {
+        const auto fileBaseName = file.getFileNameWithoutExtension();
+
+        if (processorRef.getProjectName() == "Untitled Project"
+            && fileBaseName.isNotEmpty()
+            && fileBaseName != "Untitled Project")
+        {
+            processorRef.setProjectMetadata (fileBaseName,
+                                               processorRef.getProjectDescription(),
+                                               processorRef.getProjectCreatedAt(),
+                                               processorRef.getProjectModifiedAt(),
+                                               processorRef.getProjectThemeMode(),
+                                               processorRef.getProjectUiScalePercent(),
+                                               processorRef.getProjectStretchStepsToFit());
+        }
     }
 
     return true;
@@ -381,18 +410,24 @@ void PluginEditor::showSaveProjectDialog (
             safeThis->projectFileChooser.reset();
             if (file == juce::File())
             {
-                completion (projectOperationResult (false));
+                completion (safeThis->projectOperationResult (false));
                 return;
             }
 
             if (! file.hasFileExtension (".midiphrases"))
                 file = file.withFileExtension (".midiphrases");
 
+            const auto previousProjectFile = safeThis->currentProjectFile;
+            const auto savedToNewPath = ! previousProjectFile.existsAsFile()
+                                        || previousProjectFile != file;
+            const auto projectNameToSave = savedToNewPath ? file.getFileNameWithoutExtension()
+                                                          : name;
+
             safeThis->processorRef.setProjectMetadata (
-                name, description, createdAt, now, theme, scale, stretch);
+                projectNameToSave, description, createdAt, now, theme, scale, stretch);
             juce::String error;
             const auto saved = safeThis->saveProjectFile (file, error);
-            completion (projectOperationResult (saved, error));
+            completion (safeThis->projectOperationResult (saved, error));
         });
 }
 
@@ -421,13 +456,13 @@ void PluginEditor::showLoadProjectDialog (
             safeThis->projectFileChooser.reset();
             if (file == juce::File())
             {
-                completion (projectOperationResult (false));
+                completion (safeThis->projectOperationResult (false));
                 return;
             }
 
             juce::String error;
             const auto loaded = safeThis->loadProjectFile (file, error);
-            completion (projectOperationResult (loaded, error));
+            completion (safeThis->projectOperationResult (loaded, error));
         });
 }
 
