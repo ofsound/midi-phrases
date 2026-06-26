@@ -7,7 +7,7 @@
 <svg
   xmlns="http://www.w3.org/2000/svg"
   viewBox="3 3 18 18"
-  class="block h-2.5 w-2.5 shrink-0 {className}"
+  class="block h-3 w-3 shrink-0 {className}"
   aria-hidden="true"
   fill="none"
   stroke="currentColor"

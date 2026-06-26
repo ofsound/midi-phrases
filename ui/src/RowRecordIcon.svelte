@@ -1,12 +1,16 @@
 <script>
   /** Record (circle) / stop (square) for row MIDI capture. */
-  /** @type {{ class?: string, recording?: boolean }} */
-  let { class: className = "h-6 w-6", recording = false } = $props();
+  /** @type {{ class?: string, recording?: boolean, compact?: boolean }} */
+  let { class: className = "h-6 w-6", recording = false, compact = false } = $props();
+
+  const viewBox = $derived(
+    compact ? (recording ? "7 7 10 10" : "5.5 5.5 13 13") : "0 0 24 24",
+  );
 </script>
 
 <svg
   xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 24 24"
+  viewBox={viewBox}
   class={className}
   aria-hidden="true"
   fill="currentColor"

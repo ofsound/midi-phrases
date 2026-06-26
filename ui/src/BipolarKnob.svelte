@@ -95,7 +95,7 @@
 <div class="transition-opacity duration-200 {muted ? 'opacity-75' : ''}">
   <div
     data-cursor="vertical-drag"
-    class="relative h-[1.75rem] w-[1.75rem] touch-none select-none rounded-full border-[1.5px] bg-surface outline-none transition-[border-color,box-shadow] duration-75 {dragging && !muted
+    class="relative h-8 w-8 touch-none select-none rounded-full border-[1.5px] bg-surface outline-none transition-[border-color,box-shadow] duration-75 {dragging && !muted
       ? `${accent.dragBorder} ${accent.dragShadow}`
       : muted
         ? 'border-border-subtle'

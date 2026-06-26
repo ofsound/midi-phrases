@@ -124,7 +124,6 @@
     rowMutedOverlayClasses,
     rowMuteControlClasses,
     rowPowerToggleOffClasses,
-    rowActionIconControlClasses,
     toggleIconActiveClasses,
     toggleIconRestClasses,
   } from "./rowAccentTheme.js";
@@ -5599,27 +5598,7 @@
                   onclick={(event) => toggleRowMute(row, event.shiftKey)}
                   title="Shift-click to solo row"
                 >
-                  <RowDisableIcon class="h-[1.725rem] w-[1.725rem]" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={recordingRow === row ? "Stop row recording" : "Record row from MIDI"}
-                  aria-pressed={recordingRow === row}
-                  data-cursor="pointer"
-                  class="pointer-events-auto {rowActionIconControlClasses} transition-colors {rowMuted[row]
-                    ? 'text-text-faint hover:text-danger'
-                    : recordingRow === row
-                      ? 'text-danger'
-                      : 'text-text-faint hover:text-danger'}"
-                  onclick={() => toggleRowRecording(row)}
-                  title={recordingRow === row
-                    ? "Stop recording (notes fill this row as 1× steps)"
-                    : "Record row from MIDI keyboard (first note replaces row)"}
-                >
-                  <RowRecordIcon
-                    class="pointer-events-none h-[1.725rem] w-[1.725rem]"
-                    recording={recordingRow === row}
-                  />
+                  <RowDisableIcon class="h-[1.9375rem] w-[1.9375rem]" />
                 </button>
                 <div class="pointer-events-auto">
                   <BipolarKnob
@@ -5633,9 +5612,34 @@
                   />
                 </div>
               </div>
-              <RowEditPencilIcon
-                class="pointer-events-none absolute right-1.5 bottom-1.5 z-[1] text-text-faint transition-colors duration-150 group-hover:[color:var(--row-header-accent)]"
-              />
+              <div
+                class="pointer-events-none absolute right-1.5 bottom-1.5 z-[1] flex items-end gap-2"
+              >
+                <button
+                  type="button"
+                  aria-label={recordingRow === row ? "Stop row recording" : "Record row from MIDI"}
+                  aria-pressed={recordingRow === row}
+                  data-cursor="pointer"
+                  class="pointer-events-auto relative z-20 flex h-3 w-3 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {rowMuted[row]
+                    ? 'text-text-faint hover:text-danger'
+                    : recordingRow === row
+                      ? 'text-danger'
+                      : 'text-text-faint hover:text-danger'}"
+                  onclick={() => toggleRowRecording(row)}
+                  title={recordingRow === row
+                    ? "Stop recording (notes fill this row as 1× steps)"
+                    : "Record row from MIDI keyboard (first note replaces row)"}
+                >
+                  <RowRecordIcon
+                    compact
+                    class="pointer-events-none h-3 w-3"
+                    recording={recordingRow === row}
+                  />
+                </button>
+                <RowEditPencilIcon
+                  class="text-text-faint transition-colors duration-150 group-hover:[color:var(--row-header-accent)]"
+                />
+              </div>
             </div>
             <PhraseRow
               {row}

@@ -88,15 +88,15 @@ export function phraseRowActionIconControlWidthPx() {
   return scaledPx(basePhraseRowActionIconControlWidthPx);
 }
 
-/** Matches row on/off toggle `h-[1.9375rem] w-[1.9375rem]`. */
-export const basePhraseRowMuteControlWidthPx = 31;
+/** Matches row on/off toggle `h-[2.1875rem] w-[2.1875rem]`. */
+export const basePhraseRowMuteControlWidthPx = 35;
 
 export function phraseRowMuteControlWidthPx() {
   return scaledPx(basePhraseRowMuteControlWidthPx);
 }
 
-/** Matches BipolarKnob `h-[1.75rem] w-[1.75rem]` in the row header. */
-export const basePhraseRowOffsetKnobWidthPx = 28;
+/** Matches BipolarKnob `h-8 w-8` in the row header. */
+export const basePhraseRowOffsetKnobWidthPx = 32;
 
 export function phraseRowOffsetKnobWidthPx() {
   return scaledPx(basePhraseRowOffsetKnobWidthPx);
@@ -151,14 +151,13 @@ export function phraseRowEndAddStepReservePx() {
 }
 
 /**
- * Row header order in App.svelte: mute → record → offset knob → PhraseRow.
+ * Row header order in App.svelte: mute → offset knob → PhraseRow.
+ * Record + pencil sit in the bottom-right corner overlay.
  * Trailing edge of the offset knob measured from the row container’s left edge.
  */
 export function phraseRowOffsetKnobTrailingEdgePx() {
   return (
     phraseRowMuteControlWidthPx() +
-    phraseRowHeaderGapPx() +
-    phraseRowActionIconControlWidthPx() +
     phraseRowHeaderGapPx() +
     phraseRowOffsetKnobWidthPx()
   );
@@ -176,7 +175,7 @@ export function phraseRowLeadingControlsWidthPx() {
   );
 }
 
-/** Row leading controls after the mute button (record, knob + gaps). */
+/** Row leading controls after the mute button (offset knob + gaps). */
 export function phraseRowLeadingControlsAfterMuteWidthPx() {
   return phraseRowLeadingControlsWidthPx() - phraseRowMuteControlWidthPx();
 }
