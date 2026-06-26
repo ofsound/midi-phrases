@@ -117,6 +117,7 @@
     <div class="inspector-sliders flex min-h-0 w-full flex-1 flex-col justify-center gap-1.5">
       <ContinuousSlider
         {accent}
+        prominentValue
         label="Multiplier"
         value={timingMultiplierIndex}
         min={0}
@@ -129,6 +130,7 @@
       />
       <ContinuousSlider
         {accent}
+        prominentValue
         label="Duration"
         value={durationPercent}
         min={0}
@@ -139,6 +141,7 @@
       />
       <ContinuousSlider
         {accent}
+        prominentValue
         label="Velocity"
         value={velocity}
         min={1}
@@ -195,6 +198,7 @@
         <div class="flex min-h-0 min-w-0 w-full flex-col justify-center">
           <ContinuousSlider
             {accent}
+            prominentValue
             label="Probability"
             value={probability}
             min={0}

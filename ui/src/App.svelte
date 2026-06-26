@@ -3939,6 +3939,8 @@
     await commitBulkEditGesture("Bulk transpose", async () => {
       await pushRowsForSelectedLocations(locations);
     });
+
+    bulkTransposeSemitones = 0;
   }
 
   async function setStepMuted(row, step, muted) {

@@ -8,6 +8,7 @@
    * @property {string} [label]
    * @property {boolean} [fullWidth]
    * @property {boolean} [large]
+   * @property {boolean} [prominentValue]
    * @property {number} [min]
    * @property {number} [max]
    * @property {string} [ariaLabel]
@@ -24,6 +25,7 @@
     label = "",
     fullWidth = false,
     large = false,
+    prominentValue = false,
     min = 0,
     max = 127,
     ariaLabel = "Slider",
@@ -100,15 +102,29 @@
   }
 </script>
 
-<div class="flex flex-col {large ? 'gap-2' : 'gap-1'} {fullWidth ? 'min-w-0 w-full' : 'w-[10.5rem]'}">
-  <div class="flex items-center justify-between gap-2">
+<div class="flex flex-col {prominentValue ? 'gap-1' : large ? 'gap-2' : 'gap-1'} {fullWidth ? 'min-w-0 w-full' : 'w-[10.5rem]'}">
+  {#if prominentValue}
     {#if label}
-      <span class="font-medium uppercase tracking-wide text-text-muted {large ? 'text-[11px]' : 'text-[9px]'}">{label}</span>
-    {:else}
-      <span></span>
+      <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">{label}</span>
     {/if}
-    <span class="font-mono tabular-nums {large ? 'text-sm' : 'text-[10px]'} {accent.textAccent}">{displayValue}</span>
-  </div>
+    <span
+      class="font-mono text-[1.625rem] font-bold leading-none tabular-nums {accent.textAccent}"
+      >{displayValue}</span
+    >
+  {:else}
+    <div class="flex items-center justify-between gap-2">
+      {#if label}
+        <span class="font-medium uppercase tracking-wide text-text-muted {large ? 'text-[11px]' : 'text-[9px]'}"
+          >{label}</span
+        >
+      {:else}
+        <span></span>
+      {/if}
+      <span class="font-mono tabular-nums {large ? 'text-sm' : 'text-[10px]'} {accent.textAccent}"
+        >{displayValue}</span
+      >
+    </div>
+  {/if}
 
   <div
     {@attach trackAttachment}
