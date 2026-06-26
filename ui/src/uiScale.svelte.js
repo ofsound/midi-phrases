@@ -1,4 +1,4 @@
-export const uiDesignWidthPx = 1670;
+export const uiDesignWidthPx = 1690;
 export const uiDesignHeightPluginPx = 980;
 export const uiDesignHeightStandalonePx = 1044;
 export const uiMinScale = 0.5;
@@ -9,10 +9,10 @@ export const uiBaseFontSizePx = 16;
 export const uiScaleStorageKey = "midiPhrasesUiScalePreset";
 
 const uiScaleMinimumSizeAnchors = [
-  { percent: 50, widthPx: 835, pluginHeightPx: 515, standaloneHeightPx: 549 },
-  { percent: 70, widthPx: 1170, pluginHeightPx: 694, standaloneHeightPx: 737 },
-  { percent: 80, widthPx: 1335, pluginHeightPx: 784, standaloneHeightPx: 831 },
-  { percent: 90, widthPx: 1505, pluginHeightPx: 884, standaloneHeightPx: 933 },
+  { percent: 50, widthPx: 845, pluginHeightPx: 515, standaloneHeightPx: 549 },
+  { percent: 70, widthPx: 1183, pluginHeightPx: 694, standaloneHeightPx: 737 },
+  { percent: 80, widthPx: 1352, pluginHeightPx: 784, standaloneHeightPx: 831 },
+  { percent: 90, widthPx: 1521, pluginHeightPx: 884, standaloneHeightPx: 933 },
   { percent: 100, widthPx: uiDesignWidthPx, pluginHeightPx: uiDesignHeightPluginPx, standaloneHeightPx: uiDesignHeightStandalonePx },
 ];
 

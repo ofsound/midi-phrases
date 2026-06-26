@@ -5361,7 +5361,7 @@
     </div>
 
     <div
-      class="flex shrink-0 flex-col gap-1 px-2"
+      class="flex shrink-0 flex-col gap-1 px-1"
       role="presentation"
       aria-hidden="true"
     >
@@ -5369,7 +5369,7 @@
       <div class="h-[2.125rem] w-px shrink-0 self-center bg-border-strong"></div>
     </div>
 
-    <div class="flex min-w-0 flex-1 items-center gap-x-2">
+    <div class="flex min-w-0 flex-1 items-center gap-x-1.5">
       <div class="shrink-0">
         <BulkStepEditControls
           compact
@@ -5430,22 +5430,20 @@
           title={seedModeActive ? "Leave seed mode" : "Enter seed mode"}
           disabled={projectOperationBusy}
           data-cursor="pointer"
-          class="flex w-12 shrink-0 items-center justify-center rounded-md border outline-none transition-[border-color,opacity,box-shadow] hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring disabled:opacity-40 {seedModeActive
+          class="flex w-12 shrink-0 items-center justify-center self-stretch rounded-md border outline-none transition-colors focus-visible:ring-1 focus-visible:ring-focus-ring disabled:opacity-40 {seedModeActive
             ? 'border-accent bg-accent text-control-primary-text shadow-accent-selection'
             : 'border-border bg-surface/30 text-accent hover:border-border-strong'}"
           onclick={() => {
             void toggleSeedMode();
           }}
         >
-          <SaplingIcon class="pointer-events-none h-7 w-7" />
+          <SaplingIcon class="pointer-events-none h-8 w-8" />
         </button>
       </div>
 
-      <div class="min-w-0 flex-1" aria-hidden="true"></div>
-
       <div class="flex shrink-0 items-center gap-1">
       <div class="flex flex-col gap-1">
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1">
           <span class="w-[3.75rem] shrink-0 text-right text-xs font-semibold leading-none text-text-muted"
             >Patterns:</span
           >
@@ -5487,7 +5485,7 @@
             </button>
           </div>
         </div>
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1">
           <span class="w-[3.75rem] shrink-0 text-right text-xs font-semibold leading-none text-text-muted"
             >Loops:</span
           >

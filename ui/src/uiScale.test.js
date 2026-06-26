@@ -63,7 +63,7 @@ describe("computeUiScale", () => {
     setUiScalePercent(73, { persist: false });
 
     expect(currentUiScaleMinimumSize()).toEqual({
-      widthPx: 1220,
+      widthPx: 1234,
       heightPx: 721,
     });
   });
@@ -72,7 +72,7 @@ describe("computeUiScale", () => {
     setUiScalePercent(73, { persist: false });
 
     expect(currentUiScaleMinimumSize({ standaloneTransportAvailable: true })).toEqual({
-      widthPx: 1220,
+      widthPx: 1234,
       heightPx: 765,
     });
   });

@@ -8,7 +8,7 @@
 
 namespace
 {
-constexpr int defaultEditorWidth = 1670;
+constexpr int defaultEditorWidth = 1690;
 constexpr int defaultPluginEditorHeight = 980;
 constexpr int defaultStandaloneEditorHeight = 1044;
 
