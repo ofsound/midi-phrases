@@ -1,4 +1,5 @@
 <script>
+  import AccentRangeSlider from "./AccentRangeSlider.svelte";
   import SeedPhrasePreview from "./SeedPhrasePreview.svelte";
   import {
     defaultSeedingSettings,
@@ -60,18 +61,15 @@
         <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
           <span>Phrase length</span><span class="font-mono text-accent">{settings.phraseLength}</span>
         </span>
-        <input
-          type="range"
+        <AccentRangeSlider
+          value={settings.phraseLength}
           min={seedingPhraseLengthMin}
           max={seedingPhraseLengthMax}
-          step="1"
-          value={settings.phraseLength}
           disabled={busy}
-          class="accent-range-slider w-full disabled:opacity-40"
-          onpointerdown={onGestureStart}
-          onkeydown={onGestureStart}
-          oninput={(event) => previewSettings({ phraseLength: Number(event.currentTarget.value) })}
-          onchange={(event) => commitSettings({ phraseLength: Number(event.currentTarget.value) })}
+          ariaLabel="Phrase length"
+          onGestureStart={onGestureStart}
+          onValuePreview={(phraseLength) => previewSettings({ phraseLength })}
+          onValueCommit={(phraseLength) => commitSettings({ phraseLength })}
         />
         <div class="flex justify-between font-mono text-[9px] leading-none text-text-muted">
           <span>{seedingPhraseLengthMin}</span>
@@ -83,18 +81,15 @@
         <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
           <span>Range</span><span class="font-mono text-accent">{settings.rangeSemitones} st</span>
         </span>
-        <input
-          type="range"
+        <AccentRangeSlider
+          value={settings.rangeSemitones}
           min={seedingRangeSemitonesMin}
           max={seedingRangeSemitonesMax}
-          step="1"
-          value={settings.rangeSemitones}
           disabled={busy}
-          class="accent-range-slider w-full disabled:opacity-40"
-          onpointerdown={onGestureStart}
-          onkeydown={onGestureStart}
-          oninput={(event) => previewSettings({ rangeSemitones: Number(event.currentTarget.value) })}
-          onchange={(event) => commitSettings({ rangeSemitones: Number(event.currentTarget.value) })}
+          ariaLabel="Range in semitones"
+          onGestureStart={onGestureStart}
+          onValuePreview={(rangeSemitones) => previewSettings({ rangeSemitones })}
+          onValueCommit={(rangeSemitones) => commitSettings({ rangeSemitones })}
         />
         <div class="flex justify-between font-mono text-[9px] leading-none text-text-muted">
           <span>{seedingRangeSemitonesMin} st</span>
@@ -123,17 +118,14 @@
         <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
           <span>Repetition</span><span class="font-mono text-accent">{settings.repetition}</span>
         </span>
-        <input
-          type="range"
-          min="0"
-          max="100"
+        <AccentRangeSlider
           value={settings.repetition}
+          max={100}
           disabled={busy}
-          class="accent-range-slider w-full disabled:opacity-40"
-          onpointerdown={onGestureStart}
-          onkeydown={onGestureStart}
-          oninput={(event) => previewSettings({ repetition: clampPercent(Number(event.currentTarget.value)) })}
-          onchange={(event) => commitSettings({ repetition: clampPercent(Number(event.currentTarget.value)) })}
+          ariaLabel="Repetition"
+          onGestureStart={onGestureStart}
+          onValuePreview={(repetition) => previewSettings({ repetition: clampPercent(repetition) })}
+          onValueCommit={(repetition) => commitSettings({ repetition: clampPercent(repetition) })}
         />
       </label>
 
@@ -141,17 +133,14 @@
         <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
           <span>Complexity</span><span class="font-mono text-accent">{settings.complexity}</span>
         </span>
-        <input
-          type="range"
-          min="0"
-          max="100"
+        <AccentRangeSlider
           value={settings.complexity}
+          max={100}
           disabled={busy}
-          class="accent-range-slider w-full disabled:opacity-40"
-          onpointerdown={onGestureStart}
-          onkeydown={onGestureStart}
-          oninput={(event) => previewSettings({ complexity: clampPercent(Number(event.currentTarget.value)) })}
-          onchange={(event) => commitSettings({ complexity: clampPercent(Number(event.currentTarget.value)) })}
+          ariaLabel="Complexity"
+          onGestureStart={onGestureStart}
+          onValuePreview={(complexity) => previewSettings({ complexity: clampPercent(complexity) })}
+          onValueCommit={(complexity) => commitSettings({ complexity: clampPercent(complexity) })}
         />
       </label>
 
@@ -159,17 +148,14 @@
         <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
           <span>Randomness</span><span class="font-mono text-accent">{settings.randomness}</span>
         </span>
-        <input
-          type="range"
-          min="0"
-          max="100"
+        <AccentRangeSlider
           value={settings.randomness}
+          max={100}
           disabled={busy}
-          class="accent-range-slider w-full disabled:opacity-40"
-          onpointerdown={onGestureStart}
-          onkeydown={onGestureStart}
-          oninput={(event) => previewSettings({ randomness: clampPercent(Number(event.currentTarget.value)) })}
-          onchange={(event) => commitSettings({ randomness: clampPercent(Number(event.currentTarget.value)) })}
+          ariaLabel="Randomness"
+          onGestureStart={onGestureStart}
+          onValuePreview={(randomness) => previewSettings({ randomness: clampPercent(randomness) })}
+          onValueCommit={(randomness) => commitSettings({ randomness: clampPercent(randomness) })}
         />
       </label>
 
