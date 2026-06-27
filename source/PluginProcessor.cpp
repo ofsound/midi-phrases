@@ -12,11 +12,55 @@ constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 19;
+constexpr int phraseStateVersion = 20;
 
 int clampStepProbability (const int probability)
 {
     return juce::jlimit (0, PluginProcessor::maxPercentValue, probability);
+}
+
+int clampSeedingPhraseLength (const int phraseLength)
+{
+    return juce::jlimit (PluginProcessor::minSeedingPhraseLength,
+                         PluginProcessor::maxSeedingPhraseLength,
+                         phraseLength);
+}
+
+int clampSeedingRangeSemitones (const int rangeSemitones)
+{
+    return juce::jlimit (PluginProcessor::minSeedingRangeSemitones,
+                         PluginProcessor::maxSeedingRangeSemitones,
+                         rangeSemitones);
+}
+
+int clampSeedingPercent (const int value)
+{
+    return juce::jlimit (0, PluginProcessor::maxPercentValue, value);
+}
+
+int clampSeedingSeed (const int seed)
+{
+    return juce::jmax (1, seed);
+}
+
+int clampSeedingRhythmStep (const int rhythmStep)
+{
+    return juce::jlimit (PluginProcessor::minSeedingRhythmStep,
+                         PluginProcessor::maxSeedingRhythmStep,
+                         rhythmStep);
+}
+
+PluginProcessor::SeedingRowState clampSeedingRowState (const PluginProcessor::SeedingRowState& rowState)
+{
+    PluginProcessor::SeedingRowState clamped;
+    clamped.phraseLength = clampSeedingPhraseLength (rowState.phraseLength);
+    clamped.rangeSemitones = clampSeedingRangeSemitones (rowState.rangeSemitones);
+    clamped.repetition = clampSeedingPercent (rowState.repetition);
+    clamped.complexity = clampSeedingPercent (rowState.complexity);
+    clamped.randomness = clampSeedingPercent (rowState.randomness);
+    clamped.symmetry = rowState.symmetry != 0 ? 1 : 0;
+    clamped.seed = clampSeedingSeed (rowState.seed);
+    return clamped;
 }
 
 int clampStepCycle (const int cycle)
@@ -872,6 +916,12 @@ void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
     pattern.shimmerDelayMultiplierIndex = defaultStepTimingMultiplierIndex;
     pattern.shimmerFeedbackPercent = defaultShimmerFeedbackPercent;
     pattern.shimmerMixPercent = defaultShimmerMixPercent;
+    pattern.seedingRhythmStep = defaultSeedingRhythmStep;
+
+    for (auto& seedingRow : pattern.seedingRows)
+        seedingRow = {};
+
+    pattern.seedingRowTargets = { 1, 1, 1, 1 };
     pattern.sequencer.combinationModeMask = 0;
 
     for (int row = 0; row < phraseRowCount; ++row)
@@ -1953,6 +2003,47 @@ int PluginProcessor::getPatternShimmerFeedbackPercent (const int patternSlot) co
 int PluginProcessor::getPatternShimmerMixPercent (const int patternSlot) const
 {
     return clampShimmerMixPercent (modelPattern (patternSlot).shimmerMixPercent);
+}
+
+void PluginProcessor::setPatternSeedModeState (
+    const int rhythmStep,
+    const std::array<SeedingRowState, phraseRowCount>& rowSettings,
+    const std::array<int, phraseRowCount>& rowTargets)
+{
+    const auto patternSlot = getCurrentPatternSlot();
+    auto& pattern = modelPattern (patternSlot);
+
+    pattern.seedingRhythmStep = clampSeedingRhythmStep (rhythmStep);
+
+    for (int row = 0; row < phraseRowCount; ++row)
+    {
+        pattern.seedingRows[static_cast<size_t> (row)] =
+            clampSeedingRowState (rowSettings[static_cast<size_t> (row)]);
+        pattern.seedingRowTargets[static_cast<size_t> (row)] =
+            rowTargets[static_cast<size_t> (row)] != 0 ? 1 : 0;
+    }
+}
+
+int PluginProcessor::getPatternSeedingRhythmStep (const int patternSlot) const
+{
+    return clampSeedingRhythmStep (modelPattern (patternSlot).seedingRhythmStep);
+}
+
+PluginProcessor::SeedingRowState PluginProcessor::getPatternSeedingRowState (const int patternSlot,
+                                                                             const int row) const
+{
+    if (row < 0 || row >= phraseRowCount)
+        return {};
+
+    return clampSeedingRowState (modelPattern (patternSlot).seedingRows[static_cast<size_t> (row)]);
+}
+
+bool PluginProcessor::isPatternSeedingRowTargeted (const int patternSlot, const int row) const
+{
+    if (row < 0 || row >= phraseRowCount)
+        return false;
+
+    return modelPattern (patternSlot).seedingRowTargets[static_cast<size_t> (row)] != 0;
 }
 
 void PluginProcessor::reverseRowSteps (PhraseRowSteps& steps)
@@ -5284,6 +5375,25 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
         patternTree.setProperty ("shimmerMixPercent",
                                  getPatternShimmerMixPercent (patternSlot),
                                  nullptr);
+        patternTree.setProperty ("seedingRhythmStep",
+                                 getPatternSeedingRhythmStep (patternSlot),
+                                 nullptr);
+
+        for (int seedingRow = 0; seedingRow < phraseRowCount; ++seedingRow)
+        {
+            const auto rowState = getPatternSeedingRowState (patternSlot, seedingRow);
+            const auto prefix = "seedingRow" + juce::String (seedingRow);
+            patternTree.setProperty (prefix + "PhraseLength", rowState.phraseLength, nullptr);
+            patternTree.setProperty (prefix + "RangeSemitones", rowState.rangeSemitones, nullptr);
+            patternTree.setProperty (prefix + "Repetition", rowState.repetition, nullptr);
+            patternTree.setProperty (prefix + "Complexity", rowState.complexity, nullptr);
+            patternTree.setProperty (prefix + "Randomness", rowState.randomness, nullptr);
+            patternTree.setProperty (prefix + "Symmetry", rowState.symmetry, nullptr);
+            patternTree.setProperty (prefix + "Seed", rowState.seed, nullptr);
+            patternTree.setProperty (prefix + "Targeted",
+                                     isPatternSeedingRowTargeted (patternSlot, seedingRow) ? 1 : 0,
+                                     nullptr);
+        }
 
         for (int row = 0; row < phraseRowCount; ++row)
         {
@@ -5559,6 +5669,36 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         pattern.shimmerMixPercent = clampShimmerMixPercent (
             static_cast<int> (patternTree.getProperty ("shimmerMixPercent",
                                                        defaultShimmerMixPercent)));
+        pattern.seedingRhythmStep = clampSeedingRhythmStep (
+            static_cast<int> (patternTree.getProperty ("seedingRhythmStep",
+                                                       defaultSeedingRhythmStep)));
+
+        for (int seedingRow = 0; seedingRow < phraseRowCount; ++seedingRow)
+        {
+            const auto prefix = "seedingRow" + juce::String (seedingRow);
+            auto& rowState = pattern.seedingRows[static_cast<size_t> (seedingRow)];
+            rowState.phraseLength = clampSeedingPhraseLength (
+                static_cast<int> (patternTree.getProperty (prefix + "PhraseLength",
+                                                           defaultSeedingPhraseLength)));
+            rowState.rangeSemitones = clampSeedingRangeSemitones (
+                static_cast<int> (patternTree.getProperty (prefix + "RangeSemitones",
+                                                           defaultSeedingRangeSemitones)));
+            rowState.repetition = clampSeedingPercent (
+                static_cast<int> (patternTree.getProperty (prefix + "Repetition",
+                                                         defaultSeedingRepetition)));
+            rowState.complexity = clampSeedingPercent (
+                static_cast<int> (patternTree.getProperty (prefix + "Complexity",
+                                                          defaultSeedingComplexity)));
+            rowState.randomness = clampSeedingPercent (
+                static_cast<int> (patternTree.getProperty (prefix + "Randomness",
+                                                          defaultSeedingRandomness)));
+            rowState.symmetry =
+                static_cast<int> (patternTree.getProperty (prefix + "Symmetry", 0)) != 0 ? 1 : 0;
+            rowState.seed = clampSeedingSeed (
+                static_cast<int> (patternTree.getProperty (prefix + "Seed", defaultSeedingSeed)));
+            pattern.seedingRowTargets[static_cast<size_t> (seedingRow)] =
+                static_cast<int> (patternTree.getProperty (prefix + "Targeted", 1)) != 0 ? 1 : 0;
+        }
     }
 
     for (int i = 0; i < state.getNumChildren(); ++i)

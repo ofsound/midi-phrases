@@ -158,6 +158,38 @@ public:
     int getPatternShimmerFeedbackPercent (int patternSlot) const;
     int getPatternShimmerMixPercent (int patternSlot) const;
 
+    static constexpr int defaultSeedingPhraseLength = 3;
+    static constexpr int minSeedingPhraseLength = 2;
+    static constexpr int maxSeedingPhraseLength = 16;
+    static constexpr int defaultSeedingRangeSemitones = 8;
+    static constexpr int minSeedingRangeSemitones = 2;
+    static constexpr int maxSeedingRangeSemitones = 48;
+    static constexpr int defaultSeedingRepetition = 45;
+    static constexpr int defaultSeedingComplexity = 50;
+    static constexpr int defaultSeedingRandomness = 45;
+    static constexpr int defaultSeedingSeed = 1;
+    static constexpr int defaultSeedingRhythmStep = 7;
+    static constexpr int minSeedingRhythmStep = 0;
+    static constexpr int maxSeedingRhythmStep = 7;
+
+    struct SeedingRowState
+    {
+        int phraseLength = defaultSeedingPhraseLength;
+        int rangeSemitones = defaultSeedingRangeSemitones;
+        int repetition = defaultSeedingRepetition;
+        int complexity = defaultSeedingComplexity;
+        int randomness = defaultSeedingRandomness;
+        int symmetry = 0;
+        int seed = defaultSeedingSeed;
+    };
+
+    void setPatternSeedModeState (int rhythmStep,
+                                  const std::array<SeedingRowState, phraseRowCount>& rowSettings,
+                                  const std::array<int, phraseRowCount>& rowTargets);
+    int getPatternSeedingRhythmStep (int patternSlot) const;
+    SeedingRowState getPatternSeedingRowState (int patternSlot, int row) const;
+    bool isPatternSeedingRowTargeted (int patternSlot, int row) const;
+
     void setPhraseRowMuted (int row, bool muted);
     bool isPhraseRowMuted (int row) const;
 
@@ -408,6 +440,9 @@ private:
         int shimmerDelayMultiplierIndex = defaultStepTimingMultiplierIndex;
         int shimmerFeedbackPercent = defaultShimmerFeedbackPercent;
         int shimmerMixPercent = defaultShimmerMixPercent;
+        int seedingRhythmStep = defaultSeedingRhythmStep;
+        std::array<SeedingRowState, phraseRowCount> seedingRows {};
+        std::array<int, phraseRowCount> seedingRowTargets { 1, 1, 1, 1 };
     };
 
     struct LoopSlotState

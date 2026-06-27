@@ -45,6 +45,52 @@ int varToInt (const juce::var& value)
     return static_cast<int> (value);
 }
 
+PluginProcessor::SeedingRowState seedingRowStateFromVar (const juce::var& value)
+{
+    PluginProcessor::SeedingRowState rowState;
+
+    if (auto* object = value.getDynamicObject())
+    {
+        rowState.phraseLength = varToInt (object->getProperty ("phraseLength"));
+        rowState.rangeSemitones = varToInt (object->getProperty ("rangeSemitones"));
+        rowState.repetition = varToInt (object->getProperty ("repetition"));
+        rowState.complexity = varToInt (object->getProperty ("complexity"));
+        rowState.randomness = varToInt (object->getProperty ("randomness"));
+        rowState.symmetry = varToInt (object->getProperty ("symmetry"));
+        rowState.seed = varToInt (object->getProperty ("seed"));
+    }
+
+    return rowState;
+}
+
+juce::var createSeedModeStateVar (const PluginProcessor& processor, const int patternSlot)
+{
+    auto object = std::make_unique<juce::DynamicObject>();
+    object->setProperty ("seedingRhythmStep", processor.getPatternSeedingRhythmStep (patternSlot));
+
+    juce::Array<juce::var> seedingRowSettings;
+    juce::Array<juce::var> seedingRowTargets;
+
+    for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
+    {
+        const auto rowState = processor.getPatternSeedingRowState (patternSlot, row);
+        auto rowObject = std::make_unique<juce::DynamicObject>();
+        rowObject->setProperty ("phraseLength", rowState.phraseLength);
+        rowObject->setProperty ("rangeSemitones", rowState.rangeSemitones);
+        rowObject->setProperty ("repetition", rowState.repetition);
+        rowObject->setProperty ("complexity", rowState.complexity);
+        rowObject->setProperty ("randomness", rowState.randomness);
+        rowObject->setProperty ("symmetry", rowState.symmetry);
+        rowObject->setProperty ("seed", rowState.seed);
+        seedingRowSettings.add (juce::var (rowObject.release()));
+        seedingRowTargets.add (processor.isPatternSeedingRowTargeted (patternSlot, row) ? 1 : 0);
+    }
+
+    object->setProperty ("seedingRowSettings", seedingRowSettings);
+    object->setProperty ("seedingRowTargets", seedingRowTargets);
+    return juce::var (object.release());
+}
+
 void copyIntArray (const juce::var& value,
                    std::array<int, PluginProcessor::maxPhraseStepsPerRow>& target)
 {
@@ -241,6 +287,28 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
     object->setProperty ("shimmerFeedbackPercent",
                          processor.getPatternShimmerFeedbackPercent (patternSlot));
     object->setProperty ("shimmerMixPercent", processor.getPatternShimmerMixPercent (patternSlot));
+    object->setProperty ("seedingRhythmStep", processor.getPatternSeedingRhythmStep (patternSlot));
+
+    juce::Array<juce::var> seedingRowSettings;
+    juce::Array<juce::var> seedingRowTargets;
+
+    for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
+    {
+        const auto rowState = processor.getPatternSeedingRowState (patternSlot, row);
+        auto rowObject = std::make_unique<juce::DynamicObject>();
+        rowObject->setProperty ("phraseLength", rowState.phraseLength);
+        rowObject->setProperty ("rangeSemitones", rowState.rangeSemitones);
+        rowObject->setProperty ("repetition", rowState.repetition);
+        rowObject->setProperty ("complexity", rowState.complexity);
+        rowObject->setProperty ("randomness", rowState.randomness);
+        rowObject->setProperty ("symmetry", rowState.symmetry);
+        rowObject->setProperty ("seed", rowState.seed);
+        seedingRowSettings.add (juce::var (rowObject.release()));
+        seedingRowTargets.add (processor.isPatternSeedingRowTargeted (patternSlot, row) ? 1 : 0);
+    }
+
+    object->setProperty ("seedingRowSettings", seedingRowSettings);
+    object->setProperty ("seedingRowTargets", seedingRowTargets);
 
     return juce::var (object.release());
 }
@@ -795,6 +863,44 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
 
                                complete (processor.getPatternShimmerMixPercent (
                                    patternSlotForNativeDefault (processor)));
+                           })
+                       .withNativeFunction (
+                           "setPatternSeedModeState",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 3)
+                               {
+                                   const auto rhythmStep = varToInt (args[0]);
+                                   std::array<PluginProcessor::SeedingRowState, PluginProcessor::phraseRowCount>
+                                       rowSettings {};
+                                   std::array<int, PluginProcessor::phraseRowCount> rowTargets {};
+
+                                   if (auto* rowSettingsValues = args[1].getArray())
+                                   {
+                                       for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
+                                       {
+                                           if (row < rowSettingsValues->size())
+                                               rowSettings[static_cast<size_t> (row)] =
+                                                   seedingRowStateFromVar ((*rowSettingsValues)[row]);
+                                       }
+                                   }
+
+                                   if (auto* rowTargetsValues = args[2].getArray())
+                                   {
+                                       for (int row = 0; row < PluginProcessor::phraseRowCount; ++row)
+                                       {
+                                           rowTargets[static_cast<size_t> (row)] =
+                                               row < rowTargetsValues->size()
+                                                   ? varToInt ((*rowTargetsValues)[row])
+                                                   : 0;
+                                       }
+                                   }
+
+                                   processor.setPatternSeedModeState (rhythmStep, rowSettings, rowTargets);
+                               }
+
+                               complete (createSeedModeStateVar (processor,
+                                                               patternSlotForNativeDefault (processor)));
                            })
                        .withNativeFunction (
                            "setPhraseRowMuted",

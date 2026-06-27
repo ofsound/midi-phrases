@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  applySeedingRowSettingsUpdate,
+  createDefaultSeedModeRowSettings,
+  displaySeedingRowSettings,
   generateSeededPhraseRows,
+  mergeSeededPhraseRows,
+  normalizeSeedModeState,
+  normalizeSeedingRowSettings,
   normalizeSeedingSettings,
+  phraseRowsFromGridState,
   rhythmInterleaveRatio,
   seedingRhythmStepMax,
   seedingRhythmStepMin,
@@ -52,6 +59,64 @@ describe("normalizeSeedingSettings", () => {
     expect(settings.phraseLength).toBe(2);
   });
 
+});
+
+describe("normalizeSeedingRowSettings", () => {
+  it("clamps per-row settings without rhythm overlap", () => {
+    const settings = normalizeSeedingRowSettings({
+      phraseLength: 200,
+      rangeSemitones: -5,
+      repetition: 500,
+      complexity: -1,
+      randomness: Number.NaN,
+      seed: -10,
+    });
+
+    expect(settings.phraseLength).toBe(16);
+    expect(settings.rangeSemitones).toBe(2);
+    expect(settings.repetition).toBe(100);
+    expect(settings.complexity).toBe(0);
+    expect(settings.randomness).toBe(0);
+    expect(settings.seed).toBe(1);
+  });
+});
+
+describe("normalizeSeedModeState", () => {
+  it("normalizes rhythm, row settings, and targets together", () => {
+    const state = normalizeSeedModeState({
+      rhythmStep: 99,
+      rowSettings: [{ phraseLength: 2 }, { phraseLength: 5 }],
+      rowTargets: [true, false],
+    });
+
+    expect(state.rhythmStep).toBe(seedingRhythmStepMax);
+    expect(state.rowSettings[0].phraseLength).toBe(2);
+    expect(state.rowSettings[1].phraseLength).toBe(5);
+    expect(state.rowTargets).toEqual([true, false, false, false]);
+  });
+});
+
+describe("displaySeedingRowSettings", () => {
+  it("shows the first targeted row settings", () => {
+    const rowSettings = createDefaultSeedModeRowSettings();
+    rowSettings[2].phraseLength = 9;
+
+    expect(displaySeedingRowSettings(rowSettings, [false, false, true, true]).phraseLength).toBe(9);
+  });
+});
+
+describe("applySeedingRowSettingsUpdate", () => {
+  it("writes updates to every targeted row", () => {
+    const rowSettings = createDefaultSeedModeRowSettings();
+    const next = applySeedingRowSettingsUpdate(rowSettings, [true, false, true, false], {
+      phraseLength: 7,
+    });
+
+    expect(next[0].phraseLength).toBe(7);
+    expect(next[1].phraseLength).toBe(rowSettings[1].phraseLength);
+    expect(next[2].phraseLength).toBe(7);
+    expect(next[3].phraseLength).toBe(rowSettings[3].phraseLength);
+  });
 });
 
 describe("generateSeededPhraseRows", () => {
@@ -147,5 +212,71 @@ describe("generateSeededPhraseRows", () => {
     }
 
     expect(new Set(signatures).size).toBe(seedingRhythmStepMax + 1);
+  });
+
+  it("uses independent per-row settings when rowSettings are provided", () => {
+    const rowSettings = createDefaultSeedModeRowSettings();
+    rowSettings[0].seed = 11;
+    rowSettings[1].seed = 22;
+    rowSettings[0].phraseLength = 3;
+    rowSettings[1].phraseLength = 6;
+
+    const result = generateSeededPhraseRows({
+      rhythmStep: seedingRhythmStepMin,
+      rowSettings,
+      root: 0,
+      modeIndex: 0,
+    });
+
+    expect(result.notes[0]).toHaveLength(3);
+    expect(result.notes[1]).toHaveLength(6);
+    expect(result.notes[0]).not.toEqual(result.notes[1]);
+  });
+});
+
+describe("phraseRowsFromGridState", () => {
+  it("maps grid fields to generated phrase row shape", () => {
+    const rows = phraseRowsFromGridState({
+      grid: [[60, 62], [64, 65], [67, 69], [71, 72]],
+      stepTimingMultiplier: [[3, 4], [3, 3], [3, 3], [3, 3]],
+      rowTimingOffset: [3, 4, 5, 6],
+    });
+
+    expect(rows.notes).toEqual([[60, 62], [64, 65], [67, 69], [71, 72]]);
+    expect(rows.stepTimingMultiplier[0]).toEqual([3, 4]);
+    expect(rows.rowTimingOffset).toEqual([3, 4, 5, 6]);
+  });
+});
+
+describe("mergeSeededPhraseRows", () => {
+  const baseOptions = { phraseLength: 4, seed: 101, repetition: 0, randomness: 0, complexity: 0 };
+
+  it("only replaces targeted rows", () => {
+    const existing = generateSeededPhraseRows({ ...baseOptions, seed: 1 });
+    const generated = generateSeededPhraseRows({ ...baseOptions, seed: 2 });
+    const merged = mergeSeededPhraseRows(existing, generated, [false, true, false, false]);
+
+    expect(merged.notes[0]).toEqual(existing.notes[0]);
+    expect(merged.notes[1]).toEqual(generated.notes[1]);
+    expect(merged.notes[2]).toEqual(existing.notes[2]);
+    expect(merged.notes[3]).toEqual(existing.notes[3]);
+    expect(merged.stepVelocity[1]).toEqual(generated.stepVelocity[1]);
+    expect(merged.rowTimingOffset[1]).toEqual(generated.rowTimingOffset[1]);
+  });
+
+  it("returns full generated output when all rows are targeted", () => {
+    const existing = generateSeededPhraseRows({ ...baseOptions, seed: 1 });
+    const generated = generateSeededPhraseRows({ ...baseOptions, seed: 2 });
+    const merged = mergeSeededPhraseRows(existing, generated, [true, true, true, true]);
+
+    expect(merged).toEqual(generated);
+  });
+
+  it("preserves existing rows when none are targeted", () => {
+    const existing = generateSeededPhraseRows({ ...baseOptions, seed: 1 });
+    const generated = generateSeededPhraseRows({ ...baseOptions, seed: 2 });
+    const merged = mergeSeededPhraseRows(existing, generated, [false, false, false, false]);
+
+    expect(merged).toEqual(existing);
   });
 });

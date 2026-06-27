@@ -104,9 +104,14 @@
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import SaplingIcon from "./SaplingIcon.svelte";
   import {
-    defaultSeedingSettings,
-    generateSeededPhraseRows,
-    normalizeSeedingSettings,
+    applySeedingRowSettingsUpdate,
+    createDefaultSeedModeRowSettings,
+    defaultSeedModeState,
+    generateSeededPhraseRowsFromSeedModeState,
+    hasSeedingRowTargets,
+    mergeSeededPhraseRows,
+    normalizeSeedModeState,
+    phraseRowsFromGridState,
     seedingRhythmStepMax,
   } from "./seeding.js";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
@@ -346,11 +351,25 @@
   let shimmerMixPercent = $state(defaultShimmerMixPercent);
   let scaleDialogOpen = $state(false);
   let seedModeActive = $state(false);
-  let seedModeSettings = $state({ ...defaultSeedingSettings });
+  let seedModeRhythmStep = $state(defaultSeedModeState.rhythmStep);
+  let seedModeRowSettings = $state(createDefaultSeedModeRowSettings());
+  let seedModeRowTargets = $state([...defaultSeedModeState.rowTargets]);
   /** @type {ReturnType<typeof createHistorySnapshot> | null} */
   let seedModeHistoryBefore = null;
   let seedModeDirty = false;
   let seedModeApplyVersion = 0;
+  let seedModeCurrentPhraseRows = $derived(phraseRowsFromGridState({
+    grid,
+    stepTimingMultiplier,
+    stepDurationFraction,
+    stepVelocity,
+    stepMuted,
+    stepSkipped,
+    stepProbability,
+    stepCycle,
+    stepCycleOffset,
+    rowTimingOffset,
+  }));
   let pulseIndex = $state(defaultPulseIndex);
   let swingPercent = $state(0);
   let velocityHumanizePercent = $state(0);
@@ -1235,7 +1254,7 @@
   async function setPatternScale(nextRoot, nextModeIndex) {
     if (seedModeActive) {
       await applyPatternScale(nextRoot, nextModeIndex);
-      await applySeedModeSettings(seedModeSettings);
+      await applySeedModeState();
       return;
     }
 
@@ -2039,6 +2058,7 @@
     bulkDurationPercent = 0;
     bulkVelocityPercent = 0;
     bulkTransposeSemitones = 0;
+    assignSeedModeStateFromPattern(state);
     seedModeActive = false;
     seedModeHistoryBefore = null;
     seedModeDirty = false;
@@ -2807,44 +2827,95 @@
     seedModeDirty = false;
   }
 
-  function normalizeSeedModeSettings(settings) {
-    const normalized = normalizeSeedingSettings({
-      ...settings,
-      root: scaleRoot,
-      modeIndex: scaleModeIndex,
+  function assignSeedModeStateFromPattern(state) {
+    if (!state || typeof state !== "object" || Array.isArray(state)) return;
+
+    const normalized = normalizeSeedModeState({
+      rhythmStep: Number.parseInt(String(state.seedingRhythmStep ?? defaultSeedModeState.rhythmStep), 10),
+      rowSettings: Array.isArray(state.seedingRowSettings)
+        ? state.seedingRowSettings.map((rowSettings) => ({
+            phraseLength: Number.parseInt(String(rowSettings?.phraseLength ?? defaultSeedModeState.rowSettings[0].phraseLength), 10),
+            rangeSemitones: Number.parseInt(String(rowSettings?.rangeSemitones ?? defaultSeedModeState.rowSettings[0].rangeSemitones), 10),
+            repetition: Number.parseInt(String(rowSettings?.repetition ?? defaultSeedModeState.rowSettings[0].repetition), 10),
+            complexity: Number.parseInt(String(rowSettings?.complexity ?? defaultSeedModeState.rowSettings[0].complexity), 10),
+            randomness: Number.parseInt(String(rowSettings?.randomness ?? defaultSeedModeState.rowSettings[0].randomness), 10),
+            symmetry: Boolean(Number.parseInt(String(rowSettings?.symmetry ?? 0), 10)),
+            seed: Number.parseInt(String(rowSettings?.seed ?? defaultSeedModeState.rowSettings[0].seed), 10),
+          }))
+        : undefined,
+      rowTargets: Array.isArray(state.seedingRowTargets)
+        ? state.seedingRowTargets.map((value) => Boolean(Number.parseInt(String(value ?? 0), 10)))
+        : undefined,
     });
 
-    return {
-      phraseLength: normalized.phraseLength,
-      rangeSemitones: normalized.rangeSemitones,
-      repetition: normalized.repetition,
-      complexity: normalized.complexity,
-      randomness: normalized.randomness,
-      symmetry: normalized.symmetry,
-      rhythmStep: normalized.rhythmStep,
-      seed: normalized.seed,
-    };
+    seedModeRhythmStep = normalized.rhythmStep;
+    seedModeRowSettings = normalized.rowSettings;
+    seedModeRowTargets = normalized.rowTargets;
   }
 
-  async function applySeedModeSettings(settings, { syncNative = true } = {}) {
+  async function pushSeedModeStateToNative() {
+    if (!nativeFunctionAvailable("setPatternSeedModeState")) return;
+
+    const confirmed = unwrapJuceNativeResult(await getNativeFunction("setPatternSeedModeState")(
+      seedModeRhythmStep,
+      seedModeRowSettings,
+      seedModeRowTargets.map((targeted) => (targeted ? 1 : 0)),
+    ));
+
+    if (confirmed && typeof confirmed === "object" && !Array.isArray(confirmed)) {
+      assignSeedModeStateFromPattern(confirmed);
+    }
+  }
+
+  function currentSeedModeState() {
+    return normalizeSeedModeState({
+      rhythmStep: seedModeRhythmStep,
+      rowSettings: seedModeRowSettings,
+      rowTargets: seedModeRowTargets,
+    });
+  }
+
+  async function applySeedModeState(nextState = currentSeedModeState(), { syncNative = true } = {}) {
     if (projectOperationBusy) return;
 
     beginSeedModeHistory();
-    seedModeSettings = normalizeSeedModeSettings(settings);
+    const normalized = normalizeSeedModeState(nextState);
+    seedModeRhythmStep = normalized.rhythmStep;
+    seedModeRowSettings = normalized.rowSettings;
+    seedModeRowTargets = normalized.rowTargets;
+
+    if (!hasSeedingRowTargets(seedModeRowTargets)) {
+      return;
+    }
+
     seedModeDirty = true;
 
     const applyVersion = ++seedModeApplyVersion;
-    const generated = generateSeededPhraseRows({
-      ...seedModeSettings,
-      root: scaleRoot,
-      modeIndex: scaleModeIndex,
+    const existing = phraseRowsFromGridState({
+      grid,
+      stepTimingMultiplier,
+      stepDurationFraction,
+      stepVelocity,
+      stepMuted,
+      stepSkipped,
+      stepProbability,
+      stepCycle,
+      stepCycleOffset,
+      rowTimingOffset,
     });
+    const generated = generateSeededPhraseRowsFromSeedModeState(
+      normalized,
+      scaleRoot,
+      scaleModeIndex,
+    );
+    const merged = mergeSeededPhraseRows(existing, generated, seedModeRowTargets);
 
     try {
-      assignGeneratedPhraseRows(generated);
+      assignGeneratedPhraseRows(merged);
 
       if (syncNative) {
         await syncGeneratedPhraseRowsToNative(applyVersion);
+        await pushSeedModeStateToNative();
       }
     } catch {
       projectOperationError = "The pattern could not be seeded.";
@@ -2861,7 +2932,7 @@
     dismissPhraseEditingFocus();
     seedModeActive = true;
     beginSeedModeHistory();
-    await applySeedModeSettings(seedModeSettings);
+    await applySeedModeState();
   }
 
   async function exitSeedMode() {
@@ -2870,6 +2941,7 @@
     if (seedModeDirty) {
       try {
         await syncGeneratedPhraseRowsToNative();
+        await pushSeedModeStateToNative();
       } catch {
         projectOperationError = "The pattern could not be seeded.";
       }
@@ -2888,31 +2960,100 @@
     await enterSeedMode();
   }
 
-  function previewSeedModeSettings(settings) {
-    void applySeedModeSettings(settings, { syncNative: false });
+  function previewSeedModeRhythmStep(rhythmStep) {
+    void applySeedModeState({
+      ...currentSeedModeState(),
+      rhythmStep,
+    }, { syncNative: false });
   }
 
-  function commitSeedModeSettings(settings) {
-    void applySeedModeSettings(settings, { syncNative: true });
+  function commitSeedModeRhythmStep(rhythmStep) {
+    void applySeedModeState({
+      ...currentSeedModeState(),
+      rhythmStep,
+    }, { syncNative: true });
+  }
+
+  function previewSeedModeRowSettings(rowSettings) {
+    void applySeedModeState({
+      ...currentSeedModeState(),
+      rowSettings,
+    }, { syncNative: false });
+  }
+
+  function commitSeedModeRowSettings(rowSettings) {
+    void applySeedModeState({
+      ...currentSeedModeState(),
+      rowSettings,
+    }, { syncNative: true });
   }
 
   function nextSeedModeSeed() {
-    void applySeedModeSettings({
-      ...seedModeSettings,
-      seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
+    void applySeedModeState({
+      ...currentSeedModeState(),
+      rowSettings: applySeedingRowSettingsUpdate(
+        seedModeRowSettings,
+        seedModeRowTargets,
+        { seed: Math.max(1, Math.floor(Math.random() * 2147483646)) },
+      ),
     });
   }
 
   function shuffleSeedModeSettings() {
-    void applySeedModeSettings({
-      ...seedModeSettings,
-      repetition: Math.round(Math.min(100, Math.max(0, 18 + Math.random() * 70))),
-      complexity: Math.round(Math.min(100, Math.max(0, 20 + Math.random() * 72))),
-      randomness: Math.round(Math.min(100, Math.max(0, 24 + Math.random() * 68))),
-      symmetry: Math.random() > 0.62,
+    void applySeedModeState({
+      ...currentSeedModeState(),
       rhythmStep: Math.floor(Math.random() * (seedingRhythmStepMax + 1)),
-      seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
+      rowSettings: applySeedingRowSettingsUpdate(
+        seedModeRowSettings,
+        seedModeRowTargets,
+        {
+          repetition: Math.round(Math.min(100, Math.max(0, 18 + Math.random() * 70))),
+          complexity: Math.round(Math.min(100, Math.max(0, 20 + Math.random() * 72))),
+          randomness: Math.round(Math.min(100, Math.max(0, 24 + Math.random() * 68))),
+          symmetry: Math.random() > 0.62,
+          seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
+        },
+      ),
     });
+  }
+
+  function toggleSeedModeRowTarget(row, { shiftKey = false } = {}) {
+    if (projectOperationBusy) return;
+
+    let next;
+
+    if (shiftKey) {
+      next = [...seedModeRowTargets];
+      next[row] = !next[row];
+
+      if (!next.some(Boolean)) {
+        next[row] = true;
+      }
+    } else {
+      const soleTarget =
+        seedModeRowTargets[row] && seedModeRowTargets.filter(Boolean).length === 1;
+
+      if (soleTarget) {
+        return;
+      }
+
+      next = [false, false, false, false];
+      next[row] = true;
+    }
+
+    void applySeedModeState({
+      ...currentSeedModeState(),
+      rowTargets: next,
+    }, { syncNative: true });
+  }
+
+  function enableAllSeedModeRowTargets() {
+    if (projectOperationBusy) return;
+
+    void applySeedModeState({
+      ...currentSeedModeState(),
+      rowTargets: [true, true, true, true],
+    }, { syncNative: true });
   }
 
   async function toggleSeedModeRowMute(row, soloRequested = false) {
@@ -5561,18 +5702,26 @@
     <div class="w-full shrink-0">
       {#if seedModeActive}
         <SeedModePanel
-          settings={seedModeSettings}
+          rhythmStep={seedModeRhythmStep}
+          rowSettings={seedModeRowSettings}
+          rowTargets={seedModeRowTargets}
           root={scaleRoot}
           modeIndex={scaleModeIndex}
           activeGates={activeGates}
           rowMuted={rowMuted}
+          rowColorsEnabled={rowColorsEnabled}
+          currentPhraseRows={seedModeCurrentPhraseRows}
           busy={projectOperationBusy}
           onGestureStart={beginSeedModeHistory}
-          onSettingsPreview={previewSeedModeSettings}
-          onSettingsCommit={commitSeedModeSettings}
+          onRhythmPreview={previewSeedModeRhythmStep}
+          onRhythmCommit={commitSeedModeRhythmStep}
+          onRowSettingsPreview={previewSeedModeRowSettings}
+          onRowSettingsCommit={commitSeedModeRowSettings}
           onShuffle={shuffleSeedModeSettings}
           onNextSeed={nextSeedModeSeed}
           onRowMuteToggle={toggleSeedModeRowMute}
+          onRowTargetToggle={toggleSeedModeRowTarget}
+          onEnableAllRowTargets={enableAllSeedModeRowTargets}
         />
       {:else}
       <div data-phrase-grid-field class="relative flex flex-col" {@attach phraseGridFieldAttachment}>

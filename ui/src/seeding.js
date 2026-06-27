@@ -52,6 +52,32 @@ export const defaultSeedingSettings = {
   seed: 1,
 };
 
+/** Per-row seeding parameters (overlap / rhythmStep is pattern-global). */
+export const defaultSeedingRowSettings = {
+  phraseLength: defaultSeedingSettings.phraseLength,
+  rangeSemitones: defaultSeedingSettings.rangeSemitones,
+  repetition: defaultSeedingSettings.repetition,
+  complexity: defaultSeedingSettings.complexity,
+  randomness: defaultSeedingSettings.randomness,
+  symmetry: defaultSeedingSettings.symmetry,
+  seed: defaultSeedingSettings.seed,
+};
+
+/** @typedef {typeof defaultSeedingRowSettings} SeedingRowSettings */
+
+export const defaultSeedModeRowTargets = [true, true, true, true];
+
+/** @returns {SeedingRowSettings[]} */
+export function createDefaultSeedModeRowSettings() {
+  return Array.from({ length: 4 }, () => ({ ...defaultSeedingRowSettings }));
+}
+
+export const defaultSeedModeState = {
+  rhythmStep: defaultSeedingRhythmStep,
+  rowSettings: createDefaultSeedModeRowSettings(),
+  rowTargets: [...defaultSeedModeRowTargets],
+};
+
 /** @param {number} value @param {number} min @param {number} max */
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
@@ -192,6 +218,26 @@ function midiForSeedingOffset(root, modeIndex, semitoneOffset) {
 }
 
 /**
+ * @param {Partial<SeedingRowSettings> & { rangeIndex?: number }} settings
+ */
+export function normalizeSeedingRowSettings(settings = {}) {
+  const merged = {
+    ...defaultSeedingRowSettings,
+    ...settings,
+  };
+
+  return {
+    phraseLength: clampPhraseLength(merged.phraseLength),
+    rangeSemitones: resolveRangeSemitones(settings),
+    repetition: clampPercent(merged.repetition),
+    complexity: clampPercent(merged.complexity),
+    randomness: clampPercent(merged.randomness),
+    symmetry: Boolean(merged.symmetry),
+    seed: Math.max(1, Math.round(clamp(merged.seed, 1, 2147483647))),
+  };
+}
+
+/**
  * @param {Partial<typeof defaultSeedingSettings> & { root?: number, modeIndex?: number }} settings
  */
 export function normalizeSeedingSettings(settings = {}) {
@@ -202,34 +248,217 @@ export function normalizeSeedingSettings(settings = {}) {
   return {
     root: clampScaleRoot(merged.root ?? 0),
     modeIndex: clampScaleModeIndex(merged.modeIndex ?? 0),
-    phraseLength: clampPhraseLength(merged.phraseLength),
-    rangeSemitones: resolveRangeSemitones(settings),
-    repetition: clampPercent(merged.repetition),
-    complexity: clampPercent(merged.complexity),
-    randomness: clampPercent(merged.randomness),
-    symmetry: Boolean(merged.symmetry),
+    ...normalizeSeedingRowSettings(settings),
     rhythmStep: resolveRhythmStep(settings),
-    seed: Math.max(1, Math.round(clamp(merged.seed, 1, 2147483647))),
+  };
+}
+
+/** @param {boolean[] | undefined} rowTargets */
+export function normalizeSeedModeRowTargets(rowTargets) {
+  return Array.from({ length: 4 }, (_, row) => Boolean(rowTargets?.[row]));
+}
+
+/**
+ * @param {Partial<typeof defaultSeedModeState> & {
+ *   rowSettings?: Partial<SeedingRowSettings>[],
+ * }} state
+ */
+export function normalizeSeedModeState(state = {}) {
+  const sourceRows = state.rowSettings ?? defaultSeedModeState.rowSettings;
+
+  return {
+    rhythmStep: resolveRhythmStep({
+      rhythmStep: state.rhythmStep,
+      rhythmMode: state.rhythmMode,
+    }),
+    rowSettings: Array.from({ length: 4 }, (_, row) => (
+      normalizeSeedingRowSettings(sourceRows[row] ?? defaultSeedingRowSettings)
+    )),
+    rowTargets: normalizeSeedModeRowTargets(state.rowTargets ?? defaultSeedModeRowTargets),
+  };
+}
+
+/** @param {boolean[]} rowTargets */
+export function seedingTargetRowIndices(rowTargets) {
+  return normalizeSeedModeRowTargets(rowTargets)
+    .map((targeted, row) => (targeted ? row : -1))
+    .filter((row) => row >= 0);
+}
+
+/**
+ * Settings shown in the panel for the current row-target selection.
+ *
+ * @param {SeedingRowSettings[]} rowSettings
+ * @param {boolean[]} rowTargets
+ */
+export function displaySeedingRowSettings(rowSettings, rowTargets) {
+  const indices = seedingTargetRowIndices(rowTargets);
+  const index = indices[0] ?? 0;
+
+  return normalizeSeedingRowSettings(rowSettings[index] ?? defaultSeedingRowSettings);
+}
+
+/**
+ * Apply partial row-setting updates to every currently targeted row.
+ *
+ * @param {SeedingRowSettings[]} rowSettings
+ * @param {boolean[]} rowTargets
+ * @param {Partial<SeedingRowSettings>} updates
+ */
+export function applySeedingRowSettingsUpdate(rowSettings, rowTargets, updates) {
+  const indices = seedingTargetRowIndices(rowTargets);
+  const targets = indices.length > 0 ? indices : [0, 1, 2, 3];
+
+  return rowSettings.map((settings, row) => (
+    targets.includes(row)
+      ? normalizeSeedingRowSettings({ ...settings, ...updates })
+      : normalizeSeedingRowSettings(settings)
+  ));
+}
+
+/**
+ * @param {{
+ *   rhythmStep?: number,
+ *   rowSettings?: SeedingRowSettings[],
+ *   root?: number,
+ *   modeIndex?: number,
+ * }} state
+ */
+function resolveSeedModeGenerationInputs(state = {}) {
+  const rhythmStep = resolveRhythmStep(state);
+  const rowSettings = state.rowSettings
+    ? normalizeSeedModeState(state).rowSettings
+    : Array.from({ length: 4 }, () => normalizeSeedingRowSettings(state));
+
+  return {
+    rhythmStep,
+    rowSettings,
+    root: clampScaleRoot(state.root ?? 0),
+    modeIndex: clampScaleModeIndex(state.modeIndex ?? 0),
+  };
+}
+
+/**
+ * @param {number} row
+ * @param {ReturnType<typeof normalizeSeedingRowSettings>} rowOptions
+ * @param {number} root
+ * @param {number} modeIndex
+ * @param {number} rhythmStep
+ */
+function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
+  const random = mulberry32(rowOptions.seed);
+  const span = rowOptions.rangeSemitones;
+  const halfSpan = Math.max(2, Math.floor(span / 2));
+  const complexityRatio = rowOptions.complexity / 100;
+  const repetitionRatio = rowOptions.repetition / 100;
+  const randomnessRatio = rowOptions.randomness / 100;
+  const rhythmBlend = rhythmInterleaveRatio(rhythmStep);
+  const durationPenalty = rhythmDurationPenalty(rhythmStep);
+  const accentTimingMultiplier = rhythmAccentTimingMultiplier(rhythmStep);
+  const motifLength = rowOptions.symmetry
+    ? Math.ceil(rowOptions.phraseLength / 2)
+    : rowOptions.phraseLength;
+  const motif = [];
+  const center = Math.round((row - 1.5) * Math.max(1, span / 6));
+  let previous = center;
+
+  for (let step = 0; step < motifLength; step += 1) {
+    const reusePrevious = step > 0 && random() < repetitionRatio * 0.54;
+    const reuseEarlier = step > 3 && random() < repetitionRatio * 0.28;
+
+    if (reusePrevious) {
+      motif.push(previous);
+      continue;
+    }
+
+    if (reuseEarlier) {
+      previous = motif[Math.max(0, step - randomInt(random, 2, Math.min(6, step)))] ?? previous;
+      motif.push(previous);
+      continue;
+    }
+
+    const periodic = Math.sin((step / Math.max(1, motifLength - 1)) * Math.PI * (1.25 + row * 0.28));
+    const directed = Math.round(periodic * halfSpan * (0.35 + complexityRatio * 0.45));
+    const leap = randomInt(
+      random,
+      -Math.max(1, Math.round(1 + complexityRatio * halfSpan)),
+      Math.max(1, Math.round(1 + complexityRatio * halfSpan)),
+    );
+    const randomPush = random() < randomnessRatio ? leap : Math.sign(leap);
+
+    previous = Math.round(clamp(center + directed + randomPush, -halfSpan, halfSpan));
+    motif.push(previous);
+  }
+
+  const degrees = rowOptions.symmetry
+    ? [...motif, ...motif.slice(0, rowOptions.phraseLength - motif.length).reverse()]
+    : motif;
+  const timingPool = complexityRatio > 0.65
+    ? [0.5, 0.75, 1, 1.25, 1.5]
+    : complexityRatio > 0.35
+      ? [0.75, 1, 1, 1.25]
+      : [1, 1, 1, 1.25];
+  const velocityBase = 78 + row * 6;
+  const velocitySwing = Math.round(10 + complexityRatio * 28);
+
+  return {
+    notes: degrees.map((semitoneOffset) => (
+      midiForSeedingOffset(root, modeIndex, semitoneOffset)
+    )),
+    stepTimingMultiplier: degrees.map((_, step) => {
+      const poolValue = timingPool[randomInt(random, 0, timingPool.length - 1)];
+
+      if (rhythmBlend <= 0) {
+        return timingMultiplierIndexForValue(poolValue);
+      }
+
+      const weight = stepRhythmWeight(step, row, rowOptions.phraseLength);
+      const blendedMultiplier = poolValue + (accentTimingMultiplier - poolValue) * weight;
+
+      return timingMultiplierIndexForValue(blendedMultiplier);
+    }),
+    stepDurationFraction: degrees.map((_, step) => {
+      const accent = (step + row) % 4 === 0 ? 0.95 : 0.72 + random() * 0.2;
+      const weight = stepRhythmWeight(step, row, rowOptions.phraseLength);
+      const stepPenalty = durationPenalty * weight;
+
+      return Number(clamp(accent - stepPenalty, 0.35, 1).toFixed(2));
+    }),
+    stepVelocity: degrees.map((_, step) => (
+      Math.round(clamp(
+        velocityBase + Math.sin((step + row) * 1.7) * velocitySwing + randomInt(random, -9, 9),
+        28,
+        127,
+      ))
+    )),
+    stepMuted: degrees.map(() => false),
+    stepSkipped: degrees.map((_, step) => (
+      complexityRatio < 0.3 && random() < 0.08 && step % 4 !== row % 4
+    )),
+    stepProbability: degrees.map((_, step) => (
+      random() < randomnessRatio * 0.24 && step % 4 !== 0
+        ? Math.round(clamp(100 - randomnessRatio * randomInt(random, 18, 42), 20, 100))
+        : maxPercentValue
+    )),
+    stepCycle: degrees.map(() => defaultStepCycle),
+    stepCycleOffset: degrees.map(() => defaultStepCycleMask),
   };
 }
 
 /**
  * Generate four independent monophonic phrase rows.
  *
- * @param {Partial<typeof defaultSeedingSettings> & { root?: number, modeIndex?: number }} settings
+ * Accepts either legacy flat settings or per-row `rowSettings` plus global `rhythmStep`.
+ *
+ * @param {Partial<typeof defaultSeedingSettings> & {
+ *   root?: number,
+ *   modeIndex?: number,
+ *   rowSettings?: Partial<SeedingRowSettings>[],
+ * }} settings
  */
 export function generateSeededPhraseRows(settings = {}) {
-  const options = normalizeSeedingSettings(settings);
-  const random = mulberry32(options.seed);
-  const span = options.rangeSemitones;
-  const halfSpan = Math.max(2, Math.floor(span / 2));
-  const complexityRatio = options.complexity / 100;
-  const repetitionRatio = options.repetition / 100;
-  const randomnessRatio = options.randomness / 100;
-  const rhythmBlend = rhythmInterleaveRatio(options.rhythmStep);
-  const rowTimingOffset = rhythmRowTimingOffsets(options.rhythmStep);
-  const durationPenalty = rhythmDurationPenalty(options.rhythmStep);
-  const accentTimingMultiplier = rhythmAccentTimingMultiplier(options.rhythmStep);
+  const { rhythmStep, rowSettings, root, modeIndex } = resolveSeedModeGenerationInputs(settings);
+  const rowTimingOffset = rhythmRowTimingOffsets(rhythmStep);
   const rows = {
     notes: [],
     stepTimingMultiplier: [],
@@ -246,91 +475,134 @@ export function generateSeededPhraseRows(settings = {}) {
   };
 
   for (let row = 0; row < 4; row += 1) {
-    const motifLength = options.symmetry ? Math.ceil(options.phraseLength / 2) : options.phraseLength;
-    const motif = [];
-    const center = Math.round((row - 1.5) * Math.max(1, span / 6));
-    let previous = center;
+    const generated = generateSeededPhraseRow(
+      row,
+      rowSettings[row],
+      root,
+      modeIndex,
+      rhythmStep,
+    );
 
-    for (let step = 0; step < motifLength; step += 1) {
-      const reusePrevious = step > 0 && random() < repetitionRatio * 0.54;
-      const reuseEarlier = step > 3 && random() < repetitionRatio * 0.28;
-
-      if (reusePrevious) {
-        motif.push(previous);
-        continue;
-      }
-
-      if (reuseEarlier) {
-        previous = motif[Math.max(0, step - randomInt(random, 2, Math.min(6, step)))] ?? previous;
-        motif.push(previous);
-        continue;
-      }
-
-      const periodic = Math.sin((step / Math.max(1, motifLength - 1)) * Math.PI * (1.25 + row * 0.28));
-      const directed = Math.round(periodic * halfSpan * (0.35 + complexityRatio * 0.45));
-      const leap = randomInt(
-        random,
-        -Math.max(1, Math.round(1 + complexityRatio * halfSpan)),
-        Math.max(1, Math.round(1 + complexityRatio * halfSpan)),
-      );
-      const randomPush = random() < randomnessRatio ? leap : Math.sign(leap);
-
-      previous = Math.round(clamp(center + directed + randomPush, -halfSpan, halfSpan));
-      motif.push(previous);
-    }
-
-    const degrees = options.symmetry
-      ? [...motif, ...motif.slice(0, options.phraseLength - motif.length).reverse()]
-      : motif;
-    const timingPool = complexityRatio > 0.65
-      ? [0.5, 0.75, 1, 1.25, 1.5]
-      : complexityRatio > 0.35
-        ? [0.75, 1, 1, 1.25]
-        : [1, 1, 1, 1.25];
-    const velocityBase = 78 + row * 6;
-    const velocitySwing = Math.round(10 + complexityRatio * 28);
-
-    rows.notes[row] = degrees.map((semitoneOffset) => (
-      midiForSeedingOffset(options.root, options.modeIndex, semitoneOffset)
-    ));
-    rows.stepTimingMultiplier[row] = degrees.map((_, step) => {
-      const poolValue = timingPool[randomInt(random, 0, timingPool.length - 1)];
-
-      if (rhythmBlend <= 0) {
-        return timingMultiplierIndexForValue(poolValue);
-      }
-
-      const weight = stepRhythmWeight(step, row, options.phraseLength);
-      const blendedMultiplier = poolValue + (accentTimingMultiplier - poolValue) * weight;
-
-      return timingMultiplierIndexForValue(blendedMultiplier);
-    });
-    rows.stepDurationFraction[row] = degrees.map((_, step) => {
-      const accent = (step + row) % 4 === 0 ? 0.95 : 0.72 + random() * 0.2;
-      const weight = stepRhythmWeight(step, row, options.phraseLength);
-      const stepPenalty = durationPenalty * weight;
-
-      return Number(clamp(accent - stepPenalty, 0.35, 1).toFixed(2));
-    });
-    rows.stepVelocity[row] = degrees.map((_, step) => (
-      Math.round(clamp(
-        velocityBase + Math.sin((step + row) * 1.7) * velocitySwing + randomInt(random, -9, 9),
-        28,
-        127,
-      ))
-    ));
-    rows.stepMuted[row] = degrees.map(() => false);
-    rows.stepSkipped[row] = degrees.map((_, step) => (
-      complexityRatio < 0.3 && random() < 0.08 && step % 4 !== row % 4
-    ));
-    rows.stepProbability[row] = degrees.map((_, step) => (
-      random() < randomnessRatio * 0.24 && step % 4 !== 0
-        ? Math.round(clamp(100 - randomnessRatio * randomInt(random, 18, 42), 20, 100))
-        : maxPercentValue
-    ));
-    rows.stepCycle[row] = degrees.map(() => defaultStepCycle);
-    rows.stepCycleOffset[row] = degrees.map(() => defaultStepCycleMask);
+    rows.notes[row] = generated.notes;
+    rows.stepTimingMultiplier[row] = generated.stepTimingMultiplier;
+    rows.stepDurationFraction[row] = generated.stepDurationFraction;
+    rows.stepVelocity[row] = generated.stepVelocity;
+    rows.stepMuted[row] = generated.stepMuted;
+    rows.stepSkipped[row] = generated.stepSkipped;
+    rows.stepProbability[row] = generated.stepProbability;
+    rows.stepCycle[row] = generated.stepCycle;
+    rows.stepCycleOffset[row] = generated.stepCycleOffset;
   }
 
   return rows;
+}
+
+/**
+ * @param {ReturnType<typeof normalizeSeedModeState>} state
+ * @param {number} root
+ * @param {number} modeIndex
+ */
+export function generateSeededPhraseRowsFromSeedModeState(state, root, modeIndex) {
+  return generateSeededPhraseRows({
+    rhythmStep: state.rhythmStep,
+    rowSettings: state.rowSettings,
+    root,
+    modeIndex,
+  });
+}
+
+/** @typedef {ReturnType<typeof generateSeededPhraseRows>} GeneratedPhraseRows */
+
+/**
+ * Build phrase-row data from live grid state (same shape as generateSeededPhraseRows output).
+ *
+ * @param {{
+ *   grid?: number[][],
+ *   stepTimingMultiplier?: number[][],
+ *   stepDurationFraction?: number[][],
+ *   stepVelocity?: number[][],
+ *   stepMuted?: boolean[][],
+ *   stepSkipped?: boolean[][],
+ *   stepProbability?: number[][],
+ *   stepCycle?: number[][],
+ *   stepCycleOffset?: number[][],
+ *   rowTimingOffset?: number[],
+ * }} state
+ */
+export function phraseRowsFromGridState(state = {}) {
+  const grid = state.grid ?? [];
+
+  /** @param {number[][] | boolean[][] | undefined} matrix */
+  function rowMatrix(matrix) {
+    return Array.from({ length: 4 }, (_, row) => [...(matrix?.[row] ?? [])]);
+  }
+
+  return {
+    notes: rowMatrix(grid),
+    stepTimingMultiplier: rowMatrix(state.stepTimingMultiplier),
+    stepDurationFraction: rowMatrix(state.stepDurationFraction),
+    stepVelocity: rowMatrix(state.stepVelocity),
+    stepMuted: rowMatrix(state.stepMuted),
+    stepSkipped: rowMatrix(state.stepSkipped),
+    stepProbability: rowMatrix(state.stepProbability),
+    stepCycle: rowMatrix(state.stepCycle),
+    stepCycleOffset: rowMatrix(state.stepCycleOffset),
+    rowTimingOffset: Array.from({ length: 4 }, (_, row) => state.rowTimingOffset?.[row] ?? 3),
+  };
+}
+
+
+/**
+ * Merge generated phrase rows into existing state, overwriting only targeted rows.
+ *
+ * @param {GeneratedPhraseRows} existing
+ * @param {GeneratedPhraseRows} generated
+ * @param {boolean[]} rowTargets
+ */
+export function mergeSeededPhraseRows(existing, generated, rowTargets) {
+  const targets = normalizeSeedModeRowTargets(rowTargets);
+  const perRowKeys = [
+    "notes",
+    "stepTimingMultiplier",
+    "stepDurationFraction",
+    "stepVelocity",
+    "stepMuted",
+    "stepSkipped",
+    "stepProbability",
+    "stepCycle",
+    "stepCycleOffset",
+  ];
+
+  /** @type {GeneratedPhraseRows} */
+  const merged = {
+    notes: [],
+    stepTimingMultiplier: [],
+    stepDurationFraction: [],
+    stepVelocity: [],
+    stepMuted: [],
+    stepSkipped: [],
+    stepProbability: [],
+    stepCycle: [],
+    stepCycleOffset: [],
+    rowTimingOffset: [...(existing.rowTimingOffset ?? [])],
+  };
+
+  for (let row = 0; row < 4; row += 1) {
+    const source = targets[row] ? generated : existing;
+
+    for (const key of perRowKeys) {
+      merged[key][row] = [...(source[key]?.[row] ?? [])];
+    }
+
+    merged.rowTimingOffset[row] = targets[row]
+      ? (generated.rowTimingOffset?.[row] ?? existing.rowTimingOffset?.[row] ?? 3)
+      : (existing.rowTimingOffset?.[row] ?? 3);
+  }
+
+  return merged;
+}
+
+/** @param {boolean[]} rowTargets */
+export function hasSeedingRowTargets(rowTargets) {
+  return normalizeSeedModeRowTargets(rowTargets).some(Boolean);
 }
