@@ -9,6 +9,7 @@
    * @property {number} [step]
    * @property {boolean} [disabled]
    * @property {string} [ariaLabel]
+   * @property {string} [class]
    * @property {() => void} [onGestureStart]
    * @property {(value: number) => void} [onValuePreview]
    * @property {(value: number) => void} [onValueCommit]
@@ -22,6 +23,7 @@
     step = 1,
     disabled = false,
     ariaLabel = "Slider",
+    class: className = "",
     onGestureStart = () => {},
     onValuePreview = () => {},
     onValueCommit = () => {},
@@ -116,14 +118,14 @@
     };
   }}
   data-cursor={disabled ? undefined : "pointer"}
-  class="relative h-5 touch-none select-none {disabled ? 'pointer-events-none opacity-40' : ''}"
+  class={`note-bandpass-track-shell touch-none select-none ${disabled ? "pointer-events-none opacity-40" : ""} ${className}`.trim()}
   role="slider"
+  tabindex={disabled ? -1 : 0}
   aria-label={ariaLabel}
   aria-valuemin={min}
   aria-valuemax={max}
   aria-valuenow={value}
   aria-disabled={disabled}
-  tabindex={disabled ? -1 : 0}
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
@@ -140,52 +142,18 @@
     }
   }}
 >
-  <div class="accent-range-track absolute inset-x-0 top-1/2 -translate-y-1/2 overflow-hidden">
+  <div class="note-bandpass-track" aria-hidden="true">
     <div
-      class="accent-range-fill h-full bg-accent {dragging ? '' : 'transition-[width] duration-75'}"
+      class="note-bandpass-range {dragging ? '' : 'transition-[width] duration-75'}"
+      style:left="0"
       style:width="{thumbPercent}%"
     ></div>
   </div>
 
   <div
-    class="accent-range-thumb absolute top-1/2 -translate-x-1/2 -translate-y-1/2 {dragging
-      ? 'scale-110'
-      : 'transition-[left,transform] duration-75'}"
+    class="note-bandpass-thumb pointer-events-none"
     style:left="{thumbPercent}%"
-  ></div>
+  >
+    <span class="note-bandpass-knob" aria-hidden="true"></span>
+  </div>
 </div>
-
-<style>
-  .accent-range-track {
-    height: 0.25rem;
-    border: 1px solid color-mix(in srgb, var(--color-input-border) 78%, transparent);
-    border-radius: 9999px;
-    background:
-      linear-gradient(180deg, color-mix(in srgb, var(--color-text) 12%, transparent), transparent 34%),
-      linear-gradient(180deg, var(--color-field) 0%, var(--color-surface-muted) 46%, var(--color-surface) 100%);
-    box-shadow:
-      inset 0 1px 1px color-mix(in srgb, var(--color-app) 68%, transparent),
-      inset 0 -1px 0 color-mix(in srgb, var(--color-text) 9%, transparent),
-      0 1px 0 color-mix(in srgb, var(--color-text) 10%, transparent);
-  }
-
-  .accent-range-fill {
-    border-radius: inherit;
-    background-image: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--color-text) 26%, transparent),
-      transparent 48%
-    );
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--color-text) 18%, transparent),
-      inset 0 -1px 1px color-mix(in srgb, var(--color-app) 28%, transparent);
-  }
-
-  .accent-range-thumb {
-    width: 0.875rem;
-    height: 0.875rem;
-    border-radius: 9999px;
-    background: var(--color-accent);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--color-accent) 80%, transparent);
-  }
-</style>

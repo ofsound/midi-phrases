@@ -61,108 +61,102 @@
   <div class="grid content-start gap-4">
     <div class="grid gap-3">
       <label class="grid gap-1">
-        <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
-          <span>Phrase length</span><span class="font-mono text-accent">{settings.phraseLength}</span>
-        </span>
-        <AccentRangeSlider
-          value={settings.phraseLength}
-          min={seedingPhraseLengthMin}
-          max={seedingPhraseLengthMax}
-          disabled={busy}
-          ariaLabel="Phrase length"
-          onGestureStart={onGestureStart}
-          onValuePreview={(phraseLength) => previewSettings({ phraseLength })}
-          onValueCommit={(phraseLength) => commitSettings({ phraseLength })}
-        />
-        <div class="flex justify-between font-mono text-[9px] leading-none text-text-muted">
-          <span>{seedingPhraseLengthMin}</span>
-          <span>{seedingPhraseLengthMax}</span>
+        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Phrase length</span>
+        <div class="seed-param-row">
+          <AccentRangeSlider
+            value={settings.phraseLength}
+            min={seedingPhraseLengthMin}
+            max={seedingPhraseLengthMax}
+            disabled={busy}
+            ariaLabel="Phrase length"
+            onGestureStart={onGestureStart}
+            onValuePreview={(phraseLength) => previewSettings({ phraseLength })}
+            onValueCommit={(phraseLength) => commitSettings({ phraseLength })}
+          />
+          <span class="seed-param-value" aria-hidden="true">{settings.phraseLength}</span>
         </div>
       </label>
 
       <label class="grid gap-1">
-        <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
-          <span>Range</span><span class="font-mono text-accent">{settings.rangeSemitones} st</span>
-        </span>
-        <AccentRangeSlider
-          value={settings.rangeSemitones}
-          min={seedingRangeSemitonesMin}
-          max={seedingRangeSemitonesMax}
-          disabled={busy}
-          ariaLabel="Range in semitones"
-          onGestureStart={onGestureStart}
-          onValuePreview={(rangeSemitones) => previewSettings({ rangeSemitones })}
-          onValueCommit={(rangeSemitones) => commitSettings({ rangeSemitones })}
-        />
-        <div class="flex justify-between font-mono text-[9px] leading-none text-text-muted">
-          <span>{seedingRangeSemitonesMin} st</span>
-          <span>4 oct</span>
+        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Range</span>
+        <div class="seed-param-row">
+          <AccentRangeSlider
+            value={settings.rangeSemitones}
+            min={seedingRangeSemitonesMin}
+            max={seedingRangeSemitonesMax}
+            disabled={busy}
+            ariaLabel="Range in semitones"
+            onGestureStart={onGestureStart}
+            onValuePreview={(rangeSemitones) => previewSettings({ rangeSemitones })}
+            onValueCommit={(rangeSemitones) => commitSettings({ rangeSemitones })}
+          />
+          <span class="seed-param-value" aria-hidden="true">{settings.rangeSemitones} st</span>
         </div>
       </label>
 
       <label class="grid gap-1">
-        <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
-          <span>Overlap</span><span>Interleave</span>
-        </span>
-        <AccentRangeSlider
-          value={settings.rhythmStep}
-          min={seedingRhythmStepMin}
-          max={seedingRhythmStepMax}
-          disabled={busy}
-          ariaLabel="Rhythm overlap to interleave"
-          onGestureStart={onGestureStart}
-          onValuePreview={(rhythmStep) => previewSettings({ rhythmStep })}
-          onValueCommit={(rhythmStep) => commitSettings({ rhythmStep })}
-        />
-        <div class="flex justify-between font-mono text-[9px] leading-none text-text-muted">
-          <span>{seedingRhythmStepMin}</span>
-          <span>{seedingRhythmStepMax}</span>
+        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Overlap</span>
+        <div class="seed-param-row">
+          <AccentRangeSlider
+            value={settings.rhythmStep}
+            min={seedingRhythmStepMin}
+            max={seedingRhythmStepMax}
+            disabled={busy}
+            ariaLabel="Rhythm overlap to interleave"
+            onGestureStart={onGestureStart}
+            onValuePreview={(rhythmStep) => previewSettings({ rhythmStep })}
+            onValueCommit={(rhythmStep) => commitSettings({ rhythmStep })}
+          />
+          <span class="seed-param-value" aria-hidden="true">{settings.rhythmStep}</span>
         </div>
       </label>
 
       <label class="grid gap-1">
-        <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
-          <span>Repetition</span><span class="font-mono text-accent">{settings.repetition}</span>
-        </span>
-        <AccentRangeSlider
-          value={settings.repetition}
-          max={100}
-          disabled={busy}
-          ariaLabel="Repetition"
-          onGestureStart={onGestureStart}
-          onValuePreview={(repetition) => previewSettings({ repetition: clampPercent(repetition) })}
-          onValueCommit={(repetition) => commitSettings({ repetition: clampPercent(repetition) })}
-        />
+        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Repetition</span>
+        <div class="seed-param-row">
+          <AccentRangeSlider
+            value={settings.repetition}
+            max={100}
+            disabled={busy}
+            ariaLabel="Repetition"
+            onGestureStart={onGestureStart}
+            onValuePreview={(repetition) => previewSettings({ repetition: clampPercent(repetition) })}
+            onValueCommit={(repetition) => commitSettings({ repetition: clampPercent(repetition) })}
+          />
+          <span class="seed-param-value" aria-hidden="true">{settings.repetition}</span>
+        </div>
       </label>
 
       <label class="grid gap-1">
-        <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
-          <span>Complexity</span><span class="font-mono text-accent">{settings.complexity}</span>
-        </span>
-        <AccentRangeSlider
-          value={settings.complexity}
-          max={100}
-          disabled={busy}
-          ariaLabel="Complexity"
-          onGestureStart={onGestureStart}
-          onValuePreview={(complexity) => previewSettings({ complexity: clampPercent(complexity) })}
-          onValueCommit={(complexity) => commitSettings({ complexity: clampPercent(complexity) })}
-        />
+        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Complexity</span>
+        <div class="seed-param-row">
+          <AccentRangeSlider
+            value={settings.complexity}
+            max={100}
+            disabled={busy}
+            ariaLabel="Complexity"
+            onGestureStart={onGestureStart}
+            onValuePreview={(complexity) => previewSettings({ complexity: clampPercent(complexity) })}
+            onValueCommit={(complexity) => commitSettings({ complexity: clampPercent(complexity) })}
+          />
+          <span class="seed-param-value" aria-hidden="true">{settings.complexity}</span>
+        </div>
       </label>
 
       <label class="grid gap-1">
-        <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
-          <span>Randomness</span><span class="font-mono text-accent">{settings.randomness}</span>
-        </span>
-        <AccentRangeSlider
-          value={settings.randomness}
-          max={100}
-          disabled={busy}
-          ariaLabel="Randomness"
-          onGestureStart={onGestureStart}
-          onValuePreview={(randomness) => previewSettings({ randomness: clampPercent(randomness) })}
-          onValueCommit={(randomness) => commitSettings({ randomness: clampPercent(randomness) })}
-        />
+        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Randomness</span>
+        <div class="seed-param-row">
+          <AccentRangeSlider
+            value={settings.randomness}
+            max={100}
+            disabled={busy}
+            ariaLabel="Randomness"
+            onGestureStart={onGestureStart}
+            onValuePreview={(randomness) => previewSettings({ randomness: clampPercent(randomness) })}
+            onValueCommit={(randomness) => commitSettings({ randomness: clampPercent(randomness) })}
+          />
+          <span class="seed-param-value" aria-hidden="true">{settings.randomness}</span>
+        </div>
       </label>
 
       <label class="flex h-9 items-center justify-between gap-3 border border-border bg-surface px-3 text-sm font-semibold text-text">
