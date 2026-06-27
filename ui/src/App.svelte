@@ -5583,7 +5583,7 @@
                     ? `Edit row ${row + 1} in the monophonic piano roll`
                     : `Add a step to row ${row + 1} to edit it in the piano roll`}
               ></button>
-              <div class="pointer-events-none relative z-10 flex items-center gap-1.5 px-1">
+              <div class="pointer-events-none relative z-10 flex items-center gap-2.5 px-1">
                 {#if rowMuted[row]}
                   <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
                 {/if}
@@ -5637,7 +5637,9 @@
                   />
                 </button>
                 <RowEditPencilIcon
-                  class="text-text-faint transition-colors duration-150 group-hover:[color:var(--row-header-accent)]"
+                  class="text-text-faint transition-colors duration-150 {stepIds[row].length > 0
+                    ? 'group-hover:[color:var(--row-header-accent)]'
+                    : ''}"
                 />
               </div>
             </div>

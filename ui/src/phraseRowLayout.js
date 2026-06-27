@@ -74,6 +74,13 @@ export function phraseRowMinHeightPx() {
   return phraseStepCellMinHeightPx() + phraseRowScrollPaddingVerticalPx();
 }
 
+/** Gap between row header on/off and offset knob (`gap-2.5`). */
+export const basePhraseRowMuteKnobGapPx = 10;
+
+export function phraseRowMuteKnobGapPx() {
+  return scaledPx(basePhraseRowMuteKnobGapPx);
+}
+
 /** Matches App row header `gap-1` between controls and before PhraseRow. */
 export const basePhraseRowHeaderGapPx = 6;
 
@@ -158,7 +165,7 @@ export function phraseRowEndAddStepReservePx() {
 export function phraseRowOffsetKnobTrailingEdgePx() {
   return (
     phraseRowMuteControlWidthPx() +
-    phraseRowHeaderGapPx() +
+    phraseRowMuteKnobGapPx() +
     phraseRowOffsetKnobWidthPx()
   );
 }
