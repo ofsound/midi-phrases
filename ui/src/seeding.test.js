@@ -21,7 +21,7 @@ describe("normalizeSeedingSettings", () => {
       seed: -10,
     });
 
-    expect(settings.phraseLength).toBe(32);
+    expect(settings.phraseLength).toBe(16);
     expect(settings.rangeSemitones).toBe(2);
     expect(settings.repetition).toBe(100);
     expect(settings.complexity).toBe(0);

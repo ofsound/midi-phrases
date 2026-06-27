@@ -9,7 +9,7 @@ import {
 } from "./scaleUtils.js";
 
 export const seedingPhraseLengthMin = 2;
-export const seedingPhraseLengthMax = 32;
+export const seedingPhraseLengthMax = 16;
 
 /** Total pitch spread for seeded motifs (±half span from each row center). */
 export const seedingRangeSemitonesMin = 2;
