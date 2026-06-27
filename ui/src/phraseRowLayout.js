@@ -107,6 +107,18 @@ export function phraseRowMuteOnlyLeadingWidthPx() {
   return phraseRowMuteControlWidthPx() + phraseRowHeaderGapPx();
 }
 
+/** Extra inset on each side of the seed-preview mute icon (beyond the main phrase row). */
+export const basePhraseSeedPreviewMuteSidePaddingPx = 8;
+
+export function phraseSeedPreviewMuteSidePaddingPx() {
+  return scaledPx(basePhraseSeedPreviewMuteSidePaddingPx);
+}
+
+/** Seed preview mute column: icon side padding plus {@link phraseRowMuteOnlyLeadingWidthPx}. */
+export function phraseSeedPreviewMuteColumnWidthPx() {
+  return phraseRowMuteOnlyLeadingWidthPx() + phraseSeedPreviewMuteSidePaddingPx() * 2;
+}
+
 /** Matches BipolarKnob `h-8 w-8` in the row header. */
 export const basePhraseRowOffsetKnobWidthPx = 32;
 

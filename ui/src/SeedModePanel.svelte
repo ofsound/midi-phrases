@@ -57,7 +57,7 @@
 
 </script>
 
-<div class="grid min-h-[29rem] gap-5 border-y border-border-subtle bg-surface/20 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(20rem,25rem)_minmax(0,1fr)]">
+<div class="grid min-h-[29rem] items-stretch gap-5 border-y border-border-subtle bg-surface/20 py-4 pl-4 pr-0 sm:pl-5 lg:grid-cols-[minmax(20rem,25rem)_minmax(0,1fr)]">
   <div class="grid content-start gap-4">
     <div class="grid gap-3">
       <label class="grid gap-1">
@@ -159,41 +159,42 @@
         </div>
       </label>
 
-      <label class="flex h-9 items-center justify-between gap-3 border border-border bg-surface px-3 text-sm font-semibold text-text">
-        <span>Symmetry</span>
-        <input
-          type="checkbox"
-          checked={settings.symmetry}
-          disabled={busy}
-          class="h-4 w-4 accent-[var(--color-accent)] disabled:opacity-40"
-          onchange={(event) => commitSettings({ symmetry: event.currentTarget.checked })}
-        />
-      </label>
+      <div class="flex items-center justify-between gap-3">
+        <label class="flex shrink-0 items-center gap-2 text-xs font-semibold text-text">
+          <input
+            type="checkbox"
+            checked={settings.symmetry}
+            disabled={busy}
+            class="h-3.5 w-3.5 accent-[var(--color-accent)] disabled:opacity-40"
+            onchange={(event) => commitSettings({ symmetry: event.currentTarget.checked })}
+          />
+          <span>Symmetry</span>
+        </label>
+        <div class="flex shrink-0 items-center justify-end gap-2">
+          <button
+            type="button"
+            data-cursor="pointer"
+            disabled={busy}
+            class="h-8 border border-border bg-surface px-3 text-xs font-semibold uppercase tracking-[0.16em] text-text outline-none transition-colors hover:border-accent/70 focus:ring-1 focus:ring-focus-ring disabled:opacity-40"
+            onclick={onNextSeed}
+          >
+            New seed
+          </button>
+          <button
+            type="button"
+            data-cursor="pointer"
+            disabled={busy}
+            class="h-8 border border-accent bg-accent px-4 text-xs font-semibold uppercase tracking-[0.16em] text-control-primary-text outline-none transition-opacity hover:opacity-90 focus:ring-1 focus:ring-focus-ring disabled:opacity-40"
+            onclick={onShuffle}
+          >
+            Shuffle
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="grid min-h-0 content-start gap-3">
-    <div class="flex shrink-0 items-center justify-end gap-2">
-        <button
-          type="button"
-          data-cursor="pointer"
-          disabled={busy}
-          class="h-9 border border-border bg-surface px-3 text-xs font-semibold uppercase tracking-[0.16em] text-text outline-none transition-colors hover:border-accent/70 focus:ring-1 focus:ring-focus-ring disabled:opacity-40"
-          onclick={onNextSeed}
-        >
-          New seed
-        </button>
-        <button
-          type="button"
-          data-cursor="pointer"
-          disabled={busy}
-          class="h-9 border border-accent bg-accent px-4 text-xs font-semibold uppercase tracking-[0.16em] text-control-primary-text outline-none transition-opacity hover:opacity-90 focus:ring-1 focus:ring-focus-ring disabled:opacity-40"
-          onclick={onShuffle}
-        >
-          Shuffle
-        </button>
-    </div>
-
+  <div class="flex min-h-0 min-w-0 flex-col self-stretch">
     <SeedPhrasePreview {preview} {rowMuted} {onRowMuteToggle} />
   </div>
 </div>

@@ -13,16 +13,15 @@
     phraseGridVisualOffsetCompensationPx,
     phraseRowInterRowGapPx,
     phraseRowMinHeightPx,
-    phraseRowMuteOnlyLeadingWidthPx,
+    phraseSeedPreviewMuteColumnWidthPx,
+    phraseSeedPreviewMuteSidePaddingPx,
+    phraseRowEndAddStepReservePx,
     phraseRowScrollPaddingRightPx,
   } from "./phraseRowLayout.js";
   import {
-    compactPhraseGridLayout,
-    compactStepShellPaddingPercent,
-    compactStepShellTrailingPaddingPercent,
     phraseRowsScrollContentWidthPx,
-    quarterGridColumnsForMultiplierIndex,
     rowTimingOffsetShiftPx,
+    stepCellGridSpanPx,
   } from "./stepCellLayout.js";
 
   /**
@@ -38,14 +37,10 @@
   } = $props();
 
   let previewViewportWidth = $state(0);
-  let previewViewportHeight = $state(0);
   const previewViewportPaddingPx = 12;
 
   let previewVisualOffsetCompensationPx = $derived(
     phraseGridVisualOffsetCompensationPx(preview.rowTimingOffset),
-  );
-  let previewCompactGridLayout = $derived(
-    compactPhraseGridLayout(preview.stepTimingMultiplier, preview.rowTimingOffset),
   );
   let previewMaxTimingPaddingPx = $derived.by(() => {
     let maxPadding = 0;
@@ -60,38 +55,50 @@
 
     return maxPadding;
   });
+  let previewGutterPx = $derived(phraseRowInterRowGapPx());
+  let previewRowHeightPx = $derived(phraseRowMinHeightPx());
+  let previewMuteColumnWidthPx = $derived(phraseSeedPreviewMuteColumnWidthPx());
+  let previewMuteSidePaddingPx = $derived(phraseSeedPreviewMuteSidePaddingPx());
+  let previewStepsTrailingReservePx = $derived(phraseRowEndAddStepReservePx());
   let previewStepsScrollContentWidthPx = $derived(
     phraseRowsScrollContentWidthPx(preview.stepTimingMultiplier, preview.rowTimingOffset),
   );
-  let previewMuteLeadingWidthPx = $derived(phraseRowMuteOnlyLeadingWidthPx());
-  let previewStageNaturalWidthPx = $derived(
-    previewMuteLeadingWidthPx
-      + previewMaxTimingPaddingPx
-      + phraseGridOriginLeftOffsetPx()
-      + previewStepsScrollContentWidthPx
-      + phraseRowScrollPaddingRightPx(),
-  );
-  let previewStageNaturalHeightPx = $derived(
-    (preview.notes.length * phraseRowMinHeightPx())
-      + (Math.max(0, preview.notes.length - 1) * phraseRowInterRowGapPx()),
-  );
   let previewStageAvailableWidthPx = $derived(Math.max(1, previewViewportWidth - previewViewportPaddingPx * 2));
-  let previewStageAvailableHeightPx = $derived(Math.max(1, previewViewportHeight - previewViewportPaddingPx * 2));
-  let previewStageScale = $derived.by(() => {
-    if (previewStageNaturalWidthPx <= 0 || previewStageNaturalHeightPx <= 0) return 1;
+  /** Shrink step shells only; timing padding, gutters, and row height stay fixed. */
+  let previewStageScaleX = $derived.by(() => {
+    if (previewStepsScrollContentWidthPx <= 0) return 1;
 
-    return Math.min(
-      previewStageAvailableWidthPx / previewStageNaturalWidthPx,
-      previewStageAvailableHeightPx / previewStageNaturalHeightPx,
+    const stepsBudgetPx = Math.max(
+      1,
+      previewStageAvailableWidthPx
+        - previewMuteColumnWidthPx
+        - previewMaxTimingPaddingPx
+        - phraseGridOriginLeftOffsetPx()
+        - phraseRowScrollPaddingRightPx()
+        - previewStepsTrailingReservePx,
     );
+
+    return Math.min(1, stepsBudgetPx / previewStepsScrollContentWidthPx);
   });
+  let previewStageHeightPx = $derived(
+    (preview.notes.length * previewRowHeightPx)
+      + (Math.max(0, preview.notes.length - 1) * previewGutterPx),
+  );
+
+  /** Matches PhraseRow: per-row offset shift plus shared negative-offset compensation. */
+  function previewRowTimingPaddingPx(row) {
+    return rowTimingOffsetShiftPx(preview.rowTimingOffset[row] ?? 0) + previewVisualOffsetCompensationPx;
+  }
+
+  /** @param {number} multiplierIndex */
+  function previewStepWidthPx(multiplierIndex) {
+    return (stepCellGridSpanPx(multiplierIndex) - previewGutterPx) * previewStageScaleX;
+  }
 
   /** @param {HTMLElement} node */
   function previewViewportAttachment(node) {
     const updateSize = () => {
-      const rect = node.getBoundingClientRect();
-      previewViewportWidth = rect.width;
-      previewViewportHeight = rect.height;
+      previewViewportWidth = node.getBoundingClientRect().width;
     };
     const observer = new ResizeObserver(updateSize);
 
@@ -101,111 +108,104 @@
     return () => {
       observer.disconnect();
       previewViewportWidth = 0;
-      previewViewportHeight = 0;
     };
   }
 </script>
 
 <div
   {@attach previewViewportAttachment}
-  class="flex h-[24rem] items-center justify-center overflow-hidden border border-border-subtle bg-surface/50 p-3"
+  class="flex h-full min-h-0 w-full items-start justify-start overflow-hidden border border-border-subtle bg-surface/50 p-3"
 >
   <div
-    class="pointer-events-none min-w-0 select-none"
-    style={`width: ${previewStageNaturalWidthPx * previewStageScale}px; height: ${previewStageNaturalHeightPx * previewStageScale}px;`}
+    class="pointer-events-none relative flex w-full min-w-0 select-none flex-col"
+    style={`height: ${previewStageHeightPx}px; gap: ${previewGutterPx}px;`}
   >
-    <div
-      class="relative flex flex-col"
-      style={`width: ${previewStageNaturalWidthPx}px; height: ${previewStageNaturalHeightPx}px; transform: scale(${previewStageScale}); transform-origin: top left;`}
-    >
-      {#each preview.notes as rowNotes, row (row)}
-        {@const rowAccent = rowAccentFor(row, true)}
-        {@const rowIsMuted = rowMuted[row] ?? false}
-        {@const rowLayout = compactPhraseGridLayout(
-          [preview.stepTimingMultiplier[row]],
-          [preview.rowTimingOffset[row]],
-        )}
-        {@const rowStartColumn = rowLayout.rowStartColumns[0] ?? 0}
-        {@const rowStepsWidthPx = previewStageNaturalWidthPx - previewMuteLeadingWidthPx}
+    {#each preview.notes as rowNotes, row (row)}
+      {@const rowAccent = rowAccentFor(row, true)}
+      {@const rowIsMuted = rowMuted[row] ?? false}
+      <div
+        class="relative z-10 flex min-w-0 shrink-0 items-stretch overflow-hidden"
+        style={`height: ${previewRowHeightPx}px;`}
+      >
         <div
-          class="relative z-10 flex min-w-0 shrink-0 items-stretch overflow-hidden"
-          style={`width: ${previewStageNaturalWidthPx}px; height: ${phraseRowMinHeightPx()}px;`}
+          class="relative box-border flex shrink-0 items-center"
+          style:width="{previewMuteColumnWidthPx}px"
+          style:padding-left="{previewMuteSidePaddingPx}px"
+          style:padding-right="{previewMuteSidePaddingPx}px"
+        >
+          {#if rowIsMuted}
+            <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
+          {/if}
+          <button
+            type="button"
+            aria-label={rowIsMuted ? "Turn row on" : "Turn row off"}
+            aria-pressed={!rowIsMuted}
+            data-cursor="pointer"
+            class="pointer-events-auto {rowMuteControlClasses} {rowIsMuted
+              ? rowPowerToggleOffClasses
+              : rowAccent.textAccent}"
+            onclick={(event) => onRowMuteToggle(row, event.shiftKey)}
+            title="Shift-click to solo row"
+          >
+            <RowDisableIcon class="h-[1.9375rem] w-[1.9375rem]" />
+          </button>
+        </div>
+        <div
+          class="flex min-w-0 flex-1 items-stretch overflow-hidden"
+          style:padding-left="{previewRowTimingPaddingPx(row)}px"
+          style:padding-right="{phraseRowScrollPaddingRightPx()}px"
         >
           <div
-            class="relative flex shrink-0 items-center justify-center"
-            style:width="{previewMuteLeadingWidthPx}px"
-          >
-            {#if rowIsMuted}
-              <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
-            {/if}
-            <button
-              type="button"
-              aria-label={rowIsMuted ? "Turn row on" : "Turn row off"}
-              aria-pressed={!rowIsMuted}
-              data-cursor="pointer"
-              class="pointer-events-auto {rowMuteControlClasses} {rowIsMuted
-                ? rowPowerToggleOffClasses
-                : rowAccent.textAccent}"
-              onclick={(event) => onRowMuteToggle(row, event.shiftKey)}
-              title="Shift-click to solo row"
+            class="pointer-events-none shrink-0 self-stretch"
+            style:width="{phraseGridOriginLeftOffsetPx()}px"
+            aria-hidden="true"
+          ></div>
+          <div class="flex min-w-0 flex-1 items-stretch overflow-hidden">
+            <div
+              class="flex h-full w-max max-w-full items-stretch justify-start"
+              style:gap="{previewGutterPx}px"
+              style:padding-right="{previewStepsTrailingReservePx}px"
             >
-              <RowDisableIcon class="h-[1.9375rem] w-[1.9375rem]" />
-            </button>
-          </div>
-          <div
-            class="grid h-full min-w-0"
-            style={`width: ${rowStepsWidthPx}px; grid-template-columns: repeat(${previewCompactGridLayout.totalColumns}, minmax(0, 1fr));`}
-          >
-            {#if rowStartColumn > 0}
-              <div style:grid-column={`span ${rowStartColumn}`} aria-hidden="true"></div>
-            {/if}
-            {#each rowNotes as note, step (step)}
-              {@const multiplierIndex = preview.stepTimingMultiplier[row]?.[step] ?? 3}
-              {@const isLastStep = step === rowNotes.length - 1}
-              {@const skipped = preview.stepSkipped[row]?.[step] ?? false}
-              {@const stepDimmed = rowIsMuted || skipped}
-              {@const velocityOpacity = compactStepVelocityOpacity(
-                preview.stepVelocity[row]?.[step] ?? 127,
-                skipped,
-              )}
-              <div
-                style:grid-column={`span ${quarterGridColumnsForMultiplierIndex(multiplierIndex)}`}
-                class="relative box-border min-h-full"
-                style:padding-left="{compactStepShellPaddingPercent(multiplierIndex)}%"
-                style:padding-right="{isLastStep
-                  ? compactStepShellTrailingPaddingPercent(multiplierIndex)
-                  : compactStepShellPaddingPercent(multiplierIndex)}%"
-              >
+              {#each rowNotes as _note, step (step)}
+                {@const multiplierIndex = preview.stepTimingMultiplier[row]?.[step] ?? 3}
+                {@const skipped = preview.stepSkipped[row]?.[step] ?? false}
+                {@const stepDimmed = rowIsMuted || skipped}
+                {@const velocityOpacity = compactStepVelocityOpacity(
+                  preview.stepVelocity[row]?.[step] ?? 127,
+                  skipped,
+                )}
                 <div
-                  class="relative h-full min-h-full overflow-hidden rounded-md mp-duration-track-gradient {rowIsMuted
-                    ? 'bg-app/95 ring-1 ring-inset ring-border-subtle/90'
-                    : 'bg-surface'}"
+                  class="relative box-border min-h-full shrink-0"
+                  style:width="{previewStepWidthPx(multiplierIndex)}px"
                 >
                   <div
-                    class="pointer-events-none absolute inset-0 {rowIsMuted
-                      ? 'mp-duration-track-gradient bg-surface/70'
-                      : `mp-duration-fill-gradient ${rowAccent.bgAccent}`}"
-                    style:opacity={rowIsMuted ? 1 : velocityOpacity}
-                    aria-hidden="true"
-                  ></div>
-                  <div class="relative z-10 flex h-full min-w-0 items-center justify-center px-1">
-                    <span
-                      class="truncate font-sans text-lg leading-none font-black tabular-nums {stepDimmed
-                        ? 'text-text-muted'
-                        : 'text-white'}"
-                    >
-                      {midiToNoteName(note)}
-                    </span>
+                    class="relative h-full min-h-full overflow-hidden rounded-md mp-duration-track-gradient {rowIsMuted
+                      ? 'bg-app/95 ring-1 ring-inset ring-border-subtle/90'
+                      : 'bg-surface'}"
+                  >
+                    <div
+                      class="pointer-events-none absolute inset-0 {rowIsMuted
+                        ? 'mp-duration-track-gradient bg-surface/70'
+                        : `mp-duration-fill-gradient ${rowAccent.bgAccent}`}"
+                      style:opacity={rowIsMuted ? 1 : velocityOpacity}
+                      aria-hidden="true"
+                    ></div>
+                    <div class="relative z-10 flex h-full min-w-0 items-center justify-center px-1">
+                      <span
+                        class="truncate font-sans text-sm leading-none font-black tabular-nums {stepDimmed
+                          ? 'text-text-muted'
+                          : 'text-white'}"
+                      >
+                        {midiToNoteName(rowNotes[step])}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            {/each}
+              {/each}
+            </div>
           </div>
         </div>
-        {#if row < preview.notes.length - 1}
-          <div class="shrink-0" style:height="{phraseRowInterRowGapPx()}px"></div>
-        {/if}
-      {/each}
-    </div>
+      </div>
+    {/each}
   </div>
 </div>

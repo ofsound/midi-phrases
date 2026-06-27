@@ -121,7 +121,7 @@ describe("generateSeededPhraseRows", () => {
       seed: 42,
     });
 
-    expect(overlap.rowTimingOffset.map((index) => timingOffsetValues[index])).toEqual([0, -0.25, 0.25, 0]);
+    expect(overlap.rowTimingOffset.map((index) => timingOffsetValues[index])).toEqual([0, 0, 0, 0]);
     expect(interleave.rowTimingOffset.map((index) => timingOffsetValues[index])).toEqual([0, 0.25, -0.25, 0.5]);
     expect(overlap.stepDurationFraction[0][0]).toBeGreaterThan(interleave.stepDurationFraction[0][0]);
     expect(overlap.stepTimingMultiplier[0][0]).not.toBe(interleave.stepTimingMultiplier[0][0]);

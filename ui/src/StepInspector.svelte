@@ -1,11 +1,11 @@
 <script>
+  import AccentRangeSlider from "./AccentRangeSlider.svelte";
   import CyclePatternEditor from "./CyclePatternEditor.svelte";
-  import ContinuousSlider from "./ContinuousSlider.svelte";
   import StepInspectorKeyboard from "./StepInspectorKeyboard.svelte";
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import StepMuteIcon from "./StepMuteIcon.svelte";
   import StepSkipIcon from "./StepSkipIcon.svelte";
-  import { emeraldRowAccent } from "./rowAccentTheme.js";
+  import { emeraldRowAccent, rowAccentScopeStyle } from "./rowAccentTheme.js";
   import {
     formatTimingMultiplierLabel,
     defaultStepTimingMultiplierIndex,
@@ -83,6 +83,9 @@
 
   let stepKey = $derived(`${row}:${step}`);
   let durationPercent = $derived(Math.round(Math.min(1, Math.max(0, durationFraction)) * 100));
+  let multiplierDisplay = $derived(
+    formatTimingMultiplierLabel(timingMultiplierAtIndex(timingMultiplierIndex)),
+  );
 </script>
 
 <section class="step-inspector flex min-h-0 w-full flex-1 overflow-hidden bg-app/90">
@@ -114,42 +117,54 @@
         </button>
     </div>
 
-    <div class="inspector-sliders flex min-h-0 w-full flex-1 flex-col justify-center gap-1.5">
-      <ContinuousSlider
-        {accent}
-        prominentValue
-        label="Multiplier"
-        value={timingMultiplierIndex}
-        min={0}
-        max={stepTimingMultiplierCount - 1}
-        ariaLabel="Step timing multiplier"
-        fullWidth={true}
-        formatDisplay={(index) =>
-          formatTimingMultiplierLabel(timingMultiplierAtIndex(index))}
-        onValueChange={onTimingMultiplierChange}
-      />
-      <ContinuousSlider
-        {accent}
-        prominentValue
-        label="Duration"
-        value={durationPercent}
-        min={0}
-        max={maxPercentValue}
-        ariaLabel="Step duration"
-        fullWidth={true}
-        onValueChange={onDurationChange}
-      />
-      <ContinuousSlider
-        {accent}
-        prominentValue
-        label="Velocity"
-        value={velocity}
-        min={1}
-        max={127}
-        ariaLabel="Step velocity"
-        fullWidth={true}
-        onValueChange={onVelocityChange}
-      />
+    <div
+      class="inspector-sliders flex min-h-0 w-full flex-1 flex-col justify-center gap-3"
+      style={rowAccentScopeStyle(accent)}
+    >
+      <label class="grid gap-1">
+        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Multiplier</span>
+        <div class="seed-param-row">
+          <AccentRangeSlider
+            value={timingMultiplierIndex}
+            min={0}
+            max={stepTimingMultiplierCount - 1}
+            ariaLabel="Step timing multiplier"
+            onValuePreview={onTimingMultiplierChange}
+            onValueCommit={onTimingMultiplierChange}
+          />
+          <span class="seed-param-value" aria-hidden="true">{multiplierDisplay}</span>
+        </div>
+      </label>
+
+      <label class="grid gap-1">
+        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Duration</span>
+        <div class="seed-param-row">
+          <AccentRangeSlider
+            value={durationPercent}
+            min={0}
+            max={maxPercentValue}
+            ariaLabel="Step duration"
+            onValuePreview={onDurationChange}
+            onValueCommit={onDurationChange}
+          />
+          <span class="seed-param-value" aria-hidden="true">{durationPercent}</span>
+        </div>
+      </label>
+
+      <label class="grid gap-1">
+        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Velocity</span>
+        <div class="seed-param-row">
+          <AccentRangeSlider
+            value={velocity}
+            min={1}
+            max={127}
+            ariaLabel="Step velocity"
+            onValuePreview={onVelocityChange}
+            onValueCommit={onVelocityChange}
+          />
+          <span class="seed-param-value" aria-hidden="true">{velocity}</span>
+        </div>
+      </label>
     </div>
 
     <div class="inspector-actions flex h-8 w-full shrink-0">
@@ -177,7 +192,7 @@
           {bulkEditStepCount} steps inspected
         </p>
       {/if}
-      <div class="grid w-full max-w-[46rem] min-w-0 grid-cols-2 gap-x-4">
+      <div class="flex w-auto max-w-full flex-wrap items-end justify-center gap-x-10 gap-y-3">
         <div class="flex min-h-0 min-w-0 flex-col justify-center gap-1">
           <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>
           <CyclePatternEditor
@@ -195,21 +210,25 @@
           />
         </div>
 
-        <div class="flex min-h-0 min-w-0 w-full flex-col justify-center">
-          <ContinuousSlider
-            {accent}
-            prominentValue
-            label="Probability"
-            value={probability}
-            min={0}
-            max={maxPercentValue}
-            ariaLabel="Step probability"
-            fullWidth={true}
-            formatDisplay={(value) => `${Math.round(value)}%`}
-            onGestureStart={onProbabilityGestureStart}
-            onValueChange={onProbabilityPreview}
-            onValueCommit={onProbabilityCommit}
-          />
+        <div
+          class="flex min-h-0 w-[min(100%,16rem)] min-w-[12rem] flex-col justify-center"
+          style={rowAccentScopeStyle(accent)}
+        >
+          <label class="grid gap-1">
+            <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Probability</span>
+            <div class="seed-param-row">
+              <AccentRangeSlider
+                value={probability}
+                min={0}
+                max={maxPercentValue}
+                ariaLabel="Step probability"
+                onGestureStart={onProbabilityGestureStart}
+                onValuePreview={onProbabilityPreview}
+                onValueCommit={onProbabilityCommit}
+              />
+              <span class="seed-param-value" aria-hidden="true">{Math.round(probability)}%</span>
+            </div>
+          </label>
         </div>
       </div>
     </div>

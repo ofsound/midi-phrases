@@ -183,6 +183,18 @@ export function rowAccentColorVar(accent) {
   return `var(--color-${accent.textAccent.replace("text-", "")})`;
 }
 
+/**
+ * Remaps global accent CSS vars to a row palette inside a scoped container.
+ * Used by note-bandpass sliders and seed-param values in the step inspector.
+ *
+ * @param {RowAccent} accent
+ */
+export function rowAccentScopeStyle(accent) {
+  const token = accent.bgAccent.replace(/^bg-/, "");
+
+  return `--color-accent: var(--color-${token}); --color-accent-strong: var(--color-${token}-strong);`;
+}
+
 /** @param {number} row @param {boolean} rowColorsEnabled */
 export function rowAccentFor(row, rowColorsEnabled) {
   if (!rowColorsEnabled || row <= 0) {
