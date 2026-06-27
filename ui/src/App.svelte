@@ -2815,7 +2815,7 @@
 
     return {
       phraseLength: normalized.phraseLength,
-      rangeIndex: normalized.rangeIndex,
+      rangeSemitones: normalized.rangeSemitones,
       repetition: normalized.repetition,
       complexity: normalized.complexity,
       randomness: normalized.randomness,

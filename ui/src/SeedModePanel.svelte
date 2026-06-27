@@ -5,7 +5,8 @@
     generateSeededPhraseRows,
     seedingPhraseLengthMax,
     seedingPhraseLengthMin,
-    seedingRangeOptions,
+    seedingRangeSemitonesMax,
+    seedingRangeSemitonesMin,
     seedingRhythmOptions,
   } from "./seeding.js";
 
@@ -79,17 +80,26 @@
       </label>
 
       <label class="grid gap-1">
-        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Range</span>
-        <select
-          class="h-9 border border-border bg-surface px-2 text-sm font-semibold text-text outline-none focus:ring-1 focus:ring-focus-ring disabled:opacity-40"
-          value={settings.rangeIndex}
+        <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
+          <span>Range</span><span class="font-mono text-accent">{settings.rangeSemitones} st</span>
+        </span>
+        <input
+          type="range"
+          min={seedingRangeSemitonesMin}
+          max={seedingRangeSemitonesMax}
+          step="1"
+          value={settings.rangeSemitones}
           disabled={busy}
-          onchange={(event) => commitSettings({ rangeIndex: Number(event.currentTarget.value) })}
-        >
-          {#each seedingRangeOptions as option (option.index)}
-            <option value={option.index}>{option.label}</option>
-          {/each}
-        </select>
+          class="w-full accent-[var(--color-accent)] disabled:opacity-40"
+          onpointerdown={onGestureStart}
+          onkeydown={onGestureStart}
+          oninput={(event) => previewSettings({ rangeSemitones: Number(event.currentTarget.value) })}
+          onchange={(event) => commitSettings({ rangeSemitones: Number(event.currentTarget.value) })}
+        />
+        <div class="flex justify-between font-mono text-[9px] leading-none text-text-muted">
+          <span>{seedingRangeSemitonesMin} st</span>
+          <span>4 oct</span>
+        </div>
       </label>
 
       <div class="grid grid-cols-2 gap-2">

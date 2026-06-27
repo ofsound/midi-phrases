@@ -6,7 +6,7 @@ describe("normalizeSeedingSettings", () => {
   it("clamps public settings to supported ranges", () => {
     const settings = normalizeSeedingSettings({
       phraseLength: 200,
-      rangeIndex: -5,
+      rangeSemitones: -5,
       repetition: 500,
       complexity: -1,
       randomness: Number.NaN,
@@ -15,12 +15,23 @@ describe("normalizeSeedingSettings", () => {
     });
 
     expect(settings.phraseLength).toBe(32);
-    expect(settings.rangeIndex).toBe(0);
+    expect(settings.rangeSemitones).toBe(2);
     expect(settings.repetition).toBe(100);
     expect(settings.complexity).toBe(0);
     expect(settings.randomness).toBe(0);
     expect(settings.rhythmMode).toBe("interleave");
     expect(settings.seed).toBe(1);
+  });
+
+  it("maps legacy range presets to semitone spans", () => {
+    expect(normalizeSeedingSettings({ rangeIndex: 0 }).rangeSemitones).toBe(5);
+    expect(normalizeSeedingSettings({ rangeIndex: 1 }).rangeSemitones).toBe(8);
+    expect(normalizeSeedingSettings({ rangeIndex: 2 }).rangeSemitones).toBe(12);
+    expect(normalizeSeedingSettings({ rangeIndex: 3 }).rangeSemitones).toBe(16);
+  });
+
+  it("clamps range semitones to four octaves", () => {
+    expect(normalizeSeedingSettings({ rangeSemitones: 200 }).rangeSemitones).toBe(48);
   });
 
   it("allows short two-step phrases", () => {

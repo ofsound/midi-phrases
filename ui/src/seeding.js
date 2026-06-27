@@ -6,18 +6,18 @@ import {
   clampScaleModeIndex,
   clampScaleRoot,
   snapMidiToScale,
-  transposeMidiByScaleDegrees,
 } from "./scaleUtils.js";
 
 export const seedingPhraseLengthMin = 2;
 export const seedingPhraseLengthMax = 32;
 
-export const seedingRangeOptions = [
-  { index: 0, label: "Tight", degrees: 5 },
-  { index: 1, label: "Mid", degrees: 8 },
-  { index: 2, label: "Wide", degrees: 12 },
-  { index: 3, label: "Full", degrees: 16 },
-];
+/** Total pitch spread for seeded motifs (±half span from each row center). */
+export const seedingRangeSemitonesMin = 2;
+export const seedingRangeSemitonesMax = 48;
+export const defaultSeedingRangeSemitones = 8;
+
+/** Former preset labels mapped to chromatic span for legacy `rangeIndex` values. */
+const legacySeedingRangeSemitonesByIndex = [5, 8, 12, 16];
 
 export const seedingRhythmOptions = [
   { value: "interleave", label: "Interleave" },
@@ -26,7 +26,7 @@ export const seedingRhythmOptions = [
 
 export const defaultSeedingSettings = {
   phraseLength: 3,
-  rangeIndex: 1,
+  rangeSemitones: defaultSeedingRangeSemitones,
   repetition: 45,
   complexity: 50,
   randomness: 45,
@@ -73,16 +73,32 @@ function timingMultiplierIndexForValue(value) {
   return Math.min(15, Math.max(0, Math.round((value - 0.25) / 0.25)));
 }
 
-/** @param {number} root @param {number} modeIndex @param {number} degree */
-function midiForScaleDegree(root, modeIndex, degree) {
-  const base = snapMidiToScale(defaultStepNoteForScaleRoot(root), root, modeIndex);
-  return transposeMidiByScaleDegrees(base, degree, root, modeIndex);
+/** @param {number} value */
+function clampRangeSemitones(value) {
+  return Math.round(clamp(value, seedingRangeSemitonesMin, seedingRangeSemitonesMax));
 }
 
-/** @param {number} index */
-function rangeDegreeSpan(index) {
-  return seedingRangeOptions.find((option) => option.index === index)?.degrees
-    ?? seedingRangeOptions[1].degrees;
+/**
+ * @param {Partial<typeof defaultSeedingSettings>} settings
+ */
+function resolveRangeSemitones(settings) {
+  if (settings.rangeSemitones !== undefined) {
+    return clampRangeSemitones(settings.rangeSemitones);
+  }
+
+  if (settings.rangeIndex !== undefined) {
+    const legacyIndex = Math.round(settings.rangeIndex);
+    const legacyValue = legacySeedingRangeSemitonesByIndex[legacyIndex];
+    return clampRangeSemitones(legacyValue ?? defaultSeedingRangeSemitones);
+  }
+
+  return clampRangeSemitones(defaultSeedingRangeSemitones);
+}
+
+/** @param {number} root @param {number} modeIndex @param {number} semitoneOffset */
+function midiForSeedingOffset(root, modeIndex, semitoneOffset) {
+  const base = snapMidiToScale(defaultStepNoteForScaleRoot(root), root, modeIndex);
+  return snapMidiToScale(base + Math.round(semitoneOffset), root, modeIndex);
 }
 
 /**
@@ -101,10 +117,7 @@ export function normalizeSeedingSettings(settings = {}) {
     root: clampScaleRoot(merged.root ?? 0),
     modeIndex: clampScaleModeIndex(merged.modeIndex ?? 0),
     phraseLength: clampPhraseLength(merged.phraseLength),
-    rangeIndex: Math.min(
-      seedingRangeOptions[seedingRangeOptions.length - 1].index,
-      Math.max(seedingRangeOptions[0].index, Math.round(merged.rangeIndex)),
-    ),
+    rangeSemitones: resolveRangeSemitones(settings),
     repetition: clampPercent(merged.repetition),
     complexity: clampPercent(merged.complexity),
     randomness: clampPercent(merged.randomness),
@@ -122,7 +135,7 @@ export function normalizeSeedingSettings(settings = {}) {
 export function generateSeededPhraseRows(settings = {}) {
   const options = normalizeSeedingSettings(settings);
   const random = mulberry32(options.seed);
-  const span = rangeDegreeSpan(options.rangeIndex);
+  const span = options.rangeSemitones;
   const halfSpan = Math.max(2, Math.floor(span / 2));
   const complexityRatio = options.complexity / 100;
   const repetitionRatio = options.repetition / 100;
@@ -188,7 +201,9 @@ export function generateSeededPhraseRows(settings = {}) {
     const velocityBase = 78 + row * 6;
     const velocitySwing = Math.round(10 + complexityRatio * 28);
 
-    rows.notes[row] = degrees.map((degree) => midiForScaleDegree(options.root, options.modeIndex, degree));
+    rows.notes[row] = degrees.map((semitoneOffset) => (
+      midiForSeedingOffset(options.root, options.modeIndex, semitoneOffset)
+    ));
     rows.stepTimingMultiplier[row] = degrees.map((_, step) => {
       if (options.rhythmMode === "interleave" && (step + row) % 4 === 0) {
         return timingMultiplierIndexForValue(0.5);
