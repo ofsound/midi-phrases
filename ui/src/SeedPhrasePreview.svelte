@@ -27,11 +27,13 @@
   /**
    * @typedef {ReturnType<import("./seeding.js").generateSeededPhraseRows>} GeneratedPhraseRows
    * @property {GeneratedPhraseRows} preview
+   * @property {boolean[][]} [activeGates]
    * @property {boolean[]} [rowMuted]
    * @property {(row: number, soloRequested?: boolean) => void | Promise<void>} [onRowMuteToggle]
    */
   let {
     preview,
+    activeGates = [],
     rowMuted = [false, false, false, false],
     onRowMuteToggle = () => {},
   } = $props();
@@ -174,20 +176,23 @@
                   preview.stepVelocity[row]?.[step] ?? 127,
                   skipped,
                 )}
+                {@const stepActive = activeGates[row]?.[step] ?? false}
                 <div
                   class="relative box-border min-h-full shrink-0"
                   style:width="{previewStepWidthPx(multiplierIndex)}px"
                 >
                   <div
-                    class="relative h-full min-h-full overflow-hidden rounded-md mp-duration-track-gradient {rowIsMuted
+                    class="relative h-full min-h-full overflow-hidden rounded-md transition-[box-shadow,filter] duration-75 mp-duration-track-gradient {rowIsMuted
                       ? 'bg-app/95 ring-1 ring-inset ring-border-subtle/90'
-                      : 'bg-surface'}"
+                      : 'bg-surface'} {stepActive && !stepDimmed
+                      ? rowAccent.playbackGlow
+                      : ''} {stepActive ? 'brightness-125' : ''}"
                   >
                     <div
-                      class="pointer-events-none absolute inset-0 {rowIsMuted
+                      class="pointer-events-none absolute inset-0 transition-[background-color,opacity] duration-75 {rowIsMuted
                         ? 'mp-duration-track-gradient bg-surface/70'
-                        : `mp-duration-fill-gradient ${rowAccent.bgAccent}`}"
-                      style:opacity={rowIsMuted ? 1 : velocityOpacity}
+                        : `mp-duration-fill-gradient ${stepActive ? rowAccent.bgAccentStrong : rowAccent.bgAccent}`}"
+                      style:opacity={rowIsMuted ? 1 : stepActive ? 1 : velocityOpacity}
                       aria-hidden="true"
                     ></div>
                     <div class="relative z-10 flex h-full min-w-0 items-center justify-center px-1">

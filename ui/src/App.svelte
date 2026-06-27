@@ -5564,6 +5564,7 @@
           settings={seedModeSettings}
           root={scaleRoot}
           modeIndex={scaleModeIndex}
+          activeGates={activeGates}
           rowMuted={rowMuted}
           busy={projectOperationBusy}
           onGestureStart={beginSeedModeHistory}

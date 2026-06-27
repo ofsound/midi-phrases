@@ -16,6 +16,7 @@
     settings = { ...defaultSeedingSettings },
     root = 0,
     modeIndex = 0,
+    activeGates = [],
     rowMuted = [false, false, false, false],
     busy = false,
     onGestureStart = () => {},
@@ -195,6 +196,6 @@
   </div>
 
   <div class="flex min-h-0 min-w-0 flex-col self-stretch">
-    <SeedPhrasePreview {preview} {rowMuted} {onRowMuteToggle} />
+    <SeedPhrasePreview {preview} {activeGates} {rowMuted} {onRowMuteToggle} />
   </div>
 </div>
