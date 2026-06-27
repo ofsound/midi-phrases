@@ -192,7 +192,7 @@
           {bulkEditStepCount} steps inspected
         </p>
       {/if}
-      <div class="flex w-auto max-w-full flex-wrap items-end justify-center gap-x-10 gap-y-3">
+      <div class="grid w-full max-w-[46rem] min-w-0 grid-cols-2 items-end gap-x-20">
         <div class="flex min-h-0 min-w-0 flex-col justify-center gap-1">
           <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>
           <CyclePatternEditor
@@ -210,10 +210,7 @@
           />
         </div>
 
-        <div
-          class="flex min-h-0 w-[min(100%,16rem)] min-w-[12rem] flex-col justify-center"
-          style={rowAccentScopeStyle(accent)}
-        >
+        <div class="flex min-h-0 min-w-0 w-full flex-col justify-center" style={rowAccentScopeStyle(accent)}>
           <label class="grid gap-1">
             <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Probability</span>
             <div class="seed-param-row">

@@ -61,7 +61,6 @@
     phraseRowMinHeightPx,
     phraseStepCellMinHeightPx,
     phraseStepDropIndicatorHeightPx,
-    stepFooterHeightPx,
   } from "./phraseRowLayout.js";
   import {
     defaultStepTimingMultiplierIndex,
@@ -937,14 +936,13 @@
     return px * layoutScale;
   }
 
-  function stepFooterStackClearanceStyle() {
-    return `bottom: ${layoutPx(stepFooterHeightPx())}px`;
-  }
+  /** Full-zone hover target so fast cursor sweeps through the gap still reveal handles. */
+  const stepBoundaryResizeHoverPadClass =
+    "boundary-resize-hover-pad pointer-events-auto absolute inset-0 z-[5]";
 
-  /** @param {string} style */
-  function aboveStepFooterStyle(style) {
-    return `${style}; ${stepFooterStackClearanceStyle()}`;
-  }
+  /** Narrow hit target centered on the step cell; visual handles use the full cell height. */
+  const stepBoundaryResizeHitClass =
+    "step-boundary-resize-hit pointer-events-auto absolute top-1/2 z-10 h-10 w-3 touch-none select-none border-0 bg-transparent p-0 outline-none disabled:pointer-events-none disabled:opacity-50";
 
   /** @param {number} dataStep */
   function shellWidthPx(dataStep) {
@@ -2047,9 +2045,10 @@
 
 {#snippet multiplierResizeHandle(step)}
   <div
-    class="trailing-multiplier-resize-zone pointer-events-none absolute top-0 z-[60]"
-    style={aboveStepFooterStyle(trailingResizeZoneStyle())}
+    class="trailing-multiplier-resize-zone pointer-events-none absolute inset-y-0 z-[60]"
+    style={trailingResizeZoneStyle()}
   >
+    <div class={stepBoundaryResizeHoverPadClass} aria-hidden="true"></div>
     <button
       type="button"
       data-multiplier-resize
@@ -2058,7 +2057,8 @@
       aria-label="Resize final step boundary; double-click to insert; Option-double-click to duplicate"
       title="Double-click to insert · Option-double-click to duplicate"
       disabled={isDragging || removeBlocked}
-      class="step-boundary-resize-hit pointer-events-auto absolute top-0 right-0 left-0 touch-none select-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+      class="{stepBoundaryResizeHitClass} -translate-x-1/2 -translate-y-1/2 {accent.ringFocusWithWidth}"
+      style:left="{layoutPx(stepBoundaryEndResizePx())}px"
       onpointerdown={(event) => beginMultiplierResize(event, step)}
       onmousedown={(event) => beginMultiplierResize(event, step)}
       ondblclick={(event) => handleBoundaryDoubleClick(event, step + 1)}
@@ -2351,15 +2351,14 @@
   {@const boundaryCenterPx = leftPx + stepInsertZoneWidthPx() / 2}
   <div
     data-insert-slot
-    class="boundary-resize-zone pointer-events-none absolute top-0 z-[60]"
-    style={aboveStepFooterStyle(
-      mode === "between"
-        ? boundaryResizeZoneStyle(boundaryCenterPx)
-        : mode === "leading"
-          ? leadingBoundaryInsertZoneStyle(leftPx)
-          : insertSlotStyle(leftPx),
-    )}
+    class="boundary-resize-zone pointer-events-none absolute inset-y-0 z-[60]"
+    style={mode === "between"
+      ? boundaryResizeZoneStyle(boundaryCenterPx)
+      : mode === "leading"
+        ? leadingBoundaryInsertZoneStyle(leftPx)
+        : insertSlotStyle(leftPx)}
   >
+    <div class={stepBoundaryResizeHoverPadClass} aria-hidden="true"></div>
     {#if mode === "between" && insertStep > 0}
       <button
         type="button"
@@ -2369,7 +2368,8 @@
         aria-label="Resize step boundary; double-click to insert; Option-double-click to duplicate"
         title="Double-click to insert · Option-double-click to duplicate"
         disabled={isDragging || removeBlocked}
-        class="step-boundary-resize-hit pointer-events-auto absolute top-0 right-0 left-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+        class="{stepBoundaryResizeHitClass} -translate-x-1/2 -translate-y-1/2 {accent.ringFocusWithWidth}"
+        style:left="{layoutPx(stepBoundaryEndResizePx())}px"
         onpointerdown={(event) => beginMultiplierResize(event, insertStep - 1)}
         onmousedown={(event) => beginMultiplierResize(event, insertStep - 1)}
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
@@ -2392,7 +2392,8 @@
         aria-label="First step boundary; double-click to insert"
         title="Double-click to insert"
         disabled={isDragging || removeBlocked}
-        class="step-boundary-resize-hit pointer-events-auto absolute top-0 right-0 left-0 touch-none border-0 bg-transparent p-0 outline-none {accent.ringFocusWithWidth} disabled:pointer-events-none disabled:opacity-50"
+        class="{stepBoundaryResizeHitClass} -translate-x-1/2 -translate-y-1/2 {accent.ringFocusWithWidth}"
+        style:left="{layoutPx(stepInsertZoneWidthPx())}px"
         onpointerdown={(event) => event.stopPropagation()}
         onmousedown={(event) => event.stopPropagation()}
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
@@ -2404,7 +2405,7 @@
       ></span>
     {/if}
     <div
-      class="pointer-events-none absolute top-0 bottom-0 left-0 z-10"
+      class="pointer-events-none absolute top-0 bottom-0 left-0 z-20"
       style:width="{layoutPx(stepInsertZoneWidthPx())}px"
     >
       <StepInsertZone
@@ -2482,15 +2483,13 @@
 {/snippet}
 
 <style>
-  .boundary-resize-zone:hover .boundary-edge-handle,
-  .boundary-resize-zone:focus-within .boundary-edge-handle,
-  .trailing-multiplier-resize-zone:hover .boundary-edge-handle,
-  .trailing-multiplier-resize-zone:focus-within .boundary-edge-handle {
+  .boundary-resize-zone:has(.boundary-resize-hover-pad:hover) .boundary-edge-handle,
+  .boundary-resize-zone:has(.step-boundary-resize-hit:hover) .boundary-edge-handle,
+  .boundary-resize-zone:has(.step-boundary-resize-hit:focus-visible) .boundary-edge-handle,
+  .trailing-multiplier-resize-zone:has(.boundary-resize-hover-pad:hover) .boundary-edge-handle,
+  .trailing-multiplier-resize-zone:has(.step-boundary-resize-hit:hover) .boundary-edge-handle,
+  .trailing-multiplier-resize-zone:has(.step-boundary-resize-hit:focus-visible) .boundary-edge-handle {
     opacity: 1;
-  }
-
-  .step-boundary-resize-hit {
-    bottom: 0;
   }
 
   :global(.compact-step-row-dragging) > * {
