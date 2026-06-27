@@ -37,6 +37,7 @@
   import CombinationModeRail from "./CombinationModeRail.svelte";
   import RecordPianoKeyboard from "./RecordPianoKeyboard.svelte";
   import StepInspector from "./StepInspector.svelte";
+  import RowSeedingEditor from "./RowSeedingEditor.svelte";
   import {
     defaultStepTimingMultiplierIndex,
     maxPhraseStepsPerRow,
@@ -107,10 +108,12 @@
     applySeedingRowSettingsUpdate,
     createDefaultSeedModeRowSettings,
     defaultSeedModeState,
+    generateSeededPhraseRows,
     generateSeededPhraseRowsFromSeedModeState,
     hasSeedingRowTargets,
     mergeSeededPhraseRows,
     normalizeSeedModeState,
+    normalizeSeedingRowSettings,
     phraseRowsFromGridState,
     seedingRhythmStepMax,
   } from "./seeding.js";
@@ -298,6 +301,8 @@
   /** Step whose row is shown in the lower piano-roll editor, or null. */
   /** @type {{ row: number, stepId: string } | null} */
   let rowPianoRollStep = $state(null);
+  /** Row index shown in the lower seeding editor, or null. */
+  let activeRowSeedingEditor = $state(null);
   /** Snapshot taken when recording was armed (for undo / cancel). */
   /** @type {ReturnType<typeof createHistorySnapshot> | null} */
   let recordingHistoryBefore = null;
@@ -1596,6 +1601,7 @@
     }
 
     rowPianoRollStep = null;
+    activeRowSeedingEditor = null;
 
     if (inspectedStep?.row === row && inspectedStep.stepId === stepId) {
       closeStepInspector();
@@ -1618,6 +1624,7 @@
     }
 
     inspectedStep = null;
+    activeRowSeedingEditor = null;
     rowPianoRollStep = { row, stepId };
 
     if (selectStep) {
@@ -1627,6 +1634,97 @@
     }
 
     syncBulkControlsFromSelection();
+  }
+
+  /** @param {number} row */
+  async function openRowSeedingEditor(row) {
+    if (activeRowSeedingEditor === row) {
+      closeRowSeedingEditor();
+      return;
+    }
+
+    inspectedStep = null;
+    rowPianoRollStep = null;
+    if (recordingRow !== null) {
+      await finishRowRecording();
+    }
+
+    activeRowSeedingEditor = row;
+    beginSeedModeHistory();
+  }
+
+  function closeRowSeedingEditor() {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    if (activeRowSeedingEditor !== null) {
+      finalizeSeedModeHistory();
+      activeRowSeedingEditor = null;
+    }
+  }
+
+  async function applyRowSeeding(row, updates, { syncNative = true } = {}) {
+    if (projectOperationBusy) return;
+
+    beginSeedModeHistory();
+    seedModeDirty = true;
+
+    seedModeRowSettings = seedModeRowSettings.map((settings, r) =>
+      r === row
+        ? normalizeSeedingRowSettings({ ...settings, ...updates })
+        : settings
+    );
+
+    const applyVersion = ++seedModeApplyVersion;
+    const existing = phraseRowsFromGridState({
+      grid,
+      stepTimingMultiplier,
+      stepDurationFraction,
+      stepVelocity,
+      stepMuted,
+      stepSkipped,
+      stepProbability,
+      stepCycle,
+      stepCycleOffset,
+      rowTimingOffset,
+    });
+
+    const generated = generateSeededPhraseRows({
+      rhythmStep: seedModeRhythmStep,
+      rowSettings: seedModeRowSettings,
+      root: scaleRoot,
+      modeIndex: scaleModeIndex,
+    });
+
+    const targets = Array.from({ length: 4 }, (_, r) => r === row);
+    const merged = mergeSeededPhraseRows(existing, generated, targets);
+
+    try {
+      assignGeneratedPhraseRows(merged);
+
+      if (syncNative) {
+        await syncGeneratedPhraseRowsToNative(applyVersion);
+        await pushSeedModeStateToNative();
+      }
+    } catch {
+      projectOperationError = "The row could not be seeded.";
+    }
+  }
+
+  function shuffleRowSeeding(row) {
+    void applyRowSeeding(row, {
+      repetition: Math.round(Math.min(100, Math.max(0, 18 + Math.random() * 70))),
+      complexity: Math.round(Math.min(100, Math.max(0, 20 + Math.random() * 72))),
+      randomness: Math.round(Math.min(100, Math.max(0, 24 + Math.random() * 68))),
+      symmetry: Math.random() > 0.62,
+      seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
+    });
+  }
+
+  function nextRowSeedingSeed(row) {
+    void applyRowSeeding(row, {
+      seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
+    });
   }
 
   /** @param {number} row */
@@ -2060,6 +2158,7 @@
     bulkTransposeSemitones = 0;
     assignSeedModeStateFromPattern(state);
     seedModeActive = false;
+    activeRowSeedingEditor = null;
     seedModeHistoryBefore = null;
     seedModeDirty = false;
     undoStack = [];
@@ -2227,6 +2326,10 @@
       finalizeSeedModeHistory();
       seedModeActive = false;
     }
+    if (activeRowSeedingEditor !== null) {
+      finalizeSeedModeHistory();
+      activeRowSeedingEditor = null;
+    }
 
     const entry = undoStack[undoStack.length - 1];
 
@@ -2241,6 +2344,10 @@
     if (seedModeActive) {
       finalizeSeedModeHistory();
       seedModeActive = false;
+    }
+    if (activeRowSeedingEditor !== null) {
+      finalizeSeedModeHistory();
+      activeRowSeedingEditor = null;
     }
 
     const entry = redoStack[redoStack.length - 1];
@@ -4443,6 +4550,7 @@
 
     closeStepInspector();
     closeRowPianoRollEditor();
+    closeRowSeedingEditor();
     recordingRow = row;
     recordingHistoryBefore = createHistorySnapshot();
     recordingCapturedNotes = false;
@@ -5266,6 +5374,12 @@
         return;
       }
 
+      if (event.key === "Escape" && activeRowSeedingEditor !== null) {
+        event.preventDefault();
+        closeRowSeedingEditor();
+        return;
+      }
+
       if (event.key === "Escape" && rowPianoRollStep !== null) {
         event.preventDefault();
         closeRowPianoRollEditor();
@@ -5818,6 +5932,25 @@
                     recording={recordingRow === row}
                   />
                 </button>
+                <button
+                  type="button"
+                  aria-label={activeRowSeedingEditor === row
+                    ? `Close row ${row + 1} seeding editor`
+                    : `Seed row ${row + 1}`}
+                  aria-pressed={activeRowSeedingEditor === row}
+                  data-cursor="pointer"
+                  class="pointer-events-auto relative z-20 flex h-3 w-3 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {activeRowSeedingEditor === row
+                    ? '[color:var(--row-header-accent)]'
+                    : 'text-text-faint hover:[color:var(--row-header-accent)] transition-colors duration-150'}"
+                  onclick={() => openRowSeedingEditor(row)}
+                  title={activeRowSeedingEditor === row
+                    ? "Close seeding editor"
+                    : `Open seeding editor for row ${row + 1}`}
+                >
+                  <SaplingIcon
+                    class="pointer-events-none h-3 w-3"
+                  />
+                </button>
                 <RowEditPencilIcon
                   class="text-text-faint transition-colors duration-150 {stepIds[row].length > 0
                     ? 'group-hover:[color:var(--row-header-accent)]'
@@ -6029,6 +6162,18 @@
         onSkippedChange={(value) =>
           setStepSkipped(activeStepInspector.row, activeStepInspector.step, value)}
         onRemove={removeInspectedStep}
+      />
+    {:else if activeRowSeedingEditor !== null}
+      <RowSeedingEditor
+        row={activeRowSeedingEditor}
+        rowSettings={seedModeRowSettings[activeRowSeedingEditor]}
+        accent={rowAccentFor(activeRowSeedingEditor, rowColorsEnabled)}
+        onGestureStart={beginSeedModeHistory}
+        onRowSettingsPreview={(settings) => applyRowSeeding(activeRowSeedingEditor, settings, { syncNative: false })}
+        onRowSettingsCommit={(settings) => applyRowSeeding(activeRowSeedingEditor, settings, { syncNative: true })}
+        onShuffle={() => shuffleRowSeeding(activeRowSeedingEditor)}
+        onNextSeed={() => nextRowSeedingSeed(activeRowSeedingEditor)}
+        onClose={closeRowSeedingEditor}
       />
     {:else if activeRowPianoRollEditor !== null}
       <RowPianoRollEditor
