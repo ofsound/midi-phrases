@@ -8,7 +8,8 @@
     seedingPhraseLengthMin,
     seedingRangeSemitonesMax,
     seedingRangeSemitonesMin,
-    seedingRhythmOptions,
+    seedingRhythmStepMax,
+    seedingRhythmStepMin,
   } from "./seeding.js";
 
   let {
@@ -99,22 +100,25 @@
         </div>
       </label>
 
-      <div class="grid grid-cols-2 gap-2">
-        {#each seedingRhythmOptions as option (option.value)}
-          <button
-            type="button"
-            aria-pressed={settings.rhythmMode === option.value}
-            data-cursor="pointer"
-            disabled={busy}
-            class="h-10 border px-3 text-sm font-semibold outline-none transition-colors focus:ring-1 focus:ring-focus-ring disabled:opacity-40 {settings.rhythmMode === option.value
-              ? 'border-accent bg-accent text-control-primary-text'
-              : 'border-border bg-surface text-text hover:border-border-strong'}"
-            onclick={() => commitSettings({ rhythmMode: option.value })}
-          >
-            {option.label}
-          </button>
-        {/each}
-      </div>
+      <label class="grid gap-1">
+        <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">
+          <span>Overlap</span><span>Interleave</span>
+        </span>
+        <AccentRangeSlider
+          value={settings.rhythmStep}
+          min={seedingRhythmStepMin}
+          max={seedingRhythmStepMax}
+          disabled={busy}
+          ariaLabel="Rhythm overlap to interleave"
+          onGestureStart={onGestureStart}
+          onValuePreview={(rhythmStep) => previewSettings({ rhythmStep })}
+          onValueCommit={(rhythmStep) => commitSettings({ rhythmStep })}
+        />
+        <div class="flex justify-between font-mono text-[9px] leading-none text-text-muted">
+          <span>{seedingRhythmStepMin}</span>
+          <span>{seedingRhythmStepMax}</span>
+        </div>
+      </label>
 
       <label class="grid gap-1">
         <span class="flex items-center justify-between gap-2 text-[9px] font-medium uppercase tracking-wide text-text-muted">

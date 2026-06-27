@@ -19,10 +19,27 @@ export const defaultSeedingRangeSemitones = 8;
 /** Former preset labels mapped to chromatic span for legacy `rangeIndex` values. */
 const legacySeedingRangeSemitonesByIndex = [5, 8, 12, 16];
 
-export const seedingRhythmOptions = [
-  { value: "interleave", label: "Interleave" },
-  { value: "overlap", label: "Overlap" },
+/** Stepped overlap ↔ interleave blend (0 = dense overlap, 7 = full interleave). */
+export const seedingRhythmStepMin = 0;
+export const seedingRhythmStepMax = 7;
+export const defaultSeedingRhythmStep = 7;
+
+const rhythmRowTimingOffsetProfiles = [
+  [3, 2, 4, 3],
+  [3, 2, 4, 4],
+  [3, 2, 3, 4],
+  [3, 3, 4, 4],
+  [3, 3, 3, 5],
+  [3, 4, 3, 5],
+  [3, 4, 2, 4],
+  [3, 4, 2, 5],
 ];
+
+/** Per-step gate-length penalty (quarters of the accent value). */
+const rhythmDurationPenalties = [0, 0.02, 0.05, 0.07, 0.09, 0.12, 0.14, 0.16];
+
+/** Per-step accent timing multiplier at full interleave end of the slider. */
+const rhythmAccentTimingMultipliers = [1, 0.9375, 0.875, 0.8125, 0.75, 0.6875, 0.5625, 0.5];
 
 export const defaultSeedingSettings = {
   phraseLength: 3,
@@ -31,7 +48,7 @@ export const defaultSeedingSettings = {
   complexity: 50,
   randomness: 45,
   symmetry: false,
-  rhythmMode: "interleave",
+  rhythmStep: defaultSeedingRhythmStep,
   seed: 1,
 };
 
@@ -73,6 +90,79 @@ function timingMultiplierIndexForValue(value) {
   return Math.min(15, Math.max(0, Math.round((value - 0.25) / 0.25)));
 }
 
+/** @param {number} step */
+function clampRhythmStep(step) {
+  return Math.round(clamp(step, seedingRhythmStepMin, seedingRhythmStepMax));
+}
+
+/**
+ * @param {number} step
+ * @returns {number} 0 = overlap, 1 = interleave
+ */
+export function rhythmInterleaveRatio(step) {
+  const span = seedingRhythmStepMax - seedingRhythmStepMin;
+  return span > 0 ? clampRhythmStep(step) / span : 0;
+}
+
+/** @param {number} step */
+function rhythmRowTimingOffsets(step) {
+  const index = clampRhythmStep(step);
+  const profile = rhythmRowTimingOffsetProfiles[index] ?? rhythmRowTimingOffsetProfiles[0];
+
+  return profile.map((offsetIndex) => (
+    timingOffsetValues[offsetIndex] === undefined ? 3 : offsetIndex
+  ));
+}
+
+/**
+ * How strongly a step should receive interleave timing/gate shaping.
+ * Short phrases spread the effect across every step so the slider stays audible.
+ *
+ * @param {number} step
+ * @param {number} row
+ * @param {number} phraseLength
+ */
+function stepRhythmWeight(step, row, phraseLength) {
+  if ((step + row) % 4 === 0) {
+    return 1;
+  }
+
+  if (phraseLength <= 3) {
+    return 0.35 + 0.3 * ((step + row * 2) % 3) / 2;
+  }
+
+  return 0.2;
+}
+
+/** @param {number} rhythmStep */
+function rhythmDurationPenalty(rhythmStep) {
+  return rhythmDurationPenalties[clampRhythmStep(rhythmStep)] ?? 0;
+}
+
+/** @param {number} rhythmStep */
+function rhythmAccentTimingMultiplier(rhythmStep) {
+  return rhythmAccentTimingMultipliers[clampRhythmStep(rhythmStep)] ?? 1;
+}
+
+/**
+ * @param {Partial<typeof defaultSeedingSettings> & { rhythmMode?: string }>} settings
+ */
+function resolveRhythmStep(settings) {
+  if (settings.rhythmStep !== undefined) {
+    return clampRhythmStep(settings.rhythmStep);
+  }
+
+  if (settings.rhythmMode === "overlap") {
+    return seedingRhythmStepMin;
+  }
+
+  if (settings.rhythmMode === "interleave") {
+    return seedingRhythmStepMax;
+  }
+
+  return defaultSeedingRhythmStep;
+}
+
 /** @param {number} value */
 function clampRangeSemitones(value) {
   return Math.round(clamp(value, seedingRangeSemitonesMin, seedingRangeSemitonesMax));
@@ -109,10 +199,6 @@ export function normalizeSeedingSettings(settings = {}) {
     ...defaultSeedingSettings,
     ...settings,
   };
-  const rhythmMode = seedingRhythmOptions.some((option) => option.value === merged.rhythmMode)
-    ? merged.rhythmMode
-    : defaultSeedingSettings.rhythmMode;
-
   return {
     root: clampScaleRoot(merged.root ?? 0),
     modeIndex: clampScaleModeIndex(merged.modeIndex ?? 0),
@@ -122,7 +208,7 @@ export function normalizeSeedingSettings(settings = {}) {
     complexity: clampPercent(merged.complexity),
     randomness: clampPercent(merged.randomness),
     symmetry: Boolean(merged.symmetry),
-    rhythmMode,
+    rhythmStep: resolveRhythmStep(settings),
     seed: Math.max(1, Math.round(clamp(merged.seed, 1, 2147483647))),
   };
 }
@@ -140,7 +226,10 @@ export function generateSeededPhraseRows(settings = {}) {
   const complexityRatio = options.complexity / 100;
   const repetitionRatio = options.repetition / 100;
   const randomnessRatio = options.randomness / 100;
-  const rowTimingOffset = options.rhythmMode === "overlap" ? [3, 2, 4, 3] : [3, 4, 2, 5];
+  const rhythmBlend = rhythmInterleaveRatio(options.rhythmStep);
+  const rowTimingOffset = rhythmRowTimingOffsets(options.rhythmStep);
+  const durationPenalty = rhythmDurationPenalty(options.rhythmStep);
+  const accentTimingMultiplier = rhythmAccentTimingMultiplier(options.rhythmStep);
   const rows = {
     notes: [],
     stepTimingMultiplier: [],
@@ -205,15 +294,23 @@ export function generateSeededPhraseRows(settings = {}) {
       midiForSeedingOffset(options.root, options.modeIndex, semitoneOffset)
     ));
     rows.stepTimingMultiplier[row] = degrees.map((_, step) => {
-      if (options.rhythmMode === "interleave" && (step + row) % 4 === 0) {
-        return timingMultiplierIndexForValue(0.5);
+      const poolValue = timingPool[randomInt(random, 0, timingPool.length - 1)];
+
+      if (rhythmBlend <= 0) {
+        return timingMultiplierIndexForValue(poolValue);
       }
 
-      return timingMultiplierIndexForValue(timingPool[randomInt(random, 0, timingPool.length - 1)]);
+      const weight = stepRhythmWeight(step, row, options.phraseLength);
+      const blendedMultiplier = poolValue + (accentTimingMultiplier - poolValue) * weight;
+
+      return timingMultiplierIndexForValue(blendedMultiplier);
     });
     rows.stepDurationFraction[row] = degrees.map((_, step) => {
       const accent = (step + row) % 4 === 0 ? 0.95 : 0.72 + random() * 0.2;
-      return Number(clamp(options.rhythmMode === "overlap" ? accent : accent - 0.16, 0.35, 1).toFixed(2));
+      const weight = stepRhythmWeight(step, row, options.phraseLength);
+      const stepPenalty = durationPenalty * weight;
+
+      return Number(clamp(accent - stepPenalty, 0.35, 1).toFixed(2));
     });
     rows.stepVelocity[row] = degrees.map((_, step) => (
       Math.round(clamp(

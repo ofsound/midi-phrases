@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { generateSeededPhraseRows, normalizeSeedingSettings } from "./seeding.js";
+import {
+  generateSeededPhraseRows,
+  normalizeSeedingSettings,
+  rhythmInterleaveRatio,
+  seedingRhythmStepMax,
+  seedingRhythmStepMin,
+} from "./seeding.js";
 import { isMidiInScale } from "./scaleUtils.js";
+import { timingOffsetValues } from "./stepCellLayout.js";
 
 describe("normalizeSeedingSettings", () => {
   it("clamps public settings to supported ranges", () => {
@@ -10,7 +17,7 @@ describe("normalizeSeedingSettings", () => {
       repetition: 500,
       complexity: -1,
       randomness: Number.NaN,
-      rhythmMode: "unknown",
+      rhythmStep: 99,
       seed: -10,
     });
 
@@ -19,8 +26,13 @@ describe("normalizeSeedingSettings", () => {
     expect(settings.repetition).toBe(100);
     expect(settings.complexity).toBe(0);
     expect(settings.randomness).toBe(0);
-    expect(settings.rhythmMode).toBe("interleave");
+    expect(settings.rhythmStep).toBe(seedingRhythmStepMax);
     expect(settings.seed).toBe(1);
+  });
+
+  it("maps legacy rhythm modes to stepped values", () => {
+    expect(normalizeSeedingSettings({ rhythmMode: "overlap" }).rhythmStep).toBe(seedingRhythmStepMin);
+    expect(normalizeSeedingSettings({ rhythmMode: "interleave" }).rhythmStep).toBe(seedingRhythmStepMax);
   });
 
   it("maps legacy range presets to semitone spans", () => {
@@ -89,5 +101,51 @@ describe("generateSeededPhraseRows", () => {
     for (const row of result.notes) {
       expect(row.slice(4)).toEqual(row.slice(0, 4).reverse());
     }
+  });
+
+  it("matches legacy overlap and interleave presets at the slider extremes", () => {
+    const overlap = generateSeededPhraseRows({
+      phraseLength: 8,
+      repetition: 0,
+      randomness: 0,
+      complexity: 0,
+      rhythmStep: seedingRhythmStepMin,
+      seed: 42,
+    });
+    const interleave = generateSeededPhraseRows({
+      phraseLength: 8,
+      repetition: 0,
+      randomness: 0,
+      complexity: 0,
+      rhythmStep: seedingRhythmStepMax,
+      seed: 42,
+    });
+
+    expect(overlap.rowTimingOffset.map((index) => timingOffsetValues[index])).toEqual([0, -0.25, 0.25, 0]);
+    expect(interleave.rowTimingOffset.map((index) => timingOffsetValues[index])).toEqual([0, 0.25, -0.25, 0.5]);
+    expect(overlap.stepDurationFraction[0][0]).toBeGreaterThan(interleave.stepDurationFraction[0][0]);
+    expect(overlap.stepTimingMultiplier[0][0]).not.toBe(interleave.stepTimingMultiplier[0][0]);
+  });
+
+  it("ramps interleave amount across the slider", () => {
+    expect(rhythmInterleaveRatio(seedingRhythmStepMin)).toBe(0);
+    expect(rhythmInterleaveRatio(seedingRhythmStepMax)).toBe(1);
+    expect(rhythmInterleaveRatio(3)).toBeCloseTo(3 / 7, 5);
+  });
+
+  it("produces distinct rhythm output for every slider step at short phrase length", () => {
+    const base = { phraseLength: 3, repetition: 0, randomness: 0, complexity: 0, seed: 42 };
+    const signatures = [];
+
+    for (let rhythmStep = seedingRhythmStepMin; rhythmStep <= seedingRhythmStepMax; rhythmStep += 1) {
+      const result = generateSeededPhraseRows({ ...base, rhythmStep });
+      signatures.push(JSON.stringify({
+        offsets: result.rowTimingOffset,
+        durations: result.stepDurationFraction,
+        multipliers: result.stepTimingMultiplier,
+      }));
+    }
+
+    expect(new Set(signatures).size).toBe(seedingRhythmStepMax + 1);
   });
 });

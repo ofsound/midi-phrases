@@ -107,6 +107,7 @@
     defaultSeedingSettings,
     generateSeededPhraseRows,
     normalizeSeedingSettings,
+    seedingRhythmStepMax,
   } from "./seeding.js";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
@@ -2820,7 +2821,7 @@
       complexity: normalized.complexity,
       randomness: normalized.randomness,
       symmetry: normalized.symmetry,
-      rhythmMode: normalized.rhythmMode,
+      rhythmStep: normalized.rhythmStep,
       seed: normalized.seed,
     };
   }
@@ -2909,7 +2910,7 @@
       complexity: Math.round(Math.min(100, Math.max(0, 20 + Math.random() * 72))),
       randomness: Math.round(Math.min(100, Math.max(0, 24 + Math.random() * 68))),
       symmetry: Math.random() > 0.62,
-      rhythmMode: Math.random() > 0.5 ? "overlap" : "interleave",
+      rhythmStep: Math.floor(Math.random() * (seedingRhythmStepMax + 1)),
       seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
     });
   }
