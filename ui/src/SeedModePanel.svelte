@@ -67,7 +67,7 @@
           step="1"
           value={settings.phraseLength}
           disabled={busy}
-          class="w-full accent-[var(--color-accent)] disabled:opacity-40"
+          class="accent-range-slider w-full disabled:opacity-40"
           onpointerdown={onGestureStart}
           onkeydown={onGestureStart}
           oninput={(event) => previewSettings({ phraseLength: Number(event.currentTarget.value) })}
@@ -90,7 +90,7 @@
           step="1"
           value={settings.rangeSemitones}
           disabled={busy}
-          class="w-full accent-[var(--color-accent)] disabled:opacity-40"
+          class="accent-range-slider w-full disabled:opacity-40"
           onpointerdown={onGestureStart}
           onkeydown={onGestureStart}
           oninput={(event) => previewSettings({ rangeSemitones: Number(event.currentTarget.value) })}
@@ -129,7 +129,7 @@
           max="100"
           value={settings.repetition}
           disabled={busy}
-          class="w-full accent-[var(--color-accent)] disabled:opacity-40"
+          class="accent-range-slider w-full disabled:opacity-40"
           onpointerdown={onGestureStart}
           onkeydown={onGestureStart}
           oninput={(event) => previewSettings({ repetition: clampPercent(Number(event.currentTarget.value)) })}
@@ -147,7 +147,7 @@
           max="100"
           value={settings.complexity}
           disabled={busy}
-          class="w-full accent-[var(--color-accent)] disabled:opacity-40"
+          class="accent-range-slider w-full disabled:opacity-40"
           onpointerdown={onGestureStart}
           onkeydown={onGestureStart}
           oninput={(event) => previewSettings({ complexity: clampPercent(Number(event.currentTarget.value)) })}
@@ -165,7 +165,7 @@
           max="100"
           value={settings.randomness}
           disabled={busy}
-          class="w-full accent-[var(--color-accent)] disabled:opacity-40"
+          class="accent-range-slider w-full disabled:opacity-40"
           onpointerdown={onGestureStart}
           onkeydown={onGestureStart}
           oninput={(event) => previewSettings({ randomness: clampPercent(Number(event.currentTarget.value)) })}
