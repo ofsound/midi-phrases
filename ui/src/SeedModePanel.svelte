@@ -15,12 +15,14 @@
     settings = { ...defaultSeedingSettings },
     root = 0,
     modeIndex = 0,
+    rowMuted = [false, false, false, false],
     busy = false,
     onGestureStart = () => {},
     onSettingsPreview = () => {},
     onSettingsCommit = () => {},
     onShuffle = () => {},
     onNextSeed = () => {},
+    onRowMuteToggle = () => {},
   } = $props();
 
   let preview = $derived(generateSeededPhraseRows({
@@ -194,6 +196,6 @@
         </button>
     </div>
 
-    <SeedPhrasePreview {preview} />
+    <SeedPhrasePreview {preview} {rowMuted} {onRowMuteToggle} />
   </div>
 </div>

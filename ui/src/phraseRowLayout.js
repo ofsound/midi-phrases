@@ -102,6 +102,11 @@ export function phraseRowMuteControlWidthPx() {
   return scaledPx(basePhraseRowMuteControlWidthPx);
 }
 
+/** Seed preview row header: mute toggle plus trailing gap before the step grid. */
+export function phraseRowMuteOnlyLeadingWidthPx() {
+  return phraseRowMuteControlWidthPx() + phraseRowHeaderGapPx();
+}
+
 /** Matches BipolarKnob `h-8 w-8` in the row header. */
 export const basePhraseRowOffsetKnobWidthPx = 32;
 

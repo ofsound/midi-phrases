@@ -2756,7 +2756,7 @@
     stepCycleOffset = cloneMatrix(generated.stepCycleOffset);
     activeGates = nextNotes.map((row) => row.map(() => false));
     stepIds = createStepIdsForGrid(nextNotes);
-    rowMuted = nextNotes.map(() => false);
+    rowMuted = nextNotes.map((_, index) => rowMuted[index] ?? false);
     soloRow = -1;
     rowSoloRestoreMuted = null;
     setSelectedStepKeys(new Set());
@@ -2773,7 +2773,7 @@
 
       if (applyVersion !== null && applyVersion !== seedModeApplyVersion) return;
 
-      await pushRowMutedValue(row, false);
+      await pushRowMutedValue(row, rowMuted[row]);
 
       if (applyVersion !== null && applyVersion !== seedModeApplyVersion) return;
 
@@ -2912,6 +2912,35 @@
       rhythmMode: Math.random() > 0.5 ? "overlap" : "interleave",
       seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
     });
+  }
+
+  async function toggleSeedModeRowMute(row, soloRequested = false) {
+    if (projectOperationBusy) return;
+
+    beginSeedModeHistory();
+    seedModeDirty = true;
+
+    if (soloRequested) {
+      if (soloRow === row && rowSoloRestoreMuted) {
+        const restoreMuted = [...rowSoloRestoreMuted];
+        soloRow = -1;
+        rowSoloRestoreMuted = null;
+        await applyRowMutedState(restoreMuted);
+        return;
+      }
+
+      if (!rowSoloRestoreMuted) {
+        rowSoloRestoreMuted = [...rowMuted];
+      }
+
+      soloRow = row;
+      await applyRowMutedState(rowMuted.map((_, index) => index !== row));
+      return;
+    }
+
+    const nextMuted = [...rowMuted];
+    nextMuted[row] = !nextMuted[row];
+    await applyRowMutedState(nextMuted);
   }
 
   function cycleProject(direction) {
@@ -5534,12 +5563,14 @@
           settings={seedModeSettings}
           root={scaleRoot}
           modeIndex={scaleModeIndex}
+          rowMuted={rowMuted}
           busy={projectOperationBusy}
           onGestureStart={beginSeedModeHistory}
           onSettingsPreview={previewSeedModeSettings}
           onSettingsCommit={commitSeedModeSettings}
           onShuffle={shuffleSeedModeSettings}
           onNextSeed={nextSeedModeSeed}
+          onRowMuteToggle={toggleSeedModeRowMute}
         />
       {:else}
       <div data-phrase-grid-field class="relative flex flex-col" {@attach phraseGridFieldAttachment}>
