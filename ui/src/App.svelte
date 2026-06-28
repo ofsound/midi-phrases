@@ -3155,12 +3155,14 @@
     }, { syncNative: true });
   }
 
-  function enableAllSeedModeRowTargets() {
+  function toggleAllSeedModeRowTargets() {
     if (projectOperationBusy) return;
+
+    const shouldDisableAll = seedModeRowTargets.every(Boolean);
 
     void applySeedModeState({
       ...currentSeedModeState(),
-      rowTargets: [true, true, true, true],
+      rowTargets: shouldDisableAll ? [false, false, false, false] : [true, true, true, true],
     }, { syncNative: true });
   }
 
@@ -5836,7 +5838,7 @@
           onNextSeed={nextSeedModeSeed}
           onRowMuteToggle={toggleSeedModeRowMute}
           onRowTargetToggle={toggleSeedModeRowTarget}
-          onEnableAllRowTargets={enableAllSeedModeRowTargets}
+          onToggleAllRowTargets={toggleAllSeedModeRowTargets}
         />
       {:else}
       <div data-phrase-grid-field class="relative flex flex-col" {@attach phraseGridFieldAttachment}>

@@ -9,7 +9,7 @@
    * @property {boolean} [rowColorsEnabled]
    * @property {boolean} [busy]
    * @property {(row: number, options: { shiftKey: boolean }) => void} [onRowTargetToggle]
-   * @property {() => void} [onEnableAllRowTargets]
+   * @property {() => void} [onToggleAllRowTargets]
    * @property {string} [class]
    */
 
@@ -19,7 +19,7 @@
     rowColorsEnabled = true,
     busy = false,
     onRowTargetToggle = () => {},
-    onEnableAllRowTargets = () => {},
+    onToggleAllRowTargets = () => {},
     class: className = "",
   } = $props();
 
@@ -71,11 +71,11 @@
       type="button"
       data-cursor="pointer"
       disabled={busy}
-      aria-label="Enable seeding for all rows"
+      aria-label={allRowsTargeted ? "Disable seeding for all rows" : "Enable seeding for all rows"}
       aria-pressed={allRowsTargeted}
-      title="Enable seeding for all rows"
+      title={allRowsTargeted ? "Disable seeding for all rows" : "Enable seeding for all rows"}
       class="seed-row-target-btn seed-row-target-all"
-      onclick={onEnableAllRowTargets}
+      onclick={onToggleAllRowTargets}
     >
       All
     </button>
@@ -146,7 +146,7 @@
       inset 0 -1px 2px color-mix(in srgb, var(--color-app) 36%, transparent);
   }
 
-  .seed-row-target-row:hover:not(:disabled) {
+  .seed-row-target-row:not([aria-pressed="true"]):hover:not(:disabled) {
     background: color-mix(in srgb, var(--row-accent) 42%, var(--color-field));
     border-color: color-mix(in srgb, var(--row-accent-strong) 88%, transparent);
     color: var(--row-accent-strong);
