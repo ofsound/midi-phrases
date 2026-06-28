@@ -5,6 +5,10 @@ const dragCursorMap = {
   "vertical-drag": "none",
 };
 
+// Temporarily force the regular cursor while keeping all cursor plumbing and
+// data-cursor definitions intact for a future re-enable.
+const customCursorsEnabled = false;
+
 let activeCursor = "";
 let setHostCursorNative = null;
 let lastHoverChain = [];
@@ -24,6 +28,8 @@ function isDisabledCursorElement(element) {
 }
 
 function cursorForElement(element) {
+  if (!customCursorsEnabled) return "default";
+
   if (isDisabledCursorElement(element)) return "default";
 
   const cursor = element.getAttribute("data-cursor") || "";
@@ -34,6 +40,8 @@ function cursorForElement(element) {
 }
 
 function rawCursorFromTarget(target) {
+  if (!customCursorsEnabled) return "";
+
   if (!(target instanceof Element)) return "";
 
   const cursorElement = target.closest("[data-cursor], button, [role='button']");
@@ -43,6 +51,8 @@ function rawCursorFromTarget(target) {
 }
 
 function activeDragCursorFromTarget(target) {
+  if (!customCursorsEnabled) return "";
+
   const raw = rawCursorFromTarget(target);
 
   if (raw === "vertical-drag") return "vertical-drag";
@@ -53,6 +63,8 @@ function activeDragCursorFromTarget(target) {
 }
 
 function cursorFromTarget(target) {
+  if (!customCursorsEnabled) return "default";
+
   if (!(target instanceof Element)) return "default";
 
   const cursorElement = target.closest("[data-cursor], button, [role='button']");
@@ -77,6 +89,8 @@ function clientCoordsFromHost(hostX, hostY, hostW, hostH) {
 }
 
 function cursorAtPoint(x, y) {
+  if (!customCursorsEnabled) return "";
+
   const element = document.elementFromPoint(x, y);
   if (!(element instanceof Element)) return "";
 
@@ -115,7 +129,9 @@ export function syncInlineCursors(root = document.documentElement) {
 
     let cursor = "";
 
-    if (element.hasAttribute("data-cursor")) {
+    if (!customCursorsEnabled) {
+      cursor = "default";
+    } else if (element.hasAttribute("data-cursor")) {
       cursor = cursorForElement(element);
     } else if (
       element instanceof HTMLButtonElement
@@ -147,6 +163,12 @@ function applyBodyCursor(cursor) {
 }
 
 function reportHostCursor(cursor) {
+  if (!customCursorsEnabled) {
+    applyBodyCursor("");
+    setHostCursorNative?.("default");
+    return;
+  }
+
   const name = cursor || "default";
   applyBodyCursor(name === "default" ? "" : name);
   setHostCursorNative?.(name);
@@ -167,6 +189,11 @@ export function updateInteractionAtPoint(hostX, hostY, hostW, hostH) {
 
   updateHoverChainAtPoint(x, y);
 
+  if (!customCursorsEnabled) {
+    reportHostCursor("default");
+    return "default";
+  }
+
   if (activeCursor) {
     reportHostCursor(activeCursor);
     return activeCursor;
@@ -186,6 +213,8 @@ export function clearInteractionHover() {
 }
 
 export function setActiveCursor(cursor) {
+  if (!customCursorsEnabled) return;
+
   activeCursor = dragCursorMap[cursor] || cursor;
   reportHostCursor(activeCursor);
 }
@@ -207,6 +236,7 @@ export function installCursorSync() {
   if (installed) return;
 
   installed = true;
+  document.documentElement.dataset.mpCustomCursors = customCursorsEnabled ? "on" : "off";
   syncInlineCursors();
 
   if (hasNativeFunction("setHostCursor")) {

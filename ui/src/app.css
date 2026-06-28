@@ -45,6 +45,12 @@
 
 /* WKWebView in JUCE often ignores cursor on controls unless forced. */
 @layer components {
+  /* Temporary kill switch: cursor.js sets this while cursor states are parked. */
+  :root[data-mp-custom-cursors="off"],
+  :root[data-mp-custom-cursors="off"] * {
+    cursor: default !important;
+  }
+
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]) {
     cursor: pointer !important;

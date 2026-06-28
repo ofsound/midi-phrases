@@ -381,6 +381,8 @@
   let timingHumanizePercent = $state(0);
   let swingSubdivisionIndex = $state(1);
   let rowColorsEnabled = $state(true);
+  // Keep the row color toggle plumbing wired while the visible control is parked.
+  const showRowColorsToggle = false;
   let themeMode = $state(defaultThemeMode);
   let projectName = $state("Untitled Project");
   let projectDescription = $state("");
@@ -6357,14 +6359,16 @@
         </div>
 
         <div class="flex shrink-0 items-center justify-end gap-1.5">
-          <ColorsToggle
-            accent={interfaceAccent}
-            enabled={rowColorsEnabled}
-            onChange={async (next) => {
-              rowColorsEnabled = next;
-              await pushRowColorsEnabled();
-            }}
-          />
+          {#if showRowColorsToggle}
+            <ColorsToggle
+              accent={interfaceAccent}
+              enabled={rowColorsEnabled}
+              onChange={async (next) => {
+                rowColorsEnabled = next;
+                await pushRowColorsEnabled();
+              }}
+            />
+          {/if}
           <ThemeModeToggle value={themeMode} onValueChange={setThemeMode} />
           <UiScaleDragInput
             value={uiScaleState.percent}
