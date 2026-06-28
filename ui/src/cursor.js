@@ -5,13 +5,19 @@ const dragCursorMap = {
   "vertical-drag": "none",
 };
 
-// Temporarily force the regular cursor while keeping all cursor plumbing and
-// data-cursor definitions intact for a future re-enable.
-const customCursorsEnabled = false;
+// Temporarily force the regular displayed cursor while keeping all cursor
+// plumbing and data-cursor definitions intact for a future re-enable.
+export const customCursorVisualsEnabled = false;
 
 let activeCursor = "";
 let setHostCursorNative = null;
 let lastHoverChain = [];
+
+function setDefaultCursorStyle(element) {
+  if (element instanceof HTMLElement) {
+    element.style.setProperty("cursor", "default", "important");
+  }
+}
 
 function hasNativeFunction(name) {
   return (
@@ -28,8 +34,6 @@ function isDisabledCursorElement(element) {
 }
 
 function cursorForElement(element) {
-  if (!customCursorsEnabled) return "default";
-
   if (isDisabledCursorElement(element)) return "default";
 
   const cursor = element.getAttribute("data-cursor") || "";
@@ -40,8 +44,6 @@ function cursorForElement(element) {
 }
 
 function rawCursorFromTarget(target) {
-  if (!customCursorsEnabled) return "";
-
   if (!(target instanceof Element)) return "";
 
   const cursorElement = target.closest("[data-cursor], button, [role='button']");
@@ -51,8 +53,6 @@ function rawCursorFromTarget(target) {
 }
 
 function activeDragCursorFromTarget(target) {
-  if (!customCursorsEnabled) return "";
-
   const raw = rawCursorFromTarget(target);
 
   if (raw === "vertical-drag") return "vertical-drag";
@@ -63,8 +63,6 @@ function activeDragCursorFromTarget(target) {
 }
 
 function cursorFromTarget(target) {
-  if (!customCursorsEnabled) return "default";
-
   if (!(target instanceof Element)) return "default";
 
   const cursorElement = target.closest("[data-cursor], button, [role='button']");
@@ -89,8 +87,6 @@ function clientCoordsFromHost(hostX, hostY, hostW, hostH) {
 }
 
 function cursorAtPoint(x, y) {
-  if (!customCursorsEnabled) return "";
-
   const element = document.elementFromPoint(x, y);
   if (!(element instanceof Element)) return "";
 
@@ -129,7 +125,7 @@ export function syncInlineCursors(root = document.documentElement) {
 
     let cursor = "";
 
-    if (!customCursorsEnabled) {
+    if (!customCursorVisualsEnabled) {
       cursor = "default";
     } else if (element.hasAttribute("data-cursor")) {
       cursor = cursorForElement(element);
@@ -140,7 +136,13 @@ export function syncInlineCursors(root = document.documentElement) {
       cursor = isDisabledCursorElement(element) ? "default" : "pointer";
     }
 
-    if (cursor) element.style.cursor = cursor;
+    if (cursor) {
+      element.style.setProperty(
+        "cursor",
+        cursor,
+        customCursorVisualsEnabled ? "" : "important",
+      );
+    }
   };
 
   visit(root);
@@ -155,17 +157,32 @@ export function syncInlineCursors(root = document.documentElement) {
 function applyBodyCursor(cursor) {
   if (cursor) {
     document.body.dataset.cursor = cursor;
-    document.body.style.cursor = cursor;
+    document.documentElement.style.setProperty("cursor", cursor, "important");
+    document.body.style.setProperty("cursor", cursor, "important");
   } else {
     delete document.body.dataset.cursor;
+    document.documentElement.style.removeProperty("cursor");
     document.body.style.removeProperty("cursor");
   }
 }
 
+function forceDefaultCursor(target = null) {
+  document.documentElement.dataset.mpCustomCursors = "off";
+  applyBodyCursor("default");
+  setHostCursorNative?.("default");
+
+  if (!(target instanceof Element)) return;
+
+  for (let element = target; element; element = element.parentElement) {
+    setDefaultCursorStyle(element);
+  }
+
+  setDefaultCursorStyle(target.closest("[data-cursor], button, [role='button']"));
+}
+
 function reportHostCursor(cursor) {
-  if (!customCursorsEnabled) {
-    applyBodyCursor("");
-    setHostCursorNative?.("default");
+  if (!customCursorVisualsEnabled) {
+    forceDefaultCursor();
     return;
   }
 
@@ -189,7 +206,7 @@ export function updateInteractionAtPoint(hostX, hostY, hostW, hostH) {
 
   updateHoverChainAtPoint(x, y);
 
-  if (!customCursorsEnabled) {
+  if (!customCursorVisualsEnabled) {
     reportHostCursor("default");
     return "default";
   }
@@ -213,8 +230,6 @@ export function clearInteractionHover() {
 }
 
 export function setActiveCursor(cursor) {
-  if (!customCursorsEnabled) return;
-
   activeCursor = dragCursorMap[cursor] || cursor;
   reportHostCursor(activeCursor);
 }
@@ -236,7 +251,7 @@ export function installCursorSync() {
   if (installed) return;
 
   installed = true;
-  document.documentElement.dataset.mpCustomCursors = customCursorsEnabled ? "on" : "off";
+  document.documentElement.dataset.mpCustomCursors = customCursorVisualsEnabled ? "on" : "off";
   syncInlineCursors();
 
   if (hasNativeFunction("setHostCursor")) {
@@ -261,6 +276,11 @@ export function installCursorSync() {
   });
 
   const onPointerHover = (event) => {
+    if (!customCursorVisualsEnabled) {
+      forceDefaultCursor(event.target);
+      return;
+    }
+
     syncHoverFromTarget(event.target);
   };
 

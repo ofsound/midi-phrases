@@ -18,7 +18,7 @@
   import {
     compactStepMoveThresholdPx,
   } from "./compactStepInteraction.js";
-  import { clearActiveCursor, setActiveCursor } from "./cursor.js";
+  import { clearActiveCursor, customCursorVisualsEnabled, setActiveCursor } from "./cursor.js";
   import { preventTabFocus } from "./preventTabFocus.js";
   import {
     insertionIndexFromCellMidpoints,
@@ -292,6 +292,8 @@
   let resizeHandleElement = null;
   let resizePointerId = -1;
   let resizeEndHandled = false;
+  /** @type {{ step: number, startX: number, startY: number, element: HTMLElement } | null} */
+  let pendingResizeGesture = null;
   let lastBulkBackgroundPointerDownTime = 0;
   let lastBulkBackgroundPointerDownX = 0;
   let lastBulkBackgroundPointerDownY = 0;
@@ -938,7 +940,7 @@
 
   /** Full-zone hover target so fast cursor sweeps through the gap still reveal handles. */
   const stepBoundaryResizeHoverPadClass =
-    "boundary-resize-hover-pad pointer-events-auto absolute inset-0 z-[5]";
+    "boundary-resize-hover-pad pointer-events-auto absolute inset-0 z-[5] border-0 bg-transparent p-0 outline-none disabled:pointer-events-none disabled:opacity-50";
 
   /** Narrow hit target centered on the step cell; visual handles use the full cell height. */
   const stepBoundaryResizeHitClass =
@@ -1273,6 +1275,7 @@
       element.style.setProperty("height", dragHeight, "important");
       element.style.setProperty("min-height", dragHeight, "important");
       element.style.setProperty("overflow", "visible", "important");
+      suppressParkedCursorVisual(element);
       return;
     }
 
@@ -1283,6 +1286,7 @@
     element.style.setProperty("overflow", "visible", "important");
     element.style.setProperty("outline", "none", "important");
     element.style.setProperty("box-shadow", "none", "important");
+    suppressParkedCursorVisual(element);
     element.querySelector("[data-insert-slot]")?.style.setProperty("display", "none");
     element.querySelector("[data-multiplier-resize]")?.style.setProperty("display", "none");
     applyDragCopyBadge(element, draggedAsDuplicate);
@@ -1294,6 +1298,32 @@
         node.style.setProperty("--tw-ring-width", "0px");
       }
     });
+  }
+
+  /** Some integrations write inline cursor styles; keep their behavior but park the visual cursor. */
+  function suppressParkedCursorVisual(node) {
+    if (!(node instanceof HTMLElement) || customCursorVisualsEnabled) return;
+
+    node.style.setProperty("cursor", "default", "important");
+  }
+
+  function suppressParkedCursorVisualAction(node) {
+    suppressParkedCursorVisual(node);
+
+    const observer = new MutationObserver(() => suppressParkedCursorVisual(node));
+    observer.observe(node, {
+      attributes: true,
+      attributeFilter: ["style"],
+    });
+
+    return {
+      update() {
+        suppressParkedCursorVisual(node);
+      },
+      destroy() {
+        observer.disconnect();
+      },
+    };
   }
 
   /** @param {PointerEvent} event */
@@ -1617,6 +1647,18 @@
     resizeListenerEntries = [];
   }
 
+  function releaseResizePointerCapture() {
+    if (resizeHandleElement && resizePointerId >= 0) {
+      try {
+        if (resizeHandleElement.hasPointerCapture(resizePointerId)) {
+          resizeHandleElement.releasePointerCapture(resizePointerId);
+        }
+      } catch {
+        // Pointer may already be released in the WebView.
+      }
+    }
+  }
+
   /** @param {Event} event */
   function trackResizeMove(event) {
     if (resizingStep < 0) return;
@@ -1643,22 +1685,42 @@
     cancelMultiplierResize(/** @type {PointerEvent} */ (event));
   }
 
+  /** @param {Event} event */
+  function trackPendingResizeMove(event) {
+    if (!pendingResizeGesture) return;
+
+    if ("buttons" in event && event.buttons !== 1) {
+      cancelPendingResize();
+      return;
+    }
+
+    const pointerEvent = /** @type {PointerEvent | MouseEvent} */ (event);
+    const distance = Math.hypot(
+      pointerEvent.clientX - pendingResizeGesture.startX,
+      pointerEvent.clientY - pendingResizeGesture.startY,
+    );
+
+    if (distance < compactStepMoveThresholdPx) return;
+
+    startMultiplierResize(pointerEvent, pendingResizeGesture.step, pendingResizeGesture.element);
+  }
+
+  function cancelPendingResize() {
+    clearResizeListeners();
+    releaseResizePointerCapture();
+    resizeHandleElement = null;
+    resizePointerId = -1;
+    pendingResizeGesture = null;
+  }
+
   function teardownActiveResize() {
     clearResizeListeners();
     clearActiveCursor("ew-resize");
-
-    if (resizeHandleElement && resizePointerId >= 0) {
-      try {
-        if (resizeHandleElement.hasPointerCapture(resizePointerId)) {
-          resizeHandleElement.releasePointerCapture(resizePointerId);
-        }
-      } catch {
-        // Pointer may already be released in the WebView.
-      }
-    }
+    releaseResizePointerCapture();
 
     resizeHandleElement = null;
     resizePointerId = -1;
+    pendingResizeGesture = null;
   }
 
   onDestroy(() => {
@@ -1669,10 +1731,12 @@
     clearCompactStepDrag();
   });
 
-  /** @param {PointerEvent} event @param {number} step */
+  /** @param {PointerEvent | MouseEvent} event @param {number} step */
   function beginMultiplierResize(event, step) {
     event.stopPropagation();
-    event.preventDefault();
+
+    // Let the native dblclick event handle insert/duplicate instead of starting a resize on click two.
+    if (event.detail >= 2) return;
 
     if (isDragging || removeBlocked || resizingStep >= 0) return;
 
@@ -1680,17 +1744,40 @@
 
     const handle = /** @type {HTMLElement} */ (event.currentTarget);
     resizeHandleElement = handle;
-    resizePointerId = event.pointerId;
+    resizePointerId = "pointerId" in event ? event.pointerId : -1;
 
-    if (handle.setPointerCapture) {
-      handle.setPointerCapture(event.pointerId);
+    if (handle.setPointerCapture && resizePointerId >= 0) {
+      handle.setPointerCapture(resizePointerId);
     }
+
+    pendingResizeGesture = {
+      step,
+      startX: event.clientX,
+      startY: event.clientY,
+      element: handle,
+    };
+
+    addResizeListener("pointermove", trackPendingResizeMove, resizeCapture);
+    addResizeListener("mousemove", trackPendingResizeMove, resizeCapture);
+    addResizeListener("pointerup", cancelPendingResize, resizeCapture);
+    addResizeListener("mouseup", cancelPendingResize, resizeCapture);
+    addResizeListener("pointercancel", cancelPendingResize, resizeCapture);
+  }
+
+  /** @param {PointerEvent | MouseEvent} event @param {number} step @param {HTMLElement} handle */
+  function startMultiplierResize(event, step, handle) {
+    const startX = pendingResizeGesture?.startX ?? event.clientX;
+
+    event.preventDefault();
+    clearResizeListeners();
+    pendingResizeGesture = null;
 
     const displayWidth = logicalShellWidthPx(step);
 
+    resizeHandleElement = handle;
     resizingStep = step;
     resizePreviewMultipliers = stepTimingMultiplier.slice();
-    resizeStartX = event.clientX;
+    resizeStartX = startX;
     resizeStartWidth = displayWidth;
     resizeEndHandled = false;
 
@@ -2014,6 +2101,7 @@
   {#if reorderEnabled}
     <div
       use:dragHandle
+      use:suppressParkedCursorVisualAction
       use:preventTabFocus
       role="button"
       tabindex="0"
@@ -2048,9 +2136,23 @@
     class="trailing-multiplier-resize-zone pointer-events-none absolute inset-y-0 z-[60]"
     style={trailingResizeZoneStyle()}
   >
-    <div class={stepBoundaryResizeHoverPadClass} aria-hidden="true"></div>
     <button
       type="button"
+      use:suppressParkedCursorVisualAction
+      data-multiplier-resize
+      data-no-long-press
+      data-cursor="ew-resize"
+      aria-label="Resize final step boundary; double-click to insert; Option-double-click to duplicate"
+      title="Double-click to insert · Option-double-click to duplicate"
+      disabled={isDragging || removeBlocked}
+      class={stepBoundaryResizeHoverPadClass}
+      onpointerdown={(event) => beginMultiplierResize(event, step)}
+      onmousedown={(event) => beginMultiplierResize(event, step)}
+      ondblclick={(event) => handleBoundaryDoubleClick(event, step + 1)}
+    ></button>
+    <button
+      type="button"
+      use:suppressParkedCursorVisualAction
       data-multiplier-resize
       data-no-long-press
       data-cursor="ew-resize"
@@ -2358,10 +2460,24 @@
         ? leadingBoundaryInsertZoneStyle(leftPx)
         : insertSlotStyle(leftPx)}
   >
-    <div class={stepBoundaryResizeHoverPadClass} aria-hidden="true"></div>
     {#if mode === "between" && insertStep > 0}
       <button
         type="button"
+        use:suppressParkedCursorVisualAction
+        data-multiplier-resize
+        data-no-long-press
+        data-cursor="ew-resize"
+        aria-label="Resize step boundary; double-click to insert; Option-double-click to duplicate"
+        title="Double-click to insert · Option-double-click to duplicate"
+        disabled={isDragging || removeBlocked}
+        class={stepBoundaryResizeHoverPadClass}
+        onpointerdown={(event) => beginMultiplierResize(event, insertStep - 1)}
+        onmousedown={(event) => beginMultiplierResize(event, insertStep - 1)}
+        ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
+      ></button>
+      <button
+        type="button"
+        use:suppressParkedCursorVisualAction
         data-multiplier-resize
         data-no-long-press
         data-cursor="ew-resize"
@@ -2387,6 +2503,20 @@
     {:else if mode === "leading" && insertStep === 0}
       <button
         type="button"
+        use:suppressParkedCursorVisualAction
+        data-no-long-press
+        data-cursor="pointer"
+        aria-label="First step boundary; double-click to insert"
+        title="Double-click to insert"
+        disabled={isDragging || removeBlocked}
+        class={stepBoundaryResizeHoverPadClass}
+        onpointerdown={(event) => event.stopPropagation()}
+        onmousedown={(event) => event.stopPropagation()}
+        ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
+      ></button>
+      <button
+        type="button"
+        use:suppressParkedCursorVisualAction
         data-no-long-press
         data-cursor="pointer"
         aria-label="First step boundary; double-click to insert"
@@ -2605,6 +2735,7 @@
               {@const collapsed = layout.isShadow || hideBulkDragSource}
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
+                use:suppressParkedCursorVisualAction
                 data-bulk-step-cell={layout.step >= 0 ? true : undefined}
                 data-compact-step-cell
                 data-step-row={layout.step >= 0 ? row : undefined}
@@ -2633,6 +2764,7 @@
                 {#if !collapsed}
                   <div
                     use:dragHandle
+                    use:suppressParkedCursorVisualAction
                     data-compact-step-drag-handle
                     data-cursor="grab"
                     class="absolute inset-0 z-50 touch-none select-none"
@@ -2706,6 +2838,7 @@
               && draggedAsDuplicate}
             {@const collapsed = isShadowItem(item) || hideBulkDragSource}
             <div
+              use:suppressParkedCursorVisualAction
               data-bulk-step-cell={layout.step >= 0 ? true : undefined}
               data-step-row={layout.step >= 0 ? row : undefined}
               data-step-id={layout.step >= 0 ? stepIds[layout.step] : undefined}

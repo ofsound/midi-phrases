@@ -45,12 +45,6 @@
 
 /* WKWebView in JUCE often ignores cursor on controls unless forced. */
 @layer components {
-  /* Temporary kill switch: cursor.js sets this while cursor states are parked. */
-  :root[data-mp-custom-cursors="off"],
-  :root[data-mp-custom-cursors="off"] * {
-    cursor: default !important;
-  }
-
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]) {
     cursor: pointer !important;
@@ -1094,4 +1088,11 @@ body:has(#dnd-action-dragged-el) .row-start-add-step-control {
 [data-cursor="grabbing"]:focus,
 [data-cursor="grabbing"]:focus-visible {
   outline: none !important;
+}
+
+/* Temporary kill switch: cursor.js sets this while cursor visuals are parked.
+   Keep this late so it beats Tailwind cursor utilities and library cursor styles. */
+:root[data-mp-custom-cursors="off"],
+:root[data-mp-custom-cursors="off"] * {
+  cursor: default !important;
 }
