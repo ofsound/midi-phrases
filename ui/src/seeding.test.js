@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applySeedingRowSettingsUpdate,
   createDefaultSeedModeRowSettings,
+  defaultSeedingCenterMidi,
   displaySeedingRowSettings,
   generateSeededPhraseRows,
   mergeSeededPhraseRows,
@@ -9,7 +10,10 @@ import {
   normalizeSeedingRowSettings,
   normalizeSeedingSettings,
   phraseRowsFromGridState,
+  resolveSeedingCenterMidi,
   rhythmInterleaveRatio,
+  seedingCenterMidiForIndex,
+  seedingCenterNoteIndex,
   seedingRhythmStepMax,
   seedingRhythmStepMin,
 } from "./seeding.js";
@@ -29,6 +33,7 @@ describe("normalizeSeedingSettings", () => {
     });
 
     expect(settings.phraseLength).toBe(16);
+    expect(settings.centerMidi).toBe(defaultSeedingCenterMidi);
     expect(settings.rangeSemitones).toBe(2);
     expect(settings.repetition).toBe(100);
     expect(settings.complexity).toBe(0);
@@ -53,6 +58,12 @@ describe("normalizeSeedingSettings", () => {
     expect(normalizeSeedingSettings({ rangeSemitones: 200 }).rangeSemitones).toBe(48);
   });
 
+  it("preserves concrete center MIDI values", () => {
+    expect(normalizeSeedingSettings({ centerMidi: 72 }).centerMidi).toBe(72);
+    expect(normalizeSeedingSettings({ centerMidi: 200 }).centerMidi).toBe(127);
+    expect(normalizeSeedingSettings({ centerMidi: -2 }).centerMidi).toBe(defaultSeedingCenterMidi);
+  });
+
   it("allows short two-step phrases", () => {
     const settings = normalizeSeedingSettings({ phraseLength: -10 });
 
@@ -73,6 +84,7 @@ describe("normalizeSeedingRowSettings", () => {
     });
 
     expect(settings.phraseLength).toBe(16);
+    expect(settings.centerMidi).toBe(defaultSeedingCenterMidi);
     expect(settings.rangeSemitones).toBe(2);
     expect(settings.repetition).toBe(100);
     expect(settings.complexity).toBe(0);
@@ -155,6 +167,61 @@ describe("generateSeededPhraseRows", () => {
     }
   });
 
+  it("keeps legacy default center behavior when centerMidi is missing", () => {
+    const options = { root: 0, modeIndex: 0, phraseLength: 8, seed: 91 };
+
+    expect(generateSeededPhraseRows(options)).toEqual(generateSeededPhraseRows({
+      ...options,
+      centerMidi: defaultSeedingCenterMidi,
+    }));
+  });
+
+  it("moves generated pitches around a concrete center note", () => {
+    const lower = generateSeededPhraseRows({
+      root: 0,
+      modeIndex: 0,
+      phraseLength: 8,
+      repetition: 0,
+      randomness: 0,
+      complexity: 0,
+      seed: 91,
+      centerMidi: 60,
+    });
+    const higher = generateSeededPhraseRows({
+      root: 0,
+      modeIndex: 0,
+      phraseLength: 8,
+      repetition: 0,
+      randomness: 0,
+      complexity: 0,
+      seed: 91,
+      centerMidi: 72,
+    });
+
+    expect(higher.notes[0]).toEqual(lower.notes[0].map((midi) => midi + 12));
+  });
+
+  it("snaps concrete center notes to the active scale", () => {
+    expect(resolveSeedingCenterMidi(61, 0, 1)).toBe(60);
+
+    const centerIndex = seedingCenterNoteIndex(61, 0, 1);
+    expect(seedingCenterMidiForIndex(centerIndex, 0, 1)).toBe(60);
+
+    const result = generateSeededPhraseRows({
+      root: 0,
+      modeIndex: 1,
+      phraseLength: 8,
+      centerMidi: 61,
+      seed: 91,
+    });
+
+    for (const row of result.notes) {
+      for (const midi of row) {
+        expect(isMidiInScale(midi, 0, 1)).toBe(true);
+      }
+    }
+  });
+
   it("mirrors each row when symmetry is enabled", () => {
     const result = generateSeededPhraseRows({
       phraseLength: 8,
@@ -231,6 +298,21 @@ describe("generateSeededPhraseRows", () => {
     expect(result.notes[0]).toHaveLength(3);
     expect(result.notes[1]).toHaveLength(6);
     expect(result.notes[0]).not.toEqual(result.notes[1]);
+  });
+
+  it("uses independent per-row center notes", () => {
+    const rowSettings = createDefaultSeedModeRowSettings();
+    rowSettings[0].centerMidi = 48;
+    rowSettings[1].centerMidi = 84;
+
+    const result = generateSeededPhraseRows({
+      rhythmStep: seedingRhythmStepMin,
+      rowSettings,
+      root: 0,
+      modeIndex: 0,
+    });
+
+    expect(Math.min(...result.notes[1])).toBeGreaterThan(Math.max(...result.notes[0]));
   });
 });
 

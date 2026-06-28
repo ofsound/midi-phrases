@@ -2942,6 +2942,7 @@
       rowSettings: Array.isArray(state.seedingRowSettings)
         ? state.seedingRowSettings.map((rowSettings) => ({
             phraseLength: Number.parseInt(String(rowSettings?.phraseLength ?? defaultSeedModeState.rowSettings[0].phraseLength), 10),
+            centerMidi: Number.parseInt(String(rowSettings?.centerMidi ?? defaultSeedModeState.rowSettings[0].centerMidi), 10),
             rangeSemitones: Number.parseInt(String(rowSettings?.rangeSemitones ?? defaultSeedModeState.rowSettings[0].rangeSemitones), 10),
             repetition: Number.parseInt(String(rowSettings?.repetition ?? defaultSeedModeState.rowSettings[0].repetition), 10),
             complexity: Number.parseInt(String(rowSettings?.complexity ?? defaultSeedModeState.rowSettings[0].complexity), 10),
@@ -5916,7 +5917,7 @@
                   aria-label={recordingRow === row ? "Stop row recording" : "Record row from MIDI"}
                   aria-pressed={recordingRow === row}
                   data-cursor="pointer"
-                  class="pointer-events-auto relative z-20 flex h-3 w-3 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {rowMuted[row]
+                  class="pointer-events-auto relative z-20 flex h-[11px] w-[11px] shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {rowMuted[row]
                     ? 'text-text-faint hover:text-danger'
                     : recordingRow === row
                       ? 'text-danger'
@@ -5928,10 +5929,15 @@
                 >
                   <RowRecordIcon
                     compact
-                    class="pointer-events-none h-3 w-3"
+                    class="pointer-events-none h-[11px] w-[11px]"
                     recording={recordingRow === row}
                   />
                 </button>
+                <RowEditPencilIcon
+                  class="h-[12px] w-[12px] text-text-faint transition-colors duration-150 {stepIds[row].length > 0
+                    ? 'group-hover:[color:var(--row-header-accent)]'
+                    : ''}"
+                />
                 <button
                   type="button"
                   aria-label={activeRowSeedingEditor === row
@@ -5939,7 +5945,7 @@
                     : `Seed row ${row + 1}`}
                   aria-pressed={activeRowSeedingEditor === row}
                   data-cursor="pointer"
-                  class="pointer-events-auto relative z-20 flex h-3 w-3 shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {activeRowSeedingEditor === row
+                  class="pointer-events-auto relative z-20 flex h-[15px] w-[15px] shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {activeRowSeedingEditor === row
                     ? '[color:var(--row-header-accent)]'
                     : 'text-text-faint hover:[color:var(--row-header-accent)] transition-colors duration-150'}"
                   onclick={() => openRowSeedingEditor(row)}
@@ -5948,14 +5954,9 @@
                     : `Open seeding editor for row ${row + 1}`}
                 >
                   <SaplingIcon
-                    class="pointer-events-none h-3 w-3"
+                    class="pointer-events-none h-[15px] w-[15px]"
                   />
                 </button>
-                <RowEditPencilIcon
-                  class="text-text-faint transition-colors duration-150 {stepIds[row].length > 0
-                    ? 'group-hover:[color:var(--row-header-accent)]'
-                    : ''}"
-                />
               </div>
             </div>
             <PhraseRow
@@ -6167,6 +6168,8 @@
       <RowSeedingEditor
         row={activeRowSeedingEditor}
         rowSettings={seedModeRowSettings[activeRowSeedingEditor]}
+        root={scaleRoot}
+        modeIndex={scaleModeIndex}
         accent={rowAccentFor(activeRowSeedingEditor, rowColorsEnabled)}
         onGestureStart={beginSeedModeHistory}
         onRowSettingsPreview={(settings) => applyRowSeeding(activeRowSeedingEditor, settings, { syncNative: false })}

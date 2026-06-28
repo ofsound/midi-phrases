@@ -52,6 +52,9 @@ PluginProcessor::SeedingRowState seedingRowStateFromVar (const juce::var& value)
     if (auto* object = value.getDynamicObject())
     {
         rowState.phraseLength = varToInt (object->getProperty ("phraseLength"));
+        rowState.centerMidi = object->hasProperty ("centerMidi")
+                                  ? varToInt (object->getProperty ("centerMidi"))
+                                  : PluginProcessor::defaultSeedingCenterMidi;
         rowState.rangeSemitones = varToInt (object->getProperty ("rangeSemitones"));
         rowState.repetition = varToInt (object->getProperty ("repetition"));
         rowState.complexity = varToInt (object->getProperty ("complexity"));
@@ -76,6 +79,7 @@ juce::var createSeedModeStateVar (const PluginProcessor& processor, const int pa
         const auto rowState = processor.getPatternSeedingRowState (patternSlot, row);
         auto rowObject = std::make_unique<juce::DynamicObject>();
         rowObject->setProperty ("phraseLength", rowState.phraseLength);
+        rowObject->setProperty ("centerMidi", rowState.centerMidi);
         rowObject->setProperty ("rangeSemitones", rowState.rangeSemitones);
         rowObject->setProperty ("repetition", rowState.repetition);
         rowObject->setProperty ("complexity", rowState.complexity);
@@ -297,6 +301,7 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
         const auto rowState = processor.getPatternSeedingRowState (patternSlot, row);
         auto rowObject = std::make_unique<juce::DynamicObject>();
         rowObject->setProperty ("phraseLength", rowState.phraseLength);
+        rowObject->setProperty ("centerMidi", rowState.centerMidi);
         rowObject->setProperty ("rangeSemitones", rowState.rangeSemitones);
         rowObject->setProperty ("repetition", rowState.repetition);
         rowObject->setProperty ("complexity", rowState.complexity);

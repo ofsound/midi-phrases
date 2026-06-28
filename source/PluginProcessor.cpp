@@ -12,7 +12,7 @@ constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 20;
+constexpr int phraseStateVersion = 21;
 
 int clampStepProbability (const int probability)
 {
@@ -31,6 +31,16 @@ int clampSeedingRangeSemitones (const int rangeSemitones)
     return juce::jlimit (PluginProcessor::minSeedingRangeSemitones,
                          PluginProcessor::maxSeedingRangeSemitones,
                          rangeSemitones);
+}
+
+int clampSeedingCenterMidi (const int centerMidi)
+{
+    if (centerMidi < PluginProcessor::minMidiNote)
+        return PluginProcessor::defaultSeedingCenterMidi;
+
+    return juce::jlimit (PluginProcessor::minMidiNote,
+                         PluginProcessor::maxMidiNote,
+                         centerMidi);
 }
 
 int clampSeedingPercent (const int value)
@@ -54,6 +64,7 @@ PluginProcessor::SeedingRowState clampSeedingRowState (const PluginProcessor::Se
 {
     PluginProcessor::SeedingRowState clamped;
     clamped.phraseLength = clampSeedingPhraseLength (rowState.phraseLength);
+    clamped.centerMidi = clampSeedingCenterMidi (rowState.centerMidi);
     clamped.rangeSemitones = clampSeedingRangeSemitones (rowState.rangeSemitones);
     clamped.repetition = clampSeedingPercent (rowState.repetition);
     clamped.complexity = clampSeedingPercent (rowState.complexity);
@@ -5384,6 +5395,7 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
             const auto rowState = getPatternSeedingRowState (patternSlot, seedingRow);
             const auto prefix = "seedingRow" + juce::String (seedingRow);
             patternTree.setProperty (prefix + "PhraseLength", rowState.phraseLength, nullptr);
+            patternTree.setProperty (prefix + "CenterMidi", rowState.centerMidi, nullptr);
             patternTree.setProperty (prefix + "RangeSemitones", rowState.rangeSemitones, nullptr);
             patternTree.setProperty (prefix + "Repetition", rowState.repetition, nullptr);
             patternTree.setProperty (prefix + "Complexity", rowState.complexity, nullptr);
@@ -5680,6 +5692,9 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             rowState.phraseLength = clampSeedingPhraseLength (
                 static_cast<int> (patternTree.getProperty (prefix + "PhraseLength",
                                                            defaultSeedingPhraseLength)));
+            rowState.centerMidi = clampSeedingCenterMidi (
+                static_cast<int> (patternTree.getProperty (prefix + "CenterMidi",
+                                                           defaultSeedingCenterMidi)));
             rowState.rangeSemitones = clampSeedingRangeSemitones (
                 static_cast<int> (patternTree.getProperty (prefix + "RangeSemitones",
                                                            defaultSeedingRangeSemitones)));

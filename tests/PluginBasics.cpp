@@ -4102,6 +4102,62 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (reloaded.isRowColorsEnabled());
     }
 
+    SECTION ("seeding center note round-trips through plugin state")
+    {
+        testPlugin.setCurrentPatternSlot (1);
+
+        std::array<PluginProcessor::SeedingRowState, PluginProcessor::phraseRowCount> rowSettings {};
+        std::array<int, PluginProcessor::phraseRowCount> rowTargets { 1, 0, 1, 0 };
+        rowSettings[0].centerMidi = 72;
+        rowSettings[1].centerMidi = 200;
+        rowSettings[2].centerMidi = -12;
+
+        testPlugin.setPatternSeedModeState (PluginProcessor::defaultSeedingRhythmStep,
+                                            rowSettings,
+                                            rowTargets);
+
+        juce::MemoryBlock state;
+        testPlugin.getStateInformation (state);
+
+        PluginProcessor reloaded;
+        reloaded.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+
+        CHECK (reloaded.getPatternSeedingRowState (1, 0).centerMidi == 72);
+        CHECK (reloaded.getPatternSeedingRowState (1, 1).centerMidi == PluginProcessor::maxMidiNote);
+        CHECK (reloaded.getPatternSeedingRowState (1, 2).centerMidi == PluginProcessor::defaultSeedingCenterMidi);
+        CHECK (reloaded.isPatternSeedingRowTargeted (1, 0));
+        CHECK_FALSE (reloaded.isPatternSeedingRowTargeted (1, 1));
+    }
+
+    SECTION ("legacy seeding state without center note loads default center sentinel")
+    {
+        juce::ValueTree state ("MidiPhrases");
+        state.setProperty ("version", 20, nullptr);
+
+        juce::ValueTree patternTree ("Pattern");
+        patternTree.setProperty ("index", 0, nullptr);
+        patternTree.setProperty ("seedingRow0PhraseLength", 7, nullptr);
+        patternTree.setProperty ("seedingRow0RangeSemitones", 16, nullptr);
+        patternTree.setProperty ("seedingRow0Targeted", 1, nullptr);
+        state.appendChild (patternTree, nullptr);
+
+        juce::MemoryBlock block;
+
+        if (auto xml = state.createXml())
+        {
+            juce::MemoryOutputStream stream (block, true);
+            xml->writeTo (stream);
+        }
+
+        PluginProcessor reloaded;
+        reloaded.setStateInformation (block.getData(), static_cast<int> (block.getSize()));
+
+        const auto rowState = reloaded.getPatternSeedingRowState (0, 0);
+        CHECK (rowState.phraseLength == 7);
+        CHECK (rowState.rangeSemitones == 16);
+        CHECK (rowState.centerMidi == PluginProcessor::defaultSeedingCenterMidi);
+    }
+
     SECTION ("state load clamps phrase rows to fixed audio-thread capacity")
     {
         juce::ValueTree state ("MidiPhrases");

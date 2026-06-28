@@ -3,6 +3,10 @@
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import {
     defaultSeedingRowSettings,
+    seedingCenterMidiForIndex,
+    seedingCenterNoteIndex,
+    seedingCenterNoteLabel,
+    seedingCenterNoteOptions,
     seedingPhraseLengthMax,
     seedingPhraseLengthMin,
     seedingRangeSemitonesMax,
@@ -14,6 +18,8 @@
    * @typedef {Object} Props
    * @property {number} row
    * @property {import('./seeding.js').SeedingRowSettings} rowSettings
+   * @property {number} [root]
+   * @property {number} [modeIndex]
    * @property {import('./rowAccentTheme.js').RowAccent} accent
    * @property {() => void} [onGestureStart]
    * @property {(updates: Partial<import('./seeding.js').SeedingRowSettings>) => void | Promise<void>} [onRowSettingsPreview]
@@ -27,6 +33,8 @@
   let {
     row = 0,
     rowSettings = defaultSeedingRowSettings,
+    root = 0,
+    modeIndex = 0,
     accent,
     onGestureStart = () => {},
     onRowSettingsPreview = () => {},
@@ -50,12 +58,15 @@
   function commitRowSettings(updates) {
     onRowSettingsCommit(updates);
   }
+
+  let centerNoteOptions = $derived(seedingCenterNoteOptions(root, modeIndex));
+  let centerNoteIndex = $derived(seedingCenterNoteIndex(rowSettings.centerMidi, root, modeIndex));
+  let centerNoteLabel = $derived(seedingCenterNoteLabel(rowSettings.centerMidi, root, modeIndex));
 </script>
 
 <section class="step-inspector flex min-h-0 w-full flex-1 overflow-hidden bg-app/90" style={rowAccentScopeStyle(accent)}>
   <aside class="inspector-sidebar flex w-[13rem] shrink-0 flex-col gap-3 py-2 pr-3 pl-0">
-    <div class="flex items-center justify-between">
-      <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-accent)]">Row {row + 1} Seeding</h3>
+    <div class="flex items-center">
       <button
         type="button"
         data-cursor="pointer"
@@ -68,7 +79,7 @@
       </button>
     </div>
 
-    <div class="flex flex-col gap-2 mt-auto">
+    <div class="flex flex-col gap-2">
       <button
         type="button"
         data-cursor="pointer"
@@ -88,8 +99,8 @@
     </div>
   </aside>
 
-  <div class="inspector-main flex min-h-0 min-w-0 flex-1 flex-col justify-center items-center overflow-hidden py-4 px-8">
-    <div class="grid w-full max-w-[36rem] gap-4">
+  <div class="inspector-main flex min-h-0 min-w-0 flex-1 flex-col justify-start items-start overflow-hidden pt-3 pb-4 pl-2 pr-4">
+    <div class="grid w-full gap-4">
       <label class="grid gap-1">
         <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Phrase length</span>
         <div class="seed-param-row">
@@ -103,6 +114,25 @@
             onValueCommit={(phraseLength) => commitRowSettings({ phraseLength })}
           />
           <span class="seed-param-value" aria-hidden="true">{rowSettings.phraseLength}</span>
+        </div>
+      </label>
+
+      <label class="grid gap-1">
+        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Center</span>
+        <div class="seed-param-row">
+          <AccentRangeSlider
+            value={centerNoteIndex}
+            max={Math.max(0, centerNoteOptions.length - 1)}
+            ariaLabel="Center note"
+            onGestureStart={onGestureStart}
+            onValuePreview={(index) => previewRowSettings({
+              centerMidi: seedingCenterMidiForIndex(index, root, modeIndex),
+            })}
+            onValueCommit={(index) => commitRowSettings({
+              centerMidi: seedingCenterMidiForIndex(index, root, modeIndex),
+            })}
+          />
+          <span class="seed-param-value" aria-hidden="true">{centerNoteLabel}</span>
         </div>
       </label>
 

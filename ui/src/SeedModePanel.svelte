@@ -9,6 +9,10 @@
     generateSeededPhraseRowsFromSeedModeState,
     mergeSeededPhraseRows,
     phraseRowsFromGridState,
+    seedingCenterMidiForIndex,
+    seedingCenterNoteIndex,
+    seedingCenterNoteLabel,
+    seedingCenterNoteOptions,
     seedingPhraseLengthMax,
     seedingPhraseLengthMin,
     seedingRangeSemitonesMax,
@@ -43,6 +47,9 @@
   } = $props();
 
   let displaySettings = $derived(displaySeedingRowSettings(rowSettings, rowTargets));
+  let centerNoteOptions = $derived(seedingCenterNoteOptions(root, modeIndex));
+  let centerNoteIndex = $derived(seedingCenterNoteIndex(displaySettings.centerMidi, root, modeIndex));
+  let centerNoteLabel = $derived(seedingCenterNoteLabel(displaySettings.centerMidi, root, modeIndex));
 
   let generatedPreview = $derived(generateSeededPhraseRowsFromSeedModeState(
     { rhythmStep, rowSettings },
@@ -118,6 +125,26 @@
             onValueCommit={(phraseLength) => commitRowSettings({ phraseLength })}
           />
           <span class="seed-param-value" aria-hidden="true">{displaySettings.phraseLength}</span>
+        </div>
+      </label>
+
+      <label class="grid gap-0.5">
+        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Center</span>
+        <div class="seed-param-row">
+          <AccentRangeSlider
+            value={centerNoteIndex}
+            max={Math.max(0, centerNoteOptions.length - 1)}
+            disabled={busy}
+            ariaLabel="Center note"
+            onGestureStart={onGestureStart}
+            onValuePreview={(index) => previewRowSettings({
+              centerMidi: seedingCenterMidiForIndex(index, root, modeIndex),
+            })}
+            onValueCommit={(index) => commitRowSettings({
+              centerMidi: seedingCenterMidiForIndex(index, root, modeIndex),
+            })}
+          />
+          <span class="seed-param-value" aria-hidden="true">{centerNoteLabel}</span>
         </div>
       </label>
 

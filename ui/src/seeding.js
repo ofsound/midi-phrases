@@ -1,5 +1,5 @@
 import { defaultStepCycle, defaultStepCycleMask } from "./cyclePattern.js";
-import { defaultStepNoteForScaleRoot } from "./midiNoteNames.js";
+import { defaultStepNoteForScaleRoot, midiToNoteName } from "./midiNoteNames.js";
 import { maxPercentValue } from "./percentLimits.js";
 import { timingOffsetValues } from "./stepCellLayout.js";
 import {
@@ -15,6 +15,9 @@ export const seedingPhraseLengthMax = 16;
 export const seedingRangeSemitonesMin = 2;
 export const seedingRangeSemitonesMax = 48;
 export const defaultSeedingRangeSemitones = 8;
+
+/** Legacy/default center: resolve from the current scale root at generation time. */
+export const defaultSeedingCenterMidi = -1;
 
 /** Former preset labels mapped to chromatic span for legacy `rangeIndex` values. */
 const legacySeedingRangeSemitonesByIndex = [5, 8, 12, 16];
@@ -43,6 +46,7 @@ const rhythmAccentTimingMultipliers = [1, 0.9375, 0.875, 0.8125, 0.75, 0.6875, 0
 
 export const defaultSeedingSettings = {
   phraseLength: 3,
+  centerMidi: defaultSeedingCenterMidi,
   rangeSemitones: defaultSeedingRangeSemitones,
   repetition: 45,
   complexity: 50,
@@ -55,6 +59,7 @@ export const defaultSeedingSettings = {
 /** Per-row seeding parameters (overlap / rhythmStep is pattern-global). */
 export const defaultSeedingRowSettings = {
   phraseLength: defaultSeedingSettings.phraseLength,
+  centerMidi: defaultSeedingSettings.centerMidi,
   rangeSemitones: defaultSeedingSettings.rangeSemitones,
   repetition: defaultSeedingSettings.repetition,
   complexity: defaultSeedingSettings.complexity,
@@ -194,6 +199,21 @@ function clampRangeSemitones(value) {
   return Math.round(clamp(value, seedingRangeSemitonesMin, seedingRangeSemitonesMax));
 }
 
+/** @param {number | undefined} value */
+function clampCenterMidi(value) {
+  if (value === undefined) {
+    return defaultSeedingCenterMidi;
+  }
+
+  const parsed = Number.parseInt(String(value), 10);
+
+  if (Number.isNaN(parsed) || parsed < 0) {
+    return defaultSeedingCenterMidi;
+  }
+
+  return Math.min(127, Math.max(0, parsed));
+}
+
 /**
  * @param {Partial<typeof defaultSeedingSettings>} settings
  */
@@ -211,10 +231,76 @@ function resolveRangeSemitones(settings) {
   return clampRangeSemitones(defaultSeedingRangeSemitones);
 }
 
-/** @param {number} root @param {number} modeIndex @param {number} semitoneOffset */
-function midiForSeedingOffset(root, modeIndex, semitoneOffset) {
-  const base = snapMidiToScale(defaultStepNoteForScaleRoot(root), root, modeIndex);
-  return snapMidiToScale(base + Math.round(semitoneOffset), root, modeIndex);
+/**
+ * @param {number} centerMidi
+ * @param {number} root
+ * @param {number} modeIndex
+ */
+export function resolveSeedingCenterMidi(centerMidi, root, modeIndex) {
+  const clamped = clampCenterMidi(centerMidi);
+  const fallback = defaultStepNoteForScaleRoot(root);
+  const center = clamped === defaultSeedingCenterMidi ? fallback : clamped;
+
+  return snapMidiToScale(center, root, modeIndex);
+}
+
+/**
+ * @param {number} root
+ * @param {number} modeIndex
+ */
+export function seedingCenterNoteOptions(root, modeIndex) {
+  const options = [];
+
+  for (let midi = 0; midi <= 127; midi += 1) {
+    if (snapMidiToScale(midi, root, modeIndex) === midi) {
+      options.push({
+        index: options.length,
+        midi,
+        label: midiToNoteName(midi),
+      });
+    }
+  }
+
+  return options;
+}
+
+/**
+ * @param {number} centerMidi
+ * @param {number} root
+ * @param {number} modeIndex
+ */
+export function seedingCenterNoteIndex(centerMidi, root, modeIndex) {
+  const resolved = resolveSeedingCenterMidi(centerMidi, root, modeIndex);
+  const options = seedingCenterNoteOptions(root, modeIndex);
+  const index = options.findIndex((option) => option.midi === resolved);
+
+  return Math.max(0, index);
+}
+
+/**
+ * @param {number} centerMidi
+ * @param {number} root
+ * @param {number} modeIndex
+ */
+export function seedingCenterNoteLabel(centerMidi, root, modeIndex) {
+  return midiToNoteName(resolveSeedingCenterMidi(centerMidi, root, modeIndex));
+}
+
+/**
+ * @param {number} index
+ * @param {number} root
+ * @param {number} modeIndex
+ */
+export function seedingCenterMidiForIndex(index, root, modeIndex) {
+  const options = seedingCenterNoteOptions(root, modeIndex);
+  const clampedIndex = Math.min(options.length - 1, Math.max(0, Math.round(index)));
+
+  return options[clampedIndex]?.midi ?? resolveSeedingCenterMidi(defaultSeedingCenterMidi, root, modeIndex);
+}
+
+/** @param {number} root @param {number} modeIndex @param {number} centerMidi @param {number} semitoneOffset */
+function midiForSeedingOffsetFromCenter(root, modeIndex, centerMidi, semitoneOffset) {
+  return snapMidiToScale(centerMidi + Math.round(semitoneOffset), root, modeIndex);
 }
 
 /**
@@ -228,6 +314,7 @@ export function normalizeSeedingRowSettings(settings = {}) {
 
   return {
     phraseLength: clampPhraseLength(merged.phraseLength),
+    centerMidi: clampCenterMidi(merged.centerMidi),
     rangeSemitones: resolveRangeSemitones(settings),
     repetition: clampPercent(merged.repetition),
     complexity: clampPercent(merged.complexity),
@@ -359,6 +446,7 @@ function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
     ? Math.ceil(rowOptions.phraseLength / 2)
     : rowOptions.phraseLength;
   const motif = [];
+  const centerMidi = resolveSeedingCenterMidi(rowOptions.centerMidi, root, modeIndex);
   const center = Math.round((row - 1.5) * Math.max(1, span / 6));
   let previous = center;
 
@@ -403,7 +491,7 @@ function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
 
   return {
     notes: degrees.map((semitoneOffset) => (
-      midiForSeedingOffset(root, modeIndex, semitoneOffset)
+      midiForSeedingOffsetFromCenter(root, modeIndex, centerMidi, semitoneOffset)
     )),
     stepTimingMultiplier: degrees.map((_, step) => {
       const poolValue = timingPool[randomInt(random, 0, timingPool.length - 1)];

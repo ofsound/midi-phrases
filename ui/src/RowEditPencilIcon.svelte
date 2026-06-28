@@ -6,12 +6,12 @@
 
 <svg
   xmlns="http://www.w3.org/2000/svg"
-  viewBox="3 3 18 18"
-  class="block h-3 w-3 shrink-0 {className}"
+  viewBox="2 2 20 20"
+  class="block shrink-0 {className}"
   aria-hidden="true"
   fill="none"
   stroke="currentColor"
-  stroke-width="1.75"
+  stroke-width="2.25"
   stroke-linecap="round"
   stroke-linejoin="round"
 >

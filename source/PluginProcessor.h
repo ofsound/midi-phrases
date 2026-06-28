@@ -161,6 +161,7 @@ public:
     static constexpr int defaultSeedingPhraseLength = 3;
     static constexpr int minSeedingPhraseLength = 2;
     static constexpr int maxSeedingPhraseLength = 16;
+    static constexpr int defaultSeedingCenterMidi = -1;
     static constexpr int defaultSeedingRangeSemitones = 8;
     static constexpr int minSeedingRangeSemitones = 2;
     static constexpr int maxSeedingRangeSemitones = 48;
@@ -175,6 +176,7 @@ public:
     struct SeedingRowState
     {
         int phraseLength = defaultSeedingPhraseLength;
+        int centerMidi = defaultSeedingCenterMidi;
         int rangeSemitones = defaultSeedingRangeSemitones;
         int repetition = defaultSeedingRepetition;
         int complexity = defaultSeedingComplexity;
