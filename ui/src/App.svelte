@@ -50,9 +50,17 @@
     timingMultiplierOptions,
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
-  import { duplicateBlockInRow } from "./bulkStepDrag.js";
-  import { duplicateStepBetweenRows, duplicateBlockBetweenRows, moveBlockBetweenRows, moveStepBetweenRows } from "./crossRowStepMove.js";
-  import { blockCrossRowInsertionIndex } from "./bulkStepDrag.js";
+  import {
+    blockCrossRowInsertionIndex,
+    blockDuplicateInsertionIndex,
+    duplicateBlockInRow,
+  } from "./bulkStepDrag.js";
+  import {
+    duplicateBlockFromRowsToRow,
+    duplicateStepBetweenRows,
+    moveBlockFromRowsToRow,
+    moveStepBetweenRows,
+  } from "./crossRowStepMove.js";
   import {
     clampNoteBandpass,
     defaultNoteBandpassHighMidi,
@@ -402,6 +410,41 @@
     new Set([...selectedStepKeys].filter((key) => selectableStepKeySet.has(key))),
   );
   let selectedStepIdsByRow = $derived(selectedStepIdsByRowForKeys(selectedStepKeysForGrid));
+  let selectedStepIdsForDragGhost = $derived.by(() => {
+    const ids = [];
+
+    for (let row = 0; row < stepIds.length; row += 1) {
+      for (const stepId of stepIds[row]) {
+        if (selectedStepKeysForGrid.has(stepSelectionKey(row, stepId))) {
+          ids.push(stepId);
+        }
+      }
+    }
+
+    return ids;
+  });
+
+  /** @param {string[]} ids */
+  function stepLocationsForIds(ids) {
+    const seen = new SvelteSet();
+    const locations = [];
+
+    for (const id of ids) {
+      if (seen.has(id)) continue;
+
+      for (let row = 0; row < stepIds.length; row += 1) {
+        const step = stepIds[row].indexOf(id);
+
+        if (step < 0) continue;
+
+        seen.add(id);
+        locations.push({ id, row, step });
+        break;
+      }
+    }
+
+    return locations;
+  }
   let bulkDurationPercent = $state(0);
   let bulkVelocityPercent = $state(0);
   let bulkTransposeSemitones = $state(0);
@@ -2479,15 +2522,15 @@
    * @param {string} movedStepId
    * @param {string[]} blockIds
    * @param {string[]} orderedTargetPreview
+   * @param {number} [shadowIndex]
    */
   async function moveBulkToRow(targetRow, movedStepId, blockIds, orderedTargetPreview, shadowIndex = -1) {
-    const sourceRow = stepIds.findIndex((ids) => blockIds.some((id) => ids.includes(id)));
+    if (targetRow < 0 || targetRow >= stepIds.length) return;
 
-    if (sourceRow < 0 || sourceRow === targetRow) return;
+    const blockLocations = stepLocationsForIds(blockIds);
+    const block = blockLocations.map((location) => location.id);
 
-    const blockInSource = blockIds.filter((id) => stepIds[sourceRow].includes(id));
-
-    if (stepIds[targetRow].length + blockInSource.length > maxPhraseStepsPerRow) return;
+    if (block.length === 0 || !block.includes(movedStepId)) return;
 
     const previewIndex = orderedTargetPreview.indexOf(movedStepId);
     const insertionIndex = previewIndex >= 0
@@ -2503,10 +2546,7 @@
 
     const before = createHistorySnapshot();
     const selectedKeysBefore = new SvelteSet(selectedStepKeysForGrid);
-    const selectedInBlock = blockInSource.filter((id) =>
-      selectedKeysBefore.has(stepSelectionKey(sourceRow, id)),
-    );
-    const result = moveBlockBetweenRows(
+    const result = moveBlockFromRowsToRow(
       {
         grid,
         stepDurationFraction,
@@ -2520,11 +2560,9 @@
         activeGates,
       },
       stepIds,
-      sourceRow,
       targetRow,
-      blockInSource,
+      block,
       movedStepId,
-      orderedTargetPreview,
       insertionIndex,
     );
 
@@ -2544,11 +2582,11 @@
     } = result.matrices);
     stepIds = result.stepIds;
 
-    if (inspectedStep && blockInSource.includes(inspectedStep.stepId)) {
+    if (inspectedStep && block.includes(inspectedStep.stepId)) {
       inspectedStep = { row: targetRow, stepId: inspectedStep.stepId };
     }
 
-    if (rowPianoRollStep && blockInSource.includes(rowPianoRollStep.stepId)) {
+    if (rowPianoRollStep && block.includes(rowPianoRollStep.stepId)) {
       rowPianoRollStep = { row: targetRow, stepId: rowPianoRollStep.stepId };
     }
 
@@ -2557,18 +2595,20 @@
 
     await tick();
 
-    if (selectedInBlock.length > 0) {
-      for (const id of selectedInBlock) {
-        selectedKeysBefore.delete(stepSelectionKey(sourceRow, id));
-        selectedKeysBefore.add(stepSelectionKey(targetRow, id));
-      }
-
-      setSelectedStepKeys(selectedKeysBefore);
-      syncBulkControlsFromSelection();
+    for (const { id, row } of blockLocations) {
+      selectedKeysBefore.delete(stepSelectionKey(row, id));
+      selectedKeysBefore.add(stepSelectionKey(targetRow, id));
     }
 
-    await pushCurrentPhraseRow(sourceRow);
-    await pushCurrentPhraseRow(targetRow);
+    setSelectedStepKeys(selectedKeysBefore);
+    syncBulkControlsFromSelection();
+
+    const affectedRows = new SvelteSet(blockLocations.map((location) => location.row));
+    affectedRows.add(targetRow);
+
+    for (const row of affectedRows) {
+      await pushCurrentPhraseRow(row);
+    }
   }
 
   /**
@@ -2579,22 +2619,29 @@
    * @param {number} shadowIndex
    */
   async function duplicateBulkToRow(targetRow, movedStepId, blockIds, previewIds, shadowIndex) {
-    const sourceRow = stepIds.findIndex((ids) => ids.includes(movedStepId));
+    if (targetRow < 0 || targetRow >= stepIds.length) return;
 
-    if (sourceRow < 0 || targetRow < 0 || targetRow >= stepIds.length) return;
+    const block = stepLocationsForIds(blockIds).map((location) => location.id);
 
-    const blockInSource = blockIds.filter((id) => stepIds[sourceRow].includes(id));
+    if (block.length === 0 || !block.includes(movedStepId)) return;
 
-    if (stepIds[targetRow].length + blockInSource.length > maxPhraseStepsPerRow) return;
+    const insertionIndex = stepIds[targetRow].includes(movedStepId)
+      ? blockDuplicateInsertionIndex(
+        stepIds[targetRow],
+        block.filter((id) => stepIds[targetRow].includes(id)),
+        shadowIndex,
+      )
+      : blockCrossRowInsertionIndex(
+        stepIds[targetRow],
+        movedStepId,
+        previewIds,
+        shadowIndex,
+      );
 
-    const insertionIndex = blockCrossRowInsertionIndex(
-      stepIds[targetRow],
-      movedStepId,
-      previewIds,
-      shadowIndex,
-    );
+    if (insertionIndex < 0) return;
+
     const before = createHistorySnapshot();
-    const result = duplicateBlockBetweenRows(
+    const result = duplicateBlockFromRowsToRow(
       {
         grid,
         stepDurationFraction,
@@ -2608,9 +2655,8 @@
         activeGates,
       },
       stepIds,
-      sourceRow,
       targetRow,
-      blockInSource,
+      block,
       insertionIndex,
       createStepId,
     );
@@ -6009,6 +6055,7 @@
               stepCycleOffset={stepCycleOffset[row]}
               activeGates={activeGates[row]}
               selectedStepIds={selectedStepIdsByRow[row]}
+              allSelectedStepIds={selectedStepIdsForDragGhost}
               stepInspectionActive={activeStepInspector !== null || rowPianoRollCurrentStepFocusVisible}
               stepInspectorOpen={activeStepInspector !== null}
               stretchToFit={stretchStepsToFit}

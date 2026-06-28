@@ -134,6 +134,7 @@
    * @property {boolean[]} [activeGates]
    * @property {{ index: number, label: string }[]} [timingMultiplierOptions]
    * @property {string[]} [selectedStepIds]
+   * @property {string[]} [allSelectedStepIds]
    * @property {boolean} [stepInspectionActive]
    * @property {boolean} [stepInspectorOpen]
    * @property {boolean} [stretchToFit]
@@ -202,6 +203,7 @@
     activeGates = [],
     timingMultiplierOptions = [],
     selectedStepIds = [],
+    allSelectedStepIds = selectedStepIds,
     stepInspectionActive = false,
     stepInspectorOpen = false,
     stretchToFit = false,
@@ -278,6 +280,8 @@
   let duplicateSourceRestoreFrame = 0;
   /** @type {string[] | null} */
   let bulkDragBlockIds = $state(null);
+  /** @type {string[] | null} */
+  let bulkDragGhostIds = $state(null);
   /** @type {Map<string, import("./bulkStepDragGhost.js").BulkStepGhostSnapshot> | null} */
   let bulkDragGhostSnapshots = null;
   /** @type {{ stepId: string, widthPx: number, gapBeforePx: number }[] | null} */
@@ -652,6 +656,7 @@
     onDuplicateDragChange(null);
     onBulkDragSessionChange(null);
     bulkDragBlockIds = null;
+    bulkDragGhostIds = null;
     bulkDragGhostSnapshots = null;
     bulkDragGhostLayout = null;
 
@@ -664,15 +669,29 @@
     clearDragPointerTracking();
   }
 
+  let bulkMoveDragActive = $derived(
+    bulkDragStepIds !== null
+    && bulkDragStepIds.length >= 2
+    && duplicateDragStepId === null,
+  );
+
+  /** @param {string | null} stepId */
+  function shouldHideBulkDragSource(stepId) {
+    return Boolean(bulkMoveDragActive && stepId && bulkDragStepIds?.includes(stepId));
+  }
+
   /** @param {{ id: string }} item @param {string | null} stepIdForLayout */
   function isCollapsedDndSlot(item, stepIdForLayout) {
     if (isShadowItem(item)) return true;
 
     return Boolean(
-      isBulkDragActive
-      && stepIdForLayout
-      && bulkDragBlockIds?.includes(stepIdForLayout)
-      && !draggedAsDuplicate,
+      shouldHideBulkDragSource(stepIdForLayout)
+      || (
+        isBulkDragActive
+        && stepIdForLayout
+        && bulkDragBlockIds?.includes(stepIdForLayout)
+        && !draggedAsDuplicate
+      ),
     );
   }
 
@@ -716,7 +735,7 @@
   }
 
   function refreshBulkDragGhost() {
-    if (!bulkDragBlockIds || bulkDragBlockIds.length < 2 || !bulkDragGhostSnapshots) return;
+    if (!bulkDragGhostIds || bulkDragGhostIds.length < 2 || !bulkDragGhostSnapshots) return;
 
     const draggedEl = document.getElementById(DRAGGED_ELEMENT_ID);
 
@@ -724,14 +743,14 @@
 
     applyBulkStepDragGhost(
       draggedEl,
-      bulkDragBlockIds,
+      bulkDragGhostIds,
       bulkDragGhostSnapshots,
       draggedAsDuplicate,
     );
   }
 
   function scheduleBulkDragGhostRefresh() {
-    if (!bulkDragBlockIds || bulkDragBlockIds.length < 2) return;
+    if (!bulkDragGhostIds || bulkDragGhostIds.length < 2) return;
 
     requestAnimationFrame(() => {
       refreshBulkDragGhost();
@@ -743,7 +762,7 @@
 
     if (!(draggedEl instanceof HTMLElement)) return;
 
-    if (bulkDragBlockIds && bulkDragBlockIds.length >= 2 && bulkDragGhostSnapshots) {
+    if (bulkDragGhostIds && bulkDragGhostIds.length >= 2 && bulkDragGhostSnapshots) {
       refreshBulkDragGhost();
       return;
     }
@@ -835,25 +854,37 @@
   /** @param {string} draggedId */
   function prepareBulkDragFromStep(draggedId) {
     bulkDragBlockIds = null;
+    bulkDragGhostIds = null;
     bulkDragGhostSnapshots = null;
     bulkDragGhostLayout = null;
 
-    if (selectedStepIds.length < 2 || !selectedStepIdSet.has(draggedId)) {
+    const allSelectedStepIdSet = new Set(allSelectedStepIds);
+
+    if (!allSelectedStepIdSet.has(draggedId)) {
       onBulkDragSessionChange(null);
       return;
     }
 
     const block = selectedIdsInRowOrder(stepIds, selectedStepIds);
-    bulkDragBlockIds = block;
-    onBulkDragSessionChange(block);
+    const ghostBlock = allSelectedStepIds.length >= 2 ? allSelectedStepIds : block;
+
+    if (block.length >= 2) {
+      bulkDragBlockIds = block;
+    }
+
+    onBulkDragSessionChange(ghostBlock.length >= 2 ? ghostBlock : null);
+
+    if (ghostBlock.length < 2) return;
+
+    bulkDragGhostIds = ghostBlock;
     bulkDragGhostSnapshots = captureBulkStepGhostSnapshots(
-      dndZoneElement,
-      block,
+      document,
+      ghostBlock,
       layoutPx,
       stepInsertZoneWidthPx(),
       stepCellPaddingPx(),
     );
-    bulkDragGhostLayout = bulkGhostLayoutEntries(block, bulkDragGhostSnapshots);
+    bulkDragGhostLayout = bulkGhostLayoutEntries(ghostBlock, bulkDragGhostSnapshots);
   }
 
   /** @param {PointerEvent} event @param {number} step */
@@ -1153,6 +1184,42 @@
       && bulkDragStepIds.length >= 2
       && bulkDragStepIds.includes(movedStepId);
     const isBulkDrag = bulkDragBlockIds !== null && bulkDragBlockIds.length >= 2 && idsBeforeDrag;
+    const isMixedRowBulkDrag = inboundBulkDrag
+      && bulkDragStepIds !== null
+      && bulkDragStepIds.some((stepId) => !stepIds.includes(stepId));
+
+    if (idsBeforeDrag && isMixedRowBulkDrag) {
+      const bulkShadowIndex = bulkDropShadowIndex();
+
+      if (bulkShadowIndex >= 0 && bulkDragStepIds) {
+        dndItems = filtered;
+        const previewIds = filtered.map((item) => item.id);
+
+        if (isDuplicateDrop) {
+          await finishDropAfterCommitPaint(onBulkCrossRowDuplicateDrop(
+            row,
+            movedStepId,
+            bulkDragStepIds,
+            previewIds,
+            bulkShadowIndex,
+          ));
+        } else {
+          await finishDropAfterCommitPaint(onBulkCrossRowMove(
+            row,
+            movedStepId,
+            bulkDragStepIds,
+            previewIds,
+            bulkShadowIndex,
+          ));
+        }
+
+        return;
+      }
+
+      dndItems = dndItemsFromIds(idsBeforeDrag);
+      await finishDropAfterCommitPaint();
+      return;
+    }
 
     if (isBulkDrag) {
       const bulkShadowIndex = bulkDropShadowIndex();
@@ -1270,10 +1337,10 @@
 
     const dragHeight = `${phraseStepCellHeightPx}px`;
 
-    if (bulkDragBlockIds && bulkDragBlockIds.length >= 2 && bulkDragGhostSnapshots) {
+    if (bulkDragGhostIds && bulkDragGhostIds.length >= 2 && bulkDragGhostSnapshots) {
       applyBulkStepDragGhost(
         element,
-        bulkDragBlockIds,
+        bulkDragGhostIds,
         bulkDragGhostSnapshots,
         draggedAsDuplicate,
       );
@@ -2742,10 +2809,11 @@
               {@const layout = compactLayoutForItem(item, index)}
               {@const stepIdForLayout = layout.step >= 0 ? stepIds[layout.step] : null}
               {@const hideBulkDragSource =
-                isBulkDragActive
-                && stepIdForLayout
-                && bulkDragBlockIds?.includes(stepIdForLayout)
-                && !draggedAsDuplicate}
+                shouldHideBulkDragSource(stepIdForLayout)
+                || (isBulkDragActive
+                  && stepIdForLayout
+                  && bulkDragBlockIds?.includes(stepIdForLayout)
+                  && !draggedAsDuplicate)}
               {@const dimBulkDuplicateSource =
                 isBulkDragActive
                 && stepIdForLayout
@@ -2846,10 +2914,11 @@
             {@const layout = layoutForItem(item, index)}
             {@const stepIdForLayout = layout.step >= 0 ? stepIds[layout.step] : null}
             {@const hideBulkDragSource =
-              isBulkDragActive
-              && stepIdForLayout
-              && bulkDragBlockIds?.includes(stepIdForLayout)
-              && !draggedAsDuplicate}
+              shouldHideBulkDragSource(stepIdForLayout)
+              || (isBulkDragActive
+                && stepIdForLayout
+                && bulkDragBlockIds?.includes(stepIdForLayout)
+                && !draggedAsDuplicate)}
             {@const dimBulkDuplicateSource =
               isBulkDragActive
               && stepIdForLayout

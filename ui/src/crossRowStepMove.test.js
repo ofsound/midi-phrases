@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  duplicateBlockFromRowsToRow,
   duplicateBlockBetweenRows,
   duplicateStepBetweenRows,
+  moveBlockFromRowsToRow,
   moveBlockBetweenRows,
   moveStepBetweenRows,
 } from "./crossRowStepMove.js";
@@ -156,6 +158,44 @@ describe("moveBlockBetweenRows", () => {
   });
 });
 
+describe("moveBlockFromRowsToRow", () => {
+  it("moves selected steps from multiple source rows into one target row", () => {
+    const result = moveBlockFromRowsToRow(
+      { notes: [[60, 62], [64, 65], [67]] },
+      [["a", "b"], ["c", "d"], ["x"]],
+      2,
+      ["b", "c", "d"],
+      "b",
+      1,
+    );
+
+    expect(result).toEqual({
+      matrices: {
+        notes: [[60], [], [67, 62, 64, 65]],
+      },
+      stepIds: [["a"], [], ["x", "b", "c", "d"]],
+    });
+  });
+
+  it("adjusts insertion when selected steps already live in the target row", () => {
+    const result = moveBlockFromRowsToRow(
+      { notes: [[60], [62, 64, 65]] },
+      [["a"], ["x", "b", "y"]],
+      1,
+      ["a", "b"],
+      "a",
+      2,
+    );
+
+    expect(result).toEqual({
+      matrices: {
+        notes: [[], [62, 60, 64, 65]],
+      },
+      stepIds: [[], ["x", "a", "b", "y"]],
+    });
+  });
+});
+
 describe("duplicateStepBetweenRows", () => {
   it("copies a step into an empty target row", () => {
     const result = duplicateStepBetweenRows(
@@ -295,6 +335,28 @@ describe("duplicateBlockBetweenRows", () => {
         notes: [[60, 62, 64], [67, 60, 64]],
       },
       stepIds: [["a", "b", "c"], ["x", "copy-1", "copy-2"]],
+      newIds: ["copy-1", "copy-2"],
+    });
+  });
+});
+
+describe("duplicateBlockFromRowsToRow", () => {
+  it("copies selected steps from multiple source rows into one target row", () => {
+    let nextCopy = 1;
+    const result = duplicateBlockFromRowsToRow(
+      { notes: [[60, 62], [64], [67]] },
+      [["a", "b"], ["c"], ["x"]],
+      2,
+      ["b", "c"],
+      1,
+      () => `copy-${nextCopy++}`,
+    );
+
+    expect(result).toEqual({
+      matrices: {
+        notes: [[60, 62], [64], [67, 62, 64]],
+      },
+      stepIds: [["a", "b"], ["c"], ["x", "copy-1", "copy-2"]],
       newIds: ["copy-1", "copy-2"],
     });
   });
