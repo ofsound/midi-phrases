@@ -285,6 +285,6 @@
       onValuePreview={onPivotPreview}
       onValueCommit={onPivotCommit}
     />
-    <span class="processing-param-label" aria-hidden="true">Piv</span>
+    <span class="processing-param-label" aria-hidden="true">Pivot</span>
   </div>
 </div>

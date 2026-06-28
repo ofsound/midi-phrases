@@ -119,8 +119,8 @@ export function phraseSeedPreviewMuteColumnWidthPx() {
   return phraseRowMuteOnlyLeadingWidthPx() + phraseSeedPreviewMuteSidePaddingPx() * 2;
 }
 
-/** Matches BipolarKnob `h-8 w-8` in the row header. */
-export const basePhraseRowOffsetKnobWidthPx = 32;
+/** Matches row-header BipolarKnob `h-7 w-7`. */
+export const basePhraseRowOffsetKnobWidthPx = 28;
 
 export function phraseRowOffsetKnobWidthPx() {
   return scaledPx(basePhraseRowOffsetKnobWidthPx);

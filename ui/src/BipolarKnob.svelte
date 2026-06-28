@@ -13,6 +13,7 @@
    * @property {any} [resetValue] - Option index restored on double-click; omit to disable reset.
    * @property {boolean} [muted]
    * @property {string} [ariaLabel]
+   * @property {string} [sizeClass]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {(index: number) => void | Promise<void>} [onValueChange]
    */
@@ -24,6 +25,7 @@
     resetValue = undefined,
     muted = false,
     ariaLabel = "Bipolar knob",
+    sizeClass = "h-8 w-8",
     accent = emeraldRowAccent,
     onValueChange = () => {}
   } = $props();
@@ -95,7 +97,7 @@
 <div class="transition-opacity duration-200 {muted ? 'opacity-75' : ''}">
   <div
     data-cursor="vertical-drag"
-    class="relative h-8 w-8 touch-none select-none rounded-full border-[1.5px] bg-surface outline-none transition-[border-color,box-shadow] duration-75 {dragging && !muted
+    class="relative {sizeClass} touch-none select-none rounded-full border-[1.5px] bg-surface outline-none transition-[border-color,box-shadow] duration-75 {dragging && !muted
       ? `${accent.dragBorder} ${accent.dragShadow}`
       : muted
         ? 'border-border-subtle'

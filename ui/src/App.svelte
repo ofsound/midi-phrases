@@ -5868,7 +5868,7 @@
                 : ''} {activeRowPianoRollEditor?.row === row ? 'bg-surface/80' : ''}"
               style:--row-header-accent={rowAccentColorVar(rowAccent)}
             >
-              <div class="pointer-events-none relative z-10 flex items-center gap-2.5 px-1">
+              <div class="pointer-events-none relative z-10 flex -translate-y-[12px] items-center gap-2.5 px-1">
                 {#if rowMuted[row]}
                   <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
                 {/if}
@@ -5877,13 +5877,13 @@
                   aria-label={rowMuted[row] ? "Turn row on" : "Turn row off"}
                   aria-pressed={!rowMuted[row]}
                   data-cursor="pointer"
-                  class="pointer-events-auto {rowMuteControlClasses} {rowMuted[row]
+                  class="pointer-events-auto relative z-20 -ml-1 flex h-9 w-9 shrink-0 self-start items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-focus-ring {rowMuted[row]
                     ? rowPowerToggleOffClasses
                     : rowAccent.textAccent}"
                   onclick={(event) => toggleRowMute(row, event.shiftKey)}
                   title="Shift-click to solo row"
                 >
-                  <RowDisableIcon class="h-[1.9375rem] w-[1.9375rem]" />
+                  <RowDisableIcon class="h-9 w-9" />
                 </button>
                 <div class="pointer-events-auto">
                   <BipolarKnob
@@ -5892,6 +5892,7 @@
                     value={rowTimingOffset[row]}
                     resetValue={defaultRowTimingOffsetIndex}
                     ariaLabel="Row timing offset"
+                    sizeClass="h-7 w-7"
                     muted={rowMuted[row]}
                     onValueChange={(offsetIndex) => selectRowTimingOffset(row, offsetIndex)}
                   />
@@ -5905,7 +5906,7 @@
                   aria-label={recordingRow === row ? "Stop row recording" : "Record row from MIDI"}
                   aria-pressed={recordingRow === row}
                   data-cursor="pointer"
-                  class="pointer-events-auto relative z-20 flex h-[11px] w-[11px] shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {rowMuted[row]
+                  class="pointer-events-auto relative z-20 mr-1 flex h-[15px] w-[15px] shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {rowMuted[row]
                     ? 'text-text-faint hover:text-danger'
                     : recordingRow === row
                       ? 'text-danger'
@@ -5917,7 +5918,7 @@
                 >
                   <RowRecordIcon
                     compact
-                    class="pointer-events-none h-[11px] w-[11px]"
+                    class="pointer-events-none h-[15px] w-[15px]"
                     recording={recordingRow === row}
                   />
                 </button>
@@ -5929,7 +5930,7 @@
                   aria-pressed={activeRowPianoRollEditor?.row === row}
                   disabled={stepIds[row].length === 0}
                   data-cursor={stepIds[row].length > 0 ? "pointer" : undefined}
-                  class="pointer-events-auto relative z-20 flex h-[12px] w-[12px] shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-focus-ring disabled:cursor-default disabled:opacity-45 {activeRowPianoRollEditor?.row === row
+                  class="pointer-events-auto relative z-20 flex h-[16px] w-[16px] shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-focus-ring disabled:cursor-default disabled:opacity-45 {activeRowPianoRollEditor?.row === row
                     ? '[color:var(--row-header-accent)]'
                     : 'text-text-faint hover:[color:var(--row-header-accent)]'}"
                   onclick={() => openRowPianoRollFromHeader(row)}
@@ -5940,7 +5941,7 @@
                       : `Add a step to row ${row + 1} to edit it in the piano roll`}
                 >
                   <RowEditPencilIcon
-                    class="pointer-events-none h-[12px] w-[12px]"
+                    class="pointer-events-none h-[16px] w-[16px]"
                   />
                 </button>
                 <button
@@ -5950,7 +5951,7 @@
                     : `Seed row ${row + 1}`}
                   aria-pressed={activeRowSeedingEditor === row}
                   data-cursor="pointer"
-                  class="pointer-events-auto relative z-20 flex h-[15px] w-[15px] shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {activeRowSeedingEditor === row
+                  class="pointer-events-auto relative z-20 flex h-[19px] w-[19px] shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {activeRowSeedingEditor === row
                     ? '[color:var(--row-header-accent)]'
                     : 'text-text-faint hover:[color:var(--row-header-accent)] transition-colors duration-150'}"
                   onclick={() => openRowSeedingEditor(row)}
@@ -5959,7 +5960,7 @@
                     : `Open seeding editor for row ${row + 1}`}
                 >
                   <SaplingIcon
-                    class="pointer-events-none h-[15px] w-[15px]"
+                    class="pointer-events-none h-[19px] w-[19px]"
                   />
                 </button>
               </div>
