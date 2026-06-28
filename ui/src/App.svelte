@@ -4379,27 +4379,50 @@
   }
 
   async function removeStep(row, step) {
-    if (step < 0 || step >= grid[row].length) return;
+    if (row < 0 || row >= grid.length || step < 0 || step >= grid[row].length) return;
 
-    await commitHistory("Remove step", async () => {
-      grid[row].splice(step, 1);
-      stepDurationFraction[row].splice(step, 1);
-      stepTimingMultiplier[row].splice(step, 1);
-      stepVelocity[row].splice(step, 1);
-      stepMuted[row].splice(step, 1);
-      stepSkipped[row].splice(step, 1);
-      stepProbability[row].splice(step, 1);
-      stepCycle[row].splice(step, 1);
-      stepCycleOffset[row].splice(step, 1);
-      activeGates[row].splice(step, 1);
-      stepIds[row].splice(step, 1);
+    const deletedStepId = stepIds[row]?.[step];
+    if (!deletedStepId) return;
 
+    const before = createHistorySnapshot();
+    const deletedKey = stepSelectionKey(row, deletedStepId);
 
-      if (!nativeFunctionAvailable("removePhraseStep")) return;
+    if (inspectedStep?.row === row && inspectedStep.stepId === deletedStepId) {
+      closeStepInspector();
+    }
 
+    if (rowPianoRollStep?.row === row && rowPianoRollStep.stepId === deletedStepId) {
+      closeRowPianoRollEditor();
+    }
+
+    if (selectedStepKeys.has(deletedKey)) {
+      const nextSelectedKeys = new SvelteSet(selectedStepKeys);
+      nextSelectedKeys.delete(deletedKey);
+      setSelectedStepKeys(nextSelectedKeys);
+      syncBulkControlsFromSelection();
+    }
+
+    grid[row].splice(step, 1);
+    stepDurationFraction[row].splice(step, 1);
+    stepTimingMultiplier[row].splice(step, 1);
+    stepVelocity[row].splice(step, 1);
+    stepMuted[row].splice(step, 1);
+    stepSkipped[row].splice(step, 1);
+    stepProbability[row].splice(step, 1);
+    stepCycle[row].splice(step, 1);
+    stepCycleOffset[row].splice(step, 1);
+    activeGates[row].splice(step, 1);
+    stepIds[row].splice(step, 1);
+
+    await tick();
+
+    if (nativeFunctionAvailable("removePhraseStep")) {
       const removePhraseStep = getNativeFunction("removePhraseStep");
       await removePhraseStep(row, step);
-    });
+    }
+
+    const after = createHistorySnapshot();
+    pushHistoryEntry("Remove step", before, after);
   }
 
   async function insertStep(row, step, multiplierIndex = defaultStepTimingMultiplierIndex) {
