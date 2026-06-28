@@ -10,8 +10,8 @@ export const maxMidiNote = 127;
 
 export const defaultShimmerEnabled = false;
 export const defaultShimmerDelayMultiplierIndex = defaultStepTimingMultiplierIndex;
-export const defaultShimmerFeedbackPercent = 20;
-export const defaultShimmerMixPercent = maxPercentValue;
+export const defaultShimmerFeedbackPercent = 10;
+export const defaultShimmerMixPercent = 20;
 export const minShimmerFeedbackPercent = 0;
 export const maxShimmerFeedbackPercent = maxPercentValue;
 export const minShimmerMixPercent = 0;

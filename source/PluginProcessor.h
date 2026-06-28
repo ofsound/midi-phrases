@@ -142,8 +142,8 @@ public:
 
     static constexpr int maxPercentValue = 99;
 
-    static constexpr int defaultShimmerFeedbackPercent = 20;
-    static constexpr int defaultShimmerMixPercent = maxPercentValue;
+    static constexpr int defaultShimmerFeedbackPercent = 10;
+    static constexpr int defaultShimmerMixPercent = 20;
     static constexpr int minShimmerFeedbackPercent = 0;
     static constexpr int maxShimmerFeedbackPercent = maxPercentValue;
     static constexpr int minShimmerMixPercent = 0;

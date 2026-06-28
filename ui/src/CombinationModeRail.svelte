@@ -7,7 +7,7 @@
   import VelocityTiltControl from "./VelocityTiltControl.svelte";
   import GlobalTransposeControl from "./GlobalTransposeControl.svelte";
   import { combinationModes } from "./phraseSchedule.js";
-  import { defaultShimmerMixPercent } from "./shimmer.js";
+  import { defaultShimmerFeedbackPercent, defaultShimmerMixPercent } from "./shimmer.js";
 
   /**
    * Full-width hardware-style rail for Cross-Mod / Bloom / Counter / Echo / Weave modes.
@@ -84,7 +84,7 @@
     onOctavizerUp8vaRelativeVelocityCommit = () => {},
     shimmerEnabled = false,
     shimmerDelayMultiplierIndex = 3,
-    shimmerFeedbackPercent = 70,
+    shimmerFeedbackPercent = defaultShimmerFeedbackPercent,
     shimmerMixPercent = defaultShimmerMixPercent,
     onShimmerToggle = () => {},
     onShimmerDelayPreview = () => {},

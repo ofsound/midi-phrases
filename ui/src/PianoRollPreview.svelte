@@ -10,7 +10,7 @@
   import { fittedPitchRangeForSchedule } from "./pianoRollViewport.js";
   import { applyVelocityTilt } from "./velocityTilt.js";
   import { applyGlobalTranspose } from "./globalTranspose.js";
-  import { defaultShimmerMixPercent } from "./shimmer.js";
+  import { defaultShimmerFeedbackPercent, defaultShimmerMixPercent } from "./shimmer.js";
 import {
   buildPhraseScheduleBeforeBandpass,
   buildPhraseScheduleWindowBeforeBandpass,
@@ -95,7 +95,7 @@ import { scaledPx } from "./uiScale.svelte.js";
     octavizerUp8vaRelativeVelocity = 0,
     shimmerEnabled = false,
     shimmerDelayMultiplierIndex = 3,
-    shimmerFeedbackPercent = 70,
+    shimmerFeedbackPercent = defaultShimmerFeedbackPercent,
     shimmerMixPercent = defaultShimmerMixPercent,
     rowColorsEnabled = true,
     lengthQuarters = undefined,
