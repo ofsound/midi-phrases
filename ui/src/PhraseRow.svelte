@@ -2605,7 +2605,7 @@
     {/if}
     {#if isStepSelected}
       <div
-        class="pointer-events-none absolute inset-0 z-40 rounded-md border-[3px] border-text"
+        class="pointer-events-none absolute inset-0 z-40 rounded-md border-[1.5px] border-text"
         aria-hidden="true"
       ></div>
     {/if}

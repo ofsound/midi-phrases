@@ -5862,28 +5862,12 @@
           >
             <div
               data-row-header={row}
-              class="group relative -ml-6 flex shrink-0 self-stretch items-center border-r border-border-subtle pl-6 pr-6 {row <
+              class="relative -ml-6 flex shrink-0 self-stretch items-center border-r border-border-subtle bg-surface/55 pl-6 pr-6 {row <
               grid.length - 1
                 ? 'border-b'
-                : ''}"
+                : ''} {activeRowPianoRollEditor?.row === row ? 'bg-surface/80' : ''}"
               style:--row-header-accent={rowAccentColorVar(rowAccent)}
             >
-              <button
-                type="button"
-                aria-label={activeRowPianoRollEditor?.row === row
-                  ? `Close row ${row + 1} piano roll editor`
-                  : `Edit row ${row + 1} in piano roll`}
-                aria-pressed={activeRowPianoRollEditor?.row === row}
-                disabled={stepIds[row].length === 0}
-                data-cursor={stepIds[row].length > 0 ? "pointer" : undefined}
-                class="absolute inset-0 z-0 border-0 bg-surface/55 p-0 outline-none transition-colors hover:bg-surface/80 aria-pressed:bg-surface/80 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-focus-ring disabled:cursor-default disabled:opacity-60"
-                onclick={() => openRowPianoRollFromHeader(row)}
-                title={activeRowPianoRollEditor?.row === row
-                  ? "Show the full piano roll"
-                  : stepIds[row].length > 0
-                    ? `Edit row ${row + 1} in the monophonic piano roll`
-                    : `Add a step to row ${row + 1} to edit it in the piano roll`}
-              ></button>
               <div class="pointer-events-none relative z-10 flex items-center gap-2.5 px-1">
                 {#if rowMuted[row]}
                   <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
@@ -5937,11 +5921,28 @@
                     recording={recordingRow === row}
                   />
                 </button>
-                <RowEditPencilIcon
-                  class="h-[12px] w-[12px] text-text-faint transition-colors duration-150 {stepIds[row].length > 0
-                    ? 'group-hover:[color:var(--row-header-accent)]'
-                    : ''}"
-                />
+                <button
+                  type="button"
+                  aria-label={activeRowPianoRollEditor?.row === row
+                    ? `Close row ${row + 1} piano roll editor`
+                    : `Edit row ${row + 1} in piano roll`}
+                  aria-pressed={activeRowPianoRollEditor?.row === row}
+                  disabled={stepIds[row].length === 0}
+                  data-cursor={stepIds[row].length > 0 ? "pointer" : undefined}
+                  class="pointer-events-auto relative z-20 flex h-[12px] w-[12px] shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-focus-ring disabled:cursor-default disabled:opacity-45 {activeRowPianoRollEditor?.row === row
+                    ? '[color:var(--row-header-accent)]'
+                    : 'text-text-faint hover:[color:var(--row-header-accent)]'}"
+                  onclick={() => openRowPianoRollFromHeader(row)}
+                  title={activeRowPianoRollEditor?.row === row
+                    ? "Show the full piano roll"
+                    : stepIds[row].length > 0
+                      ? `Edit row ${row + 1} in the monophonic piano roll`
+                      : `Add a step to row ${row + 1} to edit it in the piano roll`}
+                >
+                  <RowEditPencilIcon
+                    class="pointer-events-none h-[12px] w-[12px]"
+                  />
+                </button>
                 <button
                   type="button"
                   aria-label={activeRowSeedingEditor === row
