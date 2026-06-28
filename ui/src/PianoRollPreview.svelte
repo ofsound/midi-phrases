@@ -108,7 +108,6 @@ import { scaledPx } from "./uiScale.svelte.js";
 
   const basePxPerQuarter = 28;
   const baseFallbackRowHeightPx = 11;
-  const baseMaxRowHeightPx = 16;
   const baseKeyboardWidthPx = 44;
   const baseRulerHeightPx = 28;
   const renderOverscanQuarters = 8;
@@ -147,7 +146,6 @@ import { scaledPx } from "./uiScale.svelte.js";
   let displayEnd = $derived(dragMode === null ? loopEnd : dragDisplayEnd);
   let pxPerQuarter = $derived(scaledPx(basePxPerQuarter));
   let fallbackRowHeightPx = $derived(scaledPx(baseFallbackRowHeightPx));
-  let maxRowHeightPx = $derived(scaledPx(baseMaxRowHeightPx));
   let keyboardWidthPx = $derived(scaledPx(baseKeyboardWidthPx));
   let rulerHeightPx = $derived(scaledPx(baseRulerHeightPx));
 
@@ -281,7 +279,7 @@ import { scaledPx } from "./uiScale.svelte.js";
   let pitchSpan = $derived(pitchRange.maxMidi - pitchRange.minMidi + 1);
   let rowHeightPx = $derived(
     verticalViewportHeightPx > 0
-      ? Math.min(maxRowHeightPx, verticalViewportHeightPx / pitchSpan)
+      ? verticalViewportHeightPx / pitchSpan
       : fallbackRowHeightPx,
   );
   let rollWidthPx = $derived(resolvedLengthQuarters * pxPerQuarter);

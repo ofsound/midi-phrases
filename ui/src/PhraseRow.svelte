@@ -946,6 +946,11 @@
   const stepBoundaryResizeHitClass =
     "step-boundary-resize-hit pointer-events-auto absolute top-1/2 z-10 h-10 w-3 touch-none select-none border-0 bg-transparent p-0 outline-none disabled:pointer-events-none disabled:opacity-50";
 
+  /** @param {number} step */
+  function isMultiplierResizeBoundaryActive(step) {
+    return resizingStep === step || pendingResizeGesture?.step === step;
+  }
+
   /** @param {number} dataStep */
   function shellWidthPx(dataStep) {
     return layoutPx(logicalShellWidthPx(dataStep));
@@ -2133,7 +2138,9 @@
 
 {#snippet multiplierResizeHandle(step)}
   <div
-    class="trailing-multiplier-resize-zone pointer-events-none absolute inset-y-0 z-[60]"
+    class="trailing-multiplier-resize-zone pointer-events-none absolute inset-y-0 z-[60] {isMultiplierResizeBoundaryActive(step)
+      ? 'multiplier-resize-zone-active'
+      : ''}"
     style={trailingResizeZoneStyle()}
   >
     <button
@@ -2453,7 +2460,9 @@
   {@const boundaryCenterPx = leftPx + stepInsertZoneWidthPx() / 2}
   <div
     data-insert-slot
-    class="boundary-resize-zone pointer-events-none absolute inset-y-0 z-[60]"
+    class="boundary-resize-zone pointer-events-none absolute inset-y-0 z-[60] {mode === 'between' && insertStep > 0 && isMultiplierResizeBoundaryActive(insertStep - 1)
+      ? 'multiplier-resize-zone-active'
+      : ''}"
     style={mode === "between"
       ? boundaryResizeZoneStyle(boundaryCenterPx)
       : mode === "leading"
@@ -2616,9 +2625,11 @@
   .boundary-resize-zone:has(.boundary-resize-hover-pad:hover) .boundary-edge-handle,
   .boundary-resize-zone:has(.step-boundary-resize-hit:hover) .boundary-edge-handle,
   .boundary-resize-zone:has(.step-boundary-resize-hit:focus-visible) .boundary-edge-handle,
+  .boundary-resize-zone.multiplier-resize-zone-active .boundary-edge-handle,
   .trailing-multiplier-resize-zone:has(.boundary-resize-hover-pad:hover) .boundary-edge-handle,
   .trailing-multiplier-resize-zone:has(.step-boundary-resize-hit:hover) .boundary-edge-handle,
-  .trailing-multiplier-resize-zone:has(.step-boundary-resize-hit:focus-visible) .boundary-edge-handle {
+  .trailing-multiplier-resize-zone:has(.step-boundary-resize-hit:focus-visible) .boundary-edge-handle,
+  .trailing-multiplier-resize-zone.multiplier-resize-zone-active .boundary-edge-handle {
     opacity: 1;
   }
 
