@@ -62,6 +62,9 @@
   let centerNoteOptions = $derived(seedingCenterNoteOptions(root, modeIndex));
   let centerNoteIndex = $derived(seedingCenterNoteIndex(rowSettings.centerMidi, root, modeIndex));
   let centerNoteLabel = $derived(seedingCenterNoteLabel(rowSettings.centerMidi, root, modeIndex));
+
+  const seedParamLabelClass = "grid grid-cols-[6.75rem_minmax(0,1fr)] items-center gap-x-3";
+  const seedParamLabelTextClass = "text-left text-[9px] font-medium uppercase tracking-wide text-text-muted";
 </script>
 
 <section class="step-inspector flex min-h-0 w-full flex-1 overflow-hidden bg-app/90" style={rowAccentScopeStyle(accent)}>
@@ -100,9 +103,9 @@
   </aside>
 
   <div class="inspector-main flex min-h-0 min-w-0 flex-1 flex-col justify-start items-start overflow-hidden pt-3 pb-4 pl-2 pr-4">
-    <div class="grid w-full gap-4">
-      <label class="grid gap-1">
-        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Phrase length</span>
+    <div class="grid w-full gap-3">
+      <label class={seedParamLabelClass}>
+        <span class={seedParamLabelTextClass}>Phrase length</span>
         <div class="seed-param-row">
           <AccentRangeSlider
             value={rowSettings.phraseLength}
@@ -117,8 +120,8 @@
         </div>
       </label>
 
-      <label class="grid gap-1">
-        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Center</span>
+      <label class={seedParamLabelClass}>
+        <span class={seedParamLabelTextClass}>Center</span>
         <div class="seed-param-row">
           <AccentRangeSlider
             value={centerNoteIndex}
@@ -136,8 +139,8 @@
         </div>
       </label>
 
-      <label class="grid gap-1">
-        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Range</span>
+      <label class={seedParamLabelClass}>
+        <span class={seedParamLabelTextClass}>Range</span>
         <div class="seed-param-row">
           <AccentRangeSlider
             value={rowSettings.rangeSemitones}
@@ -152,8 +155,8 @@
         </div>
       </label>
 
-      <label class="grid gap-1">
-        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Repetition</span>
+      <label class={seedParamLabelClass}>
+        <span class={seedParamLabelTextClass}>Repetition</span>
         <div class="seed-param-row">
           <AccentRangeSlider
             value={rowSettings.repetition}
@@ -167,8 +170,8 @@
         </div>
       </label>
 
-      <label class="grid gap-1">
-        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Complexity</span>
+      <label class={seedParamLabelClass}>
+        <span class={seedParamLabelTextClass}>Complexity</span>
         <div class="seed-param-row">
           <AccentRangeSlider
             value={rowSettings.complexity}
@@ -182,8 +185,8 @@
         </div>
       </label>
 
-      <label class="grid gap-1">
-        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Randomness</span>
+      <label class={seedParamLabelClass}>
+        <span class={seedParamLabelTextClass}>Randomness</span>
         <div class="seed-param-row">
           <AccentRangeSlider
             value={rowSettings.randomness}

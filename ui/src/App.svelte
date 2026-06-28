@@ -1851,6 +1851,7 @@
   function dismissPhraseEditingFocus() {
     closeStepInspector();
     closeRowPianoRollEditor();
+    closeRowSeedingEditor();
 
     if (selectedStepKeysForGrid.size > 0) {
       setSelectedStepKeys(new Set());
