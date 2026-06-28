@@ -183,15 +183,15 @@
   </aside>
 
   <div class="inspector-main grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(4rem,28%)_minmax(0,1fr)] content-start gap-y-2 overflow-hidden pb-2">
-    <div class="flex min-h-0 min-w-0 flex-col items-center justify-center gap-1 bg-surface/15 px-3 py-2">
-      {#if bulkEditStepCount > 1}
-        <p
-          class="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted"
-          aria-live="polite"
-        >
-          {bulkEditStepCount} steps inspected
-        </p>
-      {/if}
+    <div class="relative flex min-h-0 min-w-0 items-center justify-center bg-surface/15 px-3 py-2">
+      <p
+        class="absolute bottom-2 left-14 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted"
+        class:invisible={bulkEditStepCount <= 1}
+        aria-live="polite"
+        aria-hidden={bulkEditStepCount <= 1}
+      >
+        {bulkEditStepCount} steps inspected
+      </p>
       <div class="grid w-full max-w-[46rem] min-w-0 grid-cols-2 items-end gap-x-20">
         <div class="flex min-h-0 min-w-0 flex-col justify-center gap-1">
           <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>

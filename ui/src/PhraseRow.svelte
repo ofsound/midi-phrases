@@ -1450,6 +1450,14 @@
     event.stopImmediatePropagation();
   }
 
+  /** @param {PointerEvent} event @param {number} step */
+  function handleFullStepPointerDownCapture(event, step) {
+    if (!event.shiftKey || event.button !== 0 || stepInspectorInteractionDisabled) return;
+
+    onBulkSelectPointerDown(event, { toggleStep: true });
+    event.stopImmediatePropagation();
+  }
+
   function shouldSuppressStepInspectorClick() {
     return suppressStepInspectorClick;
   }
@@ -2862,6 +2870,7 @@
               style:min-height={collapsed ? undefined : `${phraseStepCellHeightPx}px`}
               style:margin-left="{dndSlotMarginLeftPx(index, collapsed)}px"
               aria-hidden={collapsed ? true : undefined}
+              onpointerdowncapture={(event) => layout.step >= 0 && handleFullStepPointerDownCapture(event, layout.step)}
               onclick={(event) => layout.step >= 0 && retargetOpenStepInspector(event, layout.step)}
               ondblclick={(event) => layout.step >= 0 && openFullStepInspector(event, layout.step)}
             >
