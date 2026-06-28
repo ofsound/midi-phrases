@@ -321,6 +321,16 @@
     return (visiblePitchRange.maxMidi - midi) * rowHeightPx;
   }
 
+  /**
+   * @param {number} previewStep
+   * @param {number} previewMidi
+   */
+  function fittedPitchRangeForDragPreview(previewStep, previewMidi) {
+    return fittedPitchRangeForNotes(
+      notes.map((midi, step) => (step === previewStep ? previewMidi : midi)),
+    );
+  }
+
   /** @param {number} velocity */
   function velocityBarHeightPx(velocity) {
     const clamped = Math.min(127, Math.max(0, Math.round(velocity)));
@@ -455,9 +465,9 @@
     await onShapeNotesCommit(row, changedUpdates);
   }
 
-  /** @param {PointerEvent} event @param {number} baseMidi @param {number} startY */
-  function midiFromPointerDelta(event, baseMidi, startY) {
-    const deltaRows = Math.round((startY - event.clientY) / rowHeightPx);
+  /** @param {PointerEvent} event @param {number} baseMidi @param {number} startY @param {number} pitchDragRowHeightPx */
+  function midiFromPointerDelta(event, baseMidi, startY, pitchDragRowHeightPx) {
+    const deltaRows = Math.round((startY - event.clientY) / Math.max(1, pitchDragRowHeightPx));
 
     return midiFromPitchDragDelta(baseMidi, deltaRows, scaleRoot, scaleModeIndex);
   }
@@ -497,6 +507,7 @@
       previewPreviousStep,
       originalPreviousMultiplierIndex,
       previewPreviousMultiplierIndex: originalPreviousMultiplierIndex,
+      pitchDragRowHeightPx: rowHeightPx,
       lockedPitchRange: { ...visiblePitchRange },
       didDrag: false,
     };
@@ -510,7 +521,12 @@
     if (!drag || drag.mode !== "move" || event.pointerId !== drag.pointerId) return;
 
     const dragDeltaX = event.clientX - drag.startX;
-    const nextMidi = midiFromPointerDelta(event, drag.baseMidi, drag.startY);
+    const nextMidi = midiFromPointerDelta(
+      event,
+      drag.baseMidi,
+      drag.startY,
+      drag.pitchDragRowHeightPx,
+    );
     let targetStep = stepAtRollX(
       rollXFromPointer(event),
       drag.originalSlots,
@@ -574,6 +590,7 @@
       previewMidi: nextMidi,
       targetStep: targetStep < 0 ? drag.step : targetStep,
       previewPreviousMultiplierIndex,
+      lockedPitchRange: fittedPitchRangeForDragPreview(drag.step, nextMidi),
     };
     onNotePreview(row, drag.step, nextMidi);
   }
