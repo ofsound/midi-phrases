@@ -232,16 +232,16 @@
             class="h-8 border border-border bg-surface px-3 text-xs font-semibold uppercase tracking-[0.16em] text-text outline-none transition-colors hover:border-accent/70 focus:ring-1 focus:ring-focus-ring disabled:opacity-40"
             onclick={onNextSeed}
           >
-            New seed
+            New notes
           </button>
           <button
             type="button"
             data-cursor="pointer"
             disabled={busy}
-            class="h-8 border border-accent bg-accent px-4 text-xs font-semibold uppercase tracking-[0.16em] text-control-primary-text outline-none transition-opacity hover:opacity-90 focus:ring-1 focus:ring-focus-ring disabled:opacity-40"
+            class="h-8 border border-border bg-surface px-3 text-xs font-semibold uppercase tracking-[0.16em] text-text outline-none transition-colors hover:border-accent/70 focus:ring-1 focus:ring-focus-ring disabled:opacity-40"
             onclick={onShuffle}
           >
-            Shuffle
+            Randomize
           </button>
         </div>
       </div>

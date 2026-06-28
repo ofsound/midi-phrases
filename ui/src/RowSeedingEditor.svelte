@@ -86,15 +86,15 @@
         class="h-8 border border-border bg-surface/50 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-text outline-none transition-colors hover:border-accent/70 focus-visible:ring-1 focus-visible:ring-focus-ring"
         onclick={onNextSeed}
       >
-        New seed
+        New notes
       </button>
       <button
         type="button"
         data-cursor="pointer"
-        class="h-8 border border-accent bg-accent px-4 text-xs font-semibold uppercase tracking-[0.16em] text-control-primary-text outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
+        class="h-8 border border-border bg-surface/50 px-3 text-xs font-semibold uppercase tracking-[0.16em] text-text outline-none transition-colors hover:border-accent/70 focus-visible:ring-1 focus-visible:ring-focus-ring"
         onclick={onShuffle}
       >
-        Shuffle
+        Randomize
       </button>
     </div>
   </aside>
