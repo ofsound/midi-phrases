@@ -67,6 +67,7 @@
    * @property {(row: number, updates: { step: number, midi: number }[]) => void | Promise<void>} [onShapeNotesCommit]
    * @property {(row: number, updates: { step: number, velocity: number }[]) => void | Promise<void>} [onShapeVelocitiesCommit]
    * @property {(row: number, step: number, multiplierIndex?: number) => void | Promise<void>} [onInsertStep]
+   * @property {(row: number, step: number) => void | Promise<void>} [onDuplicateStep]
    * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
    * @property {number} [bulkDurationPercent]
    * @property {number} [bulkVelocityPercent]
@@ -116,6 +117,7 @@
     onStepBulkGestureStart = () => {},
     onOpenAdvancedInspector = () => {},
     onInsertStep = () => {},
+    onDuplicateStep = () => {},
     onShapeNotesCommit = () => {},
     onShapeVelocitiesCommit = () => {},
     onBulkSelectPointerDown = () => {},
@@ -746,9 +748,27 @@
 
     return Boolean(
       target.closest(
-        "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-bulk-step-cell]",
+        "button, input, textarea, select, a, [contenteditable='true'], [role='slider'], [data-bulk-step-cell], [data-piano-roll-boundary]",
       ),
     );
+  }
+
+  /** @param {PointerEvent} event @param {number} insertStep */
+  function handleBoundaryDoubleClick(event, insertStep) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (
+      isShapeDrawMode
+      || drag
+      || insertStep <= 0
+      || insertStep > stepIds.length
+      || stepIds.length >= maxPhraseStepsPerRow
+    ) {
+      return;
+    }
+
+    void onDuplicateStep(row, insertStep);
   }
 
   /** @param {PointerEvent} event */
@@ -769,6 +789,14 @@
     shouldIgnore: shouldIgnoreRollInsertDoubleClick,
     onDoubleClick: handleRollBackgroundDoubleClick,
   });
+
+  /** @param {number} insertStep */
+  function boundaryDoubleClickOptions(insertStep) {
+    return {
+      disabled: isShapeDrawMode,
+      onDoubleClick: (event) => handleBoundaryDoubleClick(event, insertStep),
+    };
+  }
 
 </script>
 
@@ -977,10 +1005,12 @@
             {#each stepNotes as note, index (note.stepId + '-boundary')}
               {#if index > 0}
                 <div
+                  data-piano-roll-boundary
                   role="presentation"
                   class="step-boundary-interactive-zone absolute top-0 bottom-0 z-25 flex items-center justify-center touch-none select-none cursor-ew-resize w-4 -ml-2"
                   style:left="{note.leftPx}px"
                   style:--boundary-accent={boundaryAccentVar}
+                  use:doubleClick={boundaryDoubleClickOptions(note.step)}
                   onpointerdown={(event) => beginStepResize(event, note, "start")}
                   onpointermove={moveStepResize}
                   onpointerup={endStepResize}
@@ -993,10 +1023,12 @@
               {/if}
               {#if index === stepNotes.length - 1}
                 <div
+                  data-piano-roll-boundary
                   role="presentation"
                   class="step-boundary-interactive-zone absolute top-0 bottom-0 z-25 flex items-center justify-center touch-none select-none cursor-ew-resize w-4 -ml-2"
                   style:left="{note.leftPx + note.fullStepWidthPx}px"
                   style:--boundary-accent={boundaryAccentVar}
+                  use:doubleClick={boundaryDoubleClickOptions(note.step + 1)}
                   onpointerdown={(event) => beginStepResize(event, note, "end")}
                   onpointermove={moveStepResize}
                   onpointerup={endStepResize}

@@ -670,7 +670,8 @@
   }
 
   let bulkMoveDragActive = $derived(
-    bulkDragStepIds !== null
+    isDragging
+    && bulkDragStepIds !== null
     && bulkDragStepIds.length >= 2
     && duplicateDragStepId === null,
   );
@@ -872,8 +873,6 @@
       bulkDragBlockIds = block;
     }
 
-    onBulkDragSessionChange(ghostBlock.length >= 2 ? ghostBlock : null);
-
     if (ghostBlock.length < 2) return;
 
     bulkDragGhostIds = ghostBlock;
@@ -885,6 +884,15 @@
       stepCellPaddingPx(),
     );
     bulkDragGhostLayout = bulkGhostLayoutEntries(ghostBlock, bulkDragGhostSnapshots);
+
+    if (bulkDragGhostSnapshots.size >= 2) {
+      onBulkDragSessionChange(ghostBlock);
+    } else {
+      bulkDragGhostIds = null;
+      bulkDragGhostSnapshots = null;
+      bulkDragGhostLayout = null;
+      onBulkDragSessionChange(null);
+    }
   }
 
   /** @param {PointerEvent} event @param {number} step */
@@ -1114,12 +1122,17 @@
       clearDragPointerTracking();
     }
 
-    if (bulkDragBlockIds && bulkDragBlockIds.length >= 2 && idsBeforeDrag) {
+    const hasBulkGhost = bulkDragGhostIds !== null && bulkDragGhostIds.length >= 2 && idsBeforeDrag;
+
+    if (hasBulkGhost) {
       if (shadowIndex >= 0) {
         syncDropIndicatorFromPointer(shadowIndex);
       }
 
-      if (draggedAsDuplicate && trigger !== TRIGGERS.DRAG_STARTED) {
+      if (
+        (!bulkDragBlockIds || bulkDragBlockIds.length < 2)
+        || (draggedAsDuplicate && trigger !== TRIGGERS.DRAG_STARTED)
+      ) {
         dndItems = previewItems;
         scheduleBulkDragGhostRefresh();
         scheduleDropIndicatorRefresh(shadowIndex);

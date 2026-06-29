@@ -6253,7 +6253,6 @@
         onRowSettingsCommit={(settings) => applyRowSeeding(activeRowSeedingEditor, settings, { syncNative: true })}
         onShuffle={() => shuffleRowSeeding(activeRowSeedingEditor)}
         onNextSeed={() => nextRowSeedingSeed(activeRowSeedingEditor)}
-        onClose={closeRowSeedingEditor}
       />
     {:else if activeRowPianoRollEditor !== null}
       <RowPianoRollEditor
@@ -6288,6 +6287,7 @@
         onStepBulkGestureStart={beginPhraseStepBulkGesture}
         onOpenAdvancedInspector={openStepInspector}
         onInsertStep={insertStep}
+        onDuplicateStep={duplicateStep}
         onBulkSelectPointerDown={beginStepMarqueeSelection}
         bulkDurationPercent={bulkDurationPercent}
         bulkVelocityPercent={bulkVelocityPercent}

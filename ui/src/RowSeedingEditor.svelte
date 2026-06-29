@@ -1,6 +1,5 @@
 <script>
   import AccentRangeSlider from "./AccentRangeSlider.svelte";
-  import RemoveXIcon from "./RemoveXIcon.svelte";
   import {
     defaultSeedingRowSettings,
     seedingCenterMidiForIndex,
@@ -26,7 +25,6 @@
    * @property {(updates: Partial<import('./seeding.js').SeedingRowSettings>) => void | Promise<void>} [onRowSettingsCommit]
    * @property {() => void} [onShuffle]
    * @property {() => void} [onNextSeed]
-   * @property {() => void} [onClose]
    */
 
   /** @type {Props} */
@@ -41,7 +39,6 @@
     onRowSettingsCommit = () => {},
     onShuffle = () => {},
     onNextSeed = () => {},
-    onClose = () => {},
   } = $props();
 
   /** @param {number} value */
@@ -69,19 +66,6 @@
 
 <section class="step-inspector flex min-h-0 w-full flex-1 overflow-hidden bg-app/90" style={rowAccentScopeStyle(accent)}>
   <aside class="inspector-sidebar flex w-[13rem] shrink-0 flex-col gap-3 py-2 pr-3 pl-0">
-    <div class="flex items-center">
-      <button
-        type="button"
-        data-cursor="pointer"
-        aria-label="Close seeding editor"
-        title="Close seeding editor"
-        class="flex h-5 w-5 items-center justify-center rounded-md border border-border bg-surface/30 text-text-faint hover:border-border-strong hover:text-text focus-visible:ring-1 focus-visible:ring-focus-ring"
-        onclick={onClose}
-      >
-        <RemoveXIcon class="h-3 w-3" />
-      </button>
-    </div>
-
     <div class="flex flex-col gap-2">
       <button
         type="button"
