@@ -162,6 +162,7 @@
   import {
     currentUiScaleMinimumSize,
     resolveInitialUiScalePercent,
+    scaledPx,
     setUiScalePercent,
     setUiViewportSize,
     uiScaleState,
@@ -174,6 +175,12 @@
   let appRoot = $state(null);
   let pluginName = $state("MIDI Phrases");
   let grid = $state(defaultPhraseGrid());
+  let rowHeaderRecordIconSizePx = $derived(scaledPx(15));
+  let rowHeaderPianoRollIconSizePx = $derived(scaledPx(16));
+  let rowHeaderSeedIconSizePx = $derived(scaledPx(19));
+  let rowHeaderRecordIconStyle = $derived(`width: ${rowHeaderRecordIconSizePx}px; height: ${rowHeaderRecordIconSizePx}px;`);
+  let rowHeaderPianoRollIconStyle = $derived(`width: ${rowHeaderPianoRollIconSizePx}px; height: ${rowHeaderPianoRollIconSizePx}px;`);
+  let rowHeaderSeedIconStyle = $derived(`width: ${rowHeaderSeedIconSizePx}px; height: ${rowHeaderSeedIconSizePx}px;`);
   /** @type {boolean[]} */
   let rowMuted = $state([false, false, false, false]);
   let soloRow = -1;
@@ -5976,11 +5983,13 @@
                   aria-label={recordingRow === row ? "Stop row recording" : "Record row from MIDI"}
                   aria-pressed={recordingRow === row}
                   data-cursor="pointer"
-                  class="pointer-events-auto relative z-20 mr-1 flex h-[15px] w-[15px] shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {rowMuted[row]
+                  class="pointer-events-auto relative z-20 mr-1 flex shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {rowMuted[row]
                     ? 'text-text-faint hover:text-danger'
                     : recordingRow === row
                       ? 'text-danger'
                       : 'text-text-faint hover:text-danger'}"
+                  style:width="{rowHeaderRecordIconSizePx}px"
+                  style:height="{rowHeaderRecordIconSizePx}px"
                   onclick={() => toggleRowRecording(row)}
                   title={recordingRow === row
                     ? "Stop recording (notes fill this row as 1× steps)"
@@ -5988,7 +5997,8 @@
                 >
                   <RowRecordIcon
                     compact
-                    class="pointer-events-none h-[15px] w-[15px]"
+                    class="pointer-events-none"
+                    style={rowHeaderRecordIconStyle}
                     recording={recordingRow === row}
                   />
                 </button>
@@ -6000,9 +6010,11 @@
                   aria-pressed={activeRowPianoRollEditor?.row === row}
                   disabled={stepIds[row].length === 0}
                   data-cursor={stepIds[row].length > 0 ? "pointer" : undefined}
-                  class="pointer-events-auto relative z-20 flex h-[16px] w-[16px] shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-focus-ring disabled:cursor-default disabled:opacity-45 {activeRowPianoRollEditor?.row === row
+                  class="pointer-events-auto relative z-20 flex shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-focus-ring disabled:cursor-default disabled:opacity-45 {activeRowPianoRollEditor?.row === row
                     ? '[color:var(--row-header-accent)]'
                     : 'text-text-faint hover:[color:var(--row-header-accent)]'}"
+                  style:width="{rowHeaderPianoRollIconSizePx}px"
+                  style:height="{rowHeaderPianoRollIconSizePx}px"
                   onclick={() => openRowPianoRollFromHeader(row)}
                   title={activeRowPianoRollEditor?.row === row
                     ? "Show the full piano roll"
@@ -6011,7 +6023,8 @@
                       : `Add a step to row ${row + 1} to edit it in the piano roll`}
                 >
                   <RowEditPencilIcon
-                    class="pointer-events-none h-[16px] w-[16px]"
+                    class="pointer-events-none"
+                    style={rowHeaderPianoRollIconStyle}
                   />
                 </button>
                 <button
@@ -6021,16 +6034,19 @@
                     : `Seed row ${row + 1}`}
                   aria-pressed={activeRowSeedingEditor === row}
                   data-cursor="pointer"
-                  class="pointer-events-auto relative z-20 flex h-[19px] w-[19px] shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {activeRowSeedingEditor === row
+                  class="pointer-events-auto relative z-20 flex shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {activeRowSeedingEditor === row
                     ? '[color:var(--row-header-accent)]'
                     : 'text-text-faint hover:[color:var(--row-header-accent)] transition-colors duration-150'}"
+                  style:width="{rowHeaderSeedIconSizePx}px"
+                  style:height="{rowHeaderSeedIconSizePx}px"
                   onclick={() => openRowSeedingEditor(row)}
                   title={activeRowSeedingEditor === row
                     ? "Close seeding editor"
                     : `Open seeding editor for row ${row + 1}`}
                 >
                   <SaplingIcon
-                    class="pointer-events-none h-[19px] w-[19px]"
+                    class="pointer-events-none"
+                    style={rowHeaderSeedIconStyle}
                   />
                 </button>
               </div>

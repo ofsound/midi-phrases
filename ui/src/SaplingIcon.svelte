@@ -1,9 +1,11 @@
 <script>
-  let { class: className = "" } = $props();
+  /** @type {{ class?: string, style?: string }} */
+  let { class: className = "", style = "" } = $props();
 </script>
 
 <svg
   class={className}
+  {style}
   viewBox="0 0 24 24"
   fill="none"
   stroke="currentColor"
