@@ -6420,7 +6420,7 @@
           >
             <input
               aria-label="Project name"
-              class="w-[250px] shrink-0 truncate border-0 bg-transparent p-0 text-sm font-semibold tracking-wide text-text outline-none placeholder:text-text-faint focus:text-accent"
+              class="w-36 shrink-0 truncate border-0 bg-transparent p-0 text-sm font-semibold tracking-wide text-text outline-none placeholder:text-text-faint focus:text-accent"
               maxlength="96"
               bind:value={projectName}
               placeholder="Untitled Project"

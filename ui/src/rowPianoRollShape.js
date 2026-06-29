@@ -227,7 +227,9 @@ export function shapeVelocityUpdatesFromStroke(points, slots, pxPerQuarter, roll
   for (let step = firstStep; step <= lastStep; step += 1) {
     const slot = slots[step];
     const centerX = stepSlotCenterXPx(slot, pxPerQuarter);
-    const y = interpolateShapeYAtX(points, centerX);
+    const y = firstStep === lastStep
+      ? points[points.length - 1].y
+      : interpolateShapeYAtX(points, centerX);
 
     if (y === null) continue;
 

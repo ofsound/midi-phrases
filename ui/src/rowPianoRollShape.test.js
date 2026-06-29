@@ -163,6 +163,22 @@ describe("shapeVelocityUpdatesFromStroke", () => {
       { step: 2, velocity: 0 },
     ]);
   });
+
+  it("uses the current pointer y for single-step vertical drags on the right half", () => {
+    const { slots } = buildRowRollTimeline([7], [], 1, 3);
+    const pxPerQuarter = 28;
+    const rightHalfX = stepSlotCenterXPx(slots[0], pxPerQuarter) + 8;
+    const points = [
+      { x: rightHalfX, y: 0 },
+      { x: rightHalfX, y: 100 },
+    ];
+
+    const updates = shapeVelocityUpdatesFromStroke(points, slots, pxPerQuarter, 100);
+
+    expect(updates).toEqual([
+      { step: 0, velocity: 0 },
+    ]);
+  });
 });
 
 describe("pianoRollNoteDragTooltipVisible", () => {
