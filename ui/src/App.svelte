@@ -37,7 +37,6 @@
   import CombinationModeRail from "./CombinationModeRail.svelte";
   import RecordPianoKeyboard from "./RecordPianoKeyboard.svelte";
   import StepInspector from "./StepInspector.svelte";
-  import RowSeedingEditor from "./RowSeedingEditor.svelte";
   import {
     defaultStepTimingMultiplierIndex,
     maxPhraseStepsPerRow,
@@ -116,12 +115,10 @@
     applySeedingRowSettingsUpdate,
     createDefaultSeedModeRowSettings,
     defaultSeedModeState,
-    generateSeededPhraseRows,
     generateSeededPhraseRowsFromSeedModeState,
     hasSeedingRowTargets,
     mergeSeededPhraseRows,
     normalizeSeedModeState,
-    normalizeSeedingRowSettings,
     phraseRowsFromGridState,
     seedingRhythmStepMax,
   } from "./seeding.js";
@@ -316,8 +313,6 @@
   /** Step whose row is shown in the lower piano-roll editor, or null. */
   /** @type {{ row: number, stepId: string } | null} */
   let rowPianoRollStep = $state(null);
-  /** Row index shown in the lower seeding editor, or null. */
-  let activeRowSeedingEditor = $state(null);
   /** Snapshot taken when recording was armed (for undo / cancel). */
   /** @type {ReturnType<typeof createHistorySnapshot> | null} */
   let recordingHistoryBefore = null;
@@ -378,18 +373,6 @@
   let seedModeHistoryBefore = null;
   let seedModeDirty = false;
   let seedModeApplyVersion = 0;
-  let seedModeCurrentPhraseRows = $derived(phraseRowsFromGridState({
-    grid,
-    stepTimingMultiplier,
-    stepDurationFraction,
-    stepVelocity,
-    stepMuted,
-    stepSkipped,
-    stepProbability,
-    stepCycle,
-    stepCycleOffset,
-    rowTimingOffset,
-  }));
   let pulseIndex = $state(defaultPulseIndex);
   let swingPercent = $state(0);
   let velocityHumanizePercent = $state(0);
@@ -1640,7 +1623,6 @@
     }
 
     rowPianoRollStep = null;
-    activeRowSeedingEditor = null;
 
     if (inspectedStep?.row === row && inspectedStep.stepId === stepId) {
       closeStepInspector();
@@ -1663,7 +1645,6 @@
     }
 
     inspectedStep = null;
-    activeRowSeedingEditor = null;
     rowPianoRollStep = { row, stepId };
 
     if (selectStep) {
@@ -1676,93 +1657,29 @@
   }
 
   /** @param {number} row */
-  async function openRowSeedingEditor(row) {
-    if (activeRowSeedingEditor === row) {
-      closeRowSeedingEditor();
-      return;
-    }
+  async function targetRowSeedMode(row) {
+    if (projectOperationBusy || row < 0 || row >= grid.length) return;
 
     inspectedStep = null;
     rowPianoRollStep = null;
+
     if (recordingRow !== null) {
       await finishRowRecording();
     }
 
-    activeRowSeedingEditor = row;
-    beginSeedModeHistory();
-  }
-
-  function closeRowSeedingEditor() {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
-    if (activeRowSeedingEditor !== null) {
-      finalizeSeedModeHistory();
-      activeRowSeedingEditor = null;
-    }
-  }
 
-  async function applyRowSeeding(row, updates, { syncNative = true } = {}) {
-    if (projectOperationBusy) return;
+    setSelectedStepKeys(new Set());
+    syncBulkControlsFromSelection();
+    cancelMarqueeSelection();
 
-    beginSeedModeHistory();
-    seedModeDirty = true;
+    seedModeActive = true;
 
-    seedModeRowSettings = seedModeRowSettings.map((settings, r) =>
-      r === row
-        ? normalizeSeedingRowSettings({ ...settings, ...updates })
-        : settings
-    );
-
-    const applyVersion = ++seedModeApplyVersion;
-    const existing = phraseRowsFromGridState({
-      grid,
-      stepTimingMultiplier,
-      stepDurationFraction,
-      stepVelocity,
-      stepMuted,
-      stepSkipped,
-      stepProbability,
-      stepCycle,
-      stepCycleOffset,
-      rowTimingOffset,
-    });
-
-    const generated = generateSeededPhraseRows({
-      rhythmStep: seedModeRhythmStep,
-      rowSettings: seedModeRowSettings,
-      root: scaleRoot,
-      modeIndex: scaleModeIndex,
-    });
-
-    const targets = Array.from({ length: 4 }, (_, r) => r === row);
-    const merged = mergeSeededPhraseRows(existing, generated, targets);
-
-    try {
-      assignGeneratedPhraseRows(merged);
-
-      if (syncNative) {
-        await syncGeneratedPhraseRowsToNative(applyVersion);
-        await pushSeedModeStateToNative();
-      }
-    } catch {
-      projectOperationError = "The row could not be seeded.";
-    }
-  }
-
-  function shuffleRowSeeding(row) {
-    void applyRowSeeding(row, {
-      repetition: Math.round(Math.min(100, Math.max(0, 18 + Math.random() * 70))),
-      complexity: Math.round(Math.min(100, Math.max(0, 20 + Math.random() * 72))),
-      randomness: Math.round(Math.min(100, Math.max(0, 24 + Math.random() * 68))),
-      symmetry: Math.random() > 0.62,
-      seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
-    });
-  }
-
-  function nextRowSeedingSeed(row) {
-    void applyRowSeeding(row, {
-      seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
+    void applySeedModeState({
+      ...currentSeedModeState(),
+      rowTargets: seedModeRowTargets.map((_, index) => index === row),
     });
   }
 
@@ -1888,7 +1805,6 @@
   function dismissPhraseEditingFocus() {
     closeStepInspector();
     closeRowPianoRollEditor();
-    closeRowSeedingEditor();
 
     if (selectedStepKeysForGrid.size > 0) {
       setSelectedStepKeys(new Set());
@@ -2198,7 +2114,6 @@
     bulkTransposeSemitones = 0;
     assignSeedModeStateFromPattern(state);
     seedModeActive = false;
-    activeRowSeedingEditor = null;
     seedModeHistoryBefore = null;
     seedModeDirty = false;
     undoStack = [];
@@ -2366,10 +2281,6 @@
       finalizeSeedModeHistory();
       seedModeActive = false;
     }
-    if (activeRowSeedingEditor !== null) {
-      finalizeSeedModeHistory();
-      activeRowSeedingEditor = null;
-    }
 
     const entry = undoStack[undoStack.length - 1];
 
@@ -2384,10 +2295,6 @@
     if (seedModeActive) {
       finalizeSeedModeHistory();
       seedModeActive = false;
-    }
-    if (activeRowSeedingEditor !== null) {
-      finalizeSeedModeHistory();
-      activeRowSeedingEditor = null;
     }
 
     const entry = redoStack[redoStack.length - 1];
@@ -4619,7 +4526,6 @@
 
     closeStepInspector();
     closeRowPianoRollEditor();
-    closeRowSeedingEditor();
     recordingRow = row;
     recordingHistoryBefore = createHistorySnapshot();
     recordingCapturedNotes = false;
@@ -5443,12 +5349,6 @@
         return;
       }
 
-      if (event.key === "Escape" && activeRowSeedingEditor !== null) {
-        event.preventDefault();
-        closeRowSeedingEditor();
-        return;
-      }
-
       if (event.key === "Escape" && rowPianoRollStep !== null) {
         event.preventDefault();
         closeRowPianoRollEditor();
@@ -5883,18 +5783,15 @@
 
   <section class="flex min-h-0 flex-1 flex-col">
     <div class="w-full shrink-0">
+      <div class="flex min-w-0 items-stretch {seedModeActive ? 'border-y border-border-subtle bg-surface/20' : ''}">
       {#if seedModeActive}
         <SeedModePanel
           rhythmStep={seedModeRhythmStep}
           rowSettings={seedModeRowSettings}
           rowTargets={seedModeRowTargets}
-          stretchStepsToFit={stretchStepsToFit}
           root={scaleRoot}
           modeIndex={scaleModeIndex}
-          activeGates={activeGates}
-          rowMuted={rowMuted}
           rowColorsEnabled={rowColorsEnabled}
-          currentPhraseRows={seedModeCurrentPhraseRows}
           busy={projectOperationBusy}
           onGestureStart={beginSeedModeHistory}
           onRhythmPreview={previewSeedModeRhythmStep}
@@ -5903,15 +5800,14 @@
           onRowSettingsCommit={commitSeedModeRowSettings}
           onShuffle={shuffleSeedModeSettings}
           onNextSeed={nextSeedModeSeed}
-          onRowMuteToggle={toggleSeedModeRowMute}
           onRowTargetToggle={toggleSeedModeRowTarget}
           onToggleAllRowTargets={toggleAllSeedModeRowTargets}
         />
-      {:else}
-      <div data-phrase-grid-field class="relative flex flex-col" {@attach phraseGridFieldAttachment}>
+      {/if}
+      <div data-phrase-grid-field class="relative flex min-w-0 flex-1 flex-col {seedModeActive ? 'py-4' : ''}" {@attach phraseGridFieldAttachment}>
         <div
           data-phrase-grid-marquee-zone="top"
-          class="h-6 shrink-0"
+          class="{seedModeActive ? 'h-2' : 'h-6'} shrink-0"
           role="presentation"
           aria-hidden="true"
           onpointerdown={handleRowGapBulkSelectPointerDown}
@@ -5927,7 +5823,9 @@
           >
             <div
               data-row-header={row}
-              class="relative -ml-6 flex shrink-0 self-stretch items-center border-r border-border-subtle bg-surface/55 pl-6 pr-6 {row <
+              class="relative flex shrink-0 self-stretch items-center border-r border-border-subtle bg-surface/55 pl-6 pr-6 {seedModeActive
+              ? 'ml-0'
+              : '-ml-6'} {row <
               grid.length - 1
                 ? 'border-b'
                 : ''} {activeRowPianoRollEditor?.row === row ? 'bg-surface/80' : ''}"
@@ -5945,7 +5843,9 @@
                   class="pointer-events-auto relative z-20 -ml-1 flex h-9 w-9 shrink-0 self-start items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-focus-ring {rowMuted[row]
                     ? rowPowerToggleOffClasses
                     : rowAccent.textAccent}"
-                  onclick={(event) => toggleRowMute(row, event.shiftKey)}
+                  onclick={(event) => seedModeActive
+                    ? toggleSeedModeRowMute(row, event.shiftKey)
+                    : toggleRowMute(row, event.shiftKey)}
                   title="Shift-click to solo row"
                 >
                   <RowDisableIcon class="h-9 w-9" />
@@ -6017,20 +5917,18 @@
                 </button>
                 <button
                   type="button"
-                  aria-label={activeRowSeedingEditor === row
-                    ? `Close row ${row + 1} seeding editor`
+                  aria-label={seedModeActive && seedModeRowTargets[row]
+                    ? `Row ${row + 1} is targeted in the seed panel`
                     : `Seed row ${row + 1}`}
-                  aria-pressed={activeRowSeedingEditor === row}
+                  aria-pressed={seedModeActive && seedModeRowTargets[row]}
                   data-cursor="pointer"
-                  class="pointer-events-auto relative z-20 flex shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {activeRowSeedingEditor === row
+                  class="pointer-events-auto relative z-20 flex shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none transition-colors focus:outline-none focus-visible:outline-none {seedModeActive && seedModeRowTargets[row]
                     ? '[color:var(--row-header-accent)]'
                     : 'text-text-faint hover:[color:var(--row-header-accent)] transition-colors duration-150'}"
                   style:width="{rowHeaderSeedIconSizePx}px"
                   style:height="{rowHeaderSeedIconSizePx}px"
-                  onclick={() => openRowSeedingEditor(row)}
-                  title={activeRowSeedingEditor === row
-                    ? "Close seeding editor"
-                    : `Open seeding editor for row ${row + 1}`}
+                  onclick={() => targetRowSeedMode(row)}
+                  title={`Target row ${row + 1} in the seed panel`}
                 >
                   <SaplingIcon
                     class="pointer-events-none"
@@ -6132,13 +6030,13 @@
         {/each}
         <div
           data-phrase-grid-marquee-zone="bottom"
-          class="h-6 shrink-0"
+          class="{seedModeActive ? 'h-2' : 'h-6'} shrink-0"
           role="presentation"
           aria-hidden="true"
           onpointerdown={handleRowGapBulkSelectPointerDown}
         ></div>
       </div>
-      {/if}
+      </div>
     </div>
 
     <div class="-mx-6 shrink-0">
@@ -6244,19 +6142,6 @@
         onSkippedChange={(value) =>
           setStepSkipped(activeStepInspector.row, activeStepInspector.step, value)}
         onRemove={removeInspectedStep}
-      />
-    {:else if activeRowSeedingEditor !== null}
-      <RowSeedingEditor
-        row={activeRowSeedingEditor}
-        rowSettings={seedModeRowSettings[activeRowSeedingEditor]}
-        root={scaleRoot}
-        modeIndex={scaleModeIndex}
-        accent={rowAccentFor(activeRowSeedingEditor, rowColorsEnabled)}
-        onGestureStart={beginSeedModeHistory}
-        onRowSettingsPreview={(settings) => applyRowSeeding(activeRowSeedingEditor, settings, { syncNative: false })}
-        onRowSettingsCommit={(settings) => applyRowSeeding(activeRowSeedingEditor, settings, { syncNative: true })}
-        onShuffle={() => shuffleRowSeeding(activeRowSeedingEditor)}
-        onNextSeed={() => nextRowSeedingSeed(activeRowSeedingEditor)}
       />
     {:else if activeRowPianoRollEditor !== null}
       <RowPianoRollEditor
