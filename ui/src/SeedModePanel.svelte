@@ -28,6 +28,7 @@
     rhythmStep = defaultSeedModeState.rhythmStep,
     rowSettings = defaultSeedModeState.rowSettings,
     rowTargets = defaultSeedModeState.rowTargets,
+    stretchStepsToFit = false,
     root = 0,
     modeIndex = 0,
     activeGates = [],
@@ -262,6 +263,6 @@
   </div>
 
   <div class="flex min-h-0 min-w-0 flex-col self-stretch">
-    <SeedPhrasePreview {preview} {activeGates} {rowMuted} {onRowMuteToggle} />
+    <SeedPhrasePreview {preview} {activeGates} {rowMuted} {onRowMuteToggle} compact={stretchStepsToFit} />
   </div>
 </div>

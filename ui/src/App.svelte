@@ -5888,6 +5888,7 @@
           rhythmStep={seedModeRhythmStep}
           rowSettings={seedModeRowSettings}
           rowTargets={seedModeRowTargets}
+          stretchStepsToFit={stretchStepsToFit}
           root={scaleRoot}
           modeIndex={scaleModeIndex}
           activeGates={activeGates}
