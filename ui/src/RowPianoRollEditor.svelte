@@ -15,12 +15,10 @@
     midiFromPitchDragDelta,
     pianoRollNoteDragTooltipVisible,
     rollLengthQuartersForCycle,
-    shapeNoteUpdatesFromStroke,
     shapeVelocityUpdatesFromStroke,
     stepAtRollX,
     velocityYInRoll,
   } from "./rowPianoRollShape.js";
-  import { snapMidiToScale } from "./scaleUtils.js";
   import {
     buildRowRollTimeline,
     precedingStepExpansionForNoteDrag,
@@ -64,7 +62,6 @@
    * @property {(row: number, step: number, multiplierIndex: number) => void | Promise<void>} [onStepResize]
    * @property {(row: number, step: number) => void} [onStepBulkGestureStart]
    * @property {(row: number, step: number, stepId: string) => void | Promise<void>} [onOpenAdvancedInspector]
-   * @property {(row: number, updates: { step: number, midi: number }[]) => void | Promise<void>} [onShapeNotesCommit]
    * @property {(row: number, updates: { step: number, velocity: number }[]) => void | Promise<void>} [onShapeVelocitiesCommit]
    * @property {(row: number, step: number, multiplierIndex?: number) => void | Promise<void>} [onInsertStep]
    * @property {(row: number, step: number) => void | Promise<void>} [onDuplicateStep]
@@ -118,7 +115,6 @@
     onOpenAdvancedInspector = () => {},
     onInsertStep = () => {},
     onDuplicateStep = () => {},
-    onShapeNotesCommit = () => {},
     onShapeVelocitiesCommit = () => {},
     onBulkSelectPointerDown = () => {},
     bulkDurationPercent = 0,
@@ -154,9 +150,9 @@
   let viewportHeightPx = $state(0);
   let gridViewportWidthPx = $state(0);
   let drag = $state(null);
-  /** @type {'roll' | 'note' | 'velocity'} */
+  /** @type {'roll' | 'velocity'} */
   let shapeDrawMode = $state("roll");
-  /** @type {{ pointerId: number, mode: 'note' | 'velocity', points: { x: number, y: number }[] } | null} */
+  /** @type {{ pointerId: number, mode: 'velocity', points: { x: number, y: number }[] } | null} */
   let shapeStroke = $state(null);
   let rowAccent = $derived(accent ?? emeraldRowAccent);
   let bulkEffectiveStepCount = $derived(
@@ -166,7 +162,7 @@
   let boundaryAccentVar = $derived(
     `var(--color-${rowAccent.bgAccent.replace('bg-', '')})`
   );
-  let isShapeDrawMode = $derived(shapeDrawMode === "note" || shapeDrawMode === "velocity");
+  let isShapeDrawMode = $derived(shapeDrawMode === "velocity");
   let selectedStepIdSet = $derived(new Set(selectedStepIds));
 
   let displayedTimingMultipliers = $derived.by(() => {
@@ -225,36 +221,17 @@
   let rollHeightPx = $derived(pitchSpan * rowHeightPx);
   let pitchRows = $derived(Array.from({ length: pitchSpan }, (_, index) => visiblePitchRange.maxMidi - index));
 
-  /** @param {{ x: number, y: number }[]} points */
-  function scaleConstrainedNoteUpdates(points) {
-    return shapeNoteUpdatesFromStroke(
-      points,
-      timeline.slots,
-      pxPerQuarter,
-      rowHeightPx,
-      visiblePitchRange.maxMidi,
-    ).map((update) => ({
-      ...update,
-      midi: snapMidiToScale(update.midi, scaleRoot, scaleModeIndex),
-    }));
-  }
-
   let shapePreviewByStep = $derived.by(() => {
     if (!shapeStroke || shapeStroke.points.length === 0) return null;
 
-    if (shapeStroke.mode === "velocity") {
-      const updates = shapeVelocityUpdatesFromStroke(
-        shapeStroke.points,
-        timeline.slots,
-        pxPerQuarter,
-        rollHeightPx,
-      );
+    const updates = shapeVelocityUpdatesFromStroke(
+      shapeStroke.points,
+      timeline.slots,
+      pxPerQuarter,
+      rollHeightPx,
+    );
 
-      return new Map(updates.map((update) => [update.step, update.velocity]));
-    }
-
-    const updates = scaleConstrainedNoteUpdates(shapeStroke.points);
-    return new Map(updates.map((update) => [update.step, update.midi]));
+    return new Map(updates.map((update) => [update.step, update.velocity]));
   });
   let stepNotes = $derived.by(() => {
     return notes.map((midi, step) => {
@@ -263,7 +240,6 @@
       const slot = timeline.slots[displayStep] ?? timeline.slots[step];
       const durationFraction = stepDurationFraction[step] ?? 1;
       const shapePreviewValue = shapePreviewByStep?.get(step);
-      const shapePreviewMidi = shapeStroke?.mode === "note" ? shapePreviewValue : undefined;
       const shapePreviewVelocity = shapeStroke?.mode === "velocity" ? shapePreviewValue : undefined;
       const noteLengthQuarters = slot.lengthQuarters * durationFraction;
       const fullStepWidthPx = Math.max(1, slot.lengthQuarters * pxPerQuarter);
@@ -271,7 +247,7 @@
       return {
         step,
         stepId: stepIds[step],
-        midi: shapePreviewMidi ?? midi,
+        midi,
         leftPx: slot.startQuarters * pxPerQuarter,
         fullStepWidthPx,
         durationWidthPx: Math.min(
@@ -375,7 +351,7 @@
     };
   }
 
-  /** @param {'roll' | 'note' | 'velocity'} mode */
+  /** @param {'roll' | 'velocity'} mode */
   function setShapeDrawMode(mode) {
     if (shapeDrawMode === mode) return;
 
@@ -384,7 +360,7 @@
     drag = null;
   }
 
-  /** @param {'roll' | 'note' | 'velocity'} mode */
+  /** @param {'roll' | 'velocity'} mode */
   function shapeModeButtonClasses(mode) {
     const active = shapeDrawMode === mode;
 
@@ -406,7 +382,7 @@
     const surface = /** @type {HTMLElement} */ (event.currentTarget);
     shapeStroke = {
       pointerId: event.pointerId,
-      mode: /** @type {'note' | 'velocity'} */ (shapeDrawMode),
+      mode: "velocity",
       points: [rollPointFromPointer(event, surface)],
     };
   }
@@ -436,35 +412,22 @@
     const finished = shapeStroke;
     shapeStroke = null;
 
-    if (finished.mode === "velocity") {
-      const updates = shapeVelocityUpdatesFromStroke(
-        finished.points,
-        timeline.slots,
-        pxPerQuarter,
-        rollHeightPx,
-      );
-
-      if (updates.length === 0) return;
-
-      const changedUpdates = updates.filter(
-        (update) => stepVelocity[update.step] !== update.velocity,
-      );
-
-      if (changedUpdates.length === 0) return;
-
-      await onShapeVelocitiesCommit(row, changedUpdates);
-      return;
-    }
-
-    const updates = scaleConstrainedNoteUpdates(finished.points);
+    const updates = shapeVelocityUpdatesFromStroke(
+      finished.points,
+      timeline.slots,
+      pxPerQuarter,
+      rollHeightPx,
+    );
 
     if (updates.length === 0) return;
 
-    const changedUpdates = updates.filter((update) => notes[update.step] !== update.midi);
+    const changedUpdates = updates.filter(
+      (update) => stepVelocity[update.step] !== update.velocity,
+    );
 
     if (changedUpdates.length === 0) return;
 
-    await onShapeNotesCommit(row, changedUpdates);
+    await onShapeVelocitiesCommit(row, changedUpdates);
   }
 
   /** @param {PointerEvent} event @param {number} baseMidi @param {number} startY @param {number} pitchDragRowHeightPx */
@@ -758,14 +721,28 @@
     event.preventDefault();
     event.stopPropagation();
 
+    const stationaryBoundaryResize =
+      drag?.mode === "resize"
+      && drag.previewMultiplierIndex === drag.initialMultiplierIndex;
+
     if (
       isShapeDrawMode
-      || drag
+      || (drag && !stationaryBoundaryResize)
       || insertStep <= 0
       || insertStep > stepIds.length
       || stepIds.length >= maxPhraseStepsPerRow
     ) {
       return;
+    }
+
+    if (stationaryBoundaryResize) {
+      const target = /** @type {HTMLElement} */ (event.currentTarget);
+
+      if (target.hasPointerCapture(event.pointerId)) {
+        target.releasePointerCapture(event.pointerId);
+      }
+
+      drag = null;
     }
 
     void onDuplicateStep(row, insertStep);
@@ -854,19 +831,6 @@
       >
         <RowPianoRollModeIcon class="pointer-events-none h-4 w-4 shrink-0" />
         Roll
-      </button>
-      <button
-        type="button"
-        role="radio"
-        data-cursor="pointer"
-        aria-label="Draw phrase shape across steps"
-        aria-checked={shapeDrawMode === "note"}
-        title="Draw a freeform line to set step pitches"
-        class={shapeModeButtonClasses("note")}
-        onclick={() => setShapeDrawMode("note")}
-      >
-        <RowShapeDrawIcon class="pointer-events-none h-4 w-4 shrink-0" />
-        Phrase
       </button>
       <button
         type="button"

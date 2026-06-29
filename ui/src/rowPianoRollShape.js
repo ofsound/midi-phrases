@@ -166,44 +166,6 @@ export function pianoRollNoteDragTooltipVisible(rowHeightPx, noteWidthPx, label 
 }
 
 /**
- * Map a drawn stroke to per-step MIDI updates for the horizontal span it covers.
- *
- * @param {{ x: number, y: number }[]} points - x/y in roll pixel coordinates
- * @param {RowRollStepSlot[]} slots
- * @param {number} pxPerQuarter
- * @param {number} rowHeightPx
- * @param {number} maxMidi
- * @returns {{ step: number, midi: number }[]}
- */
-export function shapeNoteUpdatesFromStroke(points, slots, pxPerQuarter, rowHeightPx, maxMidi) {
-  if (points.length === 0 || slots.length === 0 || pxPerQuarter <= 0 || rowHeightPx <= 0) {
-    return [];
-  }
-
-  const minX = Math.min(points[0].x, points[points.length - 1].x);
-  const maxX = Math.max(points[0].x, points[points.length - 1].x);
-  const firstStep = Math.max(0, stepAtRollX(minX, slots, pxPerQuarter));
-  const lastStep = Math.min(slots.length - 1, stepAtRollX(maxX, slots, pxPerQuarter));
-  /** @type {{ step: number, midi: number }[]} */
-  const updates = [];
-
-  for (let step = firstStep; step <= lastStep; step += 1) {
-    const slot = slots[step];
-    const centerX = stepSlotCenterXPx(slot, pxPerQuarter);
-    const y = interpolateShapeYAtX(points, centerX);
-
-    if (y === null) continue;
-
-    updates.push({
-      step,
-      midi: midiFromRollY(y, rowHeightPx, maxMidi),
-    });
-  }
-
-  return updates;
-}
-
-/**
  * Map a drawn stroke to per-step velocity updates for the horizontal span it covers.
  *
  * @param {{ x: number, y: number }[]} points - x/y in roll pixel coordinates

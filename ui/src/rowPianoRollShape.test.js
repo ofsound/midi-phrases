@@ -8,7 +8,6 @@ import {
   midiFromPitchDragDelta,
   midiFromRollY,
   rollLengthQuartersForCycle,
-  shapeNoteUpdatesFromStroke,
   shapeVelocityUpdatesFromStroke,
   insertStepIndexFromRollX,
   pianoRollNoteDragTooltipVisible,
@@ -124,25 +123,6 @@ describe("insertStepIndexFromRollX", () => {
     const { slots } = buildRowRollTimeline([], [], 1, 3);
 
     expect(insertStepIndexFromRollX(40, slots, 28)).toBe(0);
-  });
-});
-
-describe("shapeNoteUpdatesFromStroke", () => {
-  it("updates only steps beneath the drawn horizontal span", () => {
-    const { slots } = buildRowRollTimeline([7, 7, 7, 7], [], 1, 3);
-    const pxPerQuarter = 28;
-    const points = [
-      { x: stepSlotCenterXPx(slots[0], pxPerQuarter), y: 0 },
-      { x: stepSlotCenterXPx(slots[2], pxPerQuarter), y: 32 },
-    ];
-
-    const updates = shapeNoteUpdatesFromStroke(points, slots, pxPerQuarter, 16, 72);
-
-    expect(updates).toEqual([
-      { step: 0, midi: 72 },
-      { step: 1, midi: 71 },
-      { step: 2, midi: 70 },
-    ]);
   });
 });
 

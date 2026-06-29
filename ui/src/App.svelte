@@ -1268,19 +1268,6 @@
     bulkVelocityPercent = 0;
   }
 
-  /** @param {number} row @param {{ step: number, midi: number }[]} updates */
-  async function commitPhraseRowNoteShape(row, updates) {
-    if (updates.length === 0) return;
-
-    await commitHistory("Draw note shape", async () => {
-      for (const { step, midi } of updates) {
-        grid[row][step] = clampPhraseNote(midi);
-      }
-
-      await pushCurrentPhraseRow(row);
-    });
-  }
-
   /** @param {number} row @param {{ step: number, velocity: number }[]} updates */
   async function commitPhraseRowVelocityShape(row, updates) {
     if (updates.length === 0) return;
@@ -6296,7 +6283,6 @@
           })}
         onNotePreview={previewPhraseNoteValue}
         onNoteCommit={commitPhraseNoteValue}
-        onShapeNotesCommit={commitPhraseRowNoteShape}
         onShapeVelocitiesCommit={commitPhraseRowVelocityShape}
         onStepMove={movePhraseStepFromPianoRoll}
         onStepResize={selectStepTimingMultiplier}
