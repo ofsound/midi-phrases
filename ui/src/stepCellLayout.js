@@ -134,6 +134,60 @@ export function formatTimingMultiplierLabel(value) {
   return Number.isInteger(value) ? String(value) : String(value);
 }
 
+/** @param {number} value */
+export function clampTimingMultiplierValue(value) {
+  if (!Number.isFinite(value)) return stepTimingMultiplierMin;
+
+  const stepped = Math.round(value / stepTimingMultiplierQuarterStep) * stepTimingMultiplierQuarterStep;
+
+  return Math.min(stepTimingMultiplierMax, Math.max(stepTimingMultiplierMin, stepped));
+}
+
+/** @param {number} value */
+export function timingMultiplierIndexForValue(value) {
+  const clamped = clampTimingMultiplierValue(value);
+
+  return Math.round((clamped - stepTimingMultiplierMin) / stepTimingMultiplierQuarterStep);
+}
+
+/** @param {number} delta */
+export function snapTimingMultiplierDelta(delta) {
+  if (!Number.isFinite(delta)) return 0;
+
+  return Math.round(delta / stepTimingMultiplierQuarterStep) * stepTimingMultiplierQuarterStep;
+}
+
+/**
+ * @param {number} delta
+ * @param {number[]} baselines
+ */
+export function clampTimingMultiplierDelta(delta, baselines) {
+  const snapped = snapTimingMultiplierDelta(delta);
+
+  if (baselines.length === 0) return 0;
+
+  let minDelta = -stepTimingMultiplierMax;
+  let maxDelta = stepTimingMultiplierMax;
+
+  for (const baseline of baselines) {
+    minDelta = Math.max(minDelta, stepTimingMultiplierMin - baseline);
+    maxDelta = Math.min(maxDelta, stepTimingMultiplierMax - baseline);
+  }
+
+  return Math.min(maxDelta, Math.max(minDelta, snapped));
+}
+
+/** @param {number} delta */
+export function formatSignedTimingMultiplierDelta(delta) {
+  const stepped = snapTimingMultiplierDelta(delta);
+
+  if (stepped === 0) return "0";
+
+  const magnitude = formatTimingMultiplierLabel(Math.abs(stepped));
+
+  return stepped > 0 ? `+${magnitude}` : `-${magnitude}`;
+}
+
 export const timingMultiplierOptions = timingMultiplierValues.map((value, index) => ({
   index,
   label: formatTimingMultiplierLabel(value),

@@ -17,10 +17,10 @@
    * @property {boolean} [disabled]
    * @property {boolean} [boxed] - When true, use header control box styling (matches DiscreteDragSelect).
    * @property {boolean} [compact] - Tight boxed width for compact header controls with short values.
+   * @property {number} [valueStep] - Drag/keyboard increment (default 1).
    * @property {number} [boxChars] - Minimum character width for boxed layout (largest formatted value).
    * @property {boolean} [deferCommit] - Keep a local drag value during the gesture; throttled preview while dragging; commit on release.
    * @property {() => void} [onGestureStart] - Called at drag start when {@link deferCommit} is true.
-   * @property {(value: number) => void} [onValuePreview] - Throttled preview while dragging (100ms).
    * @property {(value: number) => void | Promise<void>} [onValueCommit] - Final commit on release.
    * @property {(value: number) => void | Promise<void>} [onValueChange]
    */
@@ -39,6 +39,7 @@
     disabled = false,
     boxed = false,
     compact = false,
+    valueStep = 1,
     boxChars = undefined,
     deferCommit = false,
     onGestureStart = undefined,
@@ -74,15 +75,22 @@
   let ariaValueNow = $derived(displayedValue + displayAdd);
 
   /** @param {number} next */
+  function snapValue(next) {
+    if (valueStep === 1) return Math.round(next);
+
+    return Math.round(next / valueStep) * valueStep;
+  }
+
+  /** @param {number} next */
   function clampValue(next) {
-    return Math.min(max, Math.max(min, Math.round(next)));
+    return Math.min(max, Math.max(min, snapValue(next)));
   }
 
   /** @param {number} clientY */
   function valueFromDrag(clientY) {
     const steps = Math.round((dragStartY - clientY) / pixelsPerStep);
 
-    return clampValue(dragStartValue + steps);
+    return clampValue(dragStartValue + steps * valueStep);
   }
 
   function cancelPreviewThrottle() {
@@ -172,7 +180,7 @@
       return;
     }
 
-    if (next !== value) onValueChange(next);
+    if (Math.abs(next - value) >= valueStep / 2 && next !== value) onValueChange(next);
   }
 
   /** @param {PointerEvent} event */
@@ -245,11 +253,11 @@
     if (event.key === "ArrowUp") {
       event.preventDefault();
 
-      if (displayedValue < max) applyValue(displayedValue + 1);
+      if (displayedValue < max) applyValue(displayedValue + valueStep);
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
 
-      if (displayedValue > min) applyValue(displayedValue - 1);
+      if (displayedValue > min) applyValue(displayedValue - valueStep);
     }
   }}
 >

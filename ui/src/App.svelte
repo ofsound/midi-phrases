@@ -47,6 +47,10 @@
     rowTimingOffsetShiftPx,
     stepTimingMultiplierCount,
     timingMultiplierOptions,
+    timingMultiplierAtIndex,
+    clampTimingMultiplierDelta,
+    clampTimingMultiplierValue,
+    timingMultiplierIndexForValue,
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
   import {
@@ -437,6 +441,7 @@
   }
   let bulkDurationPercent = $state(0);
   let bulkVelocityPercent = $state(0);
+  let bulkLengthDelta = $state(0);
   let bulkTransposeSemitones = $state(0);
   /** @type {ReturnType<typeof createHistorySnapshot> | null} */
   let bulkEditGestureBefore = null;
@@ -446,6 +451,8 @@
   let bulkDurationBaselineByKey = null;
   /** @type {Map<string, number> | null} */
   let bulkVelocityBaselineByKey = null;
+  /** @type {Map<string, number> | null} */
+  let bulkLengthBaselineByKey = null;
   /** @type {Map<string, number> | null} */
   let bulkTransposeBaselineByKey = null;
   /** @type {{ startX: number, startY: number, currentX: number, currentY: number, addToSelection: boolean, baseKeys: Set<string> } | null} */
@@ -1713,6 +1720,7 @@
 
     bulkDurationPercent = 0;
     bulkVelocityPercent = 0;
+    bulkLengthDelta = 0;
     bulkTransposeSemitones = 0;
 
     if (!first) {
@@ -2111,6 +2119,7 @@
     setSelectedStepKeys(new Set());
     bulkDurationPercent = 0;
     bulkVelocityPercent = 0;
+    bulkLengthDelta = 0;
     bulkTransposeSemitones = 0;
     assignSeedModeStateFromPattern(state);
     seedModeActive = false;
@@ -2840,6 +2849,7 @@
     setSelectedStepKeys(new Set());
     bulkDurationPercent = 0;
     bulkVelocityPercent = 0;
+    bulkLengthDelta = 0;
     bulkTransposeSemitones = 0;
   }
 
@@ -4024,6 +4034,7 @@
     bulkEditGestureBefore = null;
     bulkDurationBaselineByKey = null;
     bulkVelocityBaselineByKey = null;
+    bulkLengthBaselineByKey = null;
     bulkTransposeBaselineByKey = null;
   }
 
@@ -4057,6 +4068,19 @@
       bulkVelocityBaselineByKey.set(
         key,
         ((stepVelocity[row][step] ?? defaultStepVelocity) / 127) * 100,
+      );
+    }
+  }
+
+  function ensureBulkLengthBaseline(locations) {
+    if (bulkLengthBaselineByKey) return;
+
+    bulkLengthBaselineByKey = new SvelteMap();
+
+    for (const { row, step, key } of locations) {
+      bulkLengthBaselineByKey.set(
+        key,
+        timingMultiplierAtIndex(stepTimingMultiplier[row][step] ?? defaultStepTimingMultiplierIndex),
       );
     }
   }
@@ -4129,6 +4153,48 @@
     });
 
     bulkVelocityPercent = 0;
+  }
+
+  function previewBulkLengthDelta(value) {
+    const locations = bulkEditLocations();
+
+    if (locations.length === 0) return;
+
+    ensureBulkLengthBaseline(locations);
+
+    const baselines = locations.map(({ key }) =>
+      bulkLengthBaselineByKey?.get(key) ??
+      timingMultiplierAtIndex(defaultStepTimingMultiplierIndex),
+    );
+    const clamped = clampTimingMultiplierDelta(value, baselines);
+    bulkLengthDelta = clamped;
+
+    for (const { row, step, key } of locations) {
+      const baseline =
+        bulkLengthBaselineByKey?.get(key) ??
+        timingMultiplierAtIndex(stepTimingMultiplier[row][step] ?? defaultStepTimingMultiplierIndex);
+      const nextValue = clampTimingMultiplierValue(baseline + clamped);
+      stepTimingMultiplier[row][step] = timingMultiplierIndexForValue(nextValue);
+    }
+
+    queueBulkPreviewSync(locations, pushStepTimingMultiplier);
+  }
+
+  async function commitBulkLengthDelta(value) {
+    const locations = bulkEditLocations();
+
+    if (locations.length === 0) {
+      resetBulkEditGesture();
+      return;
+    }
+
+    previewBulkLengthDelta(value);
+
+    await commitBulkEditGesture("Bulk length", async () => {
+      await pushRowsForSelectedLocations(locations);
+    });
+
+    bulkLengthDelta = 0;
   }
 
   function previewBulkTransposeSemitones(value) {
@@ -5637,6 +5703,7 @@
           muteActive={bulkMuteActive}
           durationPercent={bulkDurationPercent}
           velocityPercent={bulkVelocityPercent}
+          lengthDelta={bulkLengthDelta}
           transposeSemitones={bulkTransposeSemitones}
           pitchAriaLabel={bulkPitchAriaLabel}
           onReverse={reverseSelectedStepsByRow}
@@ -5646,6 +5713,8 @@
           onToggleSkip={toggleBulkStepSkip}
           onToggleMute={toggleBulkStepMute}
           onGestureStart={beginBulkEditGesture}
+          onLengthPreview={previewBulkLengthDelta}
+          onLengthCommit={commitBulkLengthDelta}
           onDurationPreview={previewBulkDurationPercent}
           onDurationCommit={commitBulkDurationPercent}
           onVelocityPreview={previewBulkVelocityPercent}
@@ -6179,6 +6248,7 @@
         onBulkSelectPointerDown={beginStepMarqueeSelection}
         bulkDurationPercent={bulkDurationPercent}
         bulkVelocityPercent={bulkVelocityPercent}
+        bulkLengthDelta={bulkLengthDelta}
         bulkTransposeSemitones={bulkTransposeSemitones}
         bulkPitchAriaLabel={bulkPitchAriaLabel}
         bulkReverseAvailable={rowPianoRollBulkReverseAvailable}
@@ -6191,6 +6261,8 @@
         onBulkToggleSkip={toggleBulkStepSkip}
         onBulkToggleMute={toggleBulkStepMute}
         onBulkGestureStart={beginBulkEditGesture}
+        onBulkLengthPreview={previewBulkLengthDelta}
+        onBulkLengthCommit={commitBulkLengthDelta}
         onBulkDurationPreview={previewBulkDurationPercent}
         onBulkDurationCommit={commitBulkDurationPercent}
         onBulkVelocityPreview={previewBulkVelocityPercent}

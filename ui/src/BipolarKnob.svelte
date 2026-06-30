@@ -1,6 +1,10 @@
 <script>
   import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
+  import { scaledPx } from "./uiScale.svelte.js";
+
+  const baseBorderWidthPx = 1.5;
+  const baseIndicatorSizePx = 4;
 
   
   
@@ -97,7 +101,7 @@
 <div class="transition-opacity duration-200 {muted ? 'opacity-75' : ''}">
   <div
     data-cursor="vertical-drag"
-    class="relative {sizeClass} touch-none select-none rounded-full border-[1.5px] bg-surface outline-none transition-[border-color,box-shadow] duration-75 {dragging && !muted
+    class="relative {sizeClass} touch-none select-none rounded-full border border-solid bg-surface outline-none transition-[border-color,box-shadow] duration-75 {dragging && !muted
       ? `${accent.dragBorder} ${accent.dragShadow}`
       : muted
         ? 'border-border-subtle'
@@ -108,6 +112,7 @@
     aria-valuemax={options[options.length - 1]?.index}
     aria-valuenow={value}
     aria-valuetext={currentLabel}
+    style:border-width="{scaledPx(baseBorderWidthPx)}px"
     tabindex="-1"
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
@@ -133,9 +138,11 @@
       aria-hidden="true"
     >
       <span
-        class="absolute left-1/2 top-[1.5px] h-0.5 w-0.5 -translate-x-1/2 rounded-[1px] {muted
-          ? 'bg-surface-subtle'
-          : accent.bgAccent}"
+        class="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 {muted ? 'bg-surface-subtle' : accent.bgAccent}"
+        style:top="{scaledPx(-baseBorderWidthPx / 2)}px"
+        style:width="{scaledPx(baseIndicatorSizePx)}px"
+        style:height="{scaledPx(baseIndicatorSizePx)}px"
+        style:border-radius="{scaledPx(baseIndicatorSizePx / 2)}px"
       ></span>
     </div>
 

@@ -8,6 +8,12 @@
   import StepSkipIcon from "./StepSkipIcon.svelte";
   import { minSignedRelativePercentValue, maxSignedRelativePercentValue } from "./percentLimits.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
+  import {
+    formatSignedTimingMultiplierDelta,
+    stepTimingMultiplierMax,
+    stepTimingMultiplierMin,
+    stepTimingMultiplierQuarterStep,
+  } from "./stepCellLayout.js";
 
   /**
    * @typedef {Object} Props
@@ -25,6 +31,7 @@
    * @property {boolean} [muteActive]
    * @property {number} [durationPercent]
    * @property {number} [velocityPercent]
+   * @property {number} [lengthDelta]
    * @property {number} [transposeSemitones]
    * @property {string} [pitchAriaLabel]
    * @property {() => void | Promise<void>} [onReverse]
@@ -34,6 +41,8 @@
    * @property {() => void | Promise<void>} [onToggleSkip]
    * @property {() => void | Promise<void>} [onToggleMute]
    * @property {() => void} [onGestureStart]
+   * @property {(value: number) => void} [onLengthPreview]
+   * @property {(value: number) => void | Promise<void>} [onLengthCommit]
    * @property {(value: number) => void} [onDurationPreview]
    * @property {(value: number) => void | Promise<void>} [onDurationCommit]
    * @property {(value: number) => void} [onVelocityPreview]
@@ -58,6 +67,7 @@
     muteActive = false,
     durationPercent = 0,
     velocityPercent = 0,
+    lengthDelta = 0,
     transposeSemitones = 0,
     pitchAriaLabel = "Bulk step pitch semitones",
     onReverse = () => {},
@@ -67,6 +77,8 @@
     onToggleSkip = () => {},
     onToggleMute = () => {},
     onGestureStart = () => {},
+    onLengthPreview = () => {},
+    onLengthCommit = () => {},
     onDurationPreview = () => {},
     onDurationCommit = () => {},
     onVelocityPreview = () => {},
@@ -79,24 +91,10 @@
     requireSelection || selectedStepCount > 0 ? selectedStepCount : totalStepCount,
   );
 
-  function actionButtonClasses(enabled = true, fillGridCell = false) {
+  function actionButtonClasses(enabled = true, fillGridCell = false, active = false) {
     const sizeClass = fillGridCell ? "h-8 w-full" : "h-8 w-8 shrink-0";
 
     return `flex ${sizeClass} items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
-      enabled
-        ? "mp-control-gradient border-border text-text-secondary hover:border-border-strong hover:text-text"
-        : "mp-control-gradient-muted border-border-subtle text-text-faint"
-    }`;
-  }
-
-  function labeledToggleActionButtonClasses(enabled = true, active = false) {
-    const sizeClass = sidebarLayout
-      ? "h-8 min-w-0 flex-1"
-      : compact
-        ? "h-8 shrink-0 px-1"
-        : "h-8 shrink-0 px-1.5";
-
-    return `flex ${sizeClass} items-center justify-center gap-1 rounded-md border transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
         ? active
           ? "mp-control-gradient border-border-strong text-text shadow-sm"
@@ -141,16 +139,10 @@
       : sidebarLayout
         ? omitSkipMuteToggles
           ? "flex w-full items-center gap-1"
-          : "flex w-full flex-col gap-1"
+          : "grid w-full grid-cols-6 gap-1"
         : operationsGridLayout
           ? "grid grid-cols-3 gap-1"
           : "flex items-center gap-1",
-  );
-  let operationSkipMuteRowClass = $derived(
-    sidebarLayout && !omitSkipMuteToggles ? "flex w-full gap-1" : "",
-  );
-  let operationIconRowClass = $derived(
-    sidebarLayout && !omitSkipMuteToggles ? "grid w-full grid-cols-4 gap-1" : "",
   );
   let labelClass = $derived(
     `text-xs font-semibold leading-none text-text-muted${inlineLabels ? " shrink-0" : ""}`,
@@ -174,7 +166,7 @@
   );
   let parameterControlsClass = $derived(
     sidebarLayout
-      ? "grid w-full shrink-0 grid-cols-3 gap-2"
+      ? "grid w-full shrink-0 grid-cols-4 gap-2"
       : inlineLayout
         ? `flex items-center ${compact ? "gap-1 px-1" : "gap-1.5 px-5"}`
         : stackedCompactLayout
@@ -193,7 +185,6 @@
     {/if}
     <div class={operationButtonsWrapperClass}>
       {#if sidebarLayout && !omitSkipMuteToggles}
-        <div class={operationSkipMuteRowClass}>
           <button
             type="button"
             aria-label={skipActive ? "Unskip selected steps" : "Skip selected steps"}
@@ -201,11 +192,10 @@
             aria-pressed={skipActive}
             disabled={effectiveStepCount === 0}
             data-cursor="pointer"
-            class={labeledToggleActionButtonClasses(effectiveStepCount > 0, skipActive)}
+            class={actionButtonClasses(effectiveStepCount > 0, true, skipActive)}
             onclick={onToggleSkip}
           >
-            <StepSkipIcon class="pointer-events-none h-4 w-4 shrink-0" />
-            <span class="text-[9px] font-semibold uppercase leading-none tracking-wide">Skip</span>
+            <StepSkipIcon class="pointer-events-none h-4 w-4" />
           </button>
           <button
             type="button"
@@ -214,14 +204,11 @@
             aria-pressed={muteActive}
             disabled={effectiveStepCount === 0}
             data-cursor="pointer"
-            class={labeledToggleActionButtonClasses(effectiveStepCount > 0, muteActive)}
+            class={actionButtonClasses(effectiveStepCount > 0, true, muteActive)}
             onclick={onToggleMute}
           >
-            <StepMuteIcon class="pointer-events-none h-4 w-4 shrink-0" />
-            <span class="text-[9px] font-semibold uppercase leading-none tracking-wide">Mute</span>
+            <StepMuteIcon class="pointer-events-none h-4 w-4" />
           </button>
-        </div>
-        <div class={operationIconRowClass}>
           <button
             type="button"
             aria-label="Reverse selected steps by row"
@@ -266,7 +253,6 @@
           >
             <RowRandomizeLengthIcon class="pointer-events-none h-4 w-4" />
           </button>
-        </div>
       {:else}
       {#if !omitSkipMuteToggles}
       <button
@@ -276,11 +262,10 @@
         aria-pressed={skipActive}
         disabled={effectiveStepCount === 0}
         data-cursor="pointer"
-        class={labeledToggleActionButtonClasses(effectiveStepCount > 0, skipActive)}
+        class={actionButtonClasses(effectiveStepCount > 0, false, skipActive)}
         onclick={onToggleSkip}
       >
-        <StepSkipIcon class="pointer-events-none h-4 w-4 shrink-0" />
-        <span class="text-[9px] font-semibold uppercase leading-none tracking-wide">Skip</span>
+        <StepSkipIcon class="pointer-events-none h-5 w-5" />
       </button>
       <button
         type="button"
@@ -289,11 +274,10 @@
         aria-pressed={muteActive}
         disabled={effectiveStepCount === 0}
         data-cursor="pointer"
-        class={labeledToggleActionButtonClasses(effectiveStepCount > 0, muteActive)}
+        class={actionButtonClasses(effectiveStepCount > 0, false, muteActive)}
         onclick={onToggleMute}
       >
-        <StepMuteIcon class="pointer-events-none h-4 w-4 shrink-0" />
-        <span class="text-[9px] font-semibold uppercase leading-none tracking-wide">Mute</span>
+        <StepMuteIcon class="pointer-events-none h-5 w-5" />
       </button>
       {/if}
       <button
@@ -345,6 +329,28 @@
   </div>
   <div class={parameterControlsClass}>
     <div class={groupClass}>
+      <span class={labelClass}>{labelText("Len")}</span>
+      <div class={controlAnchorClass}>
+      <StepNumberDragInput
+        boxed
+        compact
+        deferCommit
+        {accent}
+        value={lengthDelta}
+        min={stepTimingMultiplierMin - stepTimingMultiplierMax}
+        max={stepTimingMultiplierMax - stepTimingMultiplierMin}
+        valueStep={stepTimingMultiplierQuarterStep}
+        resetValue={0}
+        formatValue={formatSignedTimingMultiplierDelta}
+        ariaLabel="Bulk step relative length multiplier"
+        disabled={effectiveStepCount === 0}
+        {onGestureStart}
+        onValuePreview={onLengthPreview}
+        onValueCommit={onLengthCommit}
+      />
+      </div>
+    </div>
+    <div class={groupClass}>
       <span class={labelClass}>{labelText("Dur %")}</span>
       <div class={controlAnchorClass}>
       <StepNumberDragInput
@@ -352,7 +358,6 @@
         compact
         deferCommit
         {accent}
-        boxChars={4}
         value={durationPercent}
         min={minSignedRelativePercentValue}
         max={maxSignedRelativePercentValue}
@@ -374,7 +379,6 @@
         compact
         deferCommit
         {accent}
-        boxChars={4}
         value={velocityPercent}
         min={minSignedRelativePercentValue}
         max={maxSignedRelativePercentValue}

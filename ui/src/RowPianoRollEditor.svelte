@@ -68,6 +68,7 @@
    * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
    * @property {number} [bulkDurationPercent]
    * @property {number} [bulkVelocityPercent]
+   * @property {number} [bulkLengthDelta]
    * @property {number} [bulkTransposeSemitones]
    * @property {string} [bulkPitchAriaLabel]
    * @property {boolean} [bulkReverseAvailable]
@@ -80,6 +81,8 @@
    * @property {() => void | Promise<void>} [onBulkToggleSkip]
    * @property {() => void | Promise<void>} [onBulkToggleMute]
    * @property {() => void} [onBulkGestureStart]
+   * @property {(value: number) => void} [onBulkLengthPreview]
+   * @property {(value: number) => void | Promise<void>} [onBulkLengthCommit]
    * @property {(value: number) => void} [onBulkDurationPreview]
    * @property {(value: number) => void | Promise<void>} [onBulkDurationCommit]
    * @property {(value: number) => void} [onBulkVelocityPreview]
@@ -119,6 +122,7 @@
     onBulkSelectPointerDown = () => {},
     bulkDurationPercent = 0,
     bulkVelocityPercent = 0,
+    bulkLengthDelta = 0,
     bulkTransposeSemitones = 0,
     bulkPitchAriaLabel = "Bulk step pitch semitones",
     bulkReverseAvailable = false,
@@ -131,6 +135,8 @@
     onBulkToggleSkip = () => {},
     onBulkToggleMute = () => {},
     onBulkGestureStart = () => {},
+    onBulkLengthPreview = () => {},
+    onBulkLengthCommit = () => {},
     onBulkDurationPreview = () => {},
     onBulkDurationCommit = () => {},
     onBulkVelocityPreview = () => {},
@@ -793,6 +799,7 @@
       muteActive={bulkMuteActive}
       durationPercent={bulkDurationPercent}
       velocityPercent={bulkVelocityPercent}
+      lengthDelta={bulkLengthDelta}
       transposeSemitones={bulkTransposeSemitones}
       pitchAriaLabel={bulkPitchAriaLabel}
       onReverse={onBulkReverse}
@@ -802,6 +809,8 @@
       onToggleSkip={onBulkToggleSkip}
       onToggleMute={onBulkToggleMute}
       onGestureStart={onBulkGestureStart}
+      onLengthPreview={onBulkLengthPreview}
+      onLengthCommit={onBulkLengthCommit}
       onDurationPreview={onBulkDurationPreview}
       onDurationCommit={onBulkDurationCommit}
       onVelocityPreview={onBulkVelocityPreview}

@@ -1,15 +1,40 @@
 import { describe, expect, it } from "vitest";
 import {
+  clampTimingMultiplierDelta,
+  clampTimingMultiplierValue,
+  compactPhraseGridLayout,
   compactStepShellPaddingPercent,
   compactStepShellTrailingPaddingPercent,
-  compactPhraseGridLayout,
+  formatSignedTimingMultiplierDelta,
   longestRowQuarterGridColumns,
   phraseRowsScrollContentWidthPx,
   quarterGridColumnsForMultiplierIndex,
   stepCellPaddingPx,
   stepCellQuarterGridWidthPx,
   stepDisplayWidthPx,
+  timingMultiplierIndexForValue,
 } from "./stepCellLayout.js";
+
+describe("timing multiplier bulk length helpers", () => {
+  it("clamps applied values to the 0.25 grid", () => {
+    expect(clampTimingMultiplierValue(0.6)).toBe(0.5);
+    expect(timingMultiplierIndexForValue(0.6)).toBe(1);
+  });
+
+  it("blocks negative delta when a step is already at min", () => {
+    expect(clampTimingMultiplierDelta(-0.25, [0.25, 1])).toBe(0);
+  });
+
+  it("allows shrinking steps above min", () => {
+    expect(clampTimingMultiplierDelta(-0.5, [1, 2])).toBe(-0.5);
+  });
+
+  it("formats signed quarter-step deltas", () => {
+    expect(formatSignedTimingMultiplierDelta(0)).toBe("0");
+    expect(formatSignedTimingMultiplierDelta(0.25)).toBe("+.25");
+    expect(formatSignedTimingMultiplierDelta(-0.5)).toBe("-.5");
+  });
+});
 
 describe("longestRowQuarterGridColumns", () => {
   it("uses the proportional timing span of the longest row", () => {
