@@ -1,6 +1,6 @@
 # Combination Modes Technical Notes
 
-This document describes the implemented behavior of the five header combination
+This document describes the implemented behavior of the six header combination
 modes in MIDI Phrases. It focuses on how phrase rows are converted into
 normalized MIDI events, how each mode transforms those events, and what MIDI
 output is produced.
@@ -18,15 +18,16 @@ the C++ processor.
 
 ## Mode Identity
 
-The five modes are stored as a bit mask on each pattern slot.
+The six modes are stored as a bit mask on each pattern slot.
 
-| Bit      | Header | Name      | Processor constant               |
-| -------- | ------ | --------- | -------------------------------- |
-| `1 << 0` | `X`    | Cross-Mod | `combinationModeCrossModulation` |
-| `1 << 1` | `B`    | Bloom     | `combinationModeBloom`           |
-| `1 << 2` | `C`    | Counter   | `combinationModeCounter`         |
-| `1 << 3` | `E`    | Echo      | `combinationModeMultiplyEcho`    |
-| `1 << 4` | `W`    | Weave     | `combinationModeWeave`           |
+| Bit      | Header | Name        | Processor constant               |
+| -------- | ------ | ----------- | -------------------------------- |
+| `1 << 0` | `X`    | Cross-Mod   | `combinationModeCrossModulation` |
+| `1 << 5` | `R`    | Round Robin | `combinationModeRoundRobin`      |
+| `1 << 1` | `B`    | Bloom       | `combinationModeBloom`           |
+| `1 << 2` | `C`    | Counter     | `combinationModeCounter`         |
+| `1 << 3` | `E`    | Echo        | `combinationModeMultiplyEcho`    |
+| `1 << 4` | `W`    | Weave       | `combinationModeWeave`           |
 
 The mask is pattern state, not global UI state. Copying a pattern copies its
 mode mask, and selecting a different pattern selects that pattern's mode
@@ -107,13 +108,15 @@ Modes can be enabled in any combination, but they always execute in this fixed
 order:
 
 1. Cross-Mod
-2. Bloom
-3. Counter
-4. Echo
-5. Weave
+2. Round Robin
+3. Bloom
+4. Counter
+5. Echo
+6. Weave
 
-The fixed order is important because some modes transform attributes, some append
-new events, Echo can expand one event into many events, and Weave can thin
+The fixed order is important because some modes transform attributes, Round Robin
+gates events by carrier-row time windows before additive modes run, some modes
+append new events, Echo can expand one event into many events, and Weave can thin
 same-time collisions. A stable order keeps combinations repeatable and makes
 pattern state deterministic.
 
@@ -194,6 +197,30 @@ Output effect:
 - Pitch can be shifted by another row's interval contour.
 - Velocity and gate length can come from different rows.
 - With fewer than two active rows, Cross-Mod is a no-op.
+
+## Round Robin Mode
+
+Round Robin gates carrier events into rotating time windows across active rows.
+It runs after Cross-Mod and before Bloom, Counter, and Echo so additive modes
+only operate on events allowed in the current lane.
+
+The gesture pulse is the larger of the current pulse and the combination gesture
+floor (`2` quarters). Each segment is that pulse length. Active rows rotate in
+index order:
+
+- **Exclusive segment** (first `75%`): only events from the current carrier row
+  pass through.
+- **Overlap segment** (last `25%`): events from the current and next carrier row
+  are eligible; if both fire at the same PPQ, one winner is chosen with the same
+  velocity-weighted deterministic hash used by Weave.
+
+Output effect:
+
+- Temporal alternation between phrase rows before ornaments, counters, and
+  echoes are generated.
+- Cross-Mod may still borrow pitch, velocity, and duration contours from other
+  rows while those rows are rhythmically silent.
+- With fewer than two active rows, Round Robin is a no-op.
 
 ## Bloom Mode
 
@@ -379,7 +406,7 @@ Output effect:
 ## Combining Modes
 
 Because all modes consume and return the same normalized event structure, any
-combination of the five mode bits can run together.
+combination of the six mode bits can run together.
 
 Examples:
 
@@ -390,13 +417,15 @@ Examples:
 
 Result: cross-routed phrase material with ornamental motion.
 
-### Cross-Mod + Echo
+### Cross-Mod + Round Robin + Echo
 
-1. Cross-Mod first changes carrier pitch, velocity, and duration.
-2. Echo multiplies the already-modulated carriers through the next active row.
+1. Cross-Mod transforms carrier pitch, velocity, and duration.
+2. Round Robin gates carriers into alternating row time windows.
+3. Echo multiplies only the surviving lane-local carriers through the next active
+   row.
 
-Result: echoed/arpeggiated material based on the transformed phrase, not the raw
-phrase.
+Result: echoed material per phrase turn rather than a fully simultaneous
+multi-row convolution.
 
 ### Counter + Echo + Weave
 
@@ -452,7 +481,7 @@ data, step cards, or recording input. Default range is C1–C7 per pattern.
 The UI preview follows the same mode order:
 
 ```text
-Cross-Mod -> Bloom -> Counter -> Echo -> Weave -> Octavizer -> Shimmer -> Note Bandpass
+Cross-Mod -> Round Robin -> Bloom -> Counter -> Echo -> Weave -> Octavizer -> Shimmer -> Note Bandpass
 ```
 
 The preview intentionally differs in a few implementation details:
@@ -464,5 +493,5 @@ The preview intentionally differs in a few implementation details:
 - It does not emit MIDI or manage pending note-offs.
 
 The important musical outputs of the mode chain - how pitch is transformed, how
-Bloom and Counter append events, how Echo expands events, and how Weave chooses
-collision winners - are mirrored.
+Round Robin gates rows in time, how Bloom and Counter append events, how Echo
+expands events, and how Weave chooses collision winners - are mirrored.

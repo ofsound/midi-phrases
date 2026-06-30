@@ -27,10 +27,10 @@ export const combinationModeMaskBits = 0x3f;
 /** Display order matches processing order. Weave keeps its legacy bit and runs last. */
 export const combinationModes = [
   {index: 0, bit: 1, icon: "crossMod", name: "Cross-Mod"},
+  {index: 5, bit: 32, icon: "roundRobin", name: "Round Robin"},
   {index: 1, bit: 2, icon: "bloom", name: "Bloom"},
   {index: 2, bit: 4, icon: "counter", name: "Counter"},
   {index: 3, bit: 8, icon: "echo", name: "Echo"},
-  {index: 5, bit: 32, icon: "roundRobin", name: "Round Robin"},
   {index: 4, bit: 16, icon: "weave", name: "Weave"},
 ];
 export const swingSubdivisionValues = [0.25, 0.5, 1];
@@ -621,6 +621,45 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
     });
   }
 
+  if (combinationModeEnabled(combinationModeMask, 5) && activeRows.length > 1) {
+    /** @type {ScheduledNote[]} */
+    const roundRobin = [];
+    const pulseQuarters = pulseQuartersForIndex(pulseIndex);
+    const combinationGesturePulse = Math.max(pulseQuarters, COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR);
+
+    for (const group of groupByStart(events)) {
+      const window = roundRobinWindowForPpq(group[0].start, activeRows, combinationGesturePulse);
+      const eligible = group.filter((event) => {
+        if (event.row === window.currentRow) return true;
+
+        return window.overlap && event.row === window.nextRow;
+      });
+
+      if (eligible.length === 0) continue;
+
+      if (!window.overlap || eligible.length === 1) {
+        roundRobin.push(...eligible);
+        continue;
+      }
+
+      const totalWeight = eligible.reduce((total, event) => total + Math.max(1, event.velocity), 0);
+      let pick = deterministicEventHash(eligible[0].row, eligible[0].step, eligible[0].start) % Math.max(1, totalWeight);
+
+      for (const event of eligible) {
+        pick -= Math.max(1, event.velocity);
+
+        if (pick < 0) {
+          roundRobin.push(event);
+          break;
+        }
+      }
+    }
+
+    events = roundRobin;
+  }
+
+  if (events.length === 0) return [];
+
   if (combinationModeEnabled(combinationModeMask, 1) && activeRows.length > 1) {
     /** @type {ScheduledNote[]} */
     const bloomed = [];
@@ -787,45 +826,6 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
   events = events.sort(
     (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
   );
-
-  if (combinationModeEnabled(combinationModeMask, 5) && activeRows.length > 1) {
-    /** @type {ScheduledNote[]} */
-    const roundRobin = [];
-    const pulseQuarters = pulseQuartersForIndex(pulseIndex);
-    const combinationGesturePulse = Math.max(pulseQuarters, COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR);
-
-    for (const group of groupByStart(events)) {
-      const window = roundRobinWindowForPpq(group[0].start, activeRows, combinationGesturePulse);
-      const eligible = group.filter((event) => {
-        if (event.row === window.currentRow) return true;
-
-        return window.overlap && event.row === window.nextRow;
-      });
-
-      if (eligible.length === 0) continue;
-
-      if (!window.overlap || eligible.length === 1) {
-        roundRobin.push(...eligible);
-        continue;
-      }
-
-      const totalWeight = eligible.reduce((total, event) => total + Math.max(1, event.velocity), 0);
-      let pick = deterministicEventHash(eligible[0].row, eligible[0].step, eligible[0].start) % Math.max(1, totalWeight);
-
-      for (const event of eligible) {
-        pick -= Math.max(1, event.velocity);
-
-        if (pick < 0) {
-          roundRobin.push(event);
-          break;
-        }
-      }
-    }
-
-    events = roundRobin;
-  }
-
-  if (events.length === 0) return [];
 
   if (combinationModeEnabled(combinationModeMask, 4)) {
     events = groupByStart(events).map((group) => {

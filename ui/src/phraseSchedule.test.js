@@ -88,16 +88,16 @@ function generatedStarts(schedule, midi) {
 }
 
 describe("combination mode pulse-aware timing", () => {
-  it("places Round Robin before Weave in the mode rail while preserving Weave's legacy bit", () => {
+  it("places Round Robin after Cross-Mod and before Bloom in the mode rail", () => {
     expect(combinationModes.map((mode) => mode.name)).toEqual([
       "Cross-Mod",
+      "Round Robin",
       "Bloom",
       "Counter",
       "Echo",
-      "Round Robin",
       "Weave",
     ]);
-    expect(combinationModes[4]).toMatchObject({index: 5, bit: 32});
+    expect(combinationModes[1]).toMatchObject({index: 5, bit: 32});
     expect(combinationModes[5]).toMatchObject({index: 4, bit: 16});
   });
 

@@ -4362,6 +4362,102 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         }
     }
 
+    if (combinationModeEnabled (modeMask, combinationModeRoundRobin) && activeRowCount > 1)
+    {
+        auto write = static_cast<size_t> (0);
+
+        for (size_t read = 0; read < eventCount;)
+        {
+            auto groupEnd = read + 1;
+
+            while (groupEnd < eventCount
+                   && std::abs (combinedEvents[groupEnd].ppq - combinedEvents[read].ppq) <= epsilon)
+            {
+                ++groupEnd;
+            }
+
+            const auto window = roundRobinWindowForPpq (combinedEvents[read].ppq);
+
+            if (! window.overlap)
+            {
+                for (size_t index = read; index < groupEnd && write < combinedWorkingEvents.size(); ++index)
+                {
+                    if (combinedEvents[index].row == window.currentRow)
+                        combinedWorkingEvents[write++] = combinedEvents[index];
+                }
+
+                read = groupEnd;
+                continue;
+            }
+
+            auto eligibleCount = 0;
+            auto totalWeight = 0;
+            auto firstEligible = read;
+
+            for (size_t index = read; index < groupEnd; ++index)
+            {
+                if (combinedEvents[index].row != window.currentRow
+                    && combinedEvents[index].row != window.nextRow)
+                {
+                    continue;
+                }
+
+                if (eligibleCount == 0)
+                    firstEligible = index;
+
+                ++eligibleCount;
+                totalWeight += juce::jmax (1, combinedEvents[index].velocity);
+            }
+
+            if (eligibleCount == 1)
+            {
+                if (write < combinedWorkingEvents.size())
+                    combinedWorkingEvents[write++] = combinedEvents[firstEligible];
+
+                read = groupEnd;
+                continue;
+            }
+
+            if (eligibleCount > 1)
+            {
+                auto pick = static_cast<int> (
+                    deterministicEventHash (combinedEvents[firstEligible].row,
+                                            combinedEvents[firstEligible].step,
+                                            combinedEvents[firstEligible].ppq)
+                    % static_cast<std::uint32_t> (juce::jmax (1, totalWeight)));
+
+                for (size_t index = read; index < groupEnd; ++index)
+                {
+                    if (combinedEvents[index].row != window.currentRow
+                        && combinedEvents[index].row != window.nextRow)
+                    {
+                        continue;
+                    }
+
+                    pick -= juce::jmax (1, combinedEvents[index].velocity);
+
+                    if (pick < 0)
+                    {
+                        if (write < combinedWorkingEvents.size())
+                            combinedWorkingEvents[write++] = combinedEvents[index];
+
+                        break;
+                    }
+                }
+            }
+
+            read = groupEnd;
+        }
+
+        eventCount = write;
+        copyFilteredEvents (eventCount);
+
+        if (eventCount == 0)
+            return;
+
+        sortCombinedEvents();
+    }
+
     if (combinationModeEnabled (modeMask, combinationModeBloom) && activeRowCount > 1)
     {
         auto write = static_cast<size_t> (0);
@@ -4567,102 +4663,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         std::sort (combinedEvents.begin(),
                    combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
                    compareCombinedEventsForWeave);
-    }
-
-    if (combinationModeEnabled (modeMask, combinationModeRoundRobin) && activeRowCount > 1)
-    {
-        auto write = static_cast<size_t> (0);
-
-        for (size_t read = 0; read < eventCount;)
-        {
-            auto groupEnd = read + 1;
-
-            while (groupEnd < eventCount
-                   && std::abs (combinedEvents[groupEnd].ppq - combinedEvents[read].ppq) <= epsilon)
-            {
-                ++groupEnd;
-            }
-
-            const auto window = roundRobinWindowForPpq (combinedEvents[read].ppq);
-
-            if (! window.overlap)
-            {
-                for (size_t index = read; index < groupEnd && write < combinedWorkingEvents.size(); ++index)
-                {
-                    if (combinedEvents[index].row == window.currentRow)
-                        combinedWorkingEvents[write++] = combinedEvents[index];
-                }
-
-                read = groupEnd;
-                continue;
-            }
-
-            auto eligibleCount = 0;
-            auto totalWeight = 0;
-            auto firstEligible = read;
-
-            for (size_t index = read; index < groupEnd; ++index)
-            {
-                if (combinedEvents[index].row != window.currentRow
-                    && combinedEvents[index].row != window.nextRow)
-                {
-                    continue;
-                }
-
-                if (eligibleCount == 0)
-                    firstEligible = index;
-
-                ++eligibleCount;
-                totalWeight += juce::jmax (1, combinedEvents[index].velocity);
-            }
-
-            if (eligibleCount == 1)
-            {
-                if (write < combinedWorkingEvents.size())
-                    combinedWorkingEvents[write++] = combinedEvents[firstEligible];
-
-                read = groupEnd;
-                continue;
-            }
-
-            if (eligibleCount > 1)
-            {
-                auto pick = static_cast<int> (
-                    deterministicEventHash (combinedEvents[firstEligible].row,
-                                            combinedEvents[firstEligible].step,
-                                            combinedEvents[firstEligible].ppq)
-                    % static_cast<std::uint32_t> (juce::jmax (1, totalWeight)));
-
-                for (size_t index = read; index < groupEnd; ++index)
-                {
-                    if (combinedEvents[index].row != window.currentRow
-                        && combinedEvents[index].row != window.nextRow)
-                    {
-                        continue;
-                    }
-
-                    pick -= juce::jmax (1, combinedEvents[index].velocity);
-
-                    if (pick < 0)
-                    {
-                        if (write < combinedWorkingEvents.size())
-                            combinedWorkingEvents[write++] = combinedEvents[index];
-
-                        break;
-                    }
-                }
-            }
-
-            read = groupEnd;
-        }
-
-        eventCount = write;
-        copyFilteredEvents (eventCount);
-
-        if (eventCount == 0)
-            return;
-
-        sortCombinedEvents();
     }
 
     if (combinationModeEnabled (modeMask, combinationModeWeave))
