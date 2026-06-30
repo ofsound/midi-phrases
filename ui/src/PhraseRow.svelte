@@ -72,8 +72,6 @@
     multiplierLabelForIndex,
     quarterGridColumnsForMultiplierIndex,
     rowGridWidthPx,
-    insertSlotLeftPxAtGridBoundaryPx,
-    boundaryResizeZoneLeftPxAtGridBoundaryPx,
     rowStepLayoutsPx,
     rowTimingOffsetShiftPx,
     stepBoundaryEndResizePx,
@@ -81,6 +79,7 @@
     stepBoundaryStartResizePx,
     stepCellPaddingPx,
     stepDisplayWidthPx,
+    stepCellGridSpanPx,
     stepFooterActionSlotWidthPx,
     stepInsertZoneWidthPx,
     stepTimingMultiplierQuarterStep,
@@ -360,8 +359,8 @@
     if (!dndZoneElement) return [];
 
     const rect = dndZoneElement.getBoundingClientRect();
-    const leadingInset = layoutPx(stepCellPaddingPx());
-    const gap = layoutPx(stepInsertZoneWidthPx());
+    const leadingInset = stepCellPaddingPx();
+    const gap = stepInsertZoneWidthPx();
     let left = rect.left;
 
     return stableDropCellWidths.map((width, step) => {
@@ -375,8 +374,8 @@
   }
 
   function stableDropGeometry() {
-    const leadingInset = layoutPx(stepCellPaddingPx());
-    const gap = layoutPx(stepInsertZoneWidthPx());
+    const leadingInset = stepCellPaddingPx();
+    const gap = stepInsertZoneWidthPx();
     const boundaries = Array.from({ length: stepIds.length + 1 }, (_, index) =>
       placementIndicatorLeftPx(stableDropCellWidths, index, leadingInset, gap),
     );
@@ -403,8 +402,8 @@
     if (!dndZoneElement || !dropIndicatorHostElement) return;
 
     const hostRect = dropIndicatorHostElement.getBoundingClientRect();
-    const leadingInset = layoutPx(stepCellPaddingPx());
-    const gap = layoutPx(stepInsertZoneWidthPx());
+    const leadingInset = stepCellPaddingPx();
+    const gap = stepInsertZoneWidthPx();
     const fallbackGeometry = stableDropGeometry();
     const sameRowMoveActive = Boolean(idsBeforeDrag && draggedStepId && !draggedAsDuplicate);
     /** @type {{ step: number, left: number, width: number, localLeft: number, localRight: number }[]} */
@@ -472,8 +471,8 @@
   /** @param {number} index */
   function syncDropIndicatorLeft(index) {
     const clamped = clampDropIndicatorIndex(index);
-    const leadingInset = layoutPx(stepCellPaddingPx());
-    const gap = layoutPx(stepInsertZoneWidthPx());
+    const leadingInset = stepCellPaddingPx();
+    const gap = stepInsertZoneWidthPx();
 
     if (clamped === 0) {
       dropIndicatorLeftPx = 0;
@@ -731,8 +730,8 @@
     if (collapsed) return 0;
 
     return hasVisibleDndSlotBefore(index)
-      ? layoutPx(stepInsertZoneWidthPx())
-      : layoutPx(stepCellPaddingPx());
+      ? stepInsertZoneWidthPx()
+      : stepCellPaddingPx();
   }
 
   function refreshBulkDragGhost() {
@@ -992,7 +991,7 @@
 
   /** @param {number} dataStep */
   function shellWidthPx(dataStep) {
-    return layoutPx(logicalShellWidthPx(dataStep));
+    return scaledShellWidthPx(multiplierIndexForDataStep(dataStep));
   }
 
   /** @param {number} dataStep */
@@ -1038,30 +1037,41 @@
     return `flex-grow: 0; flex-shrink: 0; flex-basis: ${widthPx}px; width: ${widthPx}px; min-width: ${widthPx}px; max-width: ${widthPx}px;`;
   }
 
-  /** @param {number} leftPx */
-  function insertSlotStyle(leftPx) {
-    return `left: ${layoutPx(leftPx)}px; width: ${layoutPx(stepInsertZoneWidthPx())}px;`;
+  /** @param {number} multiplierIndex */
+  function scaledShellWidthPx(multiplierIndex) {
+    const scaledGridSpan = layoutPx(stepCellGridSpanPx(multiplierIndex));
+
+    return Math.max(1, scaledGridSpan - stepInsertZoneWidthPx());
+  }
+
+  /** @param {number} boundaryPx */
+  function insertSlotStyle(boundaryPx) {
+    const leftPx = layoutPx(boundaryPx) - stepInsertZoneWidthPx() / 2;
+
+    return `left: ${leftPx}px; width: ${stepInsertZoneWidthPx()}px;`;
   }
 
   /** @param {number} boundaryCenterPx */
   function boundaryResizeZoneStyle(boundaryCenterPx) {
-    return `left: ${layoutPx(boundaryResizeZoneLeftPxAtGridBoundaryPx(boundaryCenterPx))}px; width: ${layoutPx(stepBoundaryResizeZoneWidthPx())}px;`;
+    const leftPx = layoutPx(boundaryCenterPx) - stepBoundaryResizeZoneWidthPx() / 2;
+
+    return `left: ${leftPx}px; width: ${stepBoundaryResizeZoneWidthPx()}px;`;
   }
 
-  /** @param {number} leftPx */
-  function leadingBoundaryInsertZoneStyle(leftPx) {
-    return `left: ${layoutPx(leftPx)}px; width: ${layoutPx(stepInsertZoneWidthPx() + stepBoundaryStartResizePx())}px;`;
+  /** @param {number} boundaryPx */
+  function leadingBoundaryInsertZoneStyle(boundaryPx) {
+    return `left: ${layoutPx(boundaryPx)}px; width: ${stepInsertZoneWidthPx() + stepBoundaryStartResizePx()}px;`;
   }
 
   function trailingResizeZoneStyle() {
     const trailingHitWidth = stepBoundaryEndResizePx() + stepInsertZoneWidthPx();
 
-    return `right: -${layoutPx(stepInsertZoneWidthPx())}px; width: ${layoutPx(trailingHitWidth)}px;`;
+    return `right: -${stepInsertZoneWidthPx()}px; width: ${trailingHitWidth}px;`;
   }
 
   /** @param {number} boundaryPx */
   function insertLeftAtBoundary(boundaryPx) {
-    return insertSlotLeftPxAtGridBoundaryPx(boundaryPx);
+    return boundaryPx;
   }
 
   /** @param {CustomEvent} event */
@@ -1999,7 +2009,7 @@
 
   /** @param {number} multiplierIndex */
   function compactInboundCellWidthPx(multiplierIndex) {
-    return layoutPx(stepDisplayWidthPx(multiplierIndex));
+    return scaledShellWidthPx(multiplierIndex);
   }
 
   /** @param {{ id: string, multiplierIndex?: number }} item @param {number} index */
@@ -2145,13 +2155,13 @@
       ?? (dataStep >= 0 ? multiplierIndexForDataStep(dataStep) : defaultStepTimingMultiplierIndex);
 
     return {
-      cellWidth: collapsed ? 0 : layoutPx(stepDisplayWidthPx(multiplierIndex)),
+      cellWidth: collapsed ? 0 : scaledShellWidthPx(multiplierIndex),
       step: isShadowItem(item) ? -1 : dataStep,
       gapBefore: hasVisibleDndSlotBefore(index) && !collapsed,
     };
   }));
   let stableDropCellWidths = $derived(stepIds.map((id, step) =>
-    layoutPx(stepDisplayWidthPx(multiplierIndexForDataStep(step))),
+    scaledShellWidthPx(multiplierIndexForDataStep(step)),
   ));
 </script>
 
@@ -2255,14 +2265,14 @@
       title="Double-click to insert · Option-double-click to duplicate"
       disabled={isDragging || removeBlocked}
       class="{stepBoundaryResizeHitClass} -translate-x-1/2 -translate-y-1/2 {accent.ringFocusWithWidth}"
-      style:left="{layoutPx(stepBoundaryEndResizePx())}px"
+      style:left="{stepBoundaryEndResizePx()}px"
       onpointerdown={(event) => beginMultiplierResize(event, step)}
       onmousedown={(event) => beginMultiplierResize(event, step)}
       ondblclick={(event) => handleBoundaryDoubleClick(event, step + 1)}
     ></button>
     <span
       class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
-      style:left="{layoutPx(stepBoundaryEndResizePx())}px"
+      style:left="{stepBoundaryEndResizePx()}px"
       aria-hidden="true"
     ></span>
   </div>
@@ -2526,7 +2536,7 @@
 {#snippet rowStartAddStepControl()}
   <div
     class="row-start-add-step-control pointer-events-auto flex shrink-0 items-center self-stretch"
-    style:margin-left="{layoutPx(stepCellPaddingPx())}px"
+    style:margin-left="{stepCellPaddingPx()}px"
   >
     {@render largeAddStepButton("Add first step", 0)}
   </div>
@@ -2544,18 +2554,17 @@
   </div>
 {/snippet}
 
-{#snippet gridInsertSlot(leftPx, insertStep, mode)}
-  {@const boundaryCenterPx = leftPx + stepInsertZoneWidthPx() / 2}
+{#snippet gridInsertSlot(boundaryPx, insertStep, mode)}
   <div
     data-insert-slot
     class="boundary-resize-zone pointer-events-none absolute inset-y-0 z-[60] {mode === 'between' && insertStep > 0 && isMultiplierResizeBoundaryActive(insertStep - 1)
       ? 'multiplier-resize-zone-active'
       : ''}"
     style={mode === "between"
-      ? boundaryResizeZoneStyle(boundaryCenterPx)
+      ? boundaryResizeZoneStyle(boundaryPx)
       : mode === "leading"
-        ? leadingBoundaryInsertZoneStyle(leftPx)
-        : insertSlotStyle(leftPx)}
+        ? leadingBoundaryInsertZoneStyle(boundaryPx)
+        : insertSlotStyle(boundaryPx)}
   >
     {#if mode === "between" && insertStep > 0}
       <button
@@ -2582,19 +2591,19 @@
         title="Double-click to insert · Option-double-click to duplicate"
         disabled={isDragging || removeBlocked}
         class="{stepBoundaryResizeHitClass} -translate-x-1/2 -translate-y-1/2 {accent.ringFocusWithWidth}"
-        style:left="{layoutPx(stepBoundaryEndResizePx())}px"
+        style:left="{stepBoundaryEndResizePx()}px"
         onpointerdown={(event) => beginMultiplierResize(event, insertStep - 1)}
         onmousedown={(event) => beginMultiplierResize(event, insertStep - 1)}
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
       ></button>
       <span
         class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
-        style:left="{layoutPx(stepBoundaryEndResizePx())}px"
+        style:left="{stepBoundaryEndResizePx()}px"
         aria-hidden="true"
       ></span>
       <span
         class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
-        style:right="{layoutPx(stepBoundaryStartResizePx())}px"
+        style:right="{stepBoundaryStartResizePx()}px"
         aria-hidden="true"
       ></span>
     {:else if mode === "leading" && insertStep === 0}
@@ -2620,20 +2629,20 @@
         title="Double-click to insert"
         disabled={isDragging || removeBlocked}
         class="{stepBoundaryResizeHitClass} -translate-x-1/2 -translate-y-1/2 {accent.ringFocusWithWidth}"
-        style:left="{layoutPx(stepInsertZoneWidthPx())}px"
+        style:left="{stepInsertZoneWidthPx()}px"
         onpointerdown={(event) => event.stopPropagation()}
         onmousedown={(event) => event.stopPropagation()}
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
       ></button>
       <span
         class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
-        style:left="{layoutPx(stepInsertZoneWidthPx())}px"
+        style:left="{stepInsertZoneWidthPx()}px"
         aria-hidden="true"
       ></span>
     {/if}
     <div
       class="pointer-events-none absolute top-0 bottom-0 left-0 z-20"
-      style:width="{layoutPx(stepInsertZoneWidthPx())}px"
+      style:width="{stepInsertZoneWidthPx()}px"
     >
       <StepInsertZone
         {accent}
