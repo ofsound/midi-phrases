@@ -124,6 +124,11 @@ function mulberry32(seed) {
   };
 }
 
+/** @param {number} seed @param {number} row */
+function seedForSeedingRow(seed, row) {
+  return (seed + Math.imul(row + 1, 0x9E3779B9)) >>> 0;
+}
+
 /** @param {() => number} random @param {number} min @param {number} max */
 function randomInt(random, min, max) {
   return Math.floor(random() * (max - min + 1)) + min;
@@ -548,7 +553,7 @@ function generateSeededTimingMultiplierIndices(row, rowOptions, rhythmStep, rand
  * @param {number} rhythmStep
  */
 function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
-  const random = mulberry32(rowOptions.seed);
+  const random = mulberry32(seedForSeedingRow(rowOptions.seed, row));
   const span = rowOptions.rangeSemitones;
   const halfSpan = Math.max(2, Math.floor(span / 2));
   const complexityRatio = rowOptions.complexity / 100;

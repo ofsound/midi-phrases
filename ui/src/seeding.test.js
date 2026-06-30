@@ -158,6 +158,19 @@ describe("generateSeededPhraseRows", () => {
     expect(generateSeededPhraseRows(options)).toEqual(generateSeededPhraseRows(options));
   });
 
+  it("derives independent multiplier sequences for each row from the shared seed", () => {
+    const result = generateSeededPhraseRows({
+      phraseLength: 8,
+      timingMeanMultiplierIndex: 5,
+      timingVariance: 100,
+      rhythmStep: seedingRhythmStepMin,
+      seed: 91,
+    });
+    const signatures = result.stepTimingMultiplier.map((row) => row.join(","));
+
+    expect(new Set(signatures).size).toBeGreaterThan(1);
+  });
+
   it("returns four monophonic rows with matching step arrays", () => {
     const result = generateSeededPhraseRows({ phraseLength: 2, seed: 7 });
 
@@ -276,7 +289,7 @@ describe("generateSeededPhraseRows", () => {
     expect(overlap.rowTimingOffset.map((index) => timingOffsetValues[index])).toEqual([0, 0, 0, 0]);
     expect(interleave.rowTimingOffset.map((index) => timingOffsetValues[index])).toEqual([0, 0.25, -0.25, 0.5]);
     expect(overlap.stepDurationFraction[0][0]).toBeGreaterThan(interleave.stepDurationFraction[0][0]);
-    expect(overlap.stepTimingMultiplier[0][0]).not.toBe(interleave.stepTimingMultiplier[0][0]);
+    expect(overlap.stepTimingMultiplier).not.toEqual(interleave.stepTimingMultiplier);
   });
 
   it("ramps interleave amount across the slider", () => {

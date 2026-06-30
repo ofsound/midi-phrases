@@ -48,6 +48,13 @@ int clampSeedingPercent (const int value)
     return juce::jlimit (0, PluginProcessor::maxPercentValue, value);
 }
 
+int clampSeedingTimingMeanMultiplierIndex (const int multiplierIndex)
+{
+    return juce::jlimit (PluginProcessor::minSeedingTimingMeanMultiplierIndex,
+                         PluginProcessor::maxSeedingTimingMeanMultiplierIndex,
+                         multiplierIndex);
+}
+
 int clampSeedingSeed (const int seed)
 {
     return juce::jmax (1, seed);
@@ -69,6 +76,9 @@ PluginProcessor::SeedingRowState clampSeedingRowState (const PluginProcessor::Se
     clamped.repetition = clampSeedingPercent (rowState.repetition);
     clamped.complexity = clampSeedingPercent (rowState.complexity);
     clamped.randomness = clampSeedingPercent (rowState.randomness);
+    clamped.timingMeanMultiplierIndex =
+        clampSeedingTimingMeanMultiplierIndex (rowState.timingMeanMultiplierIndex);
+    clamped.timingVariance = clampSeedingPercent (rowState.timingVariance);
     clamped.symmetry = rowState.symmetry != 0 ? 1 : 0;
     clamped.seed = clampSeedingSeed (rowState.seed);
     return clamped;
@@ -5400,6 +5410,10 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
             patternTree.setProperty (prefix + "Repetition", rowState.repetition, nullptr);
             patternTree.setProperty (prefix + "Complexity", rowState.complexity, nullptr);
             patternTree.setProperty (prefix + "Randomness", rowState.randomness, nullptr);
+            patternTree.setProperty (prefix + "TimingMeanMultiplierIndex",
+                                     rowState.timingMeanMultiplierIndex,
+                                     nullptr);
+            patternTree.setProperty (prefix + "TimingVariance", rowState.timingVariance, nullptr);
             patternTree.setProperty (prefix + "Symmetry", rowState.symmetry, nullptr);
             patternTree.setProperty (prefix + "Seed", rowState.seed, nullptr);
             patternTree.setProperty (prefix + "Targeted",
@@ -5707,6 +5721,13 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             rowState.randomness = clampSeedingPercent (
                 static_cast<int> (patternTree.getProperty (prefix + "Randomness",
                                                           defaultSeedingRandomness)));
+            rowState.timingMeanMultiplierIndex = clampSeedingTimingMeanMultiplierIndex (
+                static_cast<int> (patternTree.getProperty (
+                    prefix + "TimingMeanMultiplierIndex",
+                    defaultSeedingTimingMeanMultiplierIndex)));
+            rowState.timingVariance = clampSeedingPercent (
+                static_cast<int> (patternTree.getProperty (prefix + "TimingVariance",
+                                                          defaultSeedingTimingVariance)));
             rowState.symmetry =
                 static_cast<int> (patternTree.getProperty (prefix + "Symmetry", 0)) != 0 ? 1 : 0;
             rowState.seed = clampSeedingSeed (

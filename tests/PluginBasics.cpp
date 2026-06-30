@@ -4109,8 +4109,14 @@ TEST_CASE ("Plugin instance", "[instance]")
         std::array<PluginProcessor::SeedingRowState, PluginProcessor::phraseRowCount> rowSettings {};
         std::array<int, PluginProcessor::phraseRowCount> rowTargets { 1, 0, 1, 0 };
         rowSettings[0].centerMidi = 72;
+        rowSettings[0].timingMeanMultiplierIndex = 7;
+        rowSettings[0].timingVariance = 88;
         rowSettings[1].centerMidi = 200;
+        rowSettings[1].timingMeanMultiplierIndex = 99;
+        rowSettings[1].timingVariance = 500;
         rowSettings[2].centerMidi = -12;
+        rowSettings[2].timingMeanMultiplierIndex = -99;
+        rowSettings[2].timingVariance = -10;
 
         testPlugin.setPatternSeedModeState (PluginProcessor::defaultSeedingRhythmStep,
                                             rowSettings,
@@ -4123,8 +4129,16 @@ TEST_CASE ("Plugin instance", "[instance]")
         reloaded.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
 
         CHECK (reloaded.getPatternSeedingRowState (1, 0).centerMidi == 72);
+        CHECK (reloaded.getPatternSeedingRowState (1, 0).timingMeanMultiplierIndex == 7);
+        CHECK (reloaded.getPatternSeedingRowState (1, 0).timingVariance == 88);
         CHECK (reloaded.getPatternSeedingRowState (1, 1).centerMidi == PluginProcessor::maxMidiNote);
+        CHECK (reloaded.getPatternSeedingRowState (1, 1).timingMeanMultiplierIndex
+               == PluginProcessor::maxSeedingTimingMeanMultiplierIndex);
+        CHECK (reloaded.getPatternSeedingRowState (1, 1).timingVariance == PluginProcessor::maxPercentValue);
         CHECK (reloaded.getPatternSeedingRowState (1, 2).centerMidi == PluginProcessor::defaultSeedingCenterMidi);
+        CHECK (reloaded.getPatternSeedingRowState (1, 2).timingMeanMultiplierIndex
+               == PluginProcessor::minSeedingTimingMeanMultiplierIndex);
+        CHECK (reloaded.getPatternSeedingRowState (1, 2).timingVariance == 0);
         CHECK (reloaded.isPatternSeedingRowTargeted (1, 0));
         CHECK_FALSE (reloaded.isPatternSeedingRowTargeted (1, 1));
     }
@@ -4156,6 +4170,9 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (rowState.phraseLength == 7);
         CHECK (rowState.rangeSemitones == 16);
         CHECK (rowState.centerMidi == PluginProcessor::defaultSeedingCenterMidi);
+        CHECK (rowState.timingMeanMultiplierIndex
+               == PluginProcessor::defaultSeedingTimingMeanMultiplierIndex);
+        CHECK (rowState.timingVariance == PluginProcessor::defaultSeedingTimingVariance);
     }
 
     SECTION ("state load clamps phrase rows to fixed audio-thread capacity")

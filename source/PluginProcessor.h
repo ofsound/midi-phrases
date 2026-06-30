@@ -168,6 +168,10 @@ public:
     static constexpr int defaultSeedingRepetition = 45;
     static constexpr int defaultSeedingComplexity = 50;
     static constexpr int defaultSeedingRandomness = 45;
+    static constexpr int defaultSeedingTimingMeanMultiplierIndex = 3;
+    static constexpr int minSeedingTimingMeanMultiplierIndex = 1;
+    static constexpr int maxSeedingTimingMeanMultiplierIndex = 15;
+    static constexpr int defaultSeedingTimingVariance = 50;
     static constexpr int defaultSeedingSeed = 1;
     static constexpr int defaultSeedingRhythmStep = 7;
     static constexpr int minSeedingRhythmStep = 0;
@@ -181,6 +185,8 @@ public:
         int repetition = defaultSeedingRepetition;
         int complexity = defaultSeedingComplexity;
         int randomness = defaultSeedingRandomness;
+        int timingMeanMultiplierIndex = defaultSeedingTimingMeanMultiplierIndex;
+        int timingVariance = defaultSeedingTimingVariance;
         int symmetry = 0;
         int seed = defaultSeedingSeed;
     };

@@ -59,6 +59,12 @@ PluginProcessor::SeedingRowState seedingRowStateFromVar (const juce::var& value)
         rowState.repetition = varToInt (object->getProperty ("repetition"));
         rowState.complexity = varToInt (object->getProperty ("complexity"));
         rowState.randomness = varToInt (object->getProperty ("randomness"));
+        rowState.timingMeanMultiplierIndex = object->hasProperty ("timingMeanMultiplierIndex")
+                                                 ? varToInt (object->getProperty ("timingMeanMultiplierIndex"))
+                                                 : PluginProcessor::defaultSeedingTimingMeanMultiplierIndex;
+        rowState.timingVariance = object->hasProperty ("timingVariance")
+                                      ? varToInt (object->getProperty ("timingVariance"))
+                                      : PluginProcessor::defaultSeedingTimingVariance;
         rowState.symmetry = varToInt (object->getProperty ("symmetry"));
         rowState.seed = varToInt (object->getProperty ("seed"));
     }
@@ -84,6 +90,8 @@ juce::var createSeedModeStateVar (const PluginProcessor& processor, const int pa
         rowObject->setProperty ("repetition", rowState.repetition);
         rowObject->setProperty ("complexity", rowState.complexity);
         rowObject->setProperty ("randomness", rowState.randomness);
+        rowObject->setProperty ("timingMeanMultiplierIndex", rowState.timingMeanMultiplierIndex);
+        rowObject->setProperty ("timingVariance", rowState.timingVariance);
         rowObject->setProperty ("symmetry", rowState.symmetry);
         rowObject->setProperty ("seed", rowState.seed);
         seedingRowSettings.add (juce::var (rowObject.release()));
@@ -306,6 +314,8 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
         rowObject->setProperty ("repetition", rowState.repetition);
         rowObject->setProperty ("complexity", rowState.complexity);
         rowObject->setProperty ("randomness", rowState.randomness);
+        rowObject->setProperty ("timingMeanMultiplierIndex", rowState.timingMeanMultiplierIndex);
+        rowObject->setProperty ("timingVariance", rowState.timingVariance);
         rowObject->setProperty ("symmetry", rowState.symmetry);
         rowObject->setProperty ("seed", rowState.seed);
         seedingRowSettings.add (juce::var (rowObject.release()));
