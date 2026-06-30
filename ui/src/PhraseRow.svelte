@@ -2629,14 +2629,14 @@
         title="Double-click to insert"
         disabled={isDragging || removeBlocked}
         class="{stepBoundaryResizeHitClass} -translate-x-1/2 -translate-y-1/2 {accent.ringFocusWithWidth}"
-        style:left="{stepInsertZoneWidthPx()}px"
+        style:left="{stepCellPaddingPx()}px"
         onpointerdown={(event) => event.stopPropagation()}
         onmousedown={(event) => event.stopPropagation()}
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
       ></button>
       <span
         class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
-        style:left="{stepInsertZoneWidthPx()}px"
+        style:left="{stepCellPaddingPx()}px"
         aria-hidden="true"
       ></span>
     {/if}
