@@ -1,4 +1,4 @@
-import { rowTimingOffsetShiftPx, stepCellPaddingPx } from "./stepCellLayout.js";
+import { rowGridWidthPx, rowTimingOffsetShiftPx, stepCellPaddingPx } from "./stepCellLayout.js";
 import { scaledPx } from "./uiScale.svelte.js";
 
 /** Leading inset before the quarter grid (half of PhraseRow’s scroll clip gutter). */
@@ -240,6 +240,56 @@ export function phraseGridVisualOffsetCompensationPx(rowTimingOffsetIndices) {
   }
 
   return -minShiftPx;
+}
+
+/**
+ * Shared stretch-to-fit scale for phrase rows. Each row keeps one musical grid
+ * scale, but only pays for its own timing-offset padding.
+ *
+ * @param {number[][]} rows
+ * @param {number[]} timingOffsetIndices
+ * @param {number} phraseGridFieldWidthPx
+ * @param {number} visualCompensationPx
+ * @param {number} trailingReservePx
+ */
+export function phraseRowsContentFitScale(
+  rows,
+  timingOffsetIndices,
+  phraseGridFieldWidthPx,
+  visualCompensationPx = 0,
+  trailingReservePx = 0,
+) {
+  const baseViewportWidthPx = (
+    phraseGridFieldWidthPx
+    - phraseRowLeadingControlsWidthPx()
+    - phraseGridOriginLeftOffsetPx()
+    - phraseRowScrollPaddingRightPx()
+  );
+
+  if (baseViewportWidthPx <= 0) return 1;
+
+  let scale = 1;
+
+  for (let row = 0; row < rows.length; row += 1) {
+    const contentWidthPx = rowGridWidthPx(rows[row] ?? []);
+
+    if (contentWidthPx <= 0) continue;
+
+    const timingPaddingPx = Math.max(
+      0,
+      rowTimingOffsetShiftPx(timingOffsetIndices[row]) + visualCompensationPx,
+    );
+    const availableWidthPx = Math.max(
+      0,
+      baseViewportWidthPx - timingPaddingPx - trailingReservePx,
+    );
+
+    if (contentWidthPx > availableWidthPx) {
+      scale = Math.min(scale, availableWidthPx / contentWidthPx);
+    }
+  }
+
+  return scale;
 }
 
 /**

@@ -43,8 +43,6 @@
     findSingleMove,
     insertStepTimingMultiplierOptions,
     compactPhraseGridLayout,
-    phraseRowsScrollContentWidthPx,
-    rowTimingOffsetShiftPx,
     stepTimingMultiplierCount,
     timingMultiplierOptions,
     timingMultiplierAtIndex,
@@ -130,12 +128,10 @@
   } from "./seeding.js";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
   import {
-    phraseGridOriginLeftOffsetPx,
     phraseRowEndAddStepReservePx,
+    phraseRowsContentFitScale,
     phraseGridVisualOffsetCompensationPx,
     phraseRowHeaderGapPx,
-    phraseRowLeadingControlsWidthPx,
-    phraseRowScrollPaddingRightPx,
   } from "./phraseRowLayout.js";
   import {
     interfaceAccent,
@@ -218,41 +214,15 @@
   let compactGridLayout = $derived(
     compactPhraseGridLayout(layoutStepTimingMultiplier, rowTimingOffset),
   );
-  let phraseRowMaxTimingPaddingPx = $derived.by(() => {
-    let maxPadding = 0;
-
-    for (const offsetIndex of rowTimingOffset) {
-      const padding = rowTimingOffsetShiftPx(offsetIndex) + phraseVisualOffsetCompensationPx;
-
-      if (padding > maxPadding) {
-        maxPadding = padding;
-      }
-    }
-
-    return maxPadding;
-  });
-  let phraseRowContentViewportWidth = $derived(
-    Math.max(
-      0,
-      phraseGridFieldWidth
-        - phraseRowLeadingControlsWidthPx()
-        - phraseRowMaxTimingPaddingPx
-        - phraseGridOriginLeftOffsetPx()
-        - phraseRowScrollPaddingRightPx(),
+  let phraseStepsContentFitScale = $derived(
+    phraseRowsContentFitScale(
+      layoutStepTimingMultiplier,
+      rowTimingOffset,
+      phraseGridFieldWidth,
+      phraseVisualOffsetCompensationPx,
+      phraseRowEndAddStepReservePx(),
     ),
   );
-  let phraseStepsScrollContentWidthPx = $derived(
-    phraseRowsScrollContentWidthPx(layoutStepTimingMultiplier, rowTimingOffset),
-  );
-  let phraseStepsContentFitScale = $derived.by(() => {
-    const addStepReserve = phraseRowEndAddStepReservePx();
-    const available = Math.max(0, phraseRowContentViewportWidth - addStepReserve);
-    const content = phraseStepsScrollContentWidthPx;
-
-    if (available <= 0 || content <= available) return 1;
-
-    return available / content;
-  });
   /** @type {number[][]} */
   let stepVelocity = $state(defaultStepVelocityGrid());
   /** @type {boolean[][]} */
