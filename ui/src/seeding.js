@@ -1,7 +1,11 @@
 import { defaultStepCycle, defaultStepCycleMask } from "./cyclePattern.js";
 import { defaultStepNoteForScaleRoot, midiToNoteName } from "./midiNoteNames.js";
 import { maxPercentValue } from "./percentLimits.js";
-import { timingOffsetValues } from "./stepCellLayout.js";
+import {
+  defaultStepTimingMultiplierIndex,
+  timingMultiplierIndexForValue,
+  timingOffsetValues,
+} from "./stepCellLayout.js";
 import {
   clampScaleModeIndex,
   clampScaleRoot,
@@ -27,6 +31,11 @@ export const seedingRhythmStepMin = 0;
 export const seedingRhythmStepMax = 7;
 export const defaultSeedingRhythmStep = 7;
 
+export const seedingTimingMultiplierMinIndex = timingMultiplierIndexForValue(0.5);
+export const seedingTimingMultiplierMaxIndex = timingMultiplierIndexForValue(4);
+export const defaultSeedingTimingMeanMultiplierIndex = defaultStepTimingMultiplierIndex;
+export const defaultSeedingTimingVariance = 50;
+
 const rhythmRowTimingOffsetProfiles = [
   [3, 3, 3, 3],
   [3, 2, 4, 4],
@@ -51,6 +60,8 @@ export const defaultSeedingSettings = {
   repetition: 45,
   complexity: 50,
   randomness: 45,
+  timingMeanMultiplierIndex: defaultSeedingTimingMeanMultiplierIndex,
+  timingVariance: defaultSeedingTimingVariance,
   symmetry: false,
   rhythmStep: defaultSeedingRhythmStep,
   seed: 1,
@@ -64,6 +75,8 @@ export const defaultSeedingRowSettings = {
   repetition: defaultSeedingSettings.repetition,
   complexity: defaultSeedingSettings.complexity,
   randomness: defaultSeedingSettings.randomness,
+  timingMeanMultiplierIndex: defaultSeedingSettings.timingMeanMultiplierIndex,
+  timingVariance: defaultSeedingSettings.timingVariance,
   symmetry: defaultSeedingSettings.symmetry,
   seed: defaultSeedingSettings.seed,
 };
@@ -116,14 +129,18 @@ function randomInt(random, min, max) {
   return Math.floor(random() * (max - min + 1)) + min;
 }
 
-/** @param {number} value */
-function timingMultiplierIndexForValue(value) {
-  return Math.min(15, Math.max(0, Math.round((value - 0.25) / 0.25)));
-}
-
 /** @param {number} step */
 function clampRhythmStep(step) {
   return Math.round(clamp(step, seedingRhythmStepMin, seedingRhythmStepMax));
+}
+
+/** @param {number} multiplierIndex */
+function clampSeedTimingMultiplierIndex(multiplierIndex) {
+  return Math.round(clamp(
+    multiplierIndex,
+    seedingTimingMultiplierMinIndex,
+    seedingTimingMultiplierMaxIndex,
+  ));
 }
 
 /**
@@ -319,6 +336,8 @@ export function normalizeSeedingRowSettings(settings = {}) {
     repetition: clampPercent(merged.repetition),
     complexity: clampPercent(merged.complexity),
     randomness: clampPercent(merged.randomness),
+    timingMeanMultiplierIndex: clampSeedTimingMultiplierIndex(merged.timingMeanMultiplierIndex),
+    timingVariance: clampPercent(merged.timingVariance),
     symmetry: Boolean(merged.symmetry),
     seed: Math.max(1, Math.round(clamp(merged.seed, 1, 2147483647))),
   };
@@ -428,6 +447,102 @@ function resolveSeedModeGenerationInputs(state = {}) {
 /**
  * @param {number} row
  * @param {ReturnType<typeof normalizeSeedingRowSettings>} rowOptions
+ * @param {number} rhythmStep
+ * @param {() => number} random
+ */
+function generateSeededTimingMultiplierIndices(row, rowOptions, rhythmStep, random) {
+  const stepCount = rowOptions.phraseLength;
+  const targetIndex = rowOptions.timingMeanMultiplierIndex;
+  const varianceRatio = rowOptions.timingVariance / 100;
+
+  if (stepCount <= 0) {
+    return [];
+  }
+
+  if (varianceRatio <= 0) {
+    return Array.from({ length: stepCount }, () => targetIndex);
+  }
+
+  const rhythmBlend = rhythmInterleaveRatio(rhythmStep);
+  const accentTimingIndex = clampSeedTimingMultiplierIndex(
+    timingMultiplierIndexForValue(rhythmAccentTimingMultiplier(rhythmStep)),
+  );
+  const maxSpread = Math.max(1, Math.round(varianceRatio * 4));
+  const lockedSteps = new Set();
+  const multipliers = Array.from({ length: stepCount }, (_, step) => {
+    const randomOffset = Math.round((random() * 2 - 1) * maxSpread);
+    const baseIndex = clampSeedTimingMultiplierIndex(targetIndex + randomOffset);
+    const weight = stepRhythmWeight(step, row, stepCount);
+    const shapedIndex = baseIndex
+      + (accentTimingIndex - baseIndex) * weight * rhythmBlend * varianceRatio;
+
+    return clampSeedTimingMultiplierIndex(shapedIndex);
+  });
+
+  if (
+    stepCount >= 2
+    && targetIndex > seedingTimingMultiplierMinIndex
+    && targetIndex < seedingTimingMultiplierMaxIndex
+  ) {
+    const symmetricSpread = Math.max(1, Math.min(
+      maxSpread,
+      targetIndex - seedingTimingMultiplierMinIndex,
+      seedingTimingMultiplierMaxIndex - targetIndex,
+    ));
+    const firstStep = Math.floor(random() * stepCount);
+    const secondStep = (firstStep + 1 + Math.floor(random() * (stepCount - 1))) % stepCount;
+
+    multipliers[firstStep] = targetIndex - symmetricSpread;
+    multipliers[secondStep] = targetIndex + symmetricSpread;
+    lockedSteps.add(firstStep);
+    lockedSteps.add(secondStep);
+  }
+
+  const desiredSum = targetIndex * stepCount;
+  let currentSum = multipliers.reduce((sum, index) => sum + index, 0);
+  const increaseOrder = Array.from({ length: stepCount }, (_, step) => step)
+    .sort((left, right) => (
+      stepRhythmWeight(left, row, stepCount) - stepRhythmWeight(right, row, stepCount)
+      || left - right
+    ));
+  const decreaseOrder = [...increaseOrder].reverse();
+  let guard = stepCount * (seedingTimingMultiplierMaxIndex - seedingTimingMultiplierMinIndex + 1);
+
+  while (currentSum !== desiredSum && guard > 0) {
+    const direction = currentSum < desiredSum ? 1 : -1;
+    const order = direction > 0 ? increaseOrder : decreaseOrder;
+    let changed = false;
+
+    for (const step of order) {
+      if (lockedSteps.has(step)) {
+        continue;
+      }
+
+      const next = multipliers[step] + direction;
+
+      if (next < seedingTimingMultiplierMinIndex || next > seedingTimingMultiplierMaxIndex) {
+        continue;
+      }
+
+      multipliers[step] = next;
+      currentSum += direction;
+      changed = true;
+      break;
+    }
+
+    if (!changed) {
+      break;
+    }
+
+    guard -= 1;
+  }
+
+  return multipliers;
+}
+
+/**
+ * @param {number} row
+ * @param {ReturnType<typeof normalizeSeedingRowSettings>} rowOptions
  * @param {number} root
  * @param {number} modeIndex
  * @param {number} rhythmStep
@@ -439,9 +554,7 @@ function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
   const complexityRatio = rowOptions.complexity / 100;
   const repetitionRatio = rowOptions.repetition / 100;
   const randomnessRatio = rowOptions.randomness / 100;
-  const rhythmBlend = rhythmInterleaveRatio(rhythmStep);
   const durationPenalty = rhythmDurationPenalty(rhythmStep);
-  const accentTimingMultiplier = rhythmAccentTimingMultiplier(rhythmStep);
   const motifLength = rowOptions.symmetry
     ? Math.ceil(rowOptions.phraseLength / 2)
     : rowOptions.phraseLength;
@@ -481,11 +594,7 @@ function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
   const degrees = rowOptions.symmetry
     ? [...motif, ...motif.slice(0, rowOptions.phraseLength - motif.length).reverse()]
     : motif;
-  const timingPool = complexityRatio > 0.65
-    ? [0.5, 0.75, 1, 1.25, 1.5]
-    : complexityRatio > 0.35
-      ? [0.75, 1, 1, 1.25]
-      : [1, 1, 1, 1.25];
+  const stepTimingMultiplier = generateSeededTimingMultiplierIndices(row, rowOptions, rhythmStep, random);
   const velocityBase = 78 + row * 6;
   const velocitySwing = Math.round(10 + complexityRatio * 28);
 
@@ -493,18 +602,7 @@ function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
     notes: degrees.map((semitoneOffset) => (
       midiForSeedingOffsetFromCenter(root, modeIndex, centerMidi, semitoneOffset)
     )),
-    stepTimingMultiplier: degrees.map((_, step) => {
-      const poolValue = timingPool[randomInt(random, 0, timingPool.length - 1)];
-
-      if (rhythmBlend <= 0) {
-        return timingMultiplierIndexForValue(poolValue);
-      }
-
-      const weight = stepRhythmWeight(step, row, rowOptions.phraseLength);
-      const blendedMultiplier = poolValue + (accentTimingMultiplier - poolValue) * weight;
-
-      return timingMultiplierIndexForValue(blendedMultiplier);
-    }),
+    stepTimingMultiplier,
     stepDurationFraction: degrees.map((_, step) => {
       const accent = (step + row) % 4 === 0 ? 0.95 : 0.72 + random() * 0.2;
       const weight = stepRhythmWeight(step, row, rowOptions.phraseLength);

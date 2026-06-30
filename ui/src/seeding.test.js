@@ -16,9 +16,21 @@ import {
   seedingCenterNoteIndex,
   seedingRhythmStepMax,
   seedingRhythmStepMin,
+  seedingTimingMultiplierMaxIndex,
+  seedingTimingMultiplierMinIndex,
 } from "./seeding.js";
 import { isMidiInScale } from "./scaleUtils.js";
 import { timingOffsetValues } from "./stepCellLayout.js";
+
+/** @param {number[]} values */
+function average(values) {
+  return values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+}
+
+/** @param {number[]} values */
+function spread(values) {
+  return Math.max(...values) - Math.min(...values);
+}
 
 describe("normalizeSeedingSettings", () => {
   it("clamps public settings to supported ranges", () => {
@@ -28,6 +40,8 @@ describe("normalizeSeedingSettings", () => {
       repetition: 500,
       complexity: -1,
       randomness: Number.NaN,
+      timingMeanMultiplierIndex: 99,
+      timingVariance: Number.NaN,
       rhythmStep: 99,
       seed: -10,
     });
@@ -38,6 +52,8 @@ describe("normalizeSeedingSettings", () => {
     expect(settings.repetition).toBe(100);
     expect(settings.complexity).toBe(0);
     expect(settings.randomness).toBe(0);
+    expect(settings.timingMeanMultiplierIndex).toBe(seedingTimingMultiplierMaxIndex);
+    expect(settings.timingVariance).toBe(0);
     expect(settings.rhythmStep).toBe(seedingRhythmStepMax);
     expect(settings.seed).toBe(1);
   });
@@ -80,6 +96,8 @@ describe("normalizeSeedingRowSettings", () => {
       repetition: 500,
       complexity: -1,
       randomness: Number.NaN,
+      timingMeanMultiplierIndex: -99,
+      timingVariance: 500,
       seed: -10,
     });
 
@@ -89,6 +107,8 @@ describe("normalizeSeedingRowSettings", () => {
     expect(settings.repetition).toBe(100);
     expect(settings.complexity).toBe(0);
     expect(settings.randomness).toBe(0);
+    expect(settings.timingMeanMultiplierIndex).toBe(seedingTimingMultiplierMinIndex);
+    expect(settings.timingVariance).toBe(100);
     expect(settings.seed).toBe(1);
   });
 });
@@ -279,6 +299,91 @@ describe("generateSeededPhraseRows", () => {
     }
 
     expect(new Set(signatures).size).toBe(seedingRhythmStepMax + 1);
+  });
+
+  it("uses length average to target row multiplier averages", () => {
+    const short = generateSeededPhraseRows({
+      phraseLength: 12,
+      timingMeanMultiplierIndex: seedingTimingMultiplierMinIndex,
+      timingVariance: 100,
+      seed: 42,
+    });
+    const long = generateSeededPhraseRows({
+      phraseLength: 12,
+      timingMeanMultiplierIndex: seedingTimingMultiplierMaxIndex,
+      timingVariance: 100,
+      seed: 42,
+    });
+
+    expect(average(short.stepTimingMultiplier[0])).toBe(seedingTimingMultiplierMinIndex);
+    expect(average(long.stepTimingMultiplier[0])).toBe(seedingTimingMultiplierMaxIndex);
+  });
+
+  it("keeps length variance zero uniform at the selected average", () => {
+    const result = generateSeededPhraseRows({
+      phraseLength: 8,
+      timingMeanMultiplierIndex: 5,
+      timingVariance: 0,
+      seed: 91,
+    });
+
+    expect(result.stepTimingMultiplier[0]).toEqual(Array.from({ length: 8 }, () => 5));
+  });
+
+  it("widens multiplier spread as length variance rises", () => {
+    const low = generateSeededPhraseRows({
+      phraseLength: 16,
+      timingMeanMultiplierIndex: 3,
+      timingVariance: 10,
+      rhythmStep: seedingRhythmStepMin,
+      seed: 91,
+    });
+    const high = generateSeededPhraseRows({
+      phraseLength: 16,
+      timingMeanMultiplierIndex: 3,
+      timingVariance: 100,
+      rhythmStep: seedingRhythmStepMin,
+      seed: 91,
+    });
+
+    expect(spread(high.stepTimingMultiplier[0])).toBeGreaterThan(spread(low.stepTimingMultiplier[0]));
+  });
+
+  it("places length variation below and above the selected average when possible", () => {
+    const averageIndex = 7;
+    const result = generateSeededPhraseRows({
+      phraseLength: 12,
+      timingMeanMultiplierIndex: averageIndex,
+      timingVariance: 100,
+      rhythmStep: seedingRhythmStepMin,
+      seed: 91,
+    });
+
+    expect(result.stepTimingMultiplier[0].some((index) => index < averageIndex)).toBe(true);
+    expect(result.stepTimingMultiplier[0].some((index) => index > averageIndex)).toBe(true);
+  });
+
+  it("does not let complexity alter generated step multipliers", () => {
+    const simple = generateSeededPhraseRows({
+      phraseLength: 12,
+      complexity: 0,
+      randomness: 0,
+      repetition: 0,
+      timingMeanMultiplierIndex: 3,
+      timingVariance: 75,
+      seed: 91,
+    });
+    const complex = generateSeededPhraseRows({
+      phraseLength: 12,
+      complexity: 100,
+      randomness: 0,
+      repetition: 0,
+      timingMeanMultiplierIndex: 3,
+      timingVariance: 75,
+      seed: 91,
+    });
+
+    expect(complex.stepTimingMultiplier).toEqual(simple.stepTimingMultiplier);
   });
 
   it("uses independent per-row settings when rowSettings are provided", () => {

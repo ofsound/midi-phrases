@@ -124,6 +124,8 @@
     mergeSeededPhraseRows,
     normalizeSeedModeState,
     phraseRowsFromGridState,
+    seedingTimingMultiplierMaxIndex,
+    seedingTimingMultiplierMinIndex,
     seedingRhythmStepMax,
   } from "./seeding.js";
   import { defaultPulseIndex, pulseOptions } from "./pulseLayout.js";
@@ -2907,6 +2909,8 @@
             repetition: Number.parseInt(String(rowSettings?.repetition ?? defaultSeedModeState.rowSettings[0].repetition), 10),
             complexity: Number.parseInt(String(rowSettings?.complexity ?? defaultSeedModeState.rowSettings[0].complexity), 10),
             randomness: Number.parseInt(String(rowSettings?.randomness ?? defaultSeedModeState.rowSettings[0].randomness), 10),
+            timingMeanMultiplierIndex: Number.parseInt(String(rowSettings?.timingMeanMultiplierIndex ?? defaultSeedModeState.rowSettings[0].timingMeanMultiplierIndex), 10),
+            timingVariance: Number.parseInt(String(rowSettings?.timingVariance ?? defaultSeedModeState.rowSettings[0].timingVariance), 10),
             symmetry: Boolean(Number.parseInt(String(rowSettings?.symmetry ?? 0), 10)),
             seed: Number.parseInt(String(rowSettings?.seed ?? defaultSeedModeState.rowSettings[0].seed), 10),
           }))
@@ -3078,6 +3082,11 @@
           repetition: Math.round(Math.min(100, Math.max(0, 18 + Math.random() * 70))),
           complexity: Math.round(Math.min(100, Math.max(0, 20 + Math.random() * 72))),
           randomness: Math.round(Math.min(100, Math.max(0, 24 + Math.random() * 68))),
+          timingMeanMultiplierIndex: Math.round(
+            seedingTimingMultiplierMinIndex
+              + Math.random() * (seedingTimingMultiplierMaxIndex - seedingTimingMultiplierMinIndex),
+          ),
+          timingVariance: Math.round(Math.min(100, Math.max(0, 18 + Math.random() * 72))),
           symmetry: Math.random() > 0.62,
           seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
         },

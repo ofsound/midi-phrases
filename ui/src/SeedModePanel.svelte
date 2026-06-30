@@ -15,8 +15,11 @@
     seedingRangeSemitonesMin,
     seedingRhythmStepMax,
     seedingRhythmStepMin,
+    seedingTimingMultiplierMaxIndex,
+    seedingTimingMultiplierMinIndex,
   } from "./seeding.js";
   import { rowAccentFor, rowAccentScopeStyle } from "./rowAccentTheme.js";
+  import { multiplierLabelForIndex, timingMultiplierOptions } from "./stepCellLayout.js";
 
   /** @typedef {import("./seeding.js").SeedingRowSettings} SeedingRowSettings */
 
@@ -55,6 +58,9 @@
   let centerNoteOptions = $derived(seedingCenterNoteOptions(root, modeIndex));
   let centerNoteIndex = $derived(seedingCenterNoteIndex(displaySettings.centerMidi, root, modeIndex));
   let centerNoteLabel = $derived(seedingCenterNoteLabel(displaySettings.centerMidi, root, modeIndex));
+  let timingMeanLabel = $derived(
+    multiplierLabelForIndex(displaySettings.timingMeanMultiplierIndex, timingMultiplierOptions),
+  );
 
   /** @param {number} value */
   function clampPercent(value) {
@@ -103,15 +109,15 @@
       </label>
     </div>
 
-    <label class="grid gap-0.5" style={seedParamAccentStyle}>
-      <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Phrase length</span>
+    <label class="seed-param-control" style={seedParamAccentStyle}>
+      <span class="seed-param-label">Steps</span>
       <div class="seed-param-row">
         <AccentRangeSlider
           value={displaySettings.phraseLength}
           min={seedingPhraseLengthMin}
           max={seedingPhraseLengthMax}
           disabled={busy}
-          ariaLabel="Phrase length"
+          ariaLabel="Steps"
           onGestureStart={onGestureStart}
           onValuePreview={(phraseLength) => previewRowSettings({ phraseLength })}
           onValueCommit={(phraseLength) => commitRowSettings({ phraseLength })}
@@ -120,8 +126,41 @@
       </div>
     </label>
 
-    <label class="grid gap-0.5" style={seedParamAccentStyle}>
-      <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Center</span>
+    <label class="seed-param-control" style={seedParamAccentStyle}>
+      <span class="seed-param-label">Length Avg</span>
+      <div class="seed-param-row">
+        <AccentRangeSlider
+          value={displaySettings.timingMeanMultiplierIndex}
+          min={seedingTimingMultiplierMinIndex}
+          max={seedingTimingMultiplierMaxIndex}
+          disabled={busy}
+          ariaLabel="Seeded step length average"
+          onGestureStart={onGestureStart}
+          onValuePreview={(timingMeanMultiplierIndex) => previewRowSettings({ timingMeanMultiplierIndex })}
+          onValueCommit={(timingMeanMultiplierIndex) => commitRowSettings({ timingMeanMultiplierIndex })}
+        />
+        <span class="seed-param-value" aria-hidden="true">{timingMeanLabel}</span>
+      </div>
+    </label>
+
+    <label class="seed-param-control" style={seedParamAccentStyle}>
+      <span class="seed-param-label">Length Var</span>
+      <div class="seed-param-row">
+        <AccentRangeSlider
+          value={displaySettings.timingVariance}
+          max={100}
+          disabled={busy}
+          ariaLabel="Seeded step length variance"
+          onGestureStart={onGestureStart}
+          onValuePreview={(timingVariance) => previewRowSettings({ timingVariance: clampPercent(timingVariance) })}
+          onValueCommit={(timingVariance) => commitRowSettings({ timingVariance: clampPercent(timingVariance) })}
+        />
+        <span class="seed-param-value" aria-hidden="true">{displaySettings.timingVariance}</span>
+      </div>
+    </label>
+
+    <label class="seed-param-control" style={seedParamAccentStyle}>
+      <span class="seed-param-label">Center</span>
       <div class="seed-param-row">
         <AccentRangeSlider
           value={centerNoteIndex}
@@ -140,8 +179,8 @@
       </div>
     </label>
 
-    <label class="grid gap-0.5" style={seedParamAccentStyle}>
-      <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Range</span>
+    <label class="seed-param-control" style={seedParamAccentStyle}>
+      <span class="seed-param-label">Range</span>
       <div class="seed-param-row">
         <AccentRangeSlider
           value={displaySettings.rangeSemitones}
@@ -157,8 +196,8 @@
       </div>
     </label>
 
-    <label class="grid gap-0.5" style={seedParamAccentStyle}>
-      <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Repetition</span>
+    <label class="seed-param-control" style={seedParamAccentStyle}>
+      <span class="seed-param-label">Repetition</span>
       <div class="seed-param-row">
         <AccentRangeSlider
           value={displaySettings.repetition}
@@ -173,8 +212,8 @@
       </div>
     </label>
 
-    <label class="grid gap-0.5" style={seedParamAccentStyle}>
-      <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Complexity</span>
+    <label class="seed-param-control" style={seedParamAccentStyle}>
+      <span class="seed-param-label">Complexity</span>
       <div class="seed-param-row">
         <AccentRangeSlider
           value={displaySettings.complexity}
@@ -189,8 +228,8 @@
       </div>
     </label>
 
-    <label class="grid gap-0.5" style={seedParamAccentStyle}>
-      <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Randomness</span>
+    <label class="seed-param-control" style={seedParamAccentStyle}>
+      <span class="seed-param-label">Randomness</span>
       <div class="seed-param-row">
         <AccentRangeSlider
           value={displaySettings.randomness}
