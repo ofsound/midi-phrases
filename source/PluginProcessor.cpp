@@ -10,6 +10,7 @@ namespace
 constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double combinationGesturePulseQuartersFloor = 2.0;
+constexpr double roundRobinOverlapFraction = 0.25;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
 constexpr int phraseStateVersion = 21;
@@ -4298,6 +4299,35 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         return false;
     };
 
+    struct RoundRobinWindow
+    {
+        int currentRow = 0;
+        int nextRow = 0;
+        bool overlap = false;
+    };
+
+    const auto roundRobinWindowForPpq = [&] (const double ppq) {
+        const auto segmentLength = juce::jmax (epsilon, combinationGesturePulse);
+        const auto segmentIndex =
+            static_cast<int> (std::floor ((ppq + epsilon) / segmentLength));
+        const auto currentIndex =
+            ((segmentIndex % activeRowCount) + activeRowCount) % activeRowCount;
+        const auto phase = positiveMod (ppq, segmentLength);
+        const auto currentRow = activeRows[static_cast<size_t> (currentIndex)];
+        const auto overlapLength = segmentLength * roundRobinOverlapFraction;
+        const auto inOverlap =
+            overlapLength > epsilon && phase >= segmentLength - overlapLength - epsilon;
+
+        if (! inOverlap)
+            return RoundRobinWindow { currentRow, currentRow, false };
+
+        return RoundRobinWindow {
+            currentRow,
+            activeRows[static_cast<size_t> ((currentIndex + 1) % activeRowCount)],
+            true
+        };
+    };
+
     if (combinationModeEnabled (modeMask, combinationModeCrossModulation) && activeRowCount > 1)
     {
         for (size_t index = 0; index < eventCount; ++index)
@@ -4537,6 +4567,102 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         std::sort (combinedEvents.begin(),
                    combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
                    compareCombinedEventsForWeave);
+    }
+
+    if (combinationModeEnabled (modeMask, combinationModeRoundRobin) && activeRowCount > 1)
+    {
+        auto write = static_cast<size_t> (0);
+
+        for (size_t read = 0; read < eventCount;)
+        {
+            auto groupEnd = read + 1;
+
+            while (groupEnd < eventCount
+                   && std::abs (combinedEvents[groupEnd].ppq - combinedEvents[read].ppq) <= epsilon)
+            {
+                ++groupEnd;
+            }
+
+            const auto window = roundRobinWindowForPpq (combinedEvents[read].ppq);
+
+            if (! window.overlap)
+            {
+                for (size_t index = read; index < groupEnd && write < combinedWorkingEvents.size(); ++index)
+                {
+                    if (combinedEvents[index].row == window.currentRow)
+                        combinedWorkingEvents[write++] = combinedEvents[index];
+                }
+
+                read = groupEnd;
+                continue;
+            }
+
+            auto eligibleCount = 0;
+            auto totalWeight = 0;
+            auto firstEligible = read;
+
+            for (size_t index = read; index < groupEnd; ++index)
+            {
+                if (combinedEvents[index].row != window.currentRow
+                    && combinedEvents[index].row != window.nextRow)
+                {
+                    continue;
+                }
+
+                if (eligibleCount == 0)
+                    firstEligible = index;
+
+                ++eligibleCount;
+                totalWeight += juce::jmax (1, combinedEvents[index].velocity);
+            }
+
+            if (eligibleCount == 1)
+            {
+                if (write < combinedWorkingEvents.size())
+                    combinedWorkingEvents[write++] = combinedEvents[firstEligible];
+
+                read = groupEnd;
+                continue;
+            }
+
+            if (eligibleCount > 1)
+            {
+                auto pick = static_cast<int> (
+                    deterministicEventHash (combinedEvents[firstEligible].row,
+                                            combinedEvents[firstEligible].step,
+                                            combinedEvents[firstEligible].ppq)
+                    % static_cast<std::uint32_t> (juce::jmax (1, totalWeight)));
+
+                for (size_t index = read; index < groupEnd; ++index)
+                {
+                    if (combinedEvents[index].row != window.currentRow
+                        && combinedEvents[index].row != window.nextRow)
+                    {
+                        continue;
+                    }
+
+                    pick -= juce::jmax (1, combinedEvents[index].velocity);
+
+                    if (pick < 0)
+                    {
+                        if (write < combinedWorkingEvents.size())
+                            combinedWorkingEvents[write++] = combinedEvents[index];
+
+                        break;
+                    }
+                }
+            }
+
+            read = groupEnd;
+        }
+
+        eventCount = write;
+        copyFilteredEvents (eventCount);
+
+        if (eventCount == 0)
+            return;
+
+        sortCombinedEvents();
     }
 
     if (combinationModeEnabled (modeMask, combinationModeWeave))

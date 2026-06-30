@@ -76,12 +76,13 @@ public:
     static constexpr int patternSlotCount = 8;
     static constexpr int loopSlotCount = 8;
     static constexpr int midiMuteTriggerNote = patternSlotCount + loopSlotCount;
-    static constexpr int combinationModeCount = 5;
+    static constexpr int combinationModeCount = 6;
     static constexpr int combinationModeCrossModulation = 0;
     static constexpr int combinationModeBloom = 1;
     static constexpr int combinationModeCounter = 2;
     static constexpr int combinationModeMultiplyEcho = 3;
     static constexpr int combinationModeWeave = 4;
+    static constexpr int combinationModeRoundRobin = 5;
 
     void setPhraseNote (int row, int step, int noteNumber);
     int getPhraseNote (int row, int step) const;

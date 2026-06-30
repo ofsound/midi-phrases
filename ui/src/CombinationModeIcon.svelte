@@ -1,8 +1,8 @@
 <script>
   /**
-   * Combination-mode glyphs (Cross-Mod, Bloom, Counter, Echo, Weave).
+   * Combination-mode glyphs (Cross-Mod, Bloom, Counter, Echo, Round Robin, Weave).
    *
-   * @typedef {'crossMod' | 'bloom' | 'counter' | 'echo' | 'weave'} CombinationModeIconKind
+   * @typedef {'crossMod' | 'bloom' | 'counter' | 'echo' | 'roundRobin' | 'weave'} CombinationModeIconKind
    * @typedef {Object} Props
    * @property {CombinationModeIconKind} kind
    * @property {string} [class]
@@ -106,6 +106,41 @@
     <path d="M9.5 12 V18" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" opacity="0.72" />
     <path d="M13.5 10.75 V18" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" opacity="0.5" />
     <path d="M17.5 9.5 V18" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" opacity="0.32" />
+  {:else if kind === "roundRobin"}
+    <!-- Phrases advance one row at a time with a short weighted overlap. -->
+    <path
+      d="M4 7 H8.5 C10.4 7 11.6 9 13.5 9 H20"
+      stroke="currentColor"
+      stroke-width="1.45"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M4 13 H10.5 C12.4 13 13.6 15 15.5 15 H20"
+      stroke="currentColor"
+      stroke-width="1.45"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.72"
+    />
+    <circle cx="4" cy="7" r="1.45" fill="currentColor" />
+    <circle cx="4" cy="13" r="1.45" fill="currentColor" opacity="0.72" />
+    <circle cx="20" cy="9" r="1.45" fill="currentColor" />
+    <circle cx="20" cy="15" r="1.45" fill="currentColor" opacity="0.72" />
+    <path
+      d="M10.5 18.25 C12.5 20 15.8 20 17.75 18.25"
+      stroke="currentColor"
+      stroke-width="1.2"
+      stroke-linecap="round"
+      opacity="0.45"
+    />
+    <path
+      d="M17.75 18.25 H15.45 M17.75 18.25 V20.55"
+      stroke="currentColor"
+      stroke-width="1.2"
+      stroke-linecap="round"
+      opacity="0.45"
+    />
   {:else}
     <!-- Competing same-time events woven into one weighted winner. -->
     <circle cx="4" cy="4.5" r="1.6" fill="currentColor" />

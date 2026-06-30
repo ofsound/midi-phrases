@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPhraseSchedule,
   buildPhraseScheduleBeforeBandpass,
+  combinationModes,
   buildPhraseScheduleWindowBeforeBandpass,
   stepTriggerCountAtBeat,
 } from "./phraseSchedule.js";
@@ -87,6 +88,19 @@ function generatedStarts(schedule, midi) {
 }
 
 describe("combination mode pulse-aware timing", () => {
+  it("places Round Robin before Weave in the mode rail while preserving Weave's legacy bit", () => {
+    expect(combinationModes.map((mode) => mode.name)).toEqual([
+      "Cross-Mod",
+      "Bloom",
+      "Counter",
+      "Echo",
+      "Round Robin",
+      "Weave",
+    ]);
+    expect(combinationModes[4]).toMatchObject({index: 5, bit: 32});
+    expect(combinationModes[5]).toMatchObject({index: 4, bit: 16});
+  });
+
   it("keeps Bloom ornaments on sparse half-note anchors at quarter pulse", () => {
     const quarterPulseStarts = generatedStarts(combinationSchedule(1, 1 << 1), 59);
     const halfPulseStart = firstGeneratedStart(combinationSchedule(2, 1 << 1), 59);
@@ -101,6 +115,40 @@ describe("combination mode pulse-aware timing", () => {
 
     expect(halfPulseStart).toBeCloseTo(1, 9);
     expect(quarterPulseStart).toBeGreaterThanOrEqual(1);
+  });
+
+  it("round-robins active rows and chooses one note during transition overlap", () => {
+    const schedule = buildPhraseScheduleBeforeBandpass({
+      notes: [[60], [67], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [5, 5, 3, 3],
+      stepDurationFraction: [[1], [1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[100], [100], [], []],
+      stepMuted: [[false], [false], [], []],
+      stepSkipped: [[false], [false], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 5,
+      lengthQuarters: 4,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+    const startsByBeat = new Map();
+
+    for (const note of schedule) {
+      startsByBeat.set(note.start, [...(startsByBeat.get(note.start) ?? []), note]);
+    }
+
+    expect(startsByBeat.get(0.5)?.map((note) => note.midi)).toEqual([60]);
+    expect(startsByBeat.get(1.5)).toHaveLength(1);
+    expect([60, 67]).toContain(startsByBeat.get(1.5)?.[0].midi);
+    expect(startsByBeat.get(2.5)?.map((note) => note.midi)).toEqual([67]);
+    expect(schedule).toHaveLength(4);
   });
 });
 

@@ -336,6 +336,79 @@ TEST_CASE ("Counter mode adds offbeat response notes", "[instance]")
     CHECK (noteOnCounts[65] > 0); // F4 answer from row 1's D -> G contour
 }
 
+TEST_CASE ("Round Robin mode gates rows with overlap note choice", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 2048;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeRoundRobin, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 67);
+    testPlugin.setPhraseRowTimingOffset (0, 5); // +0.5 quarters, including transition overlap at 1.5
+    testPlugin.setPhraseRowTimingOffset (1, 5);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (row,
+                                                    0,
+                                                    PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    playHead.info.setPpqPosition (0.0);
+    testPlugin.setPlayHead (&playHead);
+
+    testPlugin.processBlock (buffer, midi);
+
+    std::array<int, 128> noteOnCounts {};
+    auto totalNoteOns = 0;
+
+    for (const auto metadata : midi)
+    {
+        const auto message = metadata.getMessage();
+
+        if (message.isNoteOn())
+        {
+            ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+            ++totalNoteOns;
+        }
+    }
+
+    CHECK (noteOnCounts[60] > 0);
+    CHECK (noteOnCounts[67] > 0);
+    CHECK (totalNoteOns == 4);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Pattern note bandpass filters scheduled output", "[instance]")
 {
     PluginProcessor testPlugin;
