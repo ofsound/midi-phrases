@@ -673,12 +673,10 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
       (step / Math.max(1, motifLength - 1)) * Math.PI * contour.waveFactor,
     );
     const directed = Math.round(periodic * halfSpan * (0.35 + complexityRatio * 0.45));
-    const leap = randomInt(
-      random,
-      -Math.max(1, Math.round(1 + complexityRatio * halfSpan)),
-      Math.max(1, Math.round(1 + complexityRatio * halfSpan)),
-    );
-    const randomPush = random() < randomnessRatio ? leap : Math.sign(leap);
+    const leapSpan = Math.max(0, Math.round(randomnessRatio * halfSpan * 0.9));
+    const randomPush = leapSpan > 0
+      ? randomInt(random, -Math.max(1, leapSpan), Math.max(1, leapSpan))
+      : 0;
 
     previous = Math.round(clamp(center + directed + randomPush, -halfSpan, halfSpan));
     motif.push(previous);
@@ -690,6 +688,7 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
   const stepTimingMultiplier = generateSeededTimingMultiplierIndices(contour, rowOptions, rhythmStep, random);
   const velocityBase = contour.velocityBase;
   const velocitySwing = Math.round(10 + complexityRatio * 28);
+  const velocityNoise = Math.round(randomnessRatio * 12);
 
   return {
     notes: degrees.map((semitoneOffset) => (
@@ -697,7 +696,8 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
     )),
     stepTimingMultiplier,
     stepDurationFraction: degrees.map((_, step) => {
-      const accent = (step + accentPhase) % 4 === 0 ? 0.95 : 0.72 + random() * 0.2;
+      const accentBase = (step + accentPhase) % 4 === 0 ? 0.95 : 0.82;
+      const accent = accentBase + (random() * 0.18 - 0.09) * randomnessRatio;
       const weight = stepRhythmWeight(step, accentPhase, rowOptions.phraseLength);
       const stepPenalty = durationPenalty * weight;
 
@@ -705,7 +705,9 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
     }),
     stepVelocity: degrees.map((_, step) => (
       Math.round(clamp(
-        velocityBase + Math.sin((step + accentPhase) * 1.7) * velocitySwing + randomInt(random, -9, 9),
+        velocityBase
+          + Math.sin((step + accentPhase) * 1.7) * velocitySwing
+          + (velocityNoise > 0 ? randomInt(random, -velocityNoise, velocityNoise) : 0),
         28,
         127,
       ))
@@ -715,7 +717,7 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
       complexityRatio < 0.3 && random() < 0.08 && step % 4 !== accentPhase % 4
     )),
     stepProbability: degrees.map((_, step) => (
-      random() < randomnessRatio * 0.24 && step % 4 !== 0
+      randomnessRatio > 0 && random() < randomnessRatio * 0.5 && step % 4 !== 0
         ? Math.round(clamp(100 - randomnessRatio * randomInt(random, 18, 42), 20, 100))
         : maxPercentValue
     )),

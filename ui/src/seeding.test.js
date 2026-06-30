@@ -21,6 +21,7 @@ import {
   seedingTimingMultiplierMinIndex,
 } from "./seeding.js";
 import { isMidiInScale } from "./scaleUtils.js";
+import { maxPercentValue } from "./percentLimits.js";
 import { timingOffsetValues } from "./stepCellLayout.js";
 
 /** @param {number[]} values */
@@ -463,8 +464,10 @@ describe("generateSeededPhraseRows", () => {
     };
     const seedOne = generateSeededPhraseRows({ ...shared, seed: 1 });
     const seedTwo = generateSeededPhraseRows({ ...shared, seed: 2 });
+    const pitchesOne = seedOne.notes.map((row) => row[0]);
+    const pitchesTwo = seedTwo.notes.map((row) => row[0]);
 
-    expect(seedOne.notes[0][0]).not.toBe(seedTwo.notes[0][0]);
+    expect(pitchesOne).not.toEqual(pitchesTwo);
     expect(new Set([
       seedOne.notes[0][0],
       seedOne.notes[1][0],
@@ -487,6 +490,70 @@ describe("generateSeededPhraseRows", () => {
 
     expect(seedOne.rowTimingOffset).not.toEqual(seedTwo.rowTimingOffset);
     expect(new Set(seedOne.rowTimingOffset).size).toBeGreaterThan(1);
+  });
+
+  it("changes pitch chaos from randomness even when complexity is zero", () => {
+    const structured = generateSeededPhraseRows({
+      phraseLength: 8,
+      repetition: 0,
+      complexity: 0,
+      randomness: 0,
+      rangeSemitones: 12,
+      seed: 91,
+    });
+    const chaotic = generateSeededPhraseRows({
+      phraseLength: 8,
+      repetition: 0,
+      complexity: 0,
+      randomness: 100,
+      rangeSemitones: 12,
+      seed: 91,
+    });
+
+    expect(chaotic.notes[0]).not.toEqual(structured.notes[0]);
+    expect(new Set(structured.notes[0]).size).toBeLessThan(new Set(chaotic.notes[0]).size);
+  });
+
+  it("changes contour shape from complexity even when randomness is zero", () => {
+    const flat = generateSeededPhraseRows({
+      phraseLength: 8,
+      repetition: 0,
+      complexity: 0,
+      randomness: 0,
+      rangeSemitones: 12,
+      seed: 91,
+    });
+    const shaped = generateSeededPhraseRows({
+      phraseLength: 8,
+      repetition: 0,
+      complexity: 100,
+      randomness: 0,
+      rangeSemitones: 12,
+      seed: 91,
+    });
+
+    expect(shaped.notes[0]).not.toEqual(flat.notes[0]);
+    expect(new Set(shaped.notes[0]).size).toBeGreaterThan(1);
+  });
+
+  it("applies step probability only when randomness is above zero", () => {
+    const none = generateSeededPhraseRows({
+      phraseLength: 8,
+      repetition: 0,
+      complexity: 0,
+      randomness: 0,
+      seed: 91,
+    });
+    const some = generateSeededPhraseRows({
+      phraseLength: 8,
+      repetition: 0,
+      complexity: 0,
+      randomness: 100,
+      seed: 91,
+    });
+
+    expect(none.stepProbability[0].every((value) => value === maxPercentValue)).toBe(true);
+    expect(some.stepProbability[0].some((value) => value < maxPercentValue)).toBe(true);
   });
 });
 
