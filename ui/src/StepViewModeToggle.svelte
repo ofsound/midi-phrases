@@ -111,16 +111,16 @@
 
       <div
         class="icon-slot pointer-events-auto relative z-10 rounded-full {!compact
-          ? 'text-zinc-950'
-          : 'text-text-muted/60'}"
+          ? 'icon-slot-active'
+          : 'icon-slot-rest'}"
       >
         <FullStepControlsIcon class="pointer-events-none" />
       </div>
 
       <div
         class="icon-slot pointer-events-auto relative z-10 rounded-full {compact
-          ? 'text-zinc-950'
-          : 'text-text-muted/60'}"
+          ? 'icon-slot-active'
+          : 'icon-slot-rest'}"
       >
         <CompactStepIcon class="pointer-events-none" />
       </div>
@@ -163,6 +163,7 @@
   .step-view-mode-track {
     --svm-track-pad: calc(0.125rem * var(--svm));
     --svm-thumb-gap: calc(0.25rem * var(--svm));
+    --svm-thumb-duration: 300ms;
     z-index: 1;
     contain: layout style paint;
     inset: calc(7px * var(--svm)) calc(10.5px * var(--svm));
@@ -176,7 +177,7 @@
     left: calc(var(--svm-track-pad) + var(--svm-thumb-gap) / 4);
     width: calc((100% - 2 * var(--svm-track-pad) - var(--svm-thumb-gap)) / 2);
     transform: translate3d(0, 0, 0);
-    transition: transform 300ms ease-out;
+    transition: transform var(--svm-thumb-duration) ease-out;
     will-change: transform;
     backface-visibility: hidden;
     border: calc(1px * var(--svm)) solid color-mix(in srgb, var(--color-accent) 86%, #fff);
@@ -206,6 +207,14 @@
     place-items: center;
     min-width: 0;
     min-height: 0;
+    color: color-mix(in srgb, var(--color-text-muted) 60%, transparent);
+    opacity: 0.64;
+    filter: contrast(0.75);
+    transition:
+      color 110ms ease,
+      opacity 110ms ease,
+      filter 110ms ease;
+    transition-delay: 0ms;
   }
 
   .icon-slot :global(svg) {
@@ -213,6 +222,17 @@
     width: calc(1.25rem * var(--svm));
     height: calc(1.25rem * var(--svm));
     flex-shrink: 0;
+  }
+
+  .icon-slot-active {
+    color: rgb(9, 9, 11);
+    opacity: 1;
+    filter: contrast(1);
+    transition-delay: var(--svm-thumb-duration);
+  }
+
+  .icon-slot-rest {
+    transition-delay: 0ms;
   }
 
   .step-view-mode-frame:focus-visible {
