@@ -1557,9 +1557,10 @@
     if (activeStepInspector === null) return;
 
     const { row, step } = activeStepInspector;
+    const locations = inspectorEditLocations(row, step);
 
     closeStepInspector();
-    await removeStep(row, step);
+    await removeStepsAtLocations(locations);
   }
 
   function closeStepInspector() {
@@ -4377,51 +4378,111 @@
     });
   }
 
+  async function removeStepsAtLocations(locations) {
+    const uniqueLocations = [];
+    const seenKeys = new Set();
+
+    for (const location of locations) {
+      if (seenKeys.has(location.key)) continue;
+      seenKeys.add(location.key);
+      uniqueLocations.push(location);
+    }
+
+    if (uniqueLocations.length === 0) return;
+
+    const before = createHistorySnapshot();
+
+    for (const { row, step } of uniqueLocations) {
+      const stepId = stepIds[row]?.[step];
+      if (!stepId) continue;
+
+      if (inspectedStep?.row === row && inspectedStep.stepId === stepId) {
+        closeStepInspector();
+      }
+
+      if (rowPianoRollStep?.row === row && rowPianoRollStep.stepId === stepId) {
+        closeRowPianoRollEditor();
+      }
+    }
+
+    const deletedKeys = uniqueLocations
+      .map(({ key }) => key)
+      .filter((key) => selectedStepKeys.has(key));
+
+    if (deletedKeys.length > 0) {
+      const nextSelectedKeys = new SvelteSet(selectedStepKeys);
+
+      for (const key of deletedKeys) {
+        nextSelectedKeys.delete(key);
+      }
+
+      setSelectedStepKeys(nextSelectedKeys);
+      syncBulkControlsFromSelection();
+    }
+
+    const stepsByRow = new SvelteMap();
+
+    for (const { row, step } of uniqueLocations) {
+      if (row < 0 || row >= grid.length || step < 0 || step >= grid[row].length) continue;
+      if (!stepIds[row]?.[step]) continue;
+
+      const steps = stepsByRow.get(row) ?? [];
+
+      if (!steps.includes(step)) {
+        steps.push(step);
+      }
+
+      stepsByRow.set(row, steps);
+    }
+
+    const nativeRemovals = [];
+
+    for (const [row, steps] of stepsByRow) {
+      steps.sort((left, right) => right - left);
+
+      for (const step of steps) {
+        grid[row].splice(step, 1);
+        stepDurationFraction[row].splice(step, 1);
+        stepTimingMultiplier[row].splice(step, 1);
+        stepVelocity[row].splice(step, 1);
+        stepMuted[row].splice(step, 1);
+        stepSkipped[row].splice(step, 1);
+        stepProbability[row].splice(step, 1);
+        stepCycle[row].splice(step, 1);
+        stepCycleOffset[row].splice(step, 1);
+        activeGates[row].splice(step, 1);
+        stepIds[row].splice(step, 1);
+        nativeRemovals.push({ row, step });
+      }
+    }
+
+    await tick();
+
+    if (nativeFunctionAvailable("removePhraseStep")) {
+      const removePhraseStep = getNativeFunction("removePhraseStep");
+
+      for (const { row, step } of nativeRemovals) {
+        await removePhraseStep(row, step);
+      }
+    }
+
+    const after = createHistorySnapshot();
+    pushHistoryEntry(uniqueLocations.length > 1 ? "Remove steps" : "Remove step", before, after);
+  }
+
   async function removeStep(row, step) {
     if (row < 0 || row >= grid.length || step < 0 || step >= grid[row].length) return;
 
     const deletedStepId = stepIds[row]?.[step];
     if (!deletedStepId) return;
 
-    const before = createHistorySnapshot();
     const deletedKey = stepSelectionKey(row, deletedStepId);
+    const locations =
+      selectedStepKeysForGrid.size > 1 && selectedStepKeysForGrid.has(deletedKey)
+        ? selectedStepLocations()
+        : [{ row, step, key: deletedKey }];
 
-    if (inspectedStep?.row === row && inspectedStep.stepId === deletedStepId) {
-      closeStepInspector();
-    }
-
-    if (rowPianoRollStep?.row === row && rowPianoRollStep.stepId === deletedStepId) {
-      closeRowPianoRollEditor();
-    }
-
-    if (selectedStepKeys.has(deletedKey)) {
-      const nextSelectedKeys = new SvelteSet(selectedStepKeys);
-      nextSelectedKeys.delete(deletedKey);
-      setSelectedStepKeys(nextSelectedKeys);
-      syncBulkControlsFromSelection();
-    }
-
-    grid[row].splice(step, 1);
-    stepDurationFraction[row].splice(step, 1);
-    stepTimingMultiplier[row].splice(step, 1);
-    stepVelocity[row].splice(step, 1);
-    stepMuted[row].splice(step, 1);
-    stepSkipped[row].splice(step, 1);
-    stepProbability[row].splice(step, 1);
-    stepCycle[row].splice(step, 1);
-    stepCycleOffset[row].splice(step, 1);
-    activeGates[row].splice(step, 1);
-    stepIds[row].splice(step, 1);
-
-    await tick();
-
-    if (nativeFunctionAvailable("removePhraseStep")) {
-      const removePhraseStep = getNativeFunction("removePhraseStep");
-      await removePhraseStep(row, step);
-    }
-
-    const after = createHistorySnapshot();
-    pushHistoryEntry("Remove step", before, after);
+    await removeStepsAtLocations(locations);
   }
 
   async function insertStep(row, step, multiplierIndex = defaultStepTimingMultiplierIndex) {
