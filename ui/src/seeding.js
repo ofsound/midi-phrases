@@ -569,7 +569,7 @@ function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
   let previous = center;
 
   for (let step = 0; step < motifLength; step += 1) {
-    const reusePrevious = step > 0 && random() < repetitionRatio * 0.54;
+    const reusePrevious = step > 0 && random() < repetitionRatio;
     const reuseEarlier = step > 3 && random() < repetitionRatio * 0.28;
 
     if (reusePrevious) {

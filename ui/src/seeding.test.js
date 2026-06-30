@@ -188,6 +188,21 @@ describe("generateSeededPhraseRows", () => {
     }
   });
 
+  it("holds one pitch per row when repetition is at maximum", () => {
+    const result = generateSeededPhraseRows({
+      phraseLength: 8,
+      repetition: 100,
+      complexity: 41,
+      randomness: 45,
+      rangeSemitones: 9,
+      seed: 1,
+    });
+
+    for (let row = 0; row < 4; row += 1) {
+      expect(new Set(result.notes[row]).size).toBe(1);
+    }
+  });
+
   it("keeps generated pitches inside the chosen scale", () => {
     const root = 5;
     const modeIndex = 10;
