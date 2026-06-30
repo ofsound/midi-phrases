@@ -129,6 +129,82 @@ function seedForSeedingRow(seed, row) {
   return (seed + Math.imul(row + 1, 0x9E3779B9)) >>> 0;
 }
 
+/** Fixed contour roles shuffled across physical rows each generation. */
+const rowContourArchetypes = [
+  { centerSlot: -1.5, waveFactor: 1.25, velocityBase: 78, accentPhase: 0 },
+  { centerSlot: -0.5, waveFactor: 1.53, velocityBase: 84, accentPhase: 1 },
+  { centerSlot: 0.5, waveFactor: 1.81, velocityBase: 90, accentPhase: 2 },
+  { centerSlot: 1.5, waveFactor: 2.09, velocityBase: 96, accentPhase: 3 },
+];
+
+/**
+ * @typedef {{
+ *   centerSlot: number,
+ *   waveFactor: number,
+ *   velocityBase: number,
+ *   accentPhase: number,
+ * }} RowContour
+ */
+
+/**
+ * @param {number[]} items
+ * @param {() => number} random
+ */
+function fisherYatesShuffle(items, random) {
+  const shuffled = [...items];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    const current = shuffled[index];
+    shuffled[index] = shuffled[swapIndex];
+    shuffled[swapIndex] = current;
+  }
+
+  return shuffled;
+}
+
+/**
+ * @param {typeof rowContourArchetypes[number]} archetype
+ * @param {() => number} random
+ * @returns {RowContour}
+ */
+function applyHybridContourJitter(archetype, random) {
+  return {
+    centerSlot: archetype.centerSlot + (random() * 2 - 1) * 0.35,
+    waveFactor: Math.max(1, archetype.waveFactor + (random() * 2 - 1) * 0.1),
+    velocityBase: Math.round(clamp(archetype.velocityBase + (random() * 2 - 1) * 4, 28, 127)),
+    accentPhase: archetype.accentPhase,
+  };
+}
+
+/**
+ * @param {ReturnType<typeof normalizeSeedingRowSettings>[]} rowSettings
+ */
+function resolveMasterSeed(rowSettings) {
+  const mixed = rowSettings.reduce(
+    (hash, settings, row) => (hash ^ seedForSeedingRow(settings.seed, row)) >>> 0,
+    0,
+  );
+
+  return mixed || 1;
+}
+
+/**
+ * Shuffle four contour archetypes across physical rows, with small seed-derived jitter.
+ *
+ * @param {number} masterSeed
+ * @returns {{ contours: RowContour[], archetypeIndices: number[] }}
+ */
+export function deriveRowGenerationLayout(masterSeed) {
+  const random = mulberry32(masterSeed >>> 0);
+  const archetypeIndices = fisherYatesShuffle([0, 1, 2, 3], random);
+  const contours = archetypeIndices.map((archetypeIndex) => (
+    applyHybridContourJitter(rowContourArchetypes[archetypeIndex], random)
+  ));
+
+  return { contours, archetypeIndices };
+}
+
 /** @param {() => number} random @param {number} min @param {number} max */
 function randomInt(random, min, max) {
   return Math.floor(random() * (max - min + 1)) + min;
@@ -167,21 +243,28 @@ function rhythmRowTimingOffsets(step) {
   ));
 }
 
+/** @param {number} rhythmStep @param {number[]} archetypeIndices */
+function rhythmRowTimingOffsetsForLayout(rhythmStep, archetypeIndices) {
+  const baseOffsets = rhythmRowTimingOffsets(rhythmStep);
+
+  return archetypeIndices.map((archetypeIndex) => baseOffsets[archetypeIndex]);
+}
+
 /**
  * How strongly a step should receive interleave timing/gate shaping.
  * Short phrases spread the effect across every step so the slider stays audible.
  *
  * @param {number} step
- * @param {number} row
+ * @param {number} accentPhase
  * @param {number} phraseLength
  */
-function stepRhythmWeight(step, row, phraseLength) {
-  if ((step + row) % 4 === 0) {
+function stepRhythmWeight(step, accentPhase, phraseLength) {
+  if ((step + accentPhase) % 4 === 0) {
     return 1;
   }
 
   if (phraseLength <= 3) {
-    return 0.35 + 0.3 * ((step + row * 2) % 3) / 2;
+    return 0.35 + 0.3 * ((step + accentPhase * 2) % 3) / 2;
   }
 
   return 0.2;
@@ -450,15 +533,16 @@ function resolveSeedModeGenerationInputs(state = {}) {
 }
 
 /**
- * @param {number} row
+ * @param {RowContour} contour
  * @param {ReturnType<typeof normalizeSeedingRowSettings>} rowOptions
  * @param {number} rhythmStep
  * @param {() => number} random
  */
-function generateSeededTimingMultiplierIndices(row, rowOptions, rhythmStep, random) {
+function generateSeededTimingMultiplierIndices(contour, rowOptions, rhythmStep, random) {
   const stepCount = rowOptions.phraseLength;
   const targetIndex = rowOptions.timingMeanMultiplierIndex;
   const varianceRatio = rowOptions.timingVariance / 100;
+  const accentPhase = contour.accentPhase;
 
   if (stepCount <= 0) {
     return [];
@@ -477,7 +561,7 @@ function generateSeededTimingMultiplierIndices(row, rowOptions, rhythmStep, rand
   const multipliers = Array.from({ length: stepCount }, (_, step) => {
     const randomOffset = Math.round((random() * 2 - 1) * maxSpread);
     const baseIndex = clampSeedTimingMultiplierIndex(targetIndex + randomOffset);
-    const weight = stepRhythmWeight(step, row, stepCount);
+    const weight = stepRhythmWeight(step, accentPhase, stepCount);
     const shapedIndex = baseIndex
       + (accentTimingIndex - baseIndex) * weight * rhythmBlend * varianceRatio;
 
@@ -507,7 +591,7 @@ function generateSeededTimingMultiplierIndices(row, rowOptions, rhythmStep, rand
   let currentSum = multipliers.reduce((sum, index) => sum + index, 0);
   const increaseOrder = Array.from({ length: stepCount }, (_, step) => step)
     .sort((left, right) => (
-      stepRhythmWeight(left, row, stepCount) - stepRhythmWeight(right, row, stepCount)
+      stepRhythmWeight(left, accentPhase, stepCount) - stepRhythmWeight(right, accentPhase, stepCount)
       || left - right
     ));
   const decreaseOrder = [...increaseOrder].reverse();
@@ -547,12 +631,13 @@ function generateSeededTimingMultiplierIndices(row, rowOptions, rhythmStep, rand
 
 /**
  * @param {number} row
+ * @param {RowContour} contour
  * @param {ReturnType<typeof normalizeSeedingRowSettings>} rowOptions
  * @param {number} root
  * @param {number} modeIndex
  * @param {number} rhythmStep
  */
-function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
+function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhythmStep) {
   const random = mulberry32(seedForSeedingRow(rowOptions.seed, row));
   const span = rowOptions.rangeSemitones;
   const halfSpan = Math.max(2, Math.floor(span / 2));
@@ -560,12 +645,13 @@ function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
   const repetitionRatio = rowOptions.repetition / 100;
   const randomnessRatio = rowOptions.randomness / 100;
   const durationPenalty = rhythmDurationPenalty(rhythmStep);
+  const accentPhase = contour.accentPhase;
   const motifLength = rowOptions.symmetry
     ? Math.ceil(rowOptions.phraseLength / 2)
     : rowOptions.phraseLength;
   const motif = [];
   const centerMidi = resolveSeedingCenterMidi(rowOptions.centerMidi, root, modeIndex);
-  const center = Math.round((row - 1.5) * Math.max(1, span / 6));
+  const center = Math.round(contour.centerSlot * Math.max(1, span / 6));
   let previous = center;
 
   for (let step = 0; step < motifLength; step += 1) {
@@ -583,7 +669,9 @@ function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
       continue;
     }
 
-    const periodic = Math.sin((step / Math.max(1, motifLength - 1)) * Math.PI * (1.25 + row * 0.28));
+    const periodic = Math.sin(
+      (step / Math.max(1, motifLength - 1)) * Math.PI * contour.waveFactor,
+    );
     const directed = Math.round(periodic * halfSpan * (0.35 + complexityRatio * 0.45));
     const leap = randomInt(
       random,
@@ -599,8 +687,8 @@ function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
   const degrees = rowOptions.symmetry
     ? [...motif, ...motif.slice(0, rowOptions.phraseLength - motif.length).reverse()]
     : motif;
-  const stepTimingMultiplier = generateSeededTimingMultiplierIndices(row, rowOptions, rhythmStep, random);
-  const velocityBase = 78 + row * 6;
+  const stepTimingMultiplier = generateSeededTimingMultiplierIndices(contour, rowOptions, rhythmStep, random);
+  const velocityBase = contour.velocityBase;
   const velocitySwing = Math.round(10 + complexityRatio * 28);
 
   return {
@@ -609,22 +697,22 @@ function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
     )),
     stepTimingMultiplier,
     stepDurationFraction: degrees.map((_, step) => {
-      const accent = (step + row) % 4 === 0 ? 0.95 : 0.72 + random() * 0.2;
-      const weight = stepRhythmWeight(step, row, rowOptions.phraseLength);
+      const accent = (step + accentPhase) % 4 === 0 ? 0.95 : 0.72 + random() * 0.2;
+      const weight = stepRhythmWeight(step, accentPhase, rowOptions.phraseLength);
       const stepPenalty = durationPenalty * weight;
 
       return Number(clamp(accent - stepPenalty, 0.35, 1).toFixed(2));
     }),
     stepVelocity: degrees.map((_, step) => (
       Math.round(clamp(
-        velocityBase + Math.sin((step + row) * 1.7) * velocitySwing + randomInt(random, -9, 9),
+        velocityBase + Math.sin((step + accentPhase) * 1.7) * velocitySwing + randomInt(random, -9, 9),
         28,
         127,
       ))
     )),
     stepMuted: degrees.map(() => false),
     stepSkipped: degrees.map((_, step) => (
-      complexityRatio < 0.3 && random() < 0.08 && step % 4 !== row % 4
+      complexityRatio < 0.3 && random() < 0.08 && step % 4 !== accentPhase % 4
     )),
     stepProbability: degrees.map((_, step) => (
       random() < randomnessRatio * 0.24 && step % 4 !== 0
@@ -649,7 +737,9 @@ function generateSeededPhraseRow(row, rowOptions, root, modeIndex, rhythmStep) {
  */
 export function generateSeededPhraseRows(settings = {}) {
   const { rhythmStep, rowSettings, root, modeIndex } = resolveSeedModeGenerationInputs(settings);
-  const rowTimingOffset = rhythmRowTimingOffsets(rhythmStep);
+  const masterSeed = resolveMasterSeed(rowSettings);
+  const { contours, archetypeIndices } = deriveRowGenerationLayout(masterSeed);
+  const rowTimingOffset = rhythmRowTimingOffsetsForLayout(rhythmStep, archetypeIndices);
   const rows = {
     notes: [],
     stepTimingMultiplier: [],
@@ -668,6 +758,7 @@ export function generateSeededPhraseRows(settings = {}) {
   for (let row = 0; row < 4; row += 1) {
     const generated = generateSeededPhraseRow(
       row,
+      contours[row],
       rowSettings[row],
       root,
       modeIndex,

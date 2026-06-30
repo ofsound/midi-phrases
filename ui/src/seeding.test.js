@@ -4,6 +4,7 @@ import {
   createDefaultSeedModeRowSettings,
   defaultSeedingCenterMidi,
   displaySeedingRowSettings,
+  deriveRowGenerationLayout,
   generateSeededPhraseRows,
   mergeSeededPhraseRows,
   normalizeSeedModeState,
@@ -302,7 +303,9 @@ describe("generateSeededPhraseRows", () => {
     });
 
     expect(overlap.rowTimingOffset.map((index) => timingOffsetValues[index])).toEqual([0, 0, 0, 0]);
-    expect(interleave.rowTimingOffset.map((index) => timingOffsetValues[index])).toEqual([0, 0.25, -0.25, 0.5]);
+    expect(
+      [...interleave.rowTimingOffset.map((index) => timingOffsetValues[index])].sort((left, right) => left - right),
+    ).toEqual([-0.25, 0, 0.25, 0.5]);
     expect(overlap.stepDurationFraction[0][0]).toBeGreaterThan(interleave.stepDurationFraction[0][0]);
     expect(overlap.stepTimingMultiplier).not.toEqual(interleave.stepTimingMultiplier);
   });
@@ -447,6 +450,44 @@ describe("generateSeededPhraseRows", () => {
 
     expect(Math.min(...result.notes[1])).toBeGreaterThan(Math.max(...result.notes[0]));
   });
+
+  it("shuffles contour roles across rows when the seed changes", () => {
+    const shared = {
+      phraseLength: 8,
+      repetition: 100,
+      complexity: 0,
+      randomness: 0,
+      rangeSemitones: 12,
+      root: 0,
+      modeIndex: 0,
+    };
+    const seedOne = generateSeededPhraseRows({ ...shared, seed: 1 });
+    const seedTwo = generateSeededPhraseRows({ ...shared, seed: 2 });
+
+    expect(seedOne.notes[0][0]).not.toBe(seedTwo.notes[0][0]);
+    expect(new Set([
+      seedOne.notes[0][0],
+      seedOne.notes[1][0],
+      seedOne.notes[2][0],
+      seedOne.notes[3][0],
+    ]).size).toBe(4);
+  });
+
+  it("permutes row timing offsets with the contour layout", () => {
+    const seedOne = generateSeededPhraseRows({
+      phraseLength: 4,
+      rhythmStep: 1,
+      seed: 11,
+    });
+    const seedTwo = generateSeededPhraseRows({
+      phraseLength: 4,
+      rhythmStep: 1,
+      seed: 29,
+    });
+
+    expect(seedOne.rowTimingOffset).not.toEqual(seedTwo.rowTimingOffset);
+    expect(new Set(seedOne.rowTimingOffset).size).toBeGreaterThan(1);
+  });
 });
 
 describe("phraseRowsFromGridState", () => {
@@ -460,6 +501,39 @@ describe("phraseRowsFromGridState", () => {
     expect(rows.notes).toEqual([[60, 62], [64, 65], [67, 69], [71, 72]]);
     expect(rows.stepTimingMultiplier[0]).toEqual([3, 4]);
     expect(rows.rowTimingOffset).toEqual([3, 4, 5, 6]);
+  });
+});
+
+describe("deriveRowGenerationLayout", () => {
+  it("is deterministic for a fixed master seed", () => {
+    expect(deriveRowGenerationLayout(4242)).toEqual(deriveRowGenerationLayout(4242));
+  });
+
+  it("assigns each archetype exactly once across four rows", () => {
+    const { archetypeIndices } = deriveRowGenerationLayout(91);
+
+    expect(archetypeIndices).toHaveLength(4);
+    expect([...archetypeIndices].sort((left, right) => left - right)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("changes the row-to-archetype mapping for different master seeds", () => {
+    const first = deriveRowGenerationLayout(1).archetypeIndices.join(",");
+    const second = deriveRowGenerationLayout(2).archetypeIndices.join(",");
+
+    expect(second).not.toBe(first);
+  });
+
+  it("applies hybrid jitter within expected bounds", () => {
+    const { contours } = deriveRowGenerationLayout(77);
+
+    for (const contour of contours) {
+      expect(contour.centerSlot).toBeGreaterThanOrEqual(-1.85);
+      expect(contour.centerSlot).toBeLessThanOrEqual(1.85);
+      expect(contour.waveFactor).toBeGreaterThanOrEqual(1);
+      expect(contour.waveFactor).toBeLessThanOrEqual(2.19);
+      expect(contour.velocityBase).toBeGreaterThanOrEqual(74);
+      expect(contour.velocityBase).toBeLessThanOrEqual(100);
+    }
   });
 });
 
