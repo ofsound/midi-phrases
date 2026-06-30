@@ -13,6 +13,7 @@ import {
   stepCellQuarterGridWidthPx,
   stepDisplayWidthPx,
   timingMultiplierIndexForValue,
+  timingMultiplierIndicesInRange,
 } from "./stepCellLayout.js";
 
 describe("timing multiplier bulk length helpers", () => {
@@ -33,6 +34,17 @@ describe("timing multiplier bulk length helpers", () => {
     expect(formatSignedTimingMultiplierDelta(0)).toBe("0");
     expect(formatSignedTimingMultiplierDelta(0.25)).toBe("+.25");
     expect(formatSignedTimingMultiplierDelta(-0.5)).toBe("-.5");
+  });
+});
+
+describe("timingMultiplierIndicesInRange", () => {
+  it("returns every quarter-step index between min and max inclusive", () => {
+    expect(timingMultiplierIndicesInRange(3, 7)).toEqual([3, 4, 5, 6, 7]);
+    expect(timingMultiplierIndicesInRange(7, 3)).toEqual([3, 4, 5, 6, 7]);
+  });
+
+  it("returns a single index when min and max match", () => {
+    expect(timingMultiplierIndicesInRange(5, 5)).toEqual([5]);
   });
 });
 

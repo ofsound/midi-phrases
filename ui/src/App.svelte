@@ -41,11 +41,11 @@
     defaultStepTimingMultiplierIndex,
     maxPhraseStepsPerRow,
     findSingleMove,
-    insertStepTimingMultiplierOptions,
     compactPhraseGridLayout,
     stepTimingMultiplierCount,
     timingMultiplierOptions,
     timingMultiplierAtIndex,
+    timingMultiplierIndicesInRange,
     clampTimingMultiplierDelta,
     clampTimingMultiplierValue,
     timingMultiplierIndexForValue,
@@ -166,9 +166,6 @@
     setUiViewportSize,
     uiScaleState,
   } from "./uiScale.svelte.js";
-
-  const randomStepTimingMultiplierIndices = insertStepTimingMultiplierOptions(timingMultiplierOptions)
-    .map((option) => option.index);
 
   /** @type {HTMLElement | null} */
   let appRoot = $state(null);
@@ -3891,14 +3888,23 @@
   async function randomizeSelectedStepLengths() {
     const locations = bulkEditLocationsByPosition();
 
-    if (locations.length === 0 || randomStepTimingMultiplierIndices.length === 0) return;
+    if (locations.length === 0) return;
+
+    const selectedIndices = locations.map(({ row, step }) =>
+      stepTimingMultiplier[row][step] ?? defaultStepTimingMultiplierIndex,
+    );
+    const pool = timingMultiplierIndicesInRange(
+      Math.min(...selectedIndices),
+      Math.max(...selectedIndices),
+    );
+
+    if (pool.length === 0) return;
 
     await commitHistory("Randomize selected step lengths", async () => {
       const changedRows = new SvelteSet(locations.map(({ row }) => row));
 
       for (const { row, step } of locations) {
-        const randomIndex = Math.floor(Math.random() * randomStepTimingMultiplierIndices.length);
-        stepTimingMultiplier[row][step] = randomStepTimingMultiplierIndices[randomIndex];
+        stepTimingMultiplier[row][step] = pool[Math.floor(Math.random() * pool.length)];
       }
 
       await pushRowsForRowSet(changedRows);

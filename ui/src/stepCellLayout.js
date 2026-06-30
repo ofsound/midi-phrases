@@ -202,6 +202,25 @@ export function insertStepTimingMultiplierOptions(options = timingMultiplierOpti
   });
 }
 
+/**
+ * Multiplier indices on the 0.25 grid from minIndex through maxIndex inclusive.
+ *
+ * @param {number} minIndex
+ * @param {number} maxIndex
+ */
+export function timingMultiplierIndicesInRange(minIndex, maxIndex) {
+  const start = Math.min(
+    timingMultiplierValues.length - 1,
+    Math.max(0, Math.round(Math.min(minIndex, maxIndex))),
+  );
+  const end = Math.min(
+    timingMultiplierValues.length - 1,
+    Math.max(0, Math.round(Math.max(minIndex, maxIndex))),
+  );
+
+  return Array.from({ length: end - start + 1 }, (_, offset) => start + offset);
+}
+
 /** @param {number} multiplierIndex */
 export function quarterGridColumnsForMultiplierIndex(multiplierIndex) {
   const normalizedIndex = Number.isFinite(multiplierIndex)
