@@ -102,17 +102,6 @@
     display: flex;
     align-items: stretch;
     gap: 0.3rem;
-    padding: 0.3rem;
-    border: 1px solid color-mix(in srgb, var(--color-border-subtle) 88%, transparent);
-    border-radius: 3px;
-    background: linear-gradient(
-      165deg,
-      color-mix(in srgb, var(--color-surface-muted) 72%, var(--color-field)) 0%,
-      var(--color-field) 100%
-    );
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--color-text) 8%, transparent),
-      inset 0 -2px 4px color-mix(in srgb, var(--color-app) 42%, transparent);
   }
 
   .seed-row-target-btn {
