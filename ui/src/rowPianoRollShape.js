@@ -214,6 +214,28 @@ export function rollLengthQuartersForCycle(lengthQuarters) {
 }
 
 /**
+ * The piano roll can be visually padded to clean measure boundaries without
+ * asking the scheduler to render notes from the next phrase pass in that tail.
+ *
+ * @param {object} params
+ * @param {number} [params.patternLengthQuarters]
+ * @param {boolean} [params.loopEnabled]
+ * @param {number} [params.loopEnd]
+ * @param {number} [params.minimumLengthQuarters]
+ */
+export function pianoRollContentLengthQuarters({
+  patternLengthQuarters = 0,
+  loopEnabled = false,
+  loopEnd = 0,
+  minimumLengthQuarters = 0,
+} = {}) {
+  const patternLength = patternLengthQuarters > 0 ? patternLengthQuarters : 0;
+  const loopLength = loopEnabled && loopEnd > 0 ? loopEnd : 0;
+
+  return Math.max(patternLength, loopLength, minimumLengthQuarters);
+}
+
+/**
  * @param {number} lengthQuarters
  */
 export function measureLineQuarters(lengthQuarters) {

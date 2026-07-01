@@ -98,9 +98,14 @@ describe("isScheduledNoteActiveAtPatternBeat", () => {
     expect(isScheduledNoteActiveAtPatternBeat(futureRepeat, displayBeat, 4)).toBe(true);
     expect(isScheduledNoteActiveAtBeat(noteUnderPlayhead, displayBeat)).toBe(true);
     expect(isScheduledNoteActiveAtBeat(futureRepeat, displayBeat)).toBe(false);
+    expect(
+      isScheduledNoteActiveAtPlaybackBeat(futureRepeat, displayBeat, {
+        patternLengthQuarters: 4,
+      }),
+    ).toBe(false);
   });
 
-  it("matches tiled repeats through the playback-beat helper used by the piano roll", () => {
+  it("does not light tiled repeats before the displayed playhead reaches them", () => {
     const displayBeat = mapPlaybackBeatForPianoRoll(9, { patternLengthQuarters: 4 });
     const tiledRepeat = { start: 9, end: 10, midi: 60, velocity: 100, row: 0, step: 0 };
 
@@ -108,7 +113,7 @@ describe("isScheduledNoteActiveAtPatternBeat", () => {
       isScheduledNoteActiveAtPlaybackBeat(tiledRepeat, displayBeat, {
         patternLengthQuarters: 4,
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(isScheduledNoteActiveAtBeat(tiledRepeat, displayBeat)).toBe(false);
   });
 });

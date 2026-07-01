@@ -8,6 +8,7 @@ import {
   measureLineQuarters,
   midiFromPitchDragDelta,
   midiFromRollY,
+  pianoRollContentLengthQuarters,
   rollLengthQuartersForCycle,
   shapeVelocityUpdatesFromStroke,
   insertStepIndexFromRollX,
@@ -71,6 +72,29 @@ describe("rollLengthQuartersForCycle", () => {
     expect(rollLengthQuartersForCycle(3)).toBe(4);
     expect(rollLengthQuartersForCycle(5)).toBe(8);
     expect(rollLengthQuartersForCycle(8)).toBe(8);
+  });
+});
+
+describe("pianoRollContentLengthQuarters", () => {
+  it("keeps scheduler content unpadded when the visible roll pads to measures", () => {
+    const contentLength = pianoRollContentLengthQuarters({
+      patternLengthQuarters: 5,
+      minimumLengthQuarters: 0.5,
+    });
+
+    expect(contentLength).toBe(5);
+    expect(rollLengthQuartersForCycle(contentLength)).toBe(8);
+  });
+
+  it("extends content to the active loop end when loop preview is longer", () => {
+    expect(
+      pianoRollContentLengthQuarters({
+        patternLengthQuarters: 4,
+        loopEnabled: true,
+        loopEnd: 6,
+        minimumLengthQuarters: 0.5,
+      }),
+    ).toBe(6);
   });
 });
 

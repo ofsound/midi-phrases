@@ -20,7 +20,7 @@ import {
   mapPlaybackBeatForPianoRoll,
   patternRepeatLengthQuarters,
 } from "./phraseSchedule.js";
-import { rollLengthQuartersForCycle } from "./rowPianoRollShape.js";
+import { pianoRollContentLengthQuarters, rollLengthQuartersForCycle } from "./rowPianoRollShape.js";
 import { scaledPx } from "./uiScale.svelte.js";
 
   
@@ -160,17 +160,20 @@ import { scaledPx } from "./uiScale.svelte.js";
       pulseIndex,
     }),
   );
-  let autoLengthQuarters = $derived.by(() => {
-    const patternLength = patternRepeatQuarters > 0
-      ? rollLengthQuartersForCycle(patternRepeatQuarters)
-      : 0;
-    const loopTapeLength = loopEnabled && loopEnd > loopStart
-      ? rollLengthQuartersForCycle(loopEnd)
-      : 0;
-    const contentLength = Math.max(patternLength, loopTapeLength, loopBraceSnapQuarters);
-
-    return contentLength > 0 ? contentLength : DEFAULT_PREVIEW_LENGTH_QUARTERS;
-  });
+  let autoContentLengthQuarters = $derived(
+    pianoRollContentLengthQuarters({
+      patternLengthQuarters: patternRepeatQuarters,
+      loopEnabled,
+      loopEnd: loopEnd > loopStart ? loopEnd : 0,
+      minimumLengthQuarters: loopBraceSnapQuarters,
+    }),
+  );
+  let autoLengthQuarters = $derived(
+    autoContentLengthQuarters > 0
+      ? rollLengthQuartersForCycle(autoContentLengthQuarters)
+      : DEFAULT_PREVIEW_LENGTH_QUARTERS,
+  );
+  let scheduleLengthQuarters = $derived(lengthQuarters ?? autoContentLengthQuarters);
   let resolvedLengthQuarters = $derived(lengthQuarters ?? autoLengthQuarters);
   let visibleStartQuarter = $derived(viewportScrollLeftPx / pxPerQuarter);
   let visibleEndQuarter = $derived(
@@ -206,7 +209,7 @@ import { scaledPx } from "./uiScale.svelte.js";
       swingPercent,
       swingSubdivisionIndex,
       combinationModeMask,
-      resolvedLengthQuarters,
+      lengthQuarters: scheduleLengthQuarters,
       scaleRoot,
       scaleModeIndex,
       octavizerDown8vaEnabled,
@@ -250,7 +253,7 @@ import { scaledPx } from "./uiScale.svelte.js";
       swingPercent,
       swingSubdivisionIndex,
       combinationModeMask,
-      resolvedLengthQuarters,
+      lengthQuarters: scheduleLengthQuarters,
       scaleRoot,
       scaleModeIndex,
       octavizerDown8vaEnabled,

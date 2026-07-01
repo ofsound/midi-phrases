@@ -1093,13 +1093,9 @@ export function mapPlaybackBeatForPianoRoll(
 export function isScheduledNoteActiveAtPlaybackBeat(
   note,
   beat,
-  { loopEnabled = false, patternLengthQuarters = 0 } = {},
+  _options = {},
 ) {
   if (beat < 0) return false;
-
-  if (!loopEnabled && patternLengthQuarters > EPSILON) {
-    return isScheduledNoteActiveAtPatternBeat(note, beat, patternLengthQuarters);
-  }
 
   return isScheduledNoteActiveAtBeat(note, beat);
 }
