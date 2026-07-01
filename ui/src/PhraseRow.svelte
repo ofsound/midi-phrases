@@ -2398,7 +2398,7 @@
       : ''} {stepInspectionFocused ? 'z-[2]' : ''} {stepCellPlaybackGlowClass(
       activeGates[step],
       stepDimmed,
-    )} {(isStepSelected || stepInspectorHighlighted) && !isDragging ? accent.selectionShell : ''}"
+    )}"
   >
     {@render stepHeaderRemoveButton(step, stepDimmed)}
     <div
@@ -2409,7 +2409,7 @@
         class="relative flex h-full min-w-0 flex-col overflow-hidden rounded-lg border-2 outline-none transition-[border-color,background-color,box-shadow,opacity] duration-150 {stepCellSurfaceClass(
           stepDimmed,
         )} {isStepSelected || stepInspectorHighlighted
-          ? `${accent.selectionBorder} ${isDragging ? '' : accent.selectionRing}`
+          ? accent.selectionBorder
           : stepCellPlaybackClass(activeGates[step], stepDimmed)} {stepDimmed || isDragging
           ? ''
           : accent.cellFocusWithinBorder}"
