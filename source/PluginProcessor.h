@@ -164,7 +164,7 @@ public:
     static constexpr int minSeedingPhraseLength = 2;
     static constexpr int maxSeedingPhraseLength = 16;
     static constexpr int defaultSeedingCenterMidi = -1;
-    static constexpr int defaultSeedingRangeSemitones = 8;
+    static constexpr int defaultSeedingRangeSemitones = 24;
     static constexpr int minSeedingRangeSemitones = 2;
     static constexpr int maxSeedingRangeSemitones = 48;
     static constexpr int defaultSeedingRepetition = 45;
@@ -175,7 +175,7 @@ public:
     static constexpr int maxSeedingTimingMeanMultiplierIndex = 15;
     static constexpr int defaultSeedingTimingVariance = 50;
     static constexpr int defaultSeedingSeed = 1;
-    static constexpr int defaultSeedingRhythmStep = 7;
+    static constexpr int defaultSeedingRhythmStep = 0;
     static constexpr int minSeedingRhythmStep = 0;
     static constexpr int maxSeedingRhythmStep = 7;
 

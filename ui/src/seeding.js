@@ -24,7 +24,7 @@ export const seedingPhraseLengthMax = 16;
 /** Total pitch spread for seeded motifs (±half span from each row center). */
 export const seedingRangeSemitonesMin = 2;
 export const seedingRangeSemitonesMax = 48;
-export const defaultSeedingRangeSemitones = 8;
+export const defaultSeedingRangeSemitones = 24;
 
 /** Legacy/default center: resolve from the current scale root at generation time. */
 export const defaultSeedingCenterMidi = -1;
@@ -35,7 +35,7 @@ const legacySeedingRangeSemitonesByIndex = [5, 8, 12, 16];
 /** Stepped overlap ↔ interleave blend (0 = dense overlap, 7 = full interleave). */
 export const seedingRhythmStepMin = 0;
 export const seedingRhythmStepMax = 7;
-export const defaultSeedingRhythmStep = 7;
+export const defaultSeedingRhythmStep = 0;
 
 export const seedingTimingMultiplierMinIndex = timingMultiplierIndexForValue(0.5);
 export const seedingTimingMultiplierMaxIndex = timingMultiplierIndexForValue(4);
