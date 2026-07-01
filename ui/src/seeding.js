@@ -1,9 +1,14 @@
 import { defaultStepCycle, defaultStepCycleMask } from "./cyclePattern.js";
 import { defaultStepNoteForScaleRoot, midiToNoteName } from "./midiNoteNames.js";
 import { defaultStepProbabilityValue } from "./percentLimits.js";
+import { defaultPulseIndex } from "./pulseLayout.js";
+import { rowStepLayout } from "./phraseSchedule.js";
 import {
   defaultRowTimingOffsetIndex,
   defaultStepTimingMultiplierIndex,
+  rowTimingOffsetIndexForQuarters,
+  rowTimingOffsetMaxQuarters,
+  rowTimingOffsetMinQuarters,
   timingMultiplierIndexForValue,
   timingOffsetValues,
 } from "./stepCellLayout.js";
@@ -37,16 +42,11 @@ export const seedingTimingMultiplierMaxIndex = timingMultiplierIndexForValue(4);
 export const defaultSeedingTimingMeanMultiplierIndex = defaultStepTimingMultiplierIndex;
 export const defaultSeedingTimingVariance = 50;
 
-const rhythmRowTimingOffsetProfiles = [
-  [8, 8, 8, 8],
-  [8, 7, 9, 9],
-  [8, 7, 8, 9],
-  [8, 8, 9, 9],
-  [8, 8, 8, 10],
-  [8, 9, 8, 10],
-  [8, 9, 7, 9],
-  [8, 9, 7, 10],
-];
+/**
+ * Irregular archetype phase fractions within one cycle (0 = anchor, others mesh less often
+ * than uniform 0.25 spacing).
+ */
+const rhythmArchetypePhaseFractions = [0, 1 / 4, 3 / 8, 1 / 2];
 
 /** Per-step gate-length penalty (quarters of the accent value). */
 const rhythmDurationPenalties = [0, 0.02, 0.05, 0.07, 0.09, 0.12, 0.14, 0.16];
@@ -234,21 +234,43 @@ export function rhythmInterleaveRatio(step) {
   return span > 0 ? clampRhythmStep(step) / span : 0;
 }
 
-/** @param {number} step */
-function rhythmRowTimingOffsets(step) {
-  const index = clampRhythmStep(step);
-  const profile = rhythmRowTimingOffsetProfiles[index] ?? rhythmRowTimingOffsetProfiles[0];
+/**
+ * Cycle-aware row timing offsets from rhythmStep and each row's cycle length.
+ * Phase fractions follow contour archetype roles; spread scales with rhythmStep (0 = aligned).
+ *
+ * @param {number} rhythmStep
+ * @param {number[]} archetypeIndices
+ * @param {number[]} cycleLengthQuartersByRow
+ * @param {number} [masterSeed]
+ * @returns {number[]}
+ */
+export function computeRhythmRowTimingOffsets(
+  rhythmStep,
+  archetypeIndices,
+  cycleLengthQuartersByRow,
+  masterSeed = 1,
+) {
+  const spread = rhythmInterleaveRatio(rhythmStep);
 
-  return profile.map((offsetIndex) => (
-    timingOffsetValues[offsetIndex] === undefined ? defaultRowTimingOffsetIndex : offsetIndex
-  ));
-}
+  if (spread <= 0) {
+    return archetypeIndices.map(() => defaultRowTimingOffsetIndex);
+  }
 
-/** @param {number} rhythmStep @param {number[]} archetypeIndices */
-function rhythmRowTimingOffsetsForLayout(rhythmStep, archetypeIndices) {
-  const baseOffsets = rhythmRowTimingOffsets(rhythmStep);
+  const random = mulberry32(masterSeed >>> 0);
 
-  return archetypeIndices.map((archetypeIndex) => baseOffsets[archetypeIndex]);
+  return archetypeIndices.map((archetypeIndex, row) => {
+    const cycleLength = Math.max(0.25, cycleLengthQuartersByRow[row] ?? 1);
+    const phaseFraction = rhythmArchetypePhaseFractions[archetypeIndex] ?? 0;
+    const jitter = (random() * 2 - 1) * 0.125;
+    const desiredQuarters = phaseFraction * cycleLength * spread + jitter;
+    const clamped = clamp(
+      desiredQuarters,
+      rowTimingOffsetMinQuarters,
+      rowTimingOffsetMaxQuarters,
+    );
+
+    return rowTimingOffsetIndexForQuarters(clamped);
+  });
 }
 
 /**
@@ -742,7 +764,6 @@ export function generateSeededPhraseRows(settings = {}) {
   const { rhythmStep, rowSettings, root, modeIndex } = resolveSeedModeGenerationInputs(settings);
   const masterSeed = resolveMasterSeed(rowSettings);
   const { contours, archetypeIndices } = deriveRowGenerationLayout(masterSeed);
-  const rowTimingOffset = rhythmRowTimingOffsetsForLayout(rhythmStep, archetypeIndices);
   const rows = {
     notes: [],
     stepTimingMultiplier: [],
@@ -753,10 +774,10 @@ export function generateSeededPhraseRows(settings = {}) {
     stepProbability: [],
     stepCycle: [],
     stepCycleOffset: [],
-    rowTimingOffset: rowTimingOffset.map((index) => (
-      timingOffsetValues[index] === undefined ? defaultRowTimingOffsetIndex : index
-    )),
+    rowTimingOffset: [],
   };
+  /** @type {number[]} */
+  const cycleLengthQuartersByRow = [];
 
   for (let row = 0; row < 4; row += 1) {
     const generated = generateSeededPhraseRow(
@@ -777,7 +798,23 @@ export function generateSeededPhraseRows(settings = {}) {
     rows.stepProbability[row] = generated.stepProbability;
     rows.stepCycle[row] = generated.stepCycle;
     rows.stepCycleOffset[row] = generated.stepCycleOffset;
+
+    const { cycleLengthQuarters } = rowStepLayout(
+      generated.stepTimingMultiplier,
+      defaultPulseIndex,
+      generated.stepSkipped,
+    );
+    cycleLengthQuartersByRow[row] = cycleLengthQuarters;
   }
+
+  rows.rowTimingOffset = computeRhythmRowTimingOffsets(
+    rhythmStep,
+    archetypeIndices,
+    cycleLengthQuartersByRow,
+    masterSeed,
+  ).map((index) => (
+    timingOffsetValues[index] === undefined ? defaultRowTimingOffsetIndex : index
+  ));
 
   return rows;
 }

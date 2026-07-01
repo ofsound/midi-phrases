@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applySeedingRowSettingsUpdate,
+  computeRhythmRowTimingOffsets,
   createDefaultSeedModeRowSettings,
   defaultSeedingCenterMidi,
   displaySeedingRowSettings,
@@ -295,6 +296,7 @@ describe("generateSeededPhraseRows", () => {
       repetition: 0,
       randomness: 0,
       complexity: 0,
+      timingVariance: 50,
       rhythmStep: seedingRhythmStepMin,
       seed: 42,
     });
@@ -303,14 +305,16 @@ describe("generateSeededPhraseRows", () => {
       repetition: 0,
       randomness: 0,
       complexity: 0,
+      timingVariance: 50,
       rhythmStep: seedingRhythmStepMax,
       seed: 42,
     });
 
     expect(overlap.rowTimingOffset.map((index) => timingOffsetValues[index])).toEqual([0, 0, 0, 0]);
     expect(
-      [...interleave.rowTimingOffset.map((index) => timingOffsetValues[index])].sort((left, right) => left - right),
-    ).toEqual([-0.25, 0, 0.25, 0.5]);
+      Math.max(...interleave.rowTimingOffset.map((index) => timingOffsetValues[index]))
+      - Math.min(...interleave.rowTimingOffset.map((index) => timingOffsetValues[index]),
+    )).toBeGreaterThan(0.5);
     expect(overlap.stepDurationFraction[0][0]).toBeGreaterThan(interleave.stepDurationFraction[0][0]);
     expect(overlap.stepTimingMultiplier).not.toEqual(interleave.stepTimingMultiplier);
   });
@@ -483,17 +487,75 @@ describe("generateSeededPhraseRows", () => {
   it("permutes row timing offsets with the contour layout", () => {
     const seedOne = generateSeededPhraseRows({
       phraseLength: 4,
-      rhythmStep: 1,
+      rhythmStep: seedingRhythmStepMax,
+      timingVariance: 0,
+      repetition: 0,
+      randomness: 0,
+      complexity: 0,
       seed: 11,
     });
     const seedTwo = generateSeededPhraseRows({
       phraseLength: 4,
-      rhythmStep: 1,
+      rhythmStep: seedingRhythmStepMax,
+      timingVariance: 0,
+      repetition: 0,
+      randomness: 0,
+      complexity: 0,
       seed: 29,
     });
 
     expect(seedOne.rowTimingOffset).not.toEqual(seedTwo.rowTimingOffset);
     expect(new Set(seedOne.rowTimingOffset).size).toBeGreaterThan(1);
+  });
+
+  it("scales row timing offsets to each row cycle length", () => {
+    const shortCycles = computeRhythmRowTimingOffsets(
+      seedingRhythmStepMax,
+      [0, 1, 2, 3],
+      [4, 4, 4, 4],
+      1,
+    );
+    const longCycles = computeRhythmRowTimingOffsets(
+      seedingRhythmStepMax,
+      [0, 1, 2, 3],
+      [8, 8, 8, 8],
+      1,
+    );
+
+    const shortOffsets = shortCycles.map((index) => timingOffsetValues[index]);
+    const longOffsets = longCycles.map((index) => timingOffsetValues[index]);
+
+    expect(longOffsets[1]).toBeGreaterThan(shortOffsets[1]);
+    expect(longOffsets[2]).toBeGreaterThan(shortOffsets[2]);
+  });
+
+  it("uses different offsets when rows have different phrase lengths", () => {
+    const rowSettings = createDefaultSeedModeRowSettings();
+
+    for (const settings of rowSettings) {
+      settings.timingVariance = 0;
+      settings.repetition = 0;
+      settings.randomness = 0;
+      settings.complexity = 0;
+      settings.seed = 42;
+    }
+
+    rowSettings[0].phraseLength = 4;
+    rowSettings[1].phraseLength = 8;
+    rowSettings[2].phraseLength = 4;
+    rowSettings[3].phraseLength = 8;
+
+    const result = generateSeededPhraseRows({
+      rhythmStep: seedingRhythmStepMax,
+      rowSettings,
+      root: 0,
+      modeIndex: 0,
+    });
+
+    const offsets = result.rowTimingOffset.map((index) => timingOffsetValues[index]);
+
+    expect(offsets[1]).toBeGreaterThan(offsets[0]);
+    expect(offsets[3]).toBeGreaterThan(offsets[2]);
   });
 
   it("changes pitch chaos from randomness even when complexity is zero", () => {
@@ -632,11 +694,23 @@ describe("mergeSeededPhraseRows", () => {
     expect(merged).toEqual(generated);
   });
 
-  it("preserves existing rows when none are targeted", () => {
-    const existing = generateSeededPhraseRows({ ...baseOptions, seed: 1 });
-    const generated = generateSeededPhraseRows({ ...baseOptions, seed: 2 });
+  it("preserves existing row timing offsets for non-targeted rows", () => {
+    const existing = generateSeededPhraseRows({ ...baseOptions, seed: 1, rhythmStep: seedingRhythmStepMax });
+    const generated = generateSeededPhraseRows({ ...baseOptions, seed: 2, rhythmStep: seedingRhythmStepMin });
     const merged = mergeSeededPhraseRows(existing, generated, [false, false, false, false]);
 
     expect(merged).toEqual(existing);
+    expect(merged.rowTimingOffset).toEqual(existing.rowTimingOffset);
+  });
+
+  it("only replaces row timing offsets for targeted rows", () => {
+    const existing = generateSeededPhraseRows({ ...baseOptions, seed: 1, rhythmStep: seedingRhythmStepMin });
+    const generated = generateSeededPhraseRows({ ...baseOptions, seed: 2, rhythmStep: seedingRhythmStepMax });
+    const merged = mergeSeededPhraseRows(existing, generated, [false, true, false, false]);
+
+    expect(merged.rowTimingOffset[0]).toEqual(existing.rowTimingOffset[0]);
+    expect(merged.rowTimingOffset[1]).toEqual(generated.rowTimingOffset[1]);
+    expect(merged.rowTimingOffset[2]).toEqual(existing.rowTimingOffset[2]);
+    expect(merged.rowTimingOffset[3]).toEqual(existing.rowTimingOffset[3]);
   });
 });
