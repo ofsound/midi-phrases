@@ -741,22 +741,34 @@ describe("seeding aspect seeds", () => {
       ...baseOptions,
       timingVarianceSeed: 1001,
       randomnessSeed: 2002,
+      complexitySeed: 3003,
     });
     const timingReshuffle = generateSeededPhraseRows({
       ...baseOptions,
-      timingVarianceSeed: 3003,
+      timingVarianceSeed: 4004,
       randomnessSeed: 2002,
+      complexitySeed: 3003,
     });
     const randomnessReshuffle = generateSeededPhraseRows({
       ...baseOptions,
       timingVarianceSeed: 1001,
-      randomnessSeed: 4004,
+      randomnessSeed: 5005,
+      complexitySeed: 3003,
+    });
+    const complexityReshuffle = generateSeededPhraseRows({
+      ...baseOptions,
+      timingVarianceSeed: 1001,
+      randomnessSeed: 2002,
+      complexitySeed: 6006,
     });
 
     expect(timingReshuffle).not.toEqual(baseline);
     expect(randomnessReshuffle).not.toEqual(baseline);
+    expect(complexityReshuffle).not.toEqual(baseline);
     expect(timingReshuffle.notes).toEqual(baseline.notes);
     expect(randomnessReshuffle.stepTimingMultiplier).toEqual(baseline.stepTimingMultiplier);
+    expect(complexityReshuffle.stepTimingMultiplier).toEqual(baseline.stepTimingMultiplier);
+    expect(complexityReshuffle.notes).not.toEqual(baseline.notes);
   });
 
   it("keeps repetition-driven notes stable when only randomness is re-shuffled", () => {

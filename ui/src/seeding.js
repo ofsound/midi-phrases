@@ -810,6 +810,12 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
   const motif = [];
   const centerMidi = resolveSeedingCenterMidi(rowOptions.centerMidi, root, modeIndex);
   const center = Math.round(contour.centerSlot * Math.max(1, span / 6));
+  const complexityPhase = complexityRatio > 0
+    ? complexityRandom() * Math.PI * 0.5 * complexityRatio
+    : 0;
+  const complexityWave = complexityRatio > 0
+    ? (complexityRandom() * 2 - 1) * 0.22 * complexityRatio
+    : 0;
   let previous = center;
 
   for (let step = 0; step < motifLength; step += 1) {
@@ -828,15 +834,19 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
     }
 
     const periodic = Math.sin(
-      (step / Math.max(1, motifLength - 1)) * Math.PI * contour.waveFactor,
+      (step / Math.max(1, motifLength - 1)) * Math.PI * (contour.waveFactor * (1 + complexityWave))
+      + complexityPhase,
     );
     const directed = Math.round(periodic * halfSpan * (0.35 + complexityRatio * 0.45));
+    const stepWobble = complexityRatio > 0
+      ? Math.round((complexityRandom() * 2 - 1) * halfSpan * complexityRatio * 0.12)
+      : 0;
     const leapSpan = Math.max(0, Math.round(randomnessRatio * halfSpan * 0.9));
     const randomPush = leapSpan > 0
       ? randomInt(randomnessRandom, -Math.max(1, leapSpan), Math.max(1, leapSpan))
       : 0;
 
-    previous = Math.round(clamp(center + directed + randomPush, -halfSpan, halfSpan));
+    previous = Math.round(clamp(center + directed + stepWobble + randomPush, -halfSpan, halfSpan));
     motif.push(previous);
   }
 
