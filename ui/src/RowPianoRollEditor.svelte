@@ -317,6 +317,11 @@
     );
   }
 
+  /** @param {string} stepId */
+  function isMultiPitchDrag(stepId) {
+    return selectedStepIds.length > 1 && selectedStepIdSet.has(stepId);
+  }
+
   /** @param {number} velocity */
   function velocityBarHeightPx(velocity) {
     const clamped = Math.min(127, Math.max(0, Math.round(velocity)));
@@ -485,6 +490,7 @@
       pitchDragRowHeightPx: rowHeightPx,
       lockedPitchRange: { ...visiblePitchRange },
       didDrag: false,
+      multiPitchDrag: isMultiPitchDrag(note.stepId),
     };
 
     onStepBulkGestureStart(row, note.step);
@@ -493,6 +499,26 @@
   /** @param {PointerEvent} event */
   function moveNoteDrag(event) {
     if (!drag || drag.mode !== "move" || event.pointerId !== drag.pointerId) return;
+
+    if (drag.multiPitchDrag) {
+      const nextMidi = midiFromPointerDelta(
+        event,
+        drag.baseMidi,
+        drag.startY,
+        drag.pitchDragRowHeightPx,
+      );
+
+      if (nextMidi === drag.previewMidi) return;
+
+      drag = {
+        ...drag,
+        didDrag: true,
+        previewMidi: nextMidi,
+        lockedPitchRange: fittedPitchRangeForDragPreview(drag.step, nextMidi),
+      };
+      onNotePreview(row, drag.step, nextMidi);
+      return;
+    }
 
     const dragDeltaX = event.clientX - drag.startX;
     const nextMidi = midiFromPointerDelta(
@@ -581,6 +607,8 @@
     if (!finished.didDrag) return;
 
     await onNoteCommit(row, finished.step, finished.previewMidi);
+
+    if (finished.multiPitchDrag) return;
 
     if (finished.targetStep !== finished.step) {
       await onStepMove(row, finished.step, finished.targetStep);

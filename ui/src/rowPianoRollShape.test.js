@@ -28,14 +28,16 @@ describe("midiFromRollY", () => {
 });
 
 describe("midiFromPitchDragDelta", () => {
-  it("never returns an out-of-scale preview note", () => {
-    expect(midiFromPitchDragDelta(60, 1, 0, 1)).toBe(60);
-    expect(midiFromPitchDragDelta(60, 2, 0, 1)).toBe(62);
+  it("moves by scale degrees in diatonic modes", () => {
+    expect(midiFromPitchDragDelta(60, 1, 0, 1)).toBe(62);
+    expect(midiFromPitchDragDelta(60, 2, 0, 1)).toBe(64);
     expect(midiFromPitchDragDelta(64, 1, 0, 1)).toBe(65);
+    expect(midiFromPitchDragDelta(64, -1, 0, 1)).toBe(62);
   });
 
   it("remains chromatic in chromatic mode", () => {
     expect(midiFromPitchDragDelta(60, 1, 0, 0)).toBe(61);
+    expect(midiFromPitchDragDelta(60, -1, 0, 0)).toBe(59);
   });
 });
 

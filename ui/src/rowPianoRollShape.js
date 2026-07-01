@@ -1,11 +1,12 @@
-import { snapMidiToScale } from "./scaleUtils.js";
+import { isChromaticScaleMode, snapMidiToScale, transposeMidiByScaleDegrees } from "./scaleUtils.js";
 
 /**
  * @typedef {{ step: number, startQuarters: number, lengthQuarters: number }} RowRollStepSlot
  */
 
 /**
- * Convert vertical pitch-drag movement to an immediately scale-constrained note.
+ * Convert vertical pitch-drag movement to a scale-aware note.
+ * Each dragged row is one semitone in chromatic mode, otherwise one scale degree.
  *
  * @param {number} baseMidi
  * @param {number} deltaRows
@@ -13,9 +14,19 @@ import { snapMidiToScale } from "./scaleUtils.js";
  * @param {number} scaleModeIndex
  */
 export function midiFromPitchDragDelta(baseMidi, deltaRows, scaleRoot, scaleModeIndex) {
-  const rawMidi = Math.min(127, Math.max(0, Math.round(baseMidi + deltaRows)));
+  const delta = Math.round(deltaRows);
 
-  return snapMidiToScale(rawMidi, scaleRoot, scaleModeIndex);
+  if (delta === 0) {
+    return snapMidiToScale(baseMidi, scaleRoot, scaleModeIndex);
+  }
+
+  if (isChromaticScaleMode(scaleModeIndex)) {
+    return Math.min(127, Math.max(0, Math.round(baseMidi + delta)));
+  }
+
+  const snapped = snapMidiToScale(baseMidi, scaleRoot, scaleModeIndex);
+
+  return transposeMidiByScaleDegrees(snapped, delta, scaleRoot, scaleModeIndex);
 }
 
 /**
