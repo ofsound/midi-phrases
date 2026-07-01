@@ -2174,11 +2174,11 @@
     data-cursor="pointer"
     aria-label="Remove step"
     aria-disabled={removeBlocked}
-    class="step-remove-button absolute top-0.5 left-0 z-[80] flex h-5 w-5 items-center justify-center rounded-tl-lg p-0 transition-colors outline-none {removeBlocked
+    class="step-remove-button absolute top-0.5 left-0 z-[80] flex h-5 w-5 items-center justify-center rounded-tl-lg p-0 outline-none {removeBlocked
       ? 'pointer-events-none'
       : 'pointer-events-auto'} {dimmed
-      ? 'text-text-faint hover:text-text-muted'
-      : `text-text-secondary hover:text-text ${accent.textAccentFocus}`}"
+      ? 'text-text-faint'
+      : `text-text-secondary ${accent.textAccentFocus}`}"
     onpointerdowncapture={(event) => event.stopPropagation()}
     onpointerdown={(event) => event.stopPropagation()}
     onmousedown={(event) => event.stopPropagation()}
