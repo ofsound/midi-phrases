@@ -5818,6 +5818,22 @@
       <div class="flex shrink-0 items-stretch gap-1.5">
         <button
           type="button"
+          aria-label={`${seedModeActive ? "Leave" : "Enter"} seed mode for pattern ${activePatternSlot >= 0 ? activePatternSlot + 1 : viewPatternSlot + 1} in ${activeScaleName}`}
+          aria-pressed={seedModeActive}
+          title={seedModeActive ? "Leave seed mode" : "Enter seed mode"}
+          disabled={projectOperationBusy}
+          data-cursor="pointer"
+          class="flex w-12 shrink-0 items-center justify-center self-stretch rounded-md border outline-none transition-colors focus-visible:ring-1 focus-visible:ring-focus-ring disabled:opacity-40 {seedModeActive
+            ? 'border-accent bg-accent text-control-primary-text shadow-accent-selection'
+            : 'border-border bg-surface/30 text-accent hover:border-border-strong'}"
+          onclick={() => {
+            void toggleSeedMode();
+          }}
+        >
+          <SaplingIcon class="pointer-events-none h-8 w-8" />
+        </button>
+        <button
+          type="button"
           aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
           aria-pressed={scaleDialogOpen}
           title={activeScaleName}
@@ -5835,22 +5851,6 @@
             class="pointer-events-none max-w-[6.25rem] truncate text-xs font-semibold leading-none text-accent"
             >{activeScaleModeLabel}</span
           >
-        </button>
-        <button
-          type="button"
-          aria-label={`${seedModeActive ? "Leave" : "Enter"} seed mode for pattern ${activePatternSlot >= 0 ? activePatternSlot + 1 : viewPatternSlot + 1} in ${activeScaleName}`}
-          aria-pressed={seedModeActive}
-          title={seedModeActive ? "Leave seed mode" : "Enter seed mode"}
-          disabled={projectOperationBusy}
-          data-cursor="pointer"
-          class="flex w-12 shrink-0 items-center justify-center self-stretch rounded-md border outline-none transition-colors focus-visible:ring-1 focus-visible:ring-focus-ring disabled:opacity-40 {seedModeActive
-            ? 'border-accent bg-accent text-control-primary-text shadow-accent-selection'
-            : 'border-border bg-surface/30 text-accent hover:border-border-strong'}"
-          onclick={() => {
-            void toggleSeedMode();
-          }}
-        >
-          <SaplingIcon class="pointer-events-none h-8 w-8" />
         </button>
       </div>
 
