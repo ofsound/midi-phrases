@@ -1,5 +1,21 @@
 export const compactStepMinimumVelocityOpacity = 0.22;
 export const compactStepSkippedOpacity = 0.12;
+export const durationBarMinimumVelocityOpacity = 0.2;
+
+/**
+ * Opacity for duration-bar fill and monophonic piano-roll notes.
+ * Matches DurationBar: 20% floor at velocity 0, full strength at 127.
+ *
+ * @param {number} velocity
+ */
+export function durationBarFillOpacity(velocity) {
+  const normalizedVelocity = Math.min(127, Math.max(0, Number(velocity) || 0)) / 127;
+
+  return (
+    durationBarMinimumVelocityOpacity +
+    (1 - durationBarMinimumVelocityOpacity) * normalizedVelocity
+  );
+}
 
 /**
  * Accent-layer opacity for a compact step. The non-zero floor keeps velocity-zero

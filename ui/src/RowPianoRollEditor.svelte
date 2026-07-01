@@ -28,6 +28,7 @@
   import RowPianoRollModeIcon from "./RowPianoRollModeIcon.svelte";
   import RowShapeDrawIcon from "./RowShapeDrawIcon.svelte";
   import BulkStepEditControls from "./BulkStepEditControls.svelte";
+  import { durationBarFillOpacity } from "./compactStepVisuals.js";
   import CompactStepResizeHandle from "./CompactStepResizeHandle.svelte";
   import StepSkippedOverlay from "./StepSkippedOverlay.svelte";
   import {
@@ -1021,6 +1022,8 @@
               {@const inspected = inspectedStepId === note.stepId}
               {@const highlighted = selected || inspected}
               {@const playbackActive = note.active && !note.dimmed}
+              {@const noteFillOpacity =
+                highlighted || playbackActive ? 1 : durationBarFillOpacity(note.velocity)}
               {@const displayMidi = drag?.mode === "move" && drag.step === note.step ? drag.previewMidi : note.midi}
               {@const displayLabel = midiToNoteName(displayMidi)}
               <div
@@ -1065,6 +1068,7 @@
                     ? rowAccent.pianoNoteActive
                     : rowAccent.pianoNoteIdle} {note.dimmed ? 'opacity-35' : ''}"
                   style:width="{note.durationWidthPx}px"
+                  style:opacity={note.dimmed ? undefined : noteFillOpacity}
                   onpointerdown={(event) => {
                     if (isShapeDrawMode) return;
                     beginNoteDrag(event, note);

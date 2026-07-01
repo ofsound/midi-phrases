@@ -1,4 +1,5 @@
 <script>
+  import { durationBarFillOpacity } from "./compactStepVisuals.js";
   import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import StepMutedOverlay from "./StepMutedOverlay.svelte";
@@ -47,7 +48,7 @@
   let dragging = $state(false);
 
   let fillPercent = $derived(Math.min(100, Math.max(0, value * 100)));
-  let fillOpacity = $derived(0.2 + (Math.min(127, Math.max(0, velocity)) / 127) * 0.8);
+  let fillOpacity = $derived(durationBarFillOpacity(velocity));
   let showMutedHatch = $derived(stepMuted && !muted);
   let displayFillPercent = $derived(showMutedHatch ? 0 : fillPercent);
 

@@ -4,7 +4,23 @@ import {
   compactStepMinimumVelocityOpacity,
   compactStepSkippedOpacity,
   compactStepVelocityOpacity,
+  durationBarFillOpacity,
+  durationBarMinimumVelocityOpacity,
 } from "./compactStepVisuals.js";
+
+describe("durationBarFillOpacity", () => {
+  it("maps MIDI velocity to increasing accent strength", () => {
+    expect(durationBarFillOpacity(0)).toBe(durationBarMinimumVelocityOpacity);
+    expect(durationBarFillOpacity(64)).toBeGreaterThan(durationBarFillOpacity(32));
+    expect(durationBarFillOpacity(127)).toBe(1);
+  });
+
+  it("clamps invalid or out-of-range values", () => {
+    expect(durationBarFillOpacity(-10)).toBe(durationBarMinimumVelocityOpacity);
+    expect(durationBarFillOpacity(Number.NaN)).toBe(durationBarMinimumVelocityOpacity);
+    expect(durationBarFillOpacity(200)).toBe(1);
+  });
+});
 
 describe("compactStepVelocityOpacity", () => {
   it("maps MIDI velocity to increasing accent strength", () => {
