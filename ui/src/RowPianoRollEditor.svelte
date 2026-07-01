@@ -67,7 +67,7 @@
    * @property {(row: number, updates: { step: number, velocity: number }[]) => void | Promise<void>} [onShapeVelocitiesCommit]
    * @property {(row: number, step: number, multiplierIndex?: number) => void | Promise<void>} [onInsertStep]
    * @property {(row: number, step: number) => void | Promise<void>} [onDuplicateStep]
-   * @property {(event: PointerEvent) => void} [onBulkSelectPointerDown]
+   * @property {(event: PointerEvent, origin?: { toggleStep?: boolean }) => void} [onBulkSelectPointerDown]
    * @property {number} [bulkDurationPercent]
    * @property {number} [bulkVelocityPercent]
    * @property {number} [bulkLengthDelta]
@@ -450,9 +450,11 @@
     if (isShapeDrawMode) return;
 
     if (event.shiftKey) {
-      onBulkSelectPointerDown(event);
+      onBulkSelectPointerDown(event, { toggleStep: true });
       return;
     }
+
+    void onInspectStep(row, note.step, note.stepId);
 
     event.preventDefault();
     event.stopPropagation();
@@ -485,7 +487,6 @@
       didDrag: false,
     };
 
-    void onInspectStep(row, note.step, note.stepId);
     onStepBulkGestureStart(row, note.step);
   }
 
@@ -702,13 +703,17 @@
     void onOpenAdvancedInspector(row, note.step, note.stepId);
   }
 
-  /** @param {PointerEvent} event */
-  function handleNoteOutlinePointerDown(event) {
+  /** @param {PointerEvent} event @param {any} note */
+  function handleNoteOutlinePointerDown(event, note) {
     if (isShapeDrawMode) return;
+    if (event.target !== event.currentTarget) return;
 
-    if (!event.shiftKey || event.target !== event.currentTarget) return;
+    if (event.shiftKey) {
+      onBulkSelectPointerDown(event, { toggleStep: true });
+      return;
+    }
 
-    onBulkSelectPointerDown(event);
+    void onInspectStep(row, note.step, note.stepId);
   }
 
   /** @param {PointerEvent} event */
@@ -1035,12 +1040,12 @@
                   : ''} {playbackActive ? rowAccent.playbackGlow : ''}"
                 role="group"
                 aria-label={`Step ${note.step + 1}`}
-                title="Shift-click to toggle selection · Double-click for advanced settings"
+                title="Click to select · Shift-click to add or remove from selection · Double-click for advanced settings"
                 style:left="{note.leftPx}px"
                 style:top="{pitchTopPx(displayMidi) + 1}px"
                 style:width="{note.fullStepWidthPx}px"
                 style:height="{Math.max(8, rowHeightPx - 2)}px"
-                onpointerdown={handleNoteOutlinePointerDown}
+                onpointerdown={(event) => handleNoteOutlinePointerDown(event, note)}
                 ondblclick={(event) => {
                   if (isShapeDrawMode) return;
                   openAdvancedInspector(event, note);
@@ -1060,9 +1065,9 @@
                 <button
                   type="button"
                   data-cursor="grab"
-                  aria-label={`Move ${midiToNoteName(note.midi)} step ${note.step + 1}; Shift-click to toggle selection`}
+                  aria-label={`Move ${midiToNoteName(note.midi)} step ${note.step + 1}; click to select, Shift-click to add or remove from selection`}
                   aria-pressed={selected}
-                  title="Drag to move · Shift-click to toggle selection · Double-click for advanced settings"
+                  title="Click to select · Drag to move · Shift-click to add or remove from selection · Double-click for advanced settings"
                   class="absolute top-0 left-0 flex h-full items-center rounded-sm border px-1 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {highlighted
                     || playbackActive
                     ? rowAccent.pianoNoteActive

@@ -6322,10 +6322,10 @@
           : null}
         selectedStepIds={selectedStepIdsByRow[activeRowPianoRollEditor.row]}
         accent={rowAccentFor(activeRowPianoRollEditor.row, rowColorsEnabled)}
-        onInspectStep={(row, step, stepId) =>
-          openRowPianoRollEditor(row, step, stepId, {
-            selectStep: stretchStepsToFit,
-          })}
+        onInspectStep={(row, step, stepId) => {
+          rowPianoRollStep = { row, stepId };
+          prepareStepSelection(row, step, stepId);
+        }}
         onNotePreview={previewPhraseNoteValue}
         onNoteCommit={commitPhraseNoteValue}
         onShapeVelocitiesCommit={commitPhraseRowVelocityShape}
