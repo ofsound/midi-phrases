@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <unordered_map>
 
 namespace
@@ -12,7 +13,7 @@ constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double roundRobinOverlapFraction = 0.25;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 23;
+constexpr int phraseStateVersion = 24;
 
 int clampStepProbability (const int probability)
 {
@@ -4493,6 +4494,117 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
             if (durationGate > epsilon)
                 event.gateQuarters = durationGate;
+        }
+    }
+
+    if (combinationModeEnabled (modeMask, combinationModeHocket) && activeRowCount > 1)
+    {
+        const auto sliceQuarters = pulse / static_cast<double> (activeRowCount);
+
+        if (sliceQuarters > epsilon)
+        {
+            auto minSlice = std::numeric_limits<int>::max();
+            auto maxSlice = std::numeric_limits<int>::min();
+
+            for (size_t index = 0; index < eventCount; ++index)
+            {
+                const auto& event = combinedEvents[index];
+                const auto eventEnd = event.ppq + event.gateQuarters;
+
+                if (eventEnd <= event.ppq + epsilon)
+                    continue;
+
+                const auto firstSlice = static_cast<int> (std::floor ((event.ppq + epsilon) / sliceQuarters));
+                const auto lastSlice = static_cast<int> (std::ceil ((eventEnd - epsilon) / sliceQuarters)) - 1;
+
+                minSlice = juce::jmin (minSlice, firstSlice);
+                maxSlice = juce::jmax (maxSlice, lastSlice);
+            }
+
+            auto write = static_cast<size_t> (0);
+
+            if (minSlice <= maxSlice)
+            {
+                for (int slice = minSlice; slice <= maxSlice && write < combinedWorkingEvents.size(); ++slice)
+                {
+                    const auto sliceStart = static_cast<double> (slice) * sliceQuarters;
+                    const auto sliceEnd = sliceStart + sliceQuarters;
+                    const auto targetIndex = ((slice % activeRowCount) + activeRowCount) % activeRowCount;
+                    const auto targetRow = activeRows[static_cast<size_t> (targetIndex)];
+                    auto candidateCount = 0;
+                    auto totalWeight = 0;
+
+                    for (size_t index = 0; index < eventCount; ++index)
+                    {
+                        const auto& event = combinedEvents[index];
+                        const auto eventEnd = event.ppq + event.gateQuarters;
+                        const auto start = juce::jmax (event.ppq, sliceStart);
+                        const auto end = juce::jmin (eventEnd, sliceEnd);
+
+                        if (end <= start + epsilon)
+                            continue;
+
+                        ++candidateCount;
+                        totalWeight += juce::jmax (1, event.velocity);
+                    }
+
+                    if (candidateCount <= 0)
+                        continue;
+
+                    auto pick = static_cast<int> (
+                        deterministicEventHash (targetRow, slice, sliceStart)
+                        % static_cast<std::uint32_t> (juce::jmax (1, totalWeight)));
+                    auto selected = static_cast<size_t> (0);
+                    auto found = false;
+
+                    for (size_t index = 0; index < eventCount; ++index)
+                    {
+                        const auto& event = combinedEvents[index];
+                        const auto eventEnd = event.ppq + event.gateQuarters;
+                        const auto start = juce::jmax (event.ppq, sliceStart);
+                        const auto end = juce::jmin (eventEnd, sliceEnd);
+
+                        if (end <= start + epsilon)
+                            continue;
+
+                        pick -= juce::jmax (1, event.velocity);
+
+                        if (pick < 0)
+                        {
+                            selected = index;
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (! found)
+                        continue;
+
+                    const auto& source = combinedEvents[selected];
+                    const auto sourceEnd = source.ppq + source.gateQuarters;
+                    const auto start = juce::jmax (source.ppq, sliceStart);
+                    const auto end = juce::jmin (sourceEnd, sliceEnd);
+                    const auto gate = juce::jmin (end - start, sliceQuarters * 0.85);
+
+                    if (gate <= epsilon)
+                        continue;
+
+                    auto copy = source;
+                    copy.ppq = start;
+                    copy.gateQuarters = gate;
+                    copy.row = targetRow;
+                    copy.channel = state.midiChannel[static_cast<size_t> (targetRow)];
+                    combinedWorkingEvents[write++] = copy;
+                }
+            }
+
+            eventCount = write;
+            copyFilteredEvents (eventCount);
+
+            if (eventCount == 0)
+                return;
+
+            sortCombinedEvents();
         }
     }
 

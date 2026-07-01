@@ -116,14 +116,82 @@ describe("combination mode pulse-aware timing", () => {
   it("places Round Robin after Cross-Mod and before Bloom in the mode rail", () => {
     expect(combinationModes.map((mode) => mode.name)).toEqual([
       "Cross-Mod",
+      "Hocket",
       "Round Robin",
       "Bloom",
       "Counter",
       "Echo",
       "Weave",
     ]);
-    expect(combinationModes[1]).toMatchObject({index: 5, bit: 32});
-    expect(combinationModes[5]).toMatchObject({index: 4, bit: 16});
+    expect(combinationModes[1]).toMatchObject({index: 6, bit: 64});
+    expect(combinationModes[2]).toMatchObject({index: 5, bit: 32});
+    expect(combinationModes[6]).toMatchObject({index: 4, bit: 16});
+  });
+
+  it("hockets overlapping rows into one short handoff per pulse slice", () => {
+    const schedule = buildPhraseScheduleBeforeBandpass({
+      notes: [[60], [67], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      stepDurationFraction: [[1], [1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[100], [100], [], []],
+      stepMuted: [[false], [false], [], []],
+      stepSkipped: [[false], [false], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 6,
+      lengthQuarters: 2,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+
+    expect(schedule.map((note) => note.start)).toEqual([0, 0.5, 1, 1.5]);
+    expect(schedule.map((note) => note.row)).toEqual([0, 1, 0, 1]);
+    expect(schedule.every((note) => note.end - note.start <= 0.425 + 1e-9)).toBe(true);
+
+    for (const start of [0, 0.5, 1, 1.5]) {
+      expect(schedule.filter((note) => note.start === start)).toHaveLength(1);
+    }
+  });
+
+  it("leaves a single active row unchanged in Hocket mode", () => {
+    const base = buildPhraseScheduleBeforeBandpass({
+      notes: [[60], [], [], []],
+      rowMuted: [false, true, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      stepDurationFraction: [[1], [], [], []],
+      stepTimingMultiplier: [[defaultStepTimingMultiplierIndex], [], [], []],
+      stepVelocity: [[100], [], [], []],
+      stepMuted: [[false], [], [], []],
+      stepSkipped: [[false], [], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 0,
+      lengthQuarters: 2,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+    const hocketed = buildPhraseScheduleBeforeBandpass({
+      notes: [[60], [], [], []],
+      rowMuted: [false, true, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      stepDurationFraction: [[1], [], [], []],
+      stepTimingMultiplier: [[defaultStepTimingMultiplierIndex], [], [], []],
+      stepVelocity: [[100], [], [], []],
+      stepMuted: [[false], [], [], []],
+      stepSkipped: [[false], [], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 6,
+      lengthQuarters: 2,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+
+    expect(hocketed).toEqual(base);
   });
 
   it("keeps Bloom ornaments on sparse half-note anchors at quarter pulse", () => {

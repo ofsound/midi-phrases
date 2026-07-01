@@ -23,10 +23,11 @@ const MAX_COMBINED_PREVIEW_NOTES = 4096;
 const COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR = 2;
 const ROUND_ROBIN_OVERLAP_FRACTION = 0.25;
 const DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS = 64;
-export const combinationModeMaskBits = 0x3f;
+export const combinationModeMaskBits = 0x7f;
 /** Display order matches processing order. Weave keeps its legacy bit and runs last. */
 export const combinationModes = [
   {index: 0, bit: 1, icon: "crossMod", name: "Cross-Mod"},
+  {index: 6, bit: 64, icon: "hocket", name: "Hocket"},
   {index: 5, bit: 32, icon: "roundRobin", name: "Round Robin"},
   {index: 1, bit: 2, icon: "bloom", name: "Bloom"},
   {index: 2, bit: 4, icon: "counter", name: "Counter"},
@@ -543,6 +544,96 @@ function eventStartCollides(events, start) {
 }
 
 /**
+ * @param {ScheduledNote[]} events
+ * @param {number[]} activeRows
+ * @param {number} pulseQuarters
+ * @param {number} lengthQuarters
+ * @returns {ScheduledNote[]}
+ */
+function hocketEvents(events, activeRows, pulseQuarters, lengthQuarters) {
+  if (activeRows.length <= 1 || events.length === 0) return events;
+
+  const sliceQuarters = pulseQuarters / activeRows.length;
+
+  if (sliceQuarters <= EPSILON) return events;
+
+  /** @type {Map<number, ScheduledNote[]>} */
+  const candidatesBySlice = new Map();
+
+  for (const event of events) {
+    const eventEnd = event.end;
+
+    if (eventEnd <= event.start + EPSILON) continue;
+
+    const firstSlice = Math.floor((event.start + EPSILON) / sliceQuarters);
+    const lastSlice = Math.ceil((eventEnd - EPSILON) / sliceQuarters) - 1;
+
+    for (let slice = firstSlice; slice <= lastSlice; slice += 1) {
+      const sliceStart = slice * sliceQuarters;
+      const sliceEnd = sliceStart + sliceQuarters;
+
+      if (sliceStart >= lengthQuarters - EPSILON) continue;
+
+      const start = Math.max(event.start, sliceStart);
+      const end = Math.min(eventEnd, sliceEnd, lengthQuarters);
+      const duration = end - start;
+
+      if (duration <= EPSILON) continue;
+
+      const targetRow = activeRows[((slice % activeRows.length) + activeRows.length) % activeRows.length];
+      const gate = Math.min(duration, sliceQuarters * 0.85);
+
+      if (gate <= EPSILON) continue;
+
+      const candidate = {
+        ...event,
+        start,
+        end: start + gate,
+        row: targetRow,
+      };
+      const bucket = candidatesBySlice.get(slice);
+
+      if (bucket) {
+        bucket.push(candidate);
+      } else {
+        candidatesBySlice.set(slice, [candidate]);
+      }
+    }
+  }
+
+  if (candidatesBySlice.size === 0) return [];
+
+  /** @type {ScheduledNote[]} */
+  const hocketed = [];
+
+  for (const [slice, candidates] of [...candidatesBySlice.entries()].sort((a, b) => a[0] - b[0])) {
+    if (hocketed.length >= MAX_COMBINED_PREVIEW_NOTES) break;
+
+    if (candidates.length === 1) {
+      hocketed.push(candidates[0]);
+      continue;
+    }
+
+    const targetRow = candidates[0]?.row ?? activeRows[0];
+    const totalWeight = candidates.reduce((total, event) => total + Math.max(1, event.velocity), 0);
+    let pick = deterministicEventHash(targetRow, slice, slice * sliceQuarters) % Math.max(1, totalWeight);
+
+    for (const event of candidates) {
+      pick -= Math.max(1, event.velocity);
+
+      if (pick < 0) {
+        hocketed.push(event);
+        break;
+      }
+    }
+  }
+
+  return hocketed.sort(
+    (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+  );
+}
+
+/**
  * @param {number} ppq
  * @param {number[]} activeRows
  * @param {number} gesturePulse
@@ -620,6 +711,12 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
       };
     });
   }
+
+  if (combinationModeEnabled(combinationModeMask, 6) && activeRows.length > 1) {
+    events = hocketEvents(events, activeRows, pulseQuartersForIndex(pulseIndex), lengthQuarters);
+  }
+
+  if (events.length === 0) return [];
 
   if (combinationModeEnabled(combinationModeMask, 5) && activeRows.length > 1) {
     /** @type {ScheduledNote[]} */

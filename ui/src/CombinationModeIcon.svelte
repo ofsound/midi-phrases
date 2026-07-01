@@ -1,8 +1,8 @@
 <script>
   /**
-   * Combination-mode glyphs (Cross-Mod, Bloom, Counter, Echo, Round Robin, Weave).
+   * Combination-mode glyphs (Cross-Mod, Hocket, Bloom, Counter, Echo, Round Robin, Weave).
    *
-   * @typedef {'crossMod' | 'bloom' | 'counter' | 'echo' | 'roundRobin' | 'weave'} CombinationModeIconKind
+   * @typedef {'crossMod' | 'hocket' | 'bloom' | 'counter' | 'echo' | 'roundRobin' | 'weave'} CombinationModeIconKind
    * @typedef {Object} Props
    * @property {CombinationModeIconKind} kind
    * @property {string} [class]
@@ -48,6 +48,34 @@
       stroke-linecap="round"
       stroke-linejoin="round"
     />
+  {:else if kind === "hocket"}
+    <!-- Long gestures broken into alternating row handoffs. -->
+    <path d="M4 6 H7.25" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" opacity="0.7" />
+    <path d="M4 12 H7.25" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" opacity="0.7" />
+    <path d="M4 18 H7.25" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" opacity="0.7" />
+    <path
+      d="M7.25 6 C10 6 10 12 12.75 12 C15.5 12 15.5 18 18.25 18"
+      stroke="currentColor"
+      stroke-width="1.45"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M7.25 18 C10 18 10 12 12.75 12 C15.5 12 15.5 6 18.25 6"
+      stroke="currentColor"
+      stroke-width="1.45"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.55"
+    />
+    <circle cx="4" cy="6" r="1.45" fill="currentColor" opacity="0.7" />
+    <circle cx="4" cy="12" r="1.45" fill="currentColor" opacity="0.7" />
+    <circle cx="4" cy="18" r="1.45" fill="currentColor" opacity="0.7" />
+    <path d="M11.7 9.75 V14.25" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" opacity="0.4" />
+    <path d="M14.3 9.75 V14.25" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" opacity="0.4" />
+    <circle cx="20" cy="6" r="1.45" fill="currentColor" />
+    <circle cx="20" cy="12" r="1.45" fill="currentColor" />
+    <circle cx="20" cy="18" r="1.45" fill="currentColor" />
   {:else if kind === "bloom"}
     <!-- Source onset with trailing scale-neighbor ornaments. -->
     <circle cx="4" cy="12" r="1.6" fill="currentColor" />

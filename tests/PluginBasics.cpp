@@ -422,6 +422,83 @@ TEST_CASE ("Round Robin mode gates rows with overlap note choice", "[instance]")
     testPlugin.setPlayHead (nullptr);
 }
 
+TEST_CASE ("Hocket mode slices overlapping rows into interlocking handoffs", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 2048;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 67);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (row,
+                                                    0,
+                                                    PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    playHead.info.setPpqPosition (0.0);
+    testPlugin.setPlayHead (&playHead);
+
+    testPlugin.processBlock (buffer, midi);
+
+    std::array<int, blockSize> noteOnsBySample {};
+    auto totalNoteOns = 0;
+
+    for (const auto metadata : midi)
+    {
+        const auto message = metadata.getMessage();
+
+        if (message.isNoteOn())
+        {
+            ++noteOnsBySample[static_cast<size_t> (metadata.samplePosition)];
+            ++totalNoteOns;
+        }
+    }
+
+    CHECK (noteOnsBySample[0] == 1);
+    CHECK (noteOnsBySample[250] == 1);
+    CHECK (noteOnsBySample[500] == 1);
+    CHECK (noteOnsBySample[750] == 1);
+
+    for (const auto count : noteOnsBySample)
+        CHECK (count <= 1);
+
+    CHECK (totalNoteOns >= 4);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Pattern note bandpass filters scheduled output", "[instance]")
 {
     PluginProcessor testPlugin;
@@ -2773,6 +2850,15 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getCurrentPatternSlot() == 2);
         CHECK (testPlugin.getAudioPatternSlot() == 0);
 
+        for (const auto ppq : { 0.35, 0.45, 0.55, 0.65, 0.75, 0.85 })
+        {
+            midi.clear();
+            playHead.info.setPpqPosition (ppq);
+            testPlugin.processBlock (buffer, midi);
+
+            CHECK (testPlugin.getAudioPatternSlot() == 0);
+        }
+
         midi.clear();
         playHead.info.setPpqPosition (0.95);
         testPlugin.processBlock (buffer, midi);
@@ -3780,6 +3866,16 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.processBlock (buffer, midi);
 
         testPlugin.setCurrentPatternSlot (2);
+
+        for (const auto ppq : { 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.85 })
+        {
+            midi.clear();
+            playHead.info.setPpqPosition (ppq);
+            testPlugin.processBlock (buffer, midi);
+
+            CHECK (testPlugin.getAudioPatternSlot() == 0);
+        }
+
         midi.clear();
         playHead.info.setPpqPosition (0.95);
         testPlugin.processBlock (buffer, midi);
@@ -3947,9 +4043,13 @@ TEST_CASE ("Plugin instance", "[instance]")
 
         playHead.info.setBpm (600.0);
         playHead.info.setIsPlaying (true);
-        playHead.info.setPpqPosition (0.99);
+        playHead.info.setPpqPosition (0.0);
         testPlugin.setPlayHead (&playHead);
 
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setPpqPosition (1.0);
         testPlugin.processBlock (buffer, midi);
 
         int swungNoteOnSample = -1;
@@ -4476,6 +4576,13 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.processBlock (buffer, midi);
 
         CHECK (testPlugin.getCurrentPatternSlot() == -1);
+
+        for (const auto ppq : { 0.35, 0.45, 0.55, 0.65, 0.75, 0.85 })
+        {
+            midi.clear();
+            playHead.info.setPpqPosition (ppq);
+            testPlugin.processBlock (buffer, midi);
+        }
 
         midi.clear();
         midi.addEvent (juce::MidiMessage::noteOn (1, 2, static_cast<juce::uint8> (100)), 0);
