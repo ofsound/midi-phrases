@@ -79,7 +79,7 @@
 
 </script>
 
-<aside class="seed-mode-panel grid min-h-[29rem] w-[25rem] max-w-[42vw] shrink-0 content-start gap-2 border-r border-border-subtle bg-surface/20 px-4 py-4 sm:px-5">
+<aside class="seed-mode-panel grid min-h-[29rem] w-[25rem] max-w-[42vw] shrink-0 content-start gap-2 border-r border-border-subtle bg-transparent py-4 pr-4 pl-0 sm:pr-5">
   <div class="grid gap-2">
     <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,50%)] items-end gap-3">
       <SeedRowTargetRail

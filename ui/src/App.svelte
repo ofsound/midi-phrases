@@ -5897,8 +5897,8 @@
   </div>
 
   <section class="flex min-h-0 flex-1 flex-col">
-    <div class="w-full shrink-0">
-      <div class="flex min-w-0 items-stretch {seedModeActive ? 'border-y border-border-subtle bg-surface/20' : ''}">
+    <div class="w-full shrink-0 {seedModeActive ? '-mx-6 w-[calc(100%+3rem)] border-y border-border-subtle bg-surface/20' : ''}">
+      <div class="flex min-w-0 items-stretch {seedModeActive ? 'px-6' : ''}">
       {#if seedModeActive}
         <SeedModePanel
           rhythmStep={seedModeRhythmStep}
