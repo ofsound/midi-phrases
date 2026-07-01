@@ -169,7 +169,7 @@ public:
     static constexpr int maxSeedingRangeSemitones = 48;
     static constexpr int defaultSeedingRepetition = 45;
     static constexpr int defaultSeedingComplexity = 50;
-    static constexpr int defaultSeedingRandomness = 45;
+    static constexpr int defaultSeedingRandomness = 0;
     static constexpr int defaultSeedingTimingMeanMultiplierIndex = 3;
     static constexpr int minSeedingTimingMeanMultiplierIndex = 1;
     static constexpr int maxSeedingTimingMeanMultiplierIndex = 15;

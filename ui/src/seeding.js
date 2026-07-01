@@ -60,7 +60,7 @@ export const defaultSeedingSettings = {
   rangeSemitones: defaultSeedingRangeSemitones,
   repetition: 45,
   complexity: 50,
-  randomness: 45,
+  randomness: 0,
   timingMeanMultiplierIndex: defaultSeedingTimingMeanMultiplierIndex,
   timingVariance: defaultSeedingTimingVariance,
   symmetry: false,
