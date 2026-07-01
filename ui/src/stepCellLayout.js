@@ -91,10 +91,38 @@ export function stepCellBaseWidthPx() {
 }
 
 /**
- * Row timing offset in step-timing-multiplier units on the fixed quarter grid
- * (e.g. 0.25 = one 0.25× step column); matches PluginProcessor::rowTimingOffsetValues.
+ * Row timing offset in quarter notes on the fixed 0.25 grid
+ * (matches PluginProcessor::rowTimingOffsetForIndex).
  */
-export const timingOffsetValues = [-0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75];
+export const rowTimingOffsetMinQuarters = -2;
+export const rowTimingOffsetMaxQuarters = 2;
+export const rowTimingOffsetQuarterStep = stepTimingMultiplierQuarterStep;
+
+export const rowTimingOffsetCount = Math.round(
+  (rowTimingOffsetMaxQuarters - rowTimingOffsetMinQuarters) / rowTimingOffsetQuarterStep,
+) + 1;
+
+/** @param {number} offsetIndex */
+export function rowTimingOffsetQuartersAtIndex(offsetIndex) {
+  const index = Math.min(rowTimingOffsetCount - 1, Math.max(0, offsetIndex));
+
+  return rowTimingOffsetMinQuarters + index * rowTimingOffsetQuarterStep;
+}
+
+/** @param {number} quarters */
+export function rowTimingOffsetIndexForQuarters(quarters) {
+  const index = Math.round((quarters - rowTimingOffsetMinQuarters) / rowTimingOffsetQuarterStep);
+
+  return Math.min(rowTimingOffsetCount - 1, Math.max(0, index));
+}
+
+/** Default index for 0 quarter-note offset. */
+export const defaultRowTimingOffsetIndex = rowTimingOffsetIndexForQuarters(0);
+
+export const timingOffsetValues = Array.from(
+  { length: rowTimingOffsetCount },
+  (_, index) => rowTimingOffsetQuartersAtIndex(index),
+);
 
 /** @param {number} durationQuarters */
 export function durationToQuarterGridSteps(durationQuarters) {
@@ -113,7 +141,7 @@ export function quarterGridStepsToWidthPx(quarterGridSteps) {
  * @param {number} offsetIndex
  */
 export function rowTimingOffsetShiftPx(offsetIndex) {
-  const offsetMultiplier = timingOffsetValues[offsetIndex] ?? 0;
+  const offsetMultiplier = rowTimingOffsetQuartersAtIndex(offsetIndex);
 
   return quarterGridStepsToWidthPx(durationToQuarterGridSteps(offsetMultiplier));
 }
@@ -278,7 +306,7 @@ export function longestRowQuarterGridColumns(rows) {
 
 /** Timing offset expressed in the same quarter-grid columns used by step spans. */
 export function rowTimingOffsetQuarterGridColumns(offsetIndex) {
-  return durationToQuarterGridSteps(timingOffsetValues[offsetIndex] ?? 0);
+  return durationToQuarterGridSteps(rowTimingOffsetQuartersAtIndex(offsetIndex));
 }
 
 /**

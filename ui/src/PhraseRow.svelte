@@ -63,6 +63,7 @@
     phraseStepDropIndicatorHeightPx,
   } from "./phraseRowLayout.js";
   import {
+    defaultRowTimingOffsetIndex,
     defaultStepTimingMultiplierIndex,
     insertStepTimingMultiplierOptions,
     maxPhraseStepsPerRow,
@@ -116,7 +117,7 @@
    * @property {number} [row]
    * @property {boolean} [muted]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
-   * @property {number} [timingOffsetIndex] - Index into timingOffsetValues (default 3 = 0 quarters).
+   * @property {number} [timingOffsetIndex] - Index into timingOffsetValues (default = 0 quarters).
    * @property {number} [timingOffsetVisualCompensationPx] - UI-only margin added when any row has a negative offset (see phraseRowLayout).
    * @property {number} [pulseIndex]
    * @property {string[]} [stepIds]
@@ -185,7 +186,7 @@
     row = 0,
     muted = false,
     accent = emeraldRowAccent,
-    timingOffsetIndex = 3,
+    timingOffsetIndex = defaultRowTimingOffsetIndex,
     timingOffsetVisualCompensationPx = 0,
     pulseIndex = 1,
     stepIds = [],

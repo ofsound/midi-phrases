@@ -566,12 +566,12 @@ describe("phraseRowsFromGridState", () => {
     const rows = phraseRowsFromGridState({
       grid: [[60, 62], [64, 65], [67, 69], [71, 72]],
       stepTimingMultiplier: [[3, 4], [3, 3], [3, 3], [3, 3]],
-      rowTimingOffset: [3, 4, 5, 6],
+      rowTimingOffset: [8, 9, 10, 11],
     });
 
     expect(rows.notes).toEqual([[60, 62], [64, 65], [67, 69], [71, 72]]);
     expect(rows.stepTimingMultiplier[0]).toEqual([3, 4]);
-    expect(rows.rowTimingOffset).toEqual([3, 4, 5, 6]);
+    expect(rows.rowTimingOffset).toEqual([8, 9, 10, 11]);
   });
 });
 

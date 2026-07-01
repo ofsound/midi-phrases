@@ -208,8 +208,10 @@ public:
                                  const std::array<int, maxPhraseStepsPerRow>& stepOrder,
                                  int orderSize);
 
-    static constexpr int rowTimingOffsetCount = 7;
-    static constexpr int defaultRowTimingOffsetIndex = 3;
+    static constexpr int rowTimingOffsetCount = 17;
+    static constexpr int defaultRowTimingOffsetIndex = 8;
+    static constexpr double rowTimingOffsetMinQuarters = -2.0;
+    static constexpr double rowTimingOffsetQuarterStep = 0.25;
 
     void setPhraseRowTimingOffset (int row, int offsetIndex);
     int getPhraseRowTimingOffset (int row) const;

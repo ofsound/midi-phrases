@@ -2,6 +2,7 @@ import { defaultStepCycle, defaultStepCycleMask } from "./cyclePattern.js";
 import { defaultStepNoteForScaleRoot, midiToNoteName } from "./midiNoteNames.js";
 import { defaultStepProbabilityValue } from "./percentLimits.js";
 import {
+  defaultRowTimingOffsetIndex,
   defaultStepTimingMultiplierIndex,
   timingMultiplierIndexForValue,
   timingOffsetValues,
@@ -37,14 +38,14 @@ export const defaultSeedingTimingMeanMultiplierIndex = defaultStepTimingMultipli
 export const defaultSeedingTimingVariance = 50;
 
 const rhythmRowTimingOffsetProfiles = [
-  [3, 3, 3, 3],
-  [3, 2, 4, 4],
-  [3, 2, 3, 4],
-  [3, 3, 4, 4],
-  [3, 3, 3, 5],
-  [3, 4, 3, 5],
-  [3, 4, 2, 4],
-  [3, 4, 2, 5],
+  [8, 8, 8, 8],
+  [8, 7, 9, 9],
+  [8, 7, 8, 9],
+  [8, 8, 9, 9],
+  [8, 8, 8, 10],
+  [8, 9, 8, 10],
+  [8, 9, 7, 9],
+  [8, 9, 7, 10],
 ];
 
 /** Per-step gate-length penalty (quarters of the accent value). */
@@ -239,7 +240,7 @@ function rhythmRowTimingOffsets(step) {
   const profile = rhythmRowTimingOffsetProfiles[index] ?? rhythmRowTimingOffsetProfiles[0];
 
   return profile.map((offsetIndex) => (
-    timingOffsetValues[offsetIndex] === undefined ? 3 : offsetIndex
+    timingOffsetValues[offsetIndex] === undefined ? defaultRowTimingOffsetIndex : offsetIndex
   ));
 }
 
@@ -753,7 +754,7 @@ export function generateSeededPhraseRows(settings = {}) {
     stepCycle: [],
     stepCycleOffset: [],
     rowTimingOffset: rowTimingOffset.map((index) => (
-      timingOffsetValues[index] === undefined ? 3 : index
+      timingOffsetValues[index] === undefined ? defaultRowTimingOffsetIndex : index
     )),
   };
 
@@ -831,7 +832,7 @@ export function phraseRowsFromGridState(state = {}) {
     stepProbability: rowMatrix(state.stepProbability),
     stepCycle: rowMatrix(state.stepCycle),
     stepCycleOffset: rowMatrix(state.stepCycleOffset),
-    rowTimingOffset: Array.from({ length: 4 }, (_, row) => state.rowTimingOffset?.[row] ?? 3),
+    rowTimingOffset: Array.from({ length: 4 }, (_, row) => state.rowTimingOffset?.[row] ?? defaultRowTimingOffsetIndex),
   };
 }
 
@@ -879,8 +880,8 @@ export function mergeSeededPhraseRows(existing, generated, rowTargets) {
     }
 
     merged.rowTimingOffset[row] = targets[row]
-      ? (generated.rowTimingOffset?.[row] ?? existing.rowTimingOffset?.[row] ?? 3)
-      : (existing.rowTimingOffset?.[row] ?? 3);
+      ? (generated.rowTimingOffset?.[row] ?? existing.rowTimingOffset?.[row] ?? defaultRowTimingOffsetIndex)
+      : (existing.rowTimingOffset?.[row] ?? defaultRowTimingOffsetIndex);
   }
 
   return merged;

@@ -5,27 +5,28 @@ import {
   precedingStepResizeForNoteDrag,
   timingMultiplierIndexAfterRollResize,
 } from "./rowPianoRollTimeline.js";
+import { defaultRowTimingOffsetIndex, rowTimingOffsetIndexForQuarters } from "./stepCellLayout.js";
 
 describe("buildRowRollTimeline", () => {
   it("applies row timing offset to step start positions", () => {
-    const { slots } = buildRowRollTimeline([3, 3], [], 1, 4);
+    const { slots } = buildRowRollTimeline([3, 3], [], 1, rowTimingOffsetIndexForQuarters(0.25));
 
     expect(slots[0].startQuarters).toBe(0.25);
     expect(slots[1].startQuarters).toBe(1.25);
   });
 
   it("uses pulse length when computing slot durations", () => {
-    const quarterPulse = buildRowRollTimeline([3], [], 1, 3);
-    const halfPulse = buildRowRollTimeline([3], [], 2, 3);
+    const quarterPulse = buildRowRollTimeline([3], [], 1, defaultRowTimingOffsetIndex);
+    const halfPulse = buildRowRollTimeline([3], [], 2, defaultRowTimingOffsetIndex);
 
     expect(quarterPulse.slots[0].lengthQuarters).toBe(1);
     expect(halfPulse.slots[0].lengthQuarters).toBe(2);
   });
 
   it("pushes and pulls later steps without changing their widths", () => {
-    const original = buildRowRollTimeline([3, 7, 1], [], 1, 3);
-    const expanded = buildRowRollTimeline([5, 7, 1], [], 1, 3);
-    const contracted = buildRowRollTimeline([1, 7, 1], [], 1, 3);
+    const original = buildRowRollTimeline([3, 7, 1], [], 1, defaultRowTimingOffsetIndex);
+    const expanded = buildRowRollTimeline([5, 7, 1], [], 1, defaultRowTimingOffsetIndex);
+    const contracted = buildRowRollTimeline([1, 7, 1], [], 1, defaultRowTimingOffsetIndex);
 
     expect(expanded.slots[1].startQuarters).toBe(original.slots[1].startQuarters + 0.5);
     expect(expanded.slots[2].startQuarters).toBe(original.slots[2].startQuarters + 0.5);

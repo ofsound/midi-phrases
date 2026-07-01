@@ -31,6 +31,7 @@
   import CompactStepResizeHandle from "./CompactStepResizeHandle.svelte";
   import StepSkippedOverlay from "./StepSkippedOverlay.svelte";
   import {
+    defaultRowTimingOffsetIndex,
     defaultStepTimingMultiplierIndex,
     maxPhraseStepsPerRow,
     stepTimingMultiplierCount,
@@ -102,7 +103,7 @@
     stepMuted = [],
     stepSkipped = [],
     activeGates = [],
-    rowTimingOffset = 3,
+    rowTimingOffset = defaultRowTimingOffsetIndex,
     pulseIndex = defaultPulseIndex,
     scaleRoot = 0,
     scaleModeIndex = 0,

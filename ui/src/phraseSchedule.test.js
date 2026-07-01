@@ -7,7 +7,7 @@ import {
   probabilityPasses,
   stepTriggerCountAtBeat,
 } from "./phraseSchedule.js";
-import { defaultStepTimingMultiplierIndex } from "./stepCellLayout.js";
+import { defaultRowTimingOffsetIndex, defaultStepTimingMultiplierIndex, rowTimingOffsetIndexForQuarters } from "./stepCellLayout.js";
 
 describe("stepTriggerCountAtBeat", () => {
   const timing = [defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex];
@@ -16,21 +16,21 @@ describe("stepTriggerCountAtBeat", () => {
     expect(stepTriggerCountAtBeat({
       beat: 0,
       step: 0,
-      rowTimingOffset: 3,
+      rowTimingOffset: defaultRowTimingOffsetIndex,
       stepTimingMultiplier: timing,
       pulseIndex: 1,
     })).toBe(0);
     expect(stepTriggerCountAtBeat({
       beat: 2,
       step: 0,
-      rowTimingOffset: 3,
+      rowTimingOffset: defaultRowTimingOffsetIndex,
       stepTimingMultiplier: timing,
       pulseIndex: 1,
     })).toBe(1);
     expect(stepTriggerCountAtBeat({
       beat: 5,
       step: 1,
-      rowTimingOffset: 3,
+      rowTimingOffset: defaultRowTimingOffsetIndex,
       stepTimingMultiplier: timing,
       pulseIndex: 1,
     })).toBe(2);
@@ -40,14 +40,14 @@ describe("stepTriggerCountAtBeat", () => {
     expect(stepTriggerCountAtBeat({
       beat: 0,
       step: 0,
-      rowTimingOffset: 4,
+      rowTimingOffset: rowTimingOffsetIndexForQuarters(0.25),
       stepTimingMultiplier: timing,
       pulseIndex: 1,
     })).toBe(-1);
     expect(stepTriggerCountAtBeat({
       beat: 4,
       step: 1,
-      rowTimingOffset: 3,
+      rowTimingOffset: defaultRowTimingOffsetIndex,
       stepTimingMultiplier: timing,
       stepSkipped: [false, true],
       pulseIndex: 1,
@@ -66,7 +66,7 @@ describe("step probability", () => {
     const schedule = buildPhraseScheduleBeforeBandpass({
       notes: [[60], [], [], []],
       rowMuted: [false, true, true, true],
-      rowTimingOffset: [3, 3, 3, 3],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
       stepDurationFraction: [[1], [], [], []],
       stepTimingMultiplier: [[defaultStepTimingMultiplierIndex], [], [], []],
       stepVelocity: [[100], [], [], []],
@@ -83,7 +83,7 @@ function combinationSchedule(pulseIndex, combinationModeMask) {
   return buildPhraseScheduleBeforeBandpass({
     notes: [[60], [62, 67], [], []],
     rowMuted: [false, false, true, true],
-    rowTimingOffset: [3, 3, 3, 3],
+    rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
     stepDurationFraction: [[1], [1, 1], [], []],
     stepTimingMultiplier: [
       [defaultStepTimingMultiplierIndex],
@@ -146,7 +146,7 @@ describe("combination mode pulse-aware timing", () => {
     const schedule = buildPhraseScheduleBeforeBandpass({
       notes: [[60], [67], [], []],
       rowMuted: [false, false, true, true],
-      rowTimingOffset: [5, 5, 3, 3],
+      rowTimingOffset: [rowTimingOffsetIndexForQuarters(0.5), rowTimingOffsetIndexForQuarters(0.5), defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
       stepDurationFraction: [[1], [1], [], []],
       stepTimingMultiplier: [
         [defaultStepTimingMultiplierIndex],
@@ -181,7 +181,7 @@ function baseWindowScheduleParams(overrides = {}) {
   return {
     notes: [[60], [], [], []],
     rowMuted: [false, true, true, true],
-    rowTimingOffset: [3, 3, 3, 3],
+    rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
     stepDurationFraction: [[1], [], [], []],
     stepTimingMultiplier: [[defaultStepTimingMultiplierIndex], [], [], []],
     stepVelocity: [[100], [], [], []],

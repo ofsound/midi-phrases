@@ -49,6 +49,8 @@
     clampTimingMultiplierDelta,
     clampTimingMultiplierValue,
     timingMultiplierIndexForValue,
+    timingOffsetValues,
+    rowTimingOffsetCount,
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
   import {
@@ -298,15 +300,27 @@
   /** @type {Set<number>} */
   let recordingKeysHeld = $state(new Set());
 
-  const timingOffsetOptions = [
-    { index: 0, label: "-.75" },
-    { index: 1, label: "-.5" },
-    { index: 2, label: "-.25" },
-    { index: 3, label: "0" },
-    { index: 4, label: ".25" },
-    { index: 5, label: ".5" },
-    { index: 6, label: ".75" },
-  ];
+  /** @param {number} quarters */
+  function formatRowTimingOffsetLabel(quarters) {
+    if (quarters === 0) return "0";
+
+    const abs = Math.abs(quarters);
+    let text;
+
+    if (Number.isInteger(abs)) {
+      text = String(abs);
+    } else {
+      text = abs.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+      if (text.startsWith("0.")) text = text.slice(1);
+    }
+
+    return quarters < 0 ? `-${text}` : text;
+  }
+
+  const timingOffsetOptions = timingOffsetValues.map((quarters, index) => ({
+    index,
+    label: formatRowTimingOffsetLabel(quarters),
+  }));
 
 
   let loopBraceEnabled = $state(false);
@@ -3291,14 +3305,19 @@
 
     if (!Array.isArray(init)) return;
 
-    const next = [3, 3, 3, 3];
+    const next = [
+      defaultRowTimingOffsetIndex,
+      defaultRowTimingOffsetIndex,
+      defaultRowTimingOffsetIndex,
+      defaultRowTimingOffsetIndex,
+    ];
 
     for (let row = 0; row < 4; row += 1) {
       const value = Number.parseInt(String(init[row]), 10);
 
       if (Number.isNaN(value)) continue;
 
-      next[row] = Math.min(6, Math.max(0, value));
+      next[row] = Math.min(rowTimingOffsetCount - 1, Math.max(0, value));
     }
 
     rowTimingOffset = next;

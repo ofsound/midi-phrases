@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { rowStepLayout } from "./phraseSchedule.js";
 import { buildRowRollTimeline } from "./rowPianoRollTimeline.js";
+import { defaultRowTimingOffsetIndex } from "./stepCellLayout.js";
 import {
   beatLineQuarters,
   interpolateShapeYAtX,
@@ -83,7 +84,7 @@ describe("measureLineQuarters", () => {
 describe("buildRowRollTimeline", () => {
   it("positions steps using multiplier times pulse in quarter notes", () => {
     const multipliers = [5, 3, 7];
-    const { slots, timelineLengthQuarters } = buildRowRollTimeline(multipliers, [], 1, 3);
+    const { slots, timelineLengthQuarters } = buildRowRollTimeline(multipliers, [], 1, defaultRowTimingOffsetIndex);
     const layout = rowStepLayout(multipliers, 1, []);
 
     expect(slots.map((slot) => slot.startQuarters)).toEqual(layout.stepStartQuarters);
@@ -94,7 +95,7 @@ describe("buildRowRollTimeline", () => {
 
 describe("stepAtRollX", () => {
   it("maps x positions to steps using quarter-note slot widths", () => {
-    const { slots } = buildRowRollTimeline([5, 3, 7, 15], [], 1, 3);
+    const { slots } = buildRowRollTimeline([5, 3, 7, 15], [], 1, defaultRowTimingOffsetIndex);
     const pxPerQuarter = 28;
 
     expect(stepAtRollX(0, slots, pxPerQuarter)).toBe(0);
@@ -105,7 +106,7 @@ describe("stepAtRollX", () => {
 
 describe("insertStepIndexFromRollX", () => {
   it("inserts before the step under the click and appends past row content", () => {
-    const { slots } = buildRowRollTimeline([5, 3, 7, 15], [], 1, 3);
+    const { slots } = buildRowRollTimeline([5, 3, 7, 15], [], 1, defaultRowTimingOffsetIndex);
     const pxPerQuarter = 28;
     const lastSlot = slots[slots.length - 1];
     const contentEndPx = (lastSlot.startQuarters + lastSlot.lengthQuarters) * pxPerQuarter;
@@ -120,7 +121,7 @@ describe("insertStepIndexFromRollX", () => {
   });
 
   it("returns index 0 for an empty row", () => {
-    const { slots } = buildRowRollTimeline([], [], 1, 3);
+    const { slots } = buildRowRollTimeline([], [], 1, defaultRowTimingOffsetIndex);
 
     expect(insertStepIndexFromRollX(40, slots, 28)).toBe(0);
   });
@@ -128,7 +129,7 @@ describe("insertStepIndexFromRollX", () => {
 
 describe("shapeVelocityUpdatesFromStroke", () => {
   it("updates velocities only for steps beneath the drawn horizontal span", () => {
-    const { slots } = buildRowRollTimeline([7, 7, 7, 7], [], 1, 3);
+    const { slots } = buildRowRollTimeline([7, 7, 7, 7], [], 1, defaultRowTimingOffsetIndex);
     const pxPerQuarter = 28;
     const points = [
       { x: stepSlotCenterXPx(slots[0], pxPerQuarter), y: 0 },
@@ -145,7 +146,7 @@ describe("shapeVelocityUpdatesFromStroke", () => {
   });
 
   it("uses the current pointer y for single-step vertical drags on the right half", () => {
-    const { slots } = buildRowRollTimeline([7], [], 1, 3);
+    const { slots } = buildRowRollTimeline([7], [], 1, defaultRowTimingOffsetIndex);
     const pxPerQuarter = 28;
     const rightHalfX = stepSlotCenterXPx(slots[0], pxPerQuarter) + 8;
     const points = [

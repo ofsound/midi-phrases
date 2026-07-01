@@ -7,13 +7,12 @@
 
 namespace
 {
-constexpr double rowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double roundRobinOverlapFraction = 0.25;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 22;
+constexpr int phraseStateVersion = 23;
 
 int clampStepProbability (const int probability)
 {
@@ -492,6 +491,22 @@ int stepTimingMultiplierIndexFromState (const int storedIndex, const int stateVe
     constexpr int legacyToNew[] = { 0, 1, 3, 7, 15 };
 
     return legacyToNew[juce::jlimit (0, 4, storedIndex)];
+}
+
+int rowTimingOffsetIndexFromState (const int storedIndex, const int stateVersion)
+{
+    if (stateVersion >= 23)
+        return juce::jlimit (0, PluginProcessor::rowTimingOffsetCount - 1, storedIndex);
+
+    constexpr double legacyRowTimingOffsetValues[] = { -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75 };
+    constexpr int legacyCount = 7;
+    const auto legacyIndex = juce::jlimit (0, legacyCount - 1, storedIndex);
+    const auto quarters = legacyRowTimingOffsetValues[static_cast<size_t> (legacyIndex)];
+    const auto newIndex = static_cast<int> (std::round (
+        (quarters - PluginProcessor::rowTimingOffsetMinQuarters)
+        / PluginProcessor::rowTimingOffsetQuarterStep));
+
+    return juce::jlimit (0, PluginProcessor::rowTimingOffsetCount - 1, newIndex);
 }
 constexpr double legacyStepDurationFractionValues[] = { 0.25, 0.5, 0.75, 1.0 };
 
@@ -1498,7 +1513,7 @@ void PluginProcessor::resetPhraseStepToDefaults (const int row, const int step)
 double PluginProcessor::rowTimingOffsetForIndex (const int offsetIndex)
 {
     const auto index = juce::jlimit (0, rowTimingOffsetCount - 1, offsetIndex);
-    return rowTimingOffsetValues[static_cast<size_t> (index)];
+    return rowTimingOffsetMinQuarters + static_cast<double> (index) * rowTimingOffsetQuarterStep;
 }
 
 double PluginProcessor::stepTimingMultiplierForIndex (const int multiplierIndex)
@@ -5769,10 +5784,9 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
 
             pattern.sequencer.muted[static_cast<size_t> (row)] =
                 static_cast<bool> (rowTree.getProperty ("muted", row != 0)) ? 1 : 0;
-            pattern.sequencer.timingOffset[static_cast<size_t> (row)] = juce::jlimit (
-                0,
-                rowTimingOffsetCount - 1,
-                static_cast<int> (rowTree.getProperty ("timingOffset", defaultRowTimingOffsetIndex)));
+            pattern.sequencer.timingOffset[static_cast<size_t> (row)] = rowTimingOffsetIndexFromState (
+                static_cast<int> (rowTree.getProperty ("timingOffset", defaultRowTimingOffsetIndex)),
+                stateVersion);
             pattern.sequencer.midiChannel[static_cast<size_t> (row)] = juce::jlimit (
                 minPhraseRowMidiChannel,
                 maxPhraseRowMidiChannel,
@@ -5982,10 +5996,9 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
 
         modelSequencer().muted[static_cast<size_t> (row)] =
             static_cast<bool> (rowTree.getProperty ("muted", false)) ? 1 : 0;
-        modelSequencer().timingOffset[static_cast<size_t> (row)] = juce::jlimit (
-            0,
-            rowTimingOffsetCount - 1,
-            static_cast<int> (rowTree.getProperty ("timingOffset", defaultRowTimingOffsetIndex)));
+        modelSequencer().timingOffset[static_cast<size_t> (row)] = rowTimingOffsetIndexFromState (
+            static_cast<int> (rowTree.getProperty ("timingOffset", defaultRowTimingOffsetIndex)),
+            stateVersion);
         modelSequencer().midiChannel[static_cast<size_t> (row)] = juce::jlimit (
             minPhraseRowMidiChannel,
             maxPhraseRowMidiChannel,

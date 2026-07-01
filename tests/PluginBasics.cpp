@@ -100,7 +100,7 @@ TEST_CASE ("Echo mode follows pattern scale", "[instance]")
     testPlugin.setPhraseStepTimingMultiplier (1, 1, PluginProcessor::defaultStepTimingMultiplierIndex);
     testPlugin.setPhraseStepTimingMultiplier (2, 0, 1);
     testPlugin.setPhraseStepTimingMultiplier (2, 1, 2);
-    testPlugin.setPhraseRowTimingOffset (2, 4);
+    testPlugin.setPhraseRowTimingOffset (2, 9);
 
     for (int row = 0; row < 3; ++row)
     {
@@ -357,8 +357,8 @@ TEST_CASE ("Round Robin mode gates rows with overlap note choice", "[instance]")
 
     testPlugin.setPhraseNote (0, 0, 60);
     testPlugin.setPhraseNote (1, 0, 67);
-    testPlugin.setPhraseRowTimingOffset (0, 5); // +0.5 quarters, including transition overlap at 1.5
-    testPlugin.setPhraseRowTimingOffset (1, 5);
+    testPlugin.setPhraseRowTimingOffset (0, 10); // +0.5 quarters, including transition overlap at 1.5
+    testPlugin.setPhraseRowTimingOffset (1, 10);
 
     for (int row = 0; row < 2; ++row)
     {
@@ -1338,7 +1338,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPhraseStepTimingMultiplier (1, 1, PluginProcessor::defaultStepTimingMultiplierIndex);
         testPlugin.setPhraseStepTimingMultiplier (2, 0, 1); // 0.5x
         testPlugin.setPhraseStepTimingMultiplier (2, 1, 2); // 0.75x
-        testPlugin.setPhraseRowTimingOffset (2, 4); // +0.25 quarters
+        testPlugin.setPhraseRowTimingOffset (2, 9); // +0.25 quarters
 
         for (int row = 0; row < 3; ++row)
         {
@@ -1415,7 +1415,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPhraseStepTimingMultiplier (1, 1, PluginProcessor::defaultStepTimingMultiplierIndex);
         testPlugin.setPhraseStepTimingMultiplier (2, 0, 1); // 0.5x
         testPlugin.setPhraseStepTimingMultiplier (2, 1, 2); // 0.75x
-        testPlugin.setPhraseRowTimingOffset (2, 4); // +0.25 quarters
+        testPlugin.setPhraseRowTimingOffset (2, 9); // +0.25 quarters
 
         for (int row = 0; row < 3; ++row)
         {
@@ -2109,8 +2109,8 @@ TEST_CASE ("Plugin instance", "[instance]")
 
         testPlugin.setPhraseRowMuted (0, true);
         testPlugin.setPhraseRowMuted (1, false);
-        testPlugin.setPhraseRowTimingOffset (0, 1);
-        testPlugin.setPhraseRowTimingOffset (1, 6);
+        testPlugin.setPhraseRowTimingOffset (0, 6);
+        testPlugin.setPhraseRowTimingOffset (1, 11);
         testPlugin.setPhraseRowMidiChannel (0, 5);
         testPlugin.setPhraseRowMidiChannel (1, 12);
 
@@ -2147,8 +2147,8 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPatternPhraseRowStepCount (1, 1) == 2);
         CHECK (testPlugin.isPatternPhraseRowMuted (1, 0));
         CHECK_FALSE (testPlugin.isPatternPhraseRowMuted (1, 1));
-        CHECK (testPlugin.getPatternPhraseRowTimingOffset (1, 0) == 1);
-        CHECK (testPlugin.getPatternPhraseRowTimingOffset (1, 1) == 6);
+        CHECK (testPlugin.getPatternPhraseRowTimingOffset (1, 0) == 6);
+        CHECK (testPlugin.getPatternPhraseRowTimingOffset (1, 1) == 11);
         CHECK (testPlugin.getPatternPhraseRowMidiChannel (1, 0) == 5);
         CHECK (testPlugin.getPatternPhraseRowMidiChannel (1, 1) == 12);
 
@@ -2365,16 +2365,49 @@ TEST_CASE ("Plugin instance", "[instance]")
     {
         CHECK (testPlugin.getPhraseRowTimingOffset (0) == PluginProcessor::defaultRowTimingOffsetIndex);
 
-        testPlugin.setPhraseRowTimingOffset (0, 1);
-        testPlugin.setPhraseRowTimingOffset (1, 6);
+        testPlugin.setPhraseRowTimingOffset (0, 6);
+        testPlugin.setPhraseRowTimingOffset (1, 11);
 
-        CHECK (testPlugin.getPhraseRowTimingOffset (0) == 1);
-        CHECK (testPlugin.getPhraseRowTimingOffset (1) == 6);
+        CHECK (testPlugin.getPhraseRowTimingOffset (0) == 6);
+        CHECK (testPlugin.getPhraseRowTimingOffset (1) == 11);
         CHECK (PluginProcessor::rowTimingOffsetForIndex (0)
-               < PluginProcessor::rowTimingOffsetForIndex (6));
+               < PluginProcessor::rowTimingOffsetForIndex (PluginProcessor::rowTimingOffsetCount - 1));
 
         testPlugin.setPhraseRowTimingOffset (0, 99);
         CHECK (testPlugin.getPhraseRowTimingOffset (0) == PluginProcessor::rowTimingOffsetCount - 1);
+    }
+
+    SECTION ("legacy row timing offset indices migrate from version 22 state")
+    {
+        juce::ValueTree state ("MidiPhrases");
+        state.setProperty ("version", 22, nullptr);
+
+        juce::ValueTree patternTree ("Pattern");
+        patternTree.setProperty ("index", 0, nullptr);
+
+        juce::ValueTree rowTree ("Row");
+        rowTree.setProperty ("index", 0, nullptr);
+        rowTree.setProperty ("stepCount", 1, nullptr);
+        rowTree.setProperty ("timingOffset", 6, nullptr);
+
+        patternTree.appendChild (rowTree, nullptr);
+        state.appendChild (patternTree, nullptr);
+
+        juce::MemoryBlock destData;
+
+        if (auto xml = state.createXml())
+        {
+            juce::MemoryOutputStream stream;
+            xml->writeTo (stream);
+            destData.replaceAll (stream.getData(), stream.getDataSize());
+        }
+
+        PluginProcessor reloaded;
+        reloaded.setStateInformation (destData.getData(), static_cast<int> (destData.getSize()));
+
+        CHECK (reloaded.getPhraseRowTimingOffset (0) == 11);
+        CHECK (PluginProcessor::rowTimingOffsetForIndex (reloaded.getPhraseRowTimingOffset (0))
+               == Catch::Approx (0.75));
     }
 
     SECTION ("row MIDI channel")

@@ -14,6 +14,8 @@ import {
   stepDisplayWidthPx,
   timingMultiplierIndexForValue,
   timingMultiplierIndicesInRange,
+  defaultRowTimingOffsetIndex,
+  rowTimingOffsetIndexForQuarters,
 } from "./stepCellLayout.js";
 
 describe("timing multiplier bulk length helpers", () => {
@@ -137,14 +139,14 @@ describe("compactPhraseGridLayout", () => {
         [4],
         [],
       ],
-      [3, 4, 3, 3],
+      [defaultRowTimingOffsetIndex, rowTimingOffsetIndexForQuarters(0.25), defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
     );
     expect(layout.rowStartColumns).toEqual([0, 1, 0, 0]);
     expect(layout.totalColumns).toBe(20);
   });
 
   it("normalizes negative offsets without changing relative alignment", () => {
-    const layout = compactPhraseGridLayout([[3], [3]], [0, 3]);
+    const layout = compactPhraseGridLayout([[3], [3]], [rowTimingOffsetIndexForQuarters(-0.75), defaultRowTimingOffsetIndex]);
     expect(layout.rowStartColumns).toEqual([0, 3]);
     expect(layout.totalColumns).toBe(7);
   });

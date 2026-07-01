@@ -9,7 +9,7 @@ import {
   phraseRowLeadingControlsWidthPx,
   phraseRowScrollPaddingRightPx,
 } from "./phraseRowLayout.js";
-import { rowGridWidthPx, rowTimingOffsetShiftPx, stepCellPaddingPx } from "./stepCellLayout.js";
+import { defaultRowTimingOffsetIndex, rowGridWidthPx, rowTimingOffsetShiftPx, stepCellPaddingPx, rowTimingOffsetIndexForQuarters } from "./stepCellLayout.js";
 
 function phraseGridFieldWidthForContent(contentWidthPx) {
   return (
@@ -49,7 +49,7 @@ describe("phraseRowsContentFitScale", () => {
       + phraseRowEndStepTailPaddingPx()
     ) / (
       rowGridWidthPx(shiftedRow)
-      + rowTimingOffsetShiftPx(5)
+      + rowTimingOffsetShiftPx(rowTimingOffsetIndexForQuarters(0.5))
       - stepCellPaddingPx()
       + phraseRowEndStepTailPaddingPx()
     );
@@ -60,7 +60,7 @@ describe("phraseRowsContentFitScale", () => {
     expect(
       phraseRowsContentFitScale(
         [unshiftedRow, shiftedRow],
-        [3, 5],
+        [defaultRowTimingOffsetIndex, rowTimingOffsetIndexForQuarters(0.5)],
         fieldWidth,
         0,
         phraseRowEndAddStepReservePx(),
@@ -70,7 +70,7 @@ describe("phraseRowsContentFitScale", () => {
 
   it("scales offset and row-end tail space instead of reserving them at full size", () => {
     const row = [6, 6, 6, 6];
-    const offsetIndex = 5;
+    const offsetIndex = rowTimingOffsetIndexForQuarters(0.5);
     const desiredScale = 0.5;
     const fixedAddControlWidth =
       phraseRowEndAddStepInsetPx() + phraseRowEndAddStepButtonWidthPx();
@@ -99,7 +99,7 @@ describe("phraseRowsContentFitScale", () => {
 
   it("keeps the default scale before the grid field has been measured", () => {
     expect(
-      phraseRowsContentFitScale([[3]], [3], 0, 0, phraseRowEndAddStepReservePx()),
+      phraseRowsContentFitScale([[3]], [defaultRowTimingOffsetIndex], 0, 0, phraseRowEndAddStepReservePx()),
     ).toBe(1);
   });
 });

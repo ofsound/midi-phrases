@@ -41,7 +41,7 @@ export function noteNameToMidi(text) {
 }
 
 /** Matches PluginProcessor::defaultRowTimingOffsetIndex (0 quarters). */
-export const defaultRowTimingOffsetIndex = 3;
+export { defaultRowTimingOffsetIndex } from "./stepCellLayout.js";
 
 /** Matches PluginProcessor::defaultStepVelocity. */
 export const defaultStepVelocity = 100;

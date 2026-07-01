@@ -1,6 +1,7 @@
 import { defaultPulseIndex, pulseQuartersForIndex } from "./pulseLayout.js";
 import { rowStepLayout, rowTimingOffsetQuarters } from "./phraseSchedule.js";
 import {
+  defaultRowTimingOffsetIndex,
   stepTimingMultiplierCount,
   stepTimingMultiplierQuarterStep,
 } from "./stepCellLayout.js";
@@ -129,7 +130,7 @@ export function buildRowRollTimeline(
   stepTimingMultiplier,
   stepSkipped = [],
   pulseIndex = defaultPulseIndex,
-  rowTimingOffset = 3,
+  rowTimingOffset = defaultRowTimingOffsetIndex,
 ) {
   const { stepStartQuarters, stepLengthQuarters, cycleLengthQuarters } = rowStepLayout(
     stepTimingMultiplier,
