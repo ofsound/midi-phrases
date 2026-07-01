@@ -97,10 +97,10 @@
   data-cursor="vertical-drag"
   style:--param-box-chars={boxChars}
   class="mp-param-box mp-control-gradient flex h-8 touch-none select-none items-center justify-center rounded-md border text-sm font-semibold tabular-nums outline-none transition-[border-color,box-shadow,filter] duration-75 {accent.borderFocusVisible} {accent.ringFocusWithWidth} {dragging && !muted
-    ? `${accent.dragBorder} ${accent.dragShadow}`
+    ? 'border-border-strong shadow-sm text-text'
     : muted
       ? 'border-border-subtle text-text-muted'
-      : 'border-border text-text'}"
+      : 'border-border hover:border-border-strong text-text'}"
   role="slider"
   aria-label={ariaLabel}
   aria-valuemin={options[0]?.index}

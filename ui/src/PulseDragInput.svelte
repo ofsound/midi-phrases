@@ -96,10 +96,10 @@
 <div
   data-cursor="vertical-drag"
   class="mp-control-gradient flex h-8 w-8 shrink-0 touch-none select-none items-center justify-center rounded-md border outline-none transition-[border-color,box-shadow,filter] duration-75 {accent.borderFocusVisible} {accent.ringFocusWithWidth} {dragging && !muted
-    ? `${accent.dragBorder} ${accent.dragShadow}`
+    ? 'border-border-strong shadow-sm text-text'
     : muted
       ? 'border-border-subtle text-text-muted'
-      : 'border-border text-text'}"
+      : 'border-border hover:border-border-strong text-text'}"
   role="slider"
   aria-label={ariaLabel}
   aria-valuemin={pulseOptions[0]?.index}

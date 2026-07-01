@@ -221,11 +221,13 @@
     : 'inline-flex items-center rounded-sm'} {disabled
     ? 'opacity-50'
     : ''} {accent.ringFocusWithWidth} {boxed
-    ? dragging && !muted
-      ? `${accent.dragBorder} ${accent.dragShadow}`
+    ? dragging && !muted && !disabled
+      ? 'border-border-strong shadow-sm'
       : muted
         ? 'border-border-subtle'
-        : 'border-border'
+        : disabled
+          ? 'border-border'
+          : 'border-border hover:border-border-strong'
     : ''} {muted
     ? 'text-text-muted'
     : dragging
