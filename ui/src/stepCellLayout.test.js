@@ -15,7 +15,10 @@ import {
   timingMultiplierIndexForValue,
   timingMultiplierIndicesInRange,
   defaultRowTimingOffsetIndex,
+  rowTimingOffsetCount,
   rowTimingOffsetIndexForQuarters,
+  rowTimingOffsetIndicesWithDelta,
+  rowTimingOffsetIndicesWithSingleValue,
 } from "./stepCellLayout.js";
 
 describe("timing multiplier bulk length helpers", () => {
@@ -47,6 +50,48 @@ describe("timingMultiplierIndicesInRange", () => {
 
   it("returns a single index when min and max match", () => {
     expect(timingMultiplierIndicesInRange(5, 5)).toEqual([5]);
+  });
+});
+
+describe("rowTimingOffsetIndicesWithDelta", () => {
+  it("applies positive and negative relative deltas to every row", () => {
+    const offsets = [
+      rowTimingOffsetIndexForQuarters(-0.5),
+      defaultRowTimingOffsetIndex,
+      rowTimingOffsetIndexForQuarters(0.75),
+      rowTimingOffsetIndexForQuarters(1),
+    ];
+
+    expect(rowTimingOffsetIndicesWithDelta(offsets, 2)).toEqual(offsets.map((index) => index + 2));
+    expect(rowTimingOffsetIndicesWithDelta(offsets, -1)).toEqual(offsets.map((index) => index - 1));
+  });
+
+  it("clamps rows at the minimum and maximum offsets", () => {
+    expect(rowTimingOffsetIndicesWithDelta([0, 1, rowTimingOffsetCount - 2, rowTimingOffsetCount - 1], 2)).toEqual([
+      2,
+      3,
+      rowTimingOffsetCount - 1,
+      rowTimingOffsetCount - 1,
+    ]);
+
+    expect(rowTimingOffsetIndicesWithDelta([0, 1, rowTimingOffsetCount - 2, rowTimingOffsetCount - 1], -2)).toEqual([
+      0,
+      0,
+      rowTimingOffsetCount - 4,
+      rowTimingOffsetCount - 3,
+    ]);
+  });
+
+  it("restores relationships when dragging back from a clamped state", () => {
+    const offsets = [0, 2, 8, 15];
+
+    expect(rowTimingOffsetIndicesWithDelta(offsets, 4)).toEqual([4, 6, 12, rowTimingOffsetCount - 1]);
+    expect(rowTimingOffsetIndicesWithDelta(offsets, 1)).toEqual([1, 3, 9, 16]);
+    expect(rowTimingOffsetIndicesWithDelta(offsets, 0)).toEqual(offsets);
+  });
+
+  it("leaves other rows unchanged for a single-row edit", () => {
+    expect(rowTimingOffsetIndicesWithSingleValue([2, 4, 8, 12], 1, 7)).toEqual([2, 7, 8, 12]);
   });
 });
 

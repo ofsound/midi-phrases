@@ -116,6 +116,39 @@ export function rowTimingOffsetIndexForQuarters(quarters) {
   return Math.min(rowTimingOffsetCount - 1, Math.max(0, index));
 }
 
+/** @param {number} offsetIndex */
+export function clampRowTimingOffsetIndex(offsetIndex) {
+  return Math.min(rowTimingOffsetCount - 1, Math.max(0, Math.round(offsetIndex)));
+}
+
+/**
+ * Apply a relative drag delta to row timing offsets while preserving the original
+ * baselines, so clamped rows rejoin the group when the gesture moves back.
+ *
+ * @param {number[]} baselineOffsetIndices
+ * @param {number} deltaIndices
+ */
+export function rowTimingOffsetIndicesWithDelta(baselineOffsetIndices, deltaIndices) {
+  const delta = Math.round(deltaIndices);
+
+  return baselineOffsetIndices.map((offsetIndex) =>
+    clampRowTimingOffsetIndex(offsetIndex + delta),
+  );
+}
+
+/**
+ * Apply one row timing offset without changing the other row baselines.
+ *
+ * @param {number[]} baselineOffsetIndices
+ * @param {number} row
+ * @param {number} offsetIndex
+ */
+export function rowTimingOffsetIndicesWithSingleValue(baselineOffsetIndices, row, offsetIndex) {
+  return baselineOffsetIndices.map((baseline, rowIndex) =>
+    rowIndex === row ? clampRowTimingOffsetIndex(offsetIndex) : baseline,
+  );
+}
+
 /** Default index for 0 quarter-note offset. */
 export const defaultRowTimingOffsetIndex = rowTimingOffsetIndexForQuarters(0);
 

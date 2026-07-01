@@ -51,6 +51,9 @@
     timingMultiplierIndexForValue,
     timingOffsetValues,
     rowTimingOffsetCount,
+    clampRowTimingOffsetIndex,
+    rowTimingOffsetIndicesWithDelta,
+    rowTimingOffsetIndicesWithSingleValue,
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
   import { doubleClick } from "./doubleClickAction.js";
@@ -197,6 +200,11 @@
     defaultRowTimingOffsetIndex,
     defaultRowTimingOffsetIndex,
   ]);
+  /** @type {ReturnType<typeof createHistorySnapshot> | null} */
+  let rowTimingOffsetGestureBefore = null;
+  /** @type {number[] | null} */
+  let rowTimingOffsetGestureBaseline = null;
+  let rowTimingOffsetPreviewSyncPromise = Promise.resolve();
   /** @type {number[]} */
   let rowMidiChannel = $state([1, 2, 3, 4]);
   /** @type {number[][]} */
@@ -3764,10 +3772,14 @@
   }
 
   async function pushRowTimingOffset(row) {
+    await pushRowTimingOffsetValue(row, rowTimingOffset[row]);
+  }
+
+  async function pushRowTimingOffsetValue(row, offsetIndex) {
     if (!nativeFunctionAvailable("setPhraseRowTimingOffset")) return;
 
     const setPhraseRowTimingOffset = getNativeFunction("setPhraseRowTimingOffset");
-    await setPhraseRowTimingOffset(row, rowTimingOffset[row]);
+    await setPhraseRowTimingOffset(row, offsetIndex);
   }
 
   async function pushRowMidiChannel(row) {
@@ -4017,9 +4029,119 @@
     syncBulkControlsFromSelection();
   }
 
+  function beginRowTimingOffsetGesture() {
+    if (!rowTimingOffsetGestureBefore) {
+      rowTimingOffsetGestureBefore = createHistorySnapshot();
+    }
+
+    rowTimingOffsetGestureBaseline = [...rowTimingOffset];
+  }
+
+  function resetRowTimingOffsetGesture() {
+    rowTimingOffsetGestureBefore = null;
+    rowTimingOffsetGestureBaseline = null;
+  }
+
+  /**
+   * @param {number[]} previousOffsets
+   * @param {number[]} nextOffsets
+   */
+  function changedRowTimingOffsetRows(previousOffsets, nextOffsets) {
+    const rows = [];
+    const count = Math.max(previousOffsets.length, nextOffsets.length);
+
+    for (let row = 0; row < count; row += 1) {
+      if (previousOffsets[row] !== nextOffsets[row]) rows.push(row);
+    }
+
+    return rows;
+  }
+
+  /** @param {Map<number, number>} rowValues */
+  function queueRowTimingOffsetPreviewSync(rowValues) {
+    if (rowValues.size === 0) return;
+
+    const snapshot = [...rowValues.entries()];
+
+    rowTimingOffsetPreviewSyncPromise = rowTimingOffsetPreviewSyncPromise
+      .catch(() => {})
+      .then(async () => {
+        for (const [row, offsetIndex] of snapshot) {
+          await pushRowTimingOffsetValue(row, offsetIndex);
+        }
+      });
+  }
+
+  /** @param {number[]} rows */
+  async function pushRowTimingOffsetsForRows(rows) {
+    for (const row of rows) {
+      await pushRowTimingOffsetValue(row, rowTimingOffset[row]);
+    }
+  }
+
+  /**
+   * @param {number} row
+   * @param {number} offsetIndex
+   * @param {{ shiftKey?: boolean, startValue?: number, positionDelta?: number } | undefined} detail
+   */
+  function rowTimingOffsetsForGesture(row, offsetIndex, detail) {
+    const baseline = rowTimingOffsetGestureBaseline ?? rowTimingOffset;
+
+    if (detail?.shiftKey) {
+      const delta = detail.positionDelta ?? offsetIndex - (detail.startValue ?? offsetIndex);
+      return rowTimingOffsetIndicesWithDelta(baseline, delta);
+    }
+
+    return rowTimingOffsetIndicesWithSingleValue(baseline, row, offsetIndex);
+  }
+
+  /**
+   * @param {number} row
+   * @param {number} offsetIndex
+   * @param {{ shiftKey?: boolean, startValue?: number, positionDelta?: number } | undefined} detail
+   */
+  function previewRowTimingOffsetGesture(row, offsetIndex, detail) {
+    if (!rowTimingOffsetGestureBefore) beginRowTimingOffsetGesture();
+
+    const previous = [...rowTimingOffset];
+    const next = rowTimingOffsetsForGesture(row, offsetIndex, detail);
+    const changedRows = changedRowTimingOffsetRows(previous, next);
+
+    if (changedRows.length === 0) return;
+
+    rowTimingOffset = next;
+    queueRowTimingOffsetPreviewSync(new Map(changedRows.map((changedRow) => [
+      changedRow,
+      next[changedRow],
+    ])));
+  }
+
+  /**
+   * @param {number} row
+   * @param {number} offsetIndex
+   * @param {{ shiftKey?: boolean, startValue?: number, positionDelta?: number } | undefined} detail
+   */
+  async function commitRowTimingOffsetGesture(row, offsetIndex, detail) {
+    if (!rowTimingOffsetGestureBefore) beginRowTimingOffsetGesture();
+
+    const before = rowTimingOffsetGestureBefore;
+    previewRowTimingOffsetGesture(row, offsetIndex, detail);
+    resetRowTimingOffsetGesture();
+
+    if (!before) return;
+
+    await rowTimingOffsetPreviewSyncPromise.catch(() => {});
+    await pushRowTimingOffsetsForRows(changedRowTimingOffsetRows(before.rowTimingOffset, rowTimingOffset));
+
+    const after = createHistorySnapshot();
+    if (!snapshotsEqual(before, after)) {
+      pushHistoryEntry(detail?.shiftKey ? "Shift row timing" : "Change row timing", before, after);
+    }
+  }
+
   async function selectRowTimingOffset(row, offsetIndex) {
     await commitHistory("Change row timing", async () => {
-      rowTimingOffset[row] = offsetIndex;
+      rowTimingOffset[row] = clampRowTimingOffsetIndex(offsetIndex);
       await pushRowTimingOffset(row);
     });
   }
@@ -6052,6 +6174,12 @@
                     ariaLabel="Row timing offset"
                     sizeClass="h-7 w-7"
                     muted={rowMuted[row]}
+                    deferCommit
+                    onGestureStart={beginRowTimingOffsetGesture}
+                    onValuePreview={(offsetIndex, detail) =>
+                      previewRowTimingOffsetGesture(row, offsetIndex, detail)}
+                    onValueCommit={(offsetIndex, detail) =>
+                      commitRowTimingOffsetGesture(row, offsetIndex, detail)}
                     onValueChange={(offsetIndex) => selectRowTimingOffset(row, offsetIndex)}
                   />
                 </div>

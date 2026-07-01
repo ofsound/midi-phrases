@@ -19,6 +19,10 @@
    * @property {string} [ariaLabel]
    * @property {string} [sizeClass]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
+   * @property {boolean} [deferCommit]
+   * @property {(detail: { shiftKey: boolean, startValue: number, currentValue: number, positionDelta: number }) => void} [onGestureStart]
+   * @property {(index: number, detail: { shiftKey: boolean, startValue: number, currentValue: number, positionDelta: number }) => void | Promise<void>} [onValuePreview]
+   * @property {(index: number, detail: { shiftKey: boolean, startValue: number, currentValue: number, positionDelta: number }) => void | Promise<void>} [onValueCommit]
    * @property {(index: number) => void | Promise<void>} [onValueChange]
    */
 
@@ -31,6 +35,10 @@
     ariaLabel = "Bipolar knob",
     sizeClass = "h-8 w-8",
     accent = emeraldRowAccent,
+    deferCommit = false,
+    onGestureStart = undefined,
+    onValuePreview = undefined,
+    onValueCommit = undefined,
     onValueChange = () => {}
   } = $props();
 
@@ -41,10 +49,15 @@
   let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
+  let dragStartPosition = 0;
+  let dragShiftKey = false;
+  let dragValue = $state(0);
+  let dragPositionDelta = 0;
 
   let maxIndex = $derived(Math.max(0, options.length - 1));
-  let valuePosition = $derived(Math.max(0, options.findIndex((option) => option.index === value)));
-  let currentLabel = $derived(options.find((option) => option.index === value)?.label ?? "");
+  let displayedValue = $derived(dragging && deferCommit ? dragValue : value);
+  let valuePosition = $derived(Math.max(0, options.findIndex((option) => option.index === displayedValue)));
+  let currentLabel = $derived(options.find((option) => option.index === displayedValue)?.label ?? "");
   let indicatorAngleDeg =
     $derived(maxIndex > 0 ? minAngleDeg + (valuePosition / maxIndex) * (maxAngleDeg - minAngleDeg) : 0);
 
@@ -56,11 +69,20 @@
   }
 
   /** @param {number} clientY */
-  function indexFromDrag(clientY) {
-    const startPosition = options.findIndex((option) => option.index === dragStartValue);
+  function positionFromDrag(clientY) {
     const steps = Math.round((dragStartY - clientY) / pixelsPerStep);
 
-    return indexAtPosition(startPosition + steps);
+    return dragStartPosition + steps;
+  }
+
+  /** @param {number} currentValue @param {number} positionDelta */
+  function dragDetail(currentValue, positionDelta) {
+    return {
+      shiftKey: dragShiftKey,
+      startValue: dragStartValue,
+      currentValue,
+      positionDelta,
+    };
   }
 
   /** @param {PointerEvent} event */
@@ -70,13 +92,32 @@
     dragging = true;
     dragStartY = event.clientY;
     dragStartValue = value;
+    dragStartPosition = Math.max(0, options.findIndex((option) => option.index === value));
+    dragShiftKey = event.shiftKey;
+    dragValue = value;
+    dragPositionDelta = 0;
+
+    if (deferCommit) {
+      onGestureStart?.(dragDetail(value, 0));
+    }
   }
 
   /** @param {PointerEvent} event */
   function onPointerMove(event) {
     if (!dragging) return;
 
-    const next = indexFromDrag(event.clientY);
+    const position = positionFromDrag(event.clientY);
+    const next = indexAtPosition(position);
+    const positionDelta = position - dragStartPosition;
+
+    if (deferCommit) {
+      if (next === dragValue && positionDelta === dragPositionDelta) return;
+
+      dragValue = next;
+      dragPositionDelta = positionDelta;
+      onValuePreview?.(next, dragDetail(next, positionDelta));
+      return;
+    }
 
     if (next !== value) onValueChange(next);
   }
@@ -85,6 +126,11 @@
   function onPointerUp(event) {
     dragging = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
+
+    if (deferCommit) {
+      onValueCommit?.(dragValue, dragDetail(dragValue, dragPositionDelta));
+    }
+
     releasePointerDragFocus(event);
   }
 
@@ -94,7 +140,19 @@
 
     event.preventDefault();
 
-    if (value !== resetValue) onValueChange(resetValue);
+    if (value === resetValue) return;
+
+    if (deferCommit) {
+      onValueCommit?.(resetValue, {
+        shiftKey: false,
+        startValue: value,
+        currentValue: resetValue,
+        positionDelta: resetValue - value,
+      });
+      return;
+    }
+
+    onValueChange(resetValue);
   }
 </script>
 
@@ -110,7 +168,7 @@
     aria-label={ariaLabel}
     aria-valuemin={options[0]?.index}
     aria-valuemax={options[options.length - 1]?.index}
-    aria-valuenow={value}
+    aria-valuenow={displayedValue}
     aria-valuetext={currentLabel}
     style:border-width="{scaledPx(baseBorderWidthPx)}px"
     tabindex="-1"
