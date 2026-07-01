@@ -870,7 +870,7 @@ import { scaledPx } from "./uiScale.svelte.js";
         Fit
       </button>
     </div>
-    <p class="text-xs text-text-faint">
+    <p class="text-xs font-semibold text-text-secondary">
       loop {formatBeat(displayStart)}–{formatBeat(displayEnd)} ({formatBeat(loopSpan)} beats)
     </p>
   </div>
