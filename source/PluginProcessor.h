@@ -602,6 +602,10 @@ private:
     void applyAudioPatternSlot (int patternSlot, double reanchorTransportPpq = -1.0);
     void requestAudioLoopSlot (int loopSlot);
     void applyAudioLoopSlot (int loopSlot, double reanchorTransportPpq);
+    void requestAudioLoopBraceEnable (int patternSlot);
+    void clearPendingAudioLoopBraceEnable();
+    void applyAudioLoopBraceEnable (double reanchorTransportPpq);
+    void resolvePendingAudioLoopBraceEnableForStoppedPlayback();
     bool isAudioLoopSlotApplied (int loopSlot) const;
     double loopDownbeatTransportForSlot (int loopSlot, double transportPpq) const;
     void reanchorLoopScheduleAt (double transportPpq);
@@ -746,6 +750,7 @@ private:
     std::atomic<int> currentLoopSlot { -1 };
     std::atomic<int> audioActiveLoopSlot { -1 };
     std::atomic<int> pendingAudioLoopSlot { -1 };
+    int pendingAudioLoopBraceEnablePatternSlot = -1;
     std::atomic<int> pulseIndex { defaultPulseIndex };
     std::atomic<int> swingPercent { defaultSwingPercent };
     std::atomic<int> velocityHumanizePercent { defaultVelocityHumanizePercent };

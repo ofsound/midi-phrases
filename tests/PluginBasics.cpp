@@ -67,6 +67,19 @@ std::array<int, 128> collectNoteOnsOverQuarters (PluginProcessor& plugin,
     plugin.setPlayHead (nullptr);
     return noteOnCounts;
 }
+
+int findNoteOnSample (const juce::MidiBuffer& midiMessages, const int noteNumber)
+{
+    for (const auto metadata : midiMessages)
+    {
+        const auto message = metadata.getMessage();
+
+        if (message.isNoteOn() && message.getNoteNumber() == noteNumber)
+            return metadata.samplePosition;
+    }
+
+    return -1;
+}
 }
 
 TEST_CASE ("Echo mode follows pattern scale", "[instance]")
@@ -3332,6 +3345,241 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (emittedSwitchedLoopNote);
         CHECK (testPlugin.getAudioPatternSlot() == 1);
         CHECK (testPlugin.getCurrentLoopSlot() == 1);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("direct loop brace enable while playing applies on next pulse")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+        testPlugin.setCurrentPatternSlot (0);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 0.25);
+        testPlugin.setLoopBraceStartQuarters (0.0);
+        testPlugin.setLoopBraceEndQuarters (1.0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (0.25);
+        testPlugin.processBlock (buffer, midi);
+
+        testPlugin.setLoopBraceEnabled (true);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.50);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 60) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.65);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 60) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.75);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 60) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.85);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 60) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.95);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 60) == 50);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("brace range edit followed by enable applies on next pulse")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+        testPlugin.setCurrentPatternSlot (0);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+        testPlugin.setPhraseNote (0, 0, 72);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 0.25);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (0.25);
+        testPlugin.processBlock (buffer, midi);
+
+        testPlugin.setLoopBraceStartQuarters (2.0);
+        testPlugin.setLoopBraceEndQuarters (3.0);
+        testPlugin.setLoopBraceEnabled (true);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.50);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 72) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.65);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 72) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.75);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 72) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.85);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 72) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.95);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 72) == 50);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("disabling loop brace clears pending pulse enable")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+        testPlugin.setCurrentPatternSlot (0);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 0.25);
+        testPlugin.setLoopBraceStartQuarters (0.0);
+        testPlugin.setLoopBraceEndQuarters (1.0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (0.25);
+        testPlugin.processBlock (buffer, midi);
+
+        testPlugin.setLoopBraceEnabled (true);
+        testPlugin.setLoopBraceEnabled (false);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.50);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 60) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.65);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 60) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.75);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 60) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.85);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 60) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (0.95);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 60) < 0);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("loop brace enabled while stopped plays from loop start on playback")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setCurrentPatternSlot (0);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 0.25);
+        testPlugin.setLoopBraceStartQuarters (0.0);
+        testPlugin.setLoopBraceEndQuarters (1.0);
+        testPlugin.setLoopBraceEnabled (true);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (4.25);
+        testPlugin.setPlayHead (&playHead);
+
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 60) == 0);
 
         testPlugin.setPlayHead (nullptr);
     }
