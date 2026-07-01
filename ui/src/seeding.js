@@ -83,7 +83,7 @@ export const defaultSeedingRowSettings = {
 
 /** @typedef {typeof defaultSeedingRowSettings} SeedingRowSettings */
 
-export const defaultSeedModeRowTargets = [true, true, true, true];
+export const defaultSeedModeRowTargets = [true, false, false, false];
 
 /** @returns {SeedingRowSettings[]} */
 export function createDefaultSeedModeRowSettings() {

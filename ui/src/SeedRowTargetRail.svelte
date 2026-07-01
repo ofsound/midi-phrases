@@ -15,7 +15,7 @@
 
   /** @type {Props} */
   let {
-    rowTargets = [true, true, true, true],
+    rowTargets = [true, false, false, false],
     rowColorsEnabled = true,
     busy = false,
     onRowTargetToggle = () => {},

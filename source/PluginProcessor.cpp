@@ -953,7 +953,7 @@ void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
     for (auto& seedingRow : pattern.seedingRows)
         seedingRow = {};
 
-    pattern.seedingRowTargets = { 1, 1, 1, 1 };
+    pattern.seedingRowTargets = { 1, 0, 0, 0 };
     pattern.sequencer.combinationModeMask = 0;
 
     for (int row = 0; row < phraseRowCount; ++row)
@@ -5870,7 +5870,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
             rowState.seed = clampSeedingSeed (
                 static_cast<int> (patternTree.getProperty (prefix + "Seed", defaultSeedingSeed)));
             pattern.seedingRowTargets[static_cast<size_t> (seedingRow)] =
-                static_cast<int> (patternTree.getProperty (prefix + "Targeted", 1)) != 0 ? 1 : 0;
+                static_cast<int> (patternTree.getProperty (prefix + "Targeted", seedingRow == 0 ? 1 : 0)) != 0 ? 1 : 0;
         }
     }
 

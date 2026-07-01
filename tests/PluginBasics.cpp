@@ -4178,6 +4178,17 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (reloaded.isRowColorsEnabled());
     }
 
+    SECTION ("fresh pattern defaults seeding to row 1 only")
+    {
+        PluginProcessor freshPlugin;
+        freshPlugin.setCurrentPatternSlot (0);
+
+        CHECK (freshPlugin.isPatternSeedingRowTargeted (0, 0));
+        CHECK_FALSE (freshPlugin.isPatternSeedingRowTargeted (0, 1));
+        CHECK_FALSE (freshPlugin.isPatternSeedingRowTargeted (0, 2));
+        CHECK_FALSE (freshPlugin.isPatternSeedingRowTargeted (0, 3));
+    }
+
     SECTION ("seeding center note round-trips through plugin state")
     {
         testPlugin.setCurrentPatternSlot (1);

@@ -452,7 +452,7 @@ private:
         int shimmerMixPercent = defaultShimmerMixPercent;
         int seedingRhythmStep = defaultSeedingRhythmStep;
         std::array<SeedingRowState, phraseRowCount> seedingRows {};
-        std::array<int, phraseRowCount> seedingRowTargets { 1, 1, 1, 1 };
+        std::array<int, phraseRowCount> seedingRowTargets { 1, 0, 0, 0 };
     };
 
     struct LoopSlotState

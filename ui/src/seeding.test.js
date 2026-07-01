@@ -116,6 +116,10 @@ describe("normalizeSeedingRowSettings", () => {
 });
 
 describe("normalizeSeedModeState", () => {
+  it("defaults row targets to row 1 only", () => {
+    expect(normalizeSeedModeState().rowTargets).toEqual([true, false, false, false]);
+  });
+
   it("normalizes rhythm, row settings, and targets together", () => {
     const state = normalizeSeedModeState({
       rhythmStep: 99,
