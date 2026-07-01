@@ -917,7 +917,9 @@ import { scaledPx } from "./uiScale.svelte.js";
                 type="button"
                 aria-label="Loop start"
                 data-cursor="ew-resize"
-                class="absolute top-1/2 left-0 z-30 h-4 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-border-subtle/40 bg-text-secondary shadow-sm"
+                class="absolute top-1/2 left-0 z-30 h-4 w-2.5 -translate-y-1/2 rounded-sm border border-border-subtle/40 bg-text-secondary shadow-sm {displayStart <= 0
+                  ? 'translate-x-0'
+                  : '-translate-x-1/2'}"
                 onpointerdown={(event) => beginLoopDrag(event, "start")}
               ></button>
 

@@ -4,6 +4,7 @@ import {
   buildPhraseScheduleBeforeBandpass,
   combinationModes,
   buildPhraseScheduleWindowBeforeBandpass,
+  probabilityPasses,
   stepTriggerCountAtBeat,
 } from "./phraseSchedule.js";
 import { defaultStepTimingMultiplierIndex } from "./stepCellLayout.js";
@@ -51,6 +52,30 @@ describe("stepTriggerCountAtBeat", () => {
       stepSkipped: [false, true],
       pulseIndex: 1,
     })).toBe(-1);
+  });
+});
+
+describe("step probability", () => {
+  it("treats 100 as always on", () => {
+    for (let triggerCount = 0; triggerCount < 128; triggerCount += 1) {
+      expect(probabilityPasses(0, triggerCount, 100)).toBe(true);
+    }
+  });
+
+  it("defaults missing probability values to always on", () => {
+    const schedule = buildPhraseScheduleBeforeBandpass({
+      notes: [[60], [], [], []],
+      rowMuted: [false, true, true, true],
+      rowTimingOffset: [3, 3, 3, 3],
+      stepDurationFraction: [[1], [], [], []],
+      stepTimingMultiplier: [[defaultStepTimingMultiplierIndex], [], [], []],
+      stepVelocity: [[100], [], [], []],
+      stepMuted: [[false], [], [], []],
+      stepSkipped: [[false], [], [], []],
+      lengthQuarters: 1,
+    });
+
+    expect(schedule.some((note) => note.midi === 60 && note.start === 0)).toBe(true);
   });
 });
 

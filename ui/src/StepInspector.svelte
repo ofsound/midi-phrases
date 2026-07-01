@@ -13,7 +13,7 @@
     timingMultiplierAtIndex,
   } from "./stepCellLayout.js";
   import { inspectorToggleClasses } from "./inspectorSidebar.js";
-  import { maxPercentValue } from "./percentLimits.js";
+  import { defaultStepProbabilityValue, maxPercentValue, maxStepProbabilityValue } from "./percentLimits.js";
 
   /**
    * @typedef {Object} Props
@@ -57,7 +57,7 @@
     velocity = 127,
     durationFraction = 1,
     timingMultiplierIndex = defaultStepTimingMultiplierIndex,
-    probability = maxPercentValue,
+    probability = defaultStepProbabilityValue,
     cycle = 1,
     cycleMask = 1,
     cycleTriggerCount = -1,
@@ -217,7 +217,7 @@
               <AccentRangeSlider
                 value={probability}
                 min={0}
-                max={maxPercentValue}
+                max={maxStepProbabilityValue}
                 ariaLabel="Step probability"
                 onGestureStart={onProbabilityGestureStart}
                 onValuePreview={onProbabilityPreview}

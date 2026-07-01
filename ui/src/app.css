@@ -285,6 +285,7 @@
     --combination-rail-hex-size: 9.9px 12.86px;
     --honeycomb-cell-tint: var(--color-app);
     --honeycomb-cell-opacity: 0.22;
+    --honeycomb-line-tint: linear-gradient(282deg, var(--color-text-secondary) 0%, var(--color-text-faint) 34%, var(--color-text-muted) 62%, var(--color-border) 100%);
     --honeycomb-line-opacity: 0.18;
     background-color: var(--color-shell);
     border-top: 1.7px solid color-mix(in srgb, var(--color-text) 7%, transparent);
@@ -317,7 +318,7 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background: linear-gradient(282deg, var(--color-text-secondary) 0%, var(--color-text-faint) 34%, var(--color-text-muted) 62%, var(--color-border) 100%);
+    background: var(--honeycomb-line-tint);
     opacity: var(--honeycomb-line-opacity);
     -webkit-mask-image: url("./assets/combination-rail-hex-lines.svg");
     mask-image: url("./assets/combination-rail-hex-lines.svg");
@@ -337,13 +338,9 @@
   :root[data-theme="light"] .mp-honeycomb-rail {
     --honeycomb-cell-tint: var(--color-border-subtle);
     --honeycomb-cell-opacity: 0.14;
-    --honeycomb-line-opacity: 0.07;
+    --honeycomb-line-tint: color-mix(in srgb, var(--color-border-strong) 68%, var(--color-text-muted));
+    --honeycomb-line-opacity: 0.2;
     background-color: color-mix(in srgb, var(--color-shell) 55%, var(--color-surface));
-  }
-
-  :root[data-theme="light"] .combination-mode-rail::before,
-  :root[data-theme="light"] .mp-honeycomb-rail::before {
-    background: var(--color-border-subtle);
   }
 
   .combination-mode-rail-layout {

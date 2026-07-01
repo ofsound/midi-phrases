@@ -13,11 +13,21 @@ constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double roundRobinOverlapFraction = 0.25;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 21;
+constexpr int phraseStateVersion = 22;
 
 int clampStepProbability (const int probability)
 {
-    return juce::jlimit (0, PluginProcessor::maxPercentValue, probability);
+    return juce::jlimit (0, PluginProcessor::maxStepProbabilityValue, probability);
+}
+
+int stepProbabilityFromStateProperty (const juce::var& property, const int stateVersion)
+{
+    const auto storedProbability = static_cast<int> (property);
+
+    if (stateVersion < 22 && storedProbability == PluginProcessor::maxPercentValue)
+        return PluginProcessor::defaultStepProbability;
+
+    return clampStepProbability (storedProbability);
 }
 
 int clampSeedingPhraseLength (const int phraseLength)
@@ -5733,8 +5743,9 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                 if (steps.stepMuted[index] != 0 && steps.stepSkipped[index] != 0)
                     steps.stepMuted[index] = 0;
 
-                steps.probability[index] = clampStepProbability (static_cast<int> (
-                    rowTree.getProperty (probabilityPropName, defaultStepProbability)));
+                steps.probability[index] = stepProbabilityFromStateProperty (
+                    rowTree.getProperty (probabilityPropName, defaultStepProbability),
+                    stateVersion);
                 const auto cycle = clampStepCycle (
                     static_cast<int> (rowTree.getProperty (cyclePropName, defaultStepCycle)));
                 steps.cycle[index] = cycle;
@@ -5943,8 +5954,9 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
 
             if (stateVersion >= 8)
             {
-                steps.probability[static_cast<size_t> (step)] = clampStepProbability (
-                    static_cast<int> (rowTree.getProperty (probabilityPropName, PluginProcessor::defaultStepProbability)));
+                steps.probability[static_cast<size_t> (step)] = stepProbabilityFromStateProperty (
+                    rowTree.getProperty (probabilityPropName, PluginProcessor::defaultStepProbability),
+                    stateVersion);
                 const auto cycle = clampStepCycle (
                     static_cast<int> (rowTree.getProperty (cyclePropName, PluginProcessor::defaultStepCycle)));
                 steps.cycle[static_cast<size_t> (step)] = cycle;

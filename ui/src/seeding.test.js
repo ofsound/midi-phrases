@@ -21,7 +21,7 @@ import {
   seedingTimingMultiplierMinIndex,
 } from "./seeding.js";
 import { isMidiInScale } from "./scaleUtils.js";
-import { maxPercentValue } from "./percentLimits.js";
+import { defaultStepProbabilityValue } from "./percentLimits.js";
 import { timingOffsetValues } from "./stepCellLayout.js";
 
 /** @param {number[]} values */
@@ -552,8 +552,8 @@ describe("generateSeededPhraseRows", () => {
       seed: 91,
     });
 
-    expect(none.stepProbability[0].every((value) => value === maxPercentValue)).toBe(true);
-    expect(some.stepProbability[0].some((value) => value < maxPercentValue)).toBe(true);
+    expect(none.stepProbability[0].every((value) => value === defaultStepProbabilityValue)).toBe(true);
+    expect(some.stepProbability[0].some((value) => value < defaultStepProbabilityValue)).toBe(true);
   });
 });
 

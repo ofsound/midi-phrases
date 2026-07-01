@@ -269,6 +269,8 @@ export function phraseRowsContentFitScale(
   if (baseViewportWidthPx <= 0) return 1;
 
   let scale = 1;
+  const rowEndTailPx = trailingReservePx > 0 ? phraseRowEndStepTailPaddingPx() : 0;
+  const fixedTrailingReservePx = Math.max(0, trailingReservePx - rowEndTailPx);
 
   for (let row = 0; row < rows.length; row += 1) {
     const contentWidthPx = rowGridWidthPx(rows[row] ?? []);
@@ -279,13 +281,17 @@ export function phraseRowsContentFitScale(
       0,
       rowTimingOffsetShiftPx(timingOffsetIndices[row]) + visualCompensationPx,
     );
+    const scalableWidthPx = Math.max(
+      1,
+      timingPaddingPx + contentWidthPx - (trailingReservePx > 0 ? stepCellPaddingPx() : 0) + rowEndTailPx,
+    );
     const availableWidthPx = Math.max(
       0,
-      baseViewportWidthPx - timingPaddingPx - trailingReservePx,
+      baseViewportWidthPx - fixedTrailingReservePx,
     );
 
-    if (contentWidthPx > availableWidthPx) {
-      scale = Math.min(scale, availableWidthPx / contentWidthPx);
+    if (scalableWidthPx > availableWidthPx) {
+      scale = Math.min(scale, availableWidthPx / scalableWidthPx);
     }
   }
 

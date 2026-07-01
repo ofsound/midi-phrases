@@ -67,10 +67,6 @@
 
     <div class="grid shrink-0 gap-5 p-5 sm:p-6">
       <div class="grid gap-3">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.28em] text-text-muted">Key center</p>
-          <h3 class="mt-1 text-lg font-semibold text-text">{keyCenters[root]?.label ?? "C"}</h3>
-        </div>
         <div class="grid grid-cols-6 gap-2 sm:grid-cols-12">
           {#each keyCenters as key (key.value)}
             <button
@@ -101,13 +97,12 @@
               aria-label={`Set mode to ${mode.label}`}
               aria-pressed={modeIndex === index}
               data-cursor="pointer"
-              class="flex min-h-14 items-center justify-between gap-3 border px-3 py-2 text-left outline-none transition-colors focus:ring-1 focus:ring-focus-ring {modeIndex === index
+              class="flex min-h-12 items-center border px-3 py-2 text-left outline-none transition-colors focus:ring-1 focus:ring-focus-ring {modeIndex === index
                 ? 'border-accent bg-accent text-control-primary-text'
                 : 'border-border bg-surface text-text hover:border-border-strong'}"
               onclick={() => onChange(root, index)}
             >
               <span class="min-w-0 text-sm font-semibold leading-tight">{mode.label}</span>
-              <span class="shrink-0 text-xs font-bold uppercase opacity-70">{mode.shortLabel}</span>
             </button>
           {/each}
         </div>

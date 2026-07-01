@@ -1,7 +1,7 @@
 <script>
   import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
-  import { maxPercentValue } from "./percentLimits.js";
+  import { maxStepProbabilityValue } from "./percentLimits.js";
 
   
   
@@ -24,7 +24,7 @@
     muted = false,
     value,
     min = 0,
-    max = maxPercentValue,
+    max = maxStepProbabilityValue,
     resetValue = undefined,
     ariaLabel = "Step probability",
     onValueChange = () => {}

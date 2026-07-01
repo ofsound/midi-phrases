@@ -14,7 +14,7 @@
   import StepSkippedOverlay from "./StepSkippedOverlay.svelte";
   import { compactStepVelocityOpacity } from "./compactStepVisuals.js";
   import { boundaryDoubleClickCommand } from "./boundaryDoubleClick.js";
-  import { maxPercentValue } from "./percentLimits.js";
+  import { defaultStepProbabilityValue } from "./percentLimits.js";
   import {
     compactStepMoveThresholdPx,
   } from "./compactStepInteraction.js";
@@ -248,7 +248,7 @@
     onBulkSelectBackgroundDoubleClick = () => {},
     onDismissPhraseBackground = () => {},
   } = $props();
-  const defaultStepProbability = maxPercentValue;
+  const defaultStepProbability = defaultStepProbabilityValue;
   const removeBlockMs = 500;
   const backgroundDoubleClickIntervalMs = 400;
   const backgroundDoubleClickMaxDistancePx = 16;
@@ -2513,7 +2513,7 @@
     {muted}
     ariaLabel={label}
     variant="large"
-    contentClass={addStepIsFirstVisible ? "" : "-translate-x-4"}
+    contentClass={addStepIsFirstVisible ? "" : "-translate-x-2"}
     options={insertMultiplierOptions}
     defaultIndex={defaultStepTimingMultiplierIndex}
     onConfirm={(multiplierIndex) => onInsertStep(row, insertStep, multiplierIndex)}

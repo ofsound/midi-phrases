@@ -2,7 +2,7 @@ import {loopBraceSnapQuarters} from "./loopBraceLayout.js";
 import {defaultPulseIndex, pulseQuartersForIndex} from "./pulseLayout.js";
 import {applyNoteBandpass, defaultNoteBandpassHighMidi, defaultNoteBandpassLowMidi} from "./noteBandpass.js";
 import {applyOctavizer, defaultOctavizerRelativeVelocity} from "./octavizer.js";
-import {maxPercentValue} from "./percentLimits.js";
+import {defaultStepProbabilityValue, maxPercentValue, maxStepProbabilityValue} from "./percentLimits.js";
 import {applyShimmer, defaultShimmerDelayMultiplierIndex, defaultShimmerFeedbackPercent, defaultShimmerMixPercent} from "./shimmer.js";
 import {applyVelocityTilt, defaultVelocityTiltAmount, defaultVelocityTiltPivotMidi} from "./velocityTilt.js";
 import {applyGlobalTranspose, defaultGlobalTransposeSemitones} from "./globalTranspose.js";
@@ -46,9 +46,9 @@ export {cycleGatePasses} from "./cyclePattern.js";
 
 /** @param {number} step @param {number} triggerCount @param {number} probability */
 export function probabilityPasses(step, triggerCount, probability) {
-  const chance = Math.min(maxPercentValue, Math.max(0, Math.round(probability)));
+  const chance = Math.min(maxStepProbabilityValue, Math.max(0, Math.round(probability)));
 
-  if (chance >= maxPercentValue) return true;
+  if (chance >= maxStepProbabilityValue) return true;
   if (chance <= 0) return false;
 
   const hash = (step * 2654435761 + triggerCount * 1597334677) >>> 0;
@@ -326,7 +326,7 @@ function buildPhraseScheduleCore({
 
         if (!cycleGatePasses(triggerCount, stepCycleLength, stepCyclePatternMask)) continue;
 
-        const probability = rowProbability[step] ?? maxPercentValue;
+        const probability = rowProbability[step] ?? defaultStepProbabilityValue;
 
         if (!probabilityPasses(step, triggerCount, probability)) continue;
 
@@ -930,7 +930,7 @@ export function isStepActiveAtBeat({
 
   const cycle = Math.max(1, stepCycle[step] ?? 1);
   const cyclePatternMask = (stepCycleMask[step] ?? stepCycleOffset[step] ?? 1);
-  const probability = stepProbability[step] ?? maxPercentValue;
+  const probability = stepProbability[step] ?? defaultStepProbabilityValue;
 
   const {stepStartQuarters, stepLengthQuarters, cycleLengthQuarters} = rowStepLayout(stepTimingMultiplier, pulseIndex, stepSkipped);
 

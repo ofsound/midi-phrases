@@ -3706,7 +3706,10 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getPhraseStepProbability (0, 1) == 50);
 
         testPlugin.setPhraseStepProbability (0, 1, 200);
-        CHECK (testPlugin.getPhraseStepProbability (0, 1) == PluginProcessor::maxPercentValue);
+        CHECK (testPlugin.getPhraseStepProbability (0, 1) == PluginProcessor::maxStepProbabilityValue);
+
+        testPlugin.setPhraseStepProbability (0, 1, 100);
+        CHECK (testPlugin.getPhraseStepProbability (0, 1) == 100);
     }
 
     SECTION ("step cycle")
@@ -4276,6 +4279,70 @@ TEST_CASE ("Plugin instance", "[instance]")
 
         CHECK (reloaded.getPhraseRowStepCount (0) == PluginProcessor::maxPhraseStepsPerRow);
         CHECK (reloaded.getPhraseNote (0, PluginProcessor::maxPhraseStepsPerRow - 1) == 72);
+    }
+
+    SECTION ("legacy state migrates full step probability to 100")
+    {
+        juce::ValueTree state ("MidiPhrases");
+        state.setProperty ("version", 21, nullptr);
+
+        juce::ValueTree patternTree ("Pattern");
+        patternTree.setProperty ("index", 0, nullptr);
+
+        juce::ValueTree rowTree ("Row");
+        rowTree.setProperty ("index", 0, nullptr);
+        rowTree.setProperty ("stepCount", 2, nullptr);
+        rowTree.setProperty ("probability0", PluginProcessor::maxPercentValue, nullptr);
+        rowTree.setProperty ("probability1", 42, nullptr);
+
+        patternTree.appendChild (rowTree, nullptr);
+        state.appendChild (patternTree, nullptr);
+
+        juce::MemoryBlock destData;
+
+        if (auto xml = state.createXml())
+        {
+            juce::MemoryOutputStream stream;
+            xml->writeTo (stream);
+            destData.replaceAll (stream.getData(), stream.getDataSize());
+        }
+
+        PluginProcessor reloaded;
+        reloaded.setStateInformation (destData.getData(), static_cast<int> (destData.getSize()));
+
+        CHECK (reloaded.getPhraseStepProbability (0, 0) == PluginProcessor::defaultStepProbability);
+        CHECK (reloaded.getPhraseStepProbability (0, 1) == 42);
+    }
+
+    SECTION ("current state preserves explicit 99 step probability")
+    {
+        juce::ValueTree state ("MidiPhrases");
+        state.setProperty ("version", 22, nullptr);
+
+        juce::ValueTree patternTree ("Pattern");
+        patternTree.setProperty ("index", 0, nullptr);
+
+        juce::ValueTree rowTree ("Row");
+        rowTree.setProperty ("index", 0, nullptr);
+        rowTree.setProperty ("stepCount", 1, nullptr);
+        rowTree.setProperty ("probability0", PluginProcessor::maxPercentValue, nullptr);
+
+        patternTree.appendChild (rowTree, nullptr);
+        state.appendChild (patternTree, nullptr);
+
+        juce::MemoryBlock destData;
+
+        if (auto xml = state.createXml())
+        {
+            juce::MemoryOutputStream stream;
+            xml->writeTo (stream);
+            destData.replaceAll (stream.getData(), stream.getDataSize());
+        }
+
+        PluginProcessor reloaded;
+        reloaded.setStateInformation (destData.getData(), static_cast<int> (destData.getSize()));
+
+        CHECK (reloaded.getPhraseStepProbability (0, 0) == PluginProcessor::maxPercentValue);
     }
 }
 

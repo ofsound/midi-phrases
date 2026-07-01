@@ -1,6 +1,6 @@
 import { defaultStepCycle, defaultStepCycleMask } from "./cyclePattern.js";
 import { defaultStepNoteForScaleRoot, midiToNoteName } from "./midiNoteNames.js";
-import { maxPercentValue } from "./percentLimits.js";
+import { defaultStepProbabilityValue } from "./percentLimits.js";
 import {
   defaultStepTimingMultiplierIndex,
   timingMultiplierIndexForValue,
@@ -719,7 +719,7 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
     stepProbability: degrees.map((_, step) => (
       randomnessRatio > 0 && random() < randomnessRatio * 0.5 && step % 4 !== 0
         ? Math.round(clamp(100 - randomnessRatio * randomInt(random, 18, 42), 20, 100))
-        : maxPercentValue
+        : defaultStepProbabilityValue
     )),
     stepCycle: degrees.map(() => defaultStepCycle),
     stepCycleOffset: degrees.map(() => defaultStepCycleMask),

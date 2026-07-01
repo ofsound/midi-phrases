@@ -142,6 +142,7 @@ public:
     int getPatternOctavizerUp8vaRelativeVelocity (int patternSlot) const;
 
     static constexpr int maxPercentValue = 99;
+    static constexpr int maxStepProbabilityValue = 100;
 
     static constexpr int defaultShimmerFeedbackPercent = 10;
     static constexpr int defaultShimmerMixPercent = 20;
@@ -253,7 +254,7 @@ public:
     void setPhraseStepSkipped (int row, int step, bool skipped);
     bool isPhraseStepSkipped (int row, int step) const;
 
-    static constexpr int defaultStepProbability = maxPercentValue;
+    static constexpr int defaultStepProbability = maxStepProbabilityValue;
     static constexpr int minStepCycle = 1;
     static constexpr int maxStepCycle = 64;
     static constexpr int defaultStepCycle = 1;

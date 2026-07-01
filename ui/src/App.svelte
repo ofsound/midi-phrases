@@ -74,7 +74,9 @@
   } from "./octavizer.js";
   import {
     clampHundredScalePercent,
+    clampStepProbabilityPercent,
     clampSignedRelativePercent,
+    defaultStepProbabilityValue,
     maxPercentValue,
   } from "./percentLimits.js";
   import {
@@ -1512,7 +1514,7 @@
       velocity: stepVelocity[row][step] ?? 127,
       durationFraction: stepDurationFraction[row][step] ?? defaultStepDurationFraction,
       timingMultiplierIndex: stepTimingMultiplier[row][step] ?? defaultStepTimingMultiplierIndex,
-      probability: stepProbability[row][step] ?? maxPercentValue,
+      probability: stepProbability[row][step] ?? defaultStepProbabilityValue,
       cycle: stepCycle[row][step] ?? 1,
       cycleMask: stepCycleOffset[row][step] ?? defaultStepCycleMask,
       cycleTriggerCount: stepTriggerCountAtBeat({
@@ -3456,8 +3458,8 @@
       for (let step = 0; step < stepCount; step += 1) {
         const value = Number.parseInt(String(rowData?.[step] ?? defaults[row][step]), 10);
         next[row][step] = Number.isNaN(value)
-          ? defaults[row][step] ?? maxPercentValue
-          : clampHundredScalePercent(value);
+          ? defaults[row][step] ?? defaultStepProbabilityValue
+          : clampStepProbabilityPercent(value);
       }
     }
 
@@ -4334,7 +4336,7 @@
     if (locations.length === 0) return;
     if (!bulkEditGestureBefore) beginBulkEditGesture();
 
-    const nextProbability = clampHundredScalePercent(probability);
+    const nextProbability = clampStepProbabilityPercent(probability);
 
     for (const { row: editRow, step: editStep } of locations) {
       stepProbability[editRow][editStep] = nextProbability;
@@ -4502,7 +4504,7 @@
       stepVelocity[row].splice(step, 0, defaultVelocities[row]?.[0] ?? 100);
       stepMuted[row].splice(step, 0, defaultMuted[row]?.[0] ?? false);
       stepSkipped[row].splice(step, 0, defaultSkipped[row]?.[0] ?? false);
-      stepProbability[row].splice(step, 0, defaultProbability[row]?.[0] ?? maxPercentValue);
+      stepProbability[row].splice(step, 0, defaultProbability[row]?.[0] ?? defaultStepProbabilityValue);
       stepCycle[row].splice(step, 0, defaultCycle[row]?.[0] ?? 1);
       stepCycleOffset[row].splice(step, 0, defaultCycleOffset[row]?.[0] ?? defaultStepCycleMask);
       activeGates[row].splice(step, 0, false);
@@ -4551,7 +4553,7 @@
       velocity: defaultStepVelocity,
       muted: false,
       skipped: false,
-      probability: maxPercentValue,
+      probability: defaultStepProbabilityValue,
       cycle: 1,
       cycleOffset: defaultStepCycleMask,
     };

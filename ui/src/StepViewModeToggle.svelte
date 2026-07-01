@@ -163,7 +163,7 @@
   .step-view-mode-track {
     --svm-track-pad: calc(0.125rem * var(--svm));
     --svm-thumb-gap: calc(0.25rem * var(--svm));
-    --svm-thumb-duration: 300ms;
+    --svm-thumb-duration: 150ms;
     z-index: 1;
     contain: layout style paint;
     inset: calc(7px * var(--svm)) calc(10.5px * var(--svm));
@@ -211,9 +211,9 @@
     opacity: 0.64;
     filter: contrast(0.75);
     transition:
-      color 110ms ease,
-      opacity 110ms ease,
-      filter 110ms ease;
+      color 55ms ease,
+      opacity 55ms ease,
+      filter 55ms ease;
     transition-delay: 0ms;
   }
 
