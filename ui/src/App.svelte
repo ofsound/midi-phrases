@@ -53,6 +53,7 @@
     rowTimingOffsetCount,
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
+  import { doubleClick } from "./doubleClickAction.js";
   import {
     blockCrossRowInsertionIndex,
     blockDuplicateInsertionIndex,
@@ -1702,6 +1703,38 @@
   function selectAllStepsForBulkEdit() {
     setSelectedStepKeys(new Set(allSelectableStepKeys()));
     syncBulkControlsFromSelection();
+  }
+
+  /** @param {number} row */
+  function selectAllStepsInRow(row) {
+    const keys = (stepIds[row] ?? []).map((stepId) => stepSelectionKey(row, stepId));
+    setSelectedStepKeys(new Set(keys));
+    syncBulkControlsFromSelection();
+  }
+
+  /** @param {PointerEvent} event */
+  function shouldIgnoreRowHeaderDoubleClick(event) {
+    const target = event.target;
+
+    if (!(target instanceof Element)) return true;
+
+    return Boolean(
+      target.closest(
+        "button, input, textarea, select, a, [contenteditable='true'], [role='slider']",
+      ),
+    );
+  }
+
+  /** @param {number} row */
+  function rowHeaderDoubleClickOptions(row) {
+    return {
+      shouldIgnore: shouldIgnoreRowHeaderDoubleClick,
+      onDoubleClick: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        selectAllStepsInRow(row);
+      },
+    };
   }
 
   function syncBulkControlsFromSelection() {
@@ -5982,6 +6015,7 @@
           >
             <div
               data-row-header={row}
+              use:doubleClick={rowHeaderDoubleClickOptions(row)}
               class="relative flex shrink-0 self-stretch items-center border-r border-border-subtle bg-surface/55 pl-6 pr-6 {seedModeActive
               ? 'ml-0'
               : '-ml-6'} {row <
