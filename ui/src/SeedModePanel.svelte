@@ -38,6 +38,7 @@
     onRowSettingsCommit = () => {},
     onShuffle = () => {},
     onNextSeed = () => {},
+    onReshuffleAspect = () => {},
     onRowTargetToggle = () => {},
     onToggleAllRowTargets = () => {},
   } = $props();
@@ -75,6 +76,10 @@
   /** @param {Partial<SeedingRowSettings>} updates */
   function commitRowSettings(updates) {
     onRowSettingsCommit(applySeedingRowSettingsUpdate(rowSettings, rowTargets, updates));
+  }
+  /** @param {import("./seeding.js").SeedingReshuffleableAspect} aspect */
+  function reshuffleAspect(aspect) {
+    onReshuffleAspect(aspect);
   }
 
 </script>
@@ -155,7 +160,16 @@
           onValuePreview={(timingVariance) => previewRowSettings({ timingVariance: clampPercent(timingVariance) })}
           onValueCommit={(timingVariance) => commitRowSettings({ timingVariance: clampPercent(timingVariance) })}
         />
-        <span class="seed-param-value" aria-hidden="true">{displaySettings.timingVariance}</span>
+        <button
+          type="button"
+          class="seed-param-value seed-param-value--reshuffle"
+          disabled={busy}
+          aria-label="Re-shuffle length variance"
+          title="Re-shuffle length variance"
+          onclick={() => reshuffleAspect("timingVariance")}
+        >
+          {displaySettings.timingVariance}
+        </button>
       </div>
     </label>
 
@@ -208,7 +222,16 @@
           onValuePreview={(repetition) => previewRowSettings({ repetition: clampPercent(repetition) })}
           onValueCommit={(repetition) => commitRowSettings({ repetition: clampPercent(repetition) })}
         />
-        <span class="seed-param-value" aria-hidden="true">{displaySettings.repetition}</span>
+        <button
+          type="button"
+          class="seed-param-value seed-param-value--reshuffle"
+          disabled={busy}
+          aria-label="Re-shuffle repetition"
+          title="Re-shuffle repetition"
+          onclick={() => reshuffleAspect("repetition")}
+        >
+          {displaySettings.repetition}
+        </button>
       </div>
     </label>
 
@@ -224,7 +247,16 @@
           onValuePreview={(complexity) => previewRowSettings({ complexity: clampPercent(complexity) })}
           onValueCommit={(complexity) => commitRowSettings({ complexity: clampPercent(complexity) })}
         />
-        <span class="seed-param-value" aria-hidden="true">{displaySettings.complexity}</span>
+        <button
+          type="button"
+          class="seed-param-value seed-param-value--reshuffle"
+          disabled={busy}
+          aria-label="Re-shuffle complexity"
+          title="Re-shuffle complexity"
+          onclick={() => reshuffleAspect("complexity")}
+        >
+          {displaySettings.complexity}
+        </button>
       </div>
     </label>
 
@@ -240,7 +272,16 @@
           onValuePreview={(randomness) => previewRowSettings({ randomness: clampPercent(randomness) })}
           onValueCommit={(randomness) => commitRowSettings({ randomness: clampPercent(randomness) })}
         />
-        <span class="seed-param-value" aria-hidden="true">{displaySettings.randomness}</span>
+        <button
+          type="button"
+          class="seed-param-value seed-param-value--reshuffle"
+          disabled={busy}
+          aria-label="Re-shuffle randomness"
+          title="Re-shuffle randomness"
+          onclick={() => reshuffleAspect("randomness")}
+        >
+          {displaySettings.randomness}
+        </button>
       </div>
     </label>
 

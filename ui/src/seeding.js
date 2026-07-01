@@ -82,13 +82,75 @@ export const defaultSeedingRowSettings = {
   seed: defaultSeedingSettings.seed,
 };
 
-/** @typedef {typeof defaultSeedingRowSettings} SeedingRowSettings */
+/** Seed-mode knobs whose displayed values can be clicked to re-roll only that aspect. */
+export const seedingReshuffleableAspects = Object.freeze([
+  "timingVariance",
+  "repetition",
+  "complexity",
+  "randomness",
+]);
+
+/** @typedef {(typeof seedingReshuffleableAspects)[number]} SeedingReshuffleableAspect */
+
+const seedingAspectSalt = {
+  timingVariance: 11,
+  repetition: 12,
+  complexity: 13,
+  randomness: 14,
+};
+
+/** @typedef {typeof defaultSeedingRowSettings & {
+ *   repetitionSeed: number,
+ *   complexitySeed: number,
+ *   randomnessSeed: number,
+ *   timingVarianceSeed: number,
+ * }} SeedingRowSettings */
 
 export const defaultSeedModeRowTargets = [true, false, false, false];
 
+/** @returns {number} */
+export function randomSeedingSeed() {
+  return Math.max(1, Math.floor(Math.random() * 2147483646));
+}
+
+/** @param {SeedingReshuffleableAspect} aspect */
+export function seedingAspectSeedField(aspect) {
+  return `${aspect}Seed`;
+}
+
+/** @param {number} seed @param {number} row @param {SeedingReshuffleableAspect} aspect */
+export function seedForSeedingAspect(seed, row, aspect) {
+  const salt = seedingAspectSalt[aspect] ?? 0;
+
+  return (seedForSeedingRow(seed, row) + Math.imul(salt, 0x85EBCA6B)) >>> 0;
+}
+
+/**
+ * @param {number} mainSeed
+ * @param {number} row
+ * @returns {Pick<SeedingRowSettings, "repetitionSeed" | "complexitySeed" | "randomnessSeed" | "timingVarianceSeed">}
+ */
+export function deriveAspectSeedsForRow(mainSeed, row) {
+  return {
+    repetitionSeed: seedForSeedingAspect(mainSeed, row, "repetition"),
+    complexitySeed: seedForSeedingAspect(mainSeed, row, "complexity"),
+    randomnessSeed: seedForSeedingAspect(mainSeed, row, "randomness"),
+    timingVarianceSeed: seedForSeedingAspect(mainSeed, row, "timingVariance"),
+  };
+}
+
+/** @param {SeedingReshuffleableAspect} aspect */
+export function reshuffleSeedingAspectSeedUpdate(aspect) {
+  return {
+    [seedingAspectSeedField(aspect)]: randomSeedingSeed(),
+  };
+}
+
 /** @returns {SeedingRowSettings[]} */
 export function createDefaultSeedModeRowSettings() {
-  return Array.from({ length: 4 }, () => ({ ...defaultSeedingRowSettings }));
+  return Array.from({ length: 4 }, (_, row) => (
+    normalizeSeedingRowSettings(defaultSeedingRowSettings, row)
+  ));
 }
 
 export const defaultSeedModeState = {
@@ -431,14 +493,38 @@ function midiForSeedingOffsetFromCenter(root, modeIndex, centerMidi, semitoneOff
   return snapMidiToScale(centerMidi + Math.round(semitoneOffset), root, modeIndex);
 }
 
+/** @param {number | undefined} value */
+function clampSeedingSeed(value) {
+  return Math.max(1, Math.round(clamp(value, 1, 2147483647)));
+}
+
+/**
+ * @param {number | undefined} value
+ * @param {number} mainSeed
+ * @param {number} row
+ * @param {SeedingReshuffleableAspect} aspect
+ */
+function resolveAspectSeed(value, mainSeed, row, aspect) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+
+  if (Number.isFinite(parsed) && parsed >= 1) {
+    return clampSeedingSeed(parsed);
+  }
+
+  return clampSeedingSeed(seedForSeedingAspect(mainSeed, row, aspect));
+}
+
 /**
  * @param {Partial<SeedingRowSettings> & { rangeIndex?: number }} settings
+ * @param {number} [row=0]
  */
-export function normalizeSeedingRowSettings(settings = {}) {
+export function normalizeSeedingRowSettings(settings = {}, row = 0) {
   const merged = {
     ...defaultSeedingRowSettings,
     ...settings,
   };
+  const mainSeed = clampSeedingSeed(merged.seed);
+  const derivedAspectSeeds = deriveAspectSeedsForRow(mainSeed, row);
 
   return {
     phraseLength: clampPhraseLength(merged.phraseLength),
@@ -450,7 +536,31 @@ export function normalizeSeedingRowSettings(settings = {}) {
     timingMeanMultiplierIndex: clampSeedTimingMultiplierIndex(merged.timingMeanMultiplierIndex),
     timingVariance: clampPercent(merged.timingVariance),
     symmetry: Boolean(merged.symmetry),
-    seed: Math.max(1, Math.round(clamp(merged.seed, 1, 2147483647))),
+    seed: mainSeed,
+    repetitionSeed: resolveAspectSeed(
+      merged.repetitionSeed ?? derivedAspectSeeds.repetitionSeed,
+      mainSeed,
+      row,
+      "repetition",
+    ),
+    complexitySeed: resolveAspectSeed(
+      merged.complexitySeed ?? derivedAspectSeeds.complexitySeed,
+      mainSeed,
+      row,
+      "complexity",
+    ),
+    randomnessSeed: resolveAspectSeed(
+      merged.randomnessSeed ?? derivedAspectSeeds.randomnessSeed,
+      mainSeed,
+      row,
+      "randomness",
+    ),
+    timingVarianceSeed: resolveAspectSeed(
+      merged.timingVarianceSeed ?? derivedAspectSeeds.timingVarianceSeed,
+      mainSeed,
+      row,
+      "timingVariance",
+    ),
   };
 }
 
@@ -489,7 +599,7 @@ export function normalizeSeedModeState(state = {}) {
       rhythmMode: state.rhythmMode,
     }),
     rowSettings: Array.from({ length: 4 }, (_, row) => (
-      normalizeSeedingRowSettings(sourceRows[row] ?? defaultSeedingRowSettings)
+      normalizeSeedingRowSettings(sourceRows[row] ?? defaultSeedingRowSettings, row)
     )),
     rowTargets: normalizeSeedModeRowTargets(state.rowTargets ?? defaultSeedModeRowTargets),
   };
@@ -512,7 +622,7 @@ export function displaySeedingRowSettings(rowSettings, rowTargets) {
   const indices = seedingTargetRowIndices(rowTargets);
   const index = indices[0] ?? 0;
 
-  return normalizeSeedingRowSettings(rowSettings[index] ?? defaultSeedingRowSettings);
+  return normalizeSeedingRowSettings(rowSettings[index] ?? defaultSeedingRowSettings, index);
 }
 
 /**
@@ -528,8 +638,30 @@ export function applySeedingRowSettingsUpdate(rowSettings, rowTargets, updates) 
 
   return rowSettings.map((settings, row) => (
     targets.includes(row)
-      ? normalizeSeedingRowSettings({ ...settings, ...updates })
-      : normalizeSeedingRowSettings(settings)
+      ? normalizeSeedingRowSettings({ ...settings, ...updates }, row)
+      : normalizeSeedingRowSettings(settings, row)
+  ));
+}
+
+/**
+ * Refresh the main seed and all aspect seeds for targeted rows.
+ *
+ * @param {SeedingRowSettings[]} rowSettings
+ * @param {boolean[]} rowTargets
+ * @param {number} mainSeed
+ */
+export function refreshSeedingSeedsForRows(rowSettings, rowTargets, mainSeed) {
+  const indices = seedingTargetRowIndices(rowTargets);
+  const targets = indices.length > 0 ? indices : [0, 1, 2, 3];
+
+  return rowSettings.map((settings, row) => (
+    targets.includes(row)
+      ? normalizeSeedingRowSettings({
+          ...settings,
+          seed: mainSeed,
+          ...deriveAspectSeedsForRow(mainSeed, row),
+        }, row)
+      : normalizeSeedingRowSettings(settings, row)
   ));
 }
 
@@ -545,7 +677,7 @@ function resolveSeedModeGenerationInputs(state = {}) {
   const rhythmStep = resolveRhythmStep(state);
   const rowSettings = state.rowSettings
     ? normalizeSeedModeState(state).rowSettings
-    : Array.from({ length: 4 }, () => normalizeSeedingRowSettings(state));
+    : Array.from({ length: 4 }, (_, row) => normalizeSeedingRowSettings(state, row));
 
   return {
     rhythmStep,
@@ -559,9 +691,9 @@ function resolveSeedModeGenerationInputs(state = {}) {
  * @param {RowContour} contour
  * @param {ReturnType<typeof normalizeSeedingRowSettings>} rowOptions
  * @param {number} rhythmStep
- * @param {() => number} random
+ * @param {() => number} timingVarianceRandom
  */
-function generateSeededTimingMultiplierIndices(contour, rowOptions, rhythmStep, random) {
+function generateSeededTimingMultiplierIndices(contour, rowOptions, rhythmStep, timingVarianceRandom) {
   const stepCount = rowOptions.phraseLength;
   const targetIndex = rowOptions.timingMeanMultiplierIndex;
   const varianceRatio = rowOptions.timingVariance / 100;
@@ -582,7 +714,7 @@ function generateSeededTimingMultiplierIndices(contour, rowOptions, rhythmStep, 
   const maxSpread = Math.max(1, Math.round(varianceRatio * 4));
   const lockedSteps = new Set();
   const multipliers = Array.from({ length: stepCount }, (_, step) => {
-    const randomOffset = Math.round((random() * 2 - 1) * maxSpread);
+    const randomOffset = Math.round((timingVarianceRandom() * 2 - 1) * maxSpread);
     const baseIndex = clampSeedTimingMultiplierIndex(targetIndex + randomOffset);
     const weight = stepRhythmWeight(step, accentPhase, stepCount);
     const shapedIndex = baseIndex
@@ -601,8 +733,8 @@ function generateSeededTimingMultiplierIndices(contour, rowOptions, rhythmStep, 
       targetIndex - seedingTimingMultiplierMinIndex,
       seedingTimingMultiplierMaxIndex - targetIndex,
     ));
-    const firstStep = Math.floor(random() * stepCount);
-    const secondStep = (firstStep + 1 + Math.floor(random() * (stepCount - 1))) % stepCount;
+    const firstStep = Math.floor(timingVarianceRandom() * stepCount);
+    const secondStep = (firstStep + 1 + Math.floor(timingVarianceRandom() * (stepCount - 1))) % stepCount;
 
     multipliers[firstStep] = targetIndex - symmetricSpread;
     multipliers[secondStep] = targetIndex + symmetricSpread;
@@ -661,7 +793,10 @@ function generateSeededTimingMultiplierIndices(contour, rowOptions, rhythmStep, 
  * @param {number} rhythmStep
  */
 function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhythmStep) {
-  const random = mulberry32(seedForSeedingRow(rowOptions.seed, row));
+  const repetitionRandom = mulberry32(seedForSeedingRow(rowOptions.repetitionSeed, row));
+  const complexityRandom = mulberry32(seedForSeedingRow(rowOptions.complexitySeed, row));
+  const randomnessRandom = mulberry32(seedForSeedingRow(rowOptions.randomnessSeed, row));
+  const timingVarianceRandom = mulberry32(seedForSeedingRow(rowOptions.timingVarianceSeed, row));
   const span = rowOptions.rangeSemitones;
   const halfSpan = Math.max(2, Math.floor(span / 2));
   const complexityRatio = rowOptions.complexity / 100;
@@ -678,8 +813,8 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
   let previous = center;
 
   for (let step = 0; step < motifLength; step += 1) {
-    const reusePrevious = step > 0 && random() < repetitionRatio;
-    const reuseEarlier = step > 3 && random() < repetitionRatio * 0.28;
+    const reusePrevious = step > 0 && repetitionRandom() < repetitionRatio;
+    const reuseEarlier = step > 3 && repetitionRandom() < repetitionRatio * 0.28;
 
     if (reusePrevious) {
       motif.push(previous);
@@ -687,7 +822,7 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
     }
 
     if (reuseEarlier) {
-      previous = motif[Math.max(0, step - randomInt(random, 2, Math.min(6, step)))] ?? previous;
+      previous = motif[Math.max(0, step - randomInt(repetitionRandom, 2, Math.min(6, step)))] ?? previous;
       motif.push(previous);
       continue;
     }
@@ -698,7 +833,7 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
     const directed = Math.round(periodic * halfSpan * (0.35 + complexityRatio * 0.45));
     const leapSpan = Math.max(0, Math.round(randomnessRatio * halfSpan * 0.9));
     const randomPush = leapSpan > 0
-      ? randomInt(random, -Math.max(1, leapSpan), Math.max(1, leapSpan))
+      ? randomInt(randomnessRandom, -Math.max(1, leapSpan), Math.max(1, leapSpan))
       : 0;
 
     previous = Math.round(clamp(center + directed + randomPush, -halfSpan, halfSpan));
@@ -708,7 +843,12 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
   const degrees = rowOptions.symmetry
     ? [...motif, ...motif.slice(0, rowOptions.phraseLength - motif.length).reverse()]
     : motif;
-  const stepTimingMultiplier = generateSeededTimingMultiplierIndices(contour, rowOptions, rhythmStep, random);
+  const stepTimingMultiplier = generateSeededTimingMultiplierIndices(
+    contour,
+    rowOptions,
+    rhythmStep,
+    timingVarianceRandom,
+  );
   const velocityBase = contour.velocityBase;
   const velocitySwing = Math.round(10 + complexityRatio * 28);
   const velocityNoise = Math.round(randomnessRatio * 12);
@@ -720,7 +860,7 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
     stepTimingMultiplier,
     stepDurationFraction: degrees.map((_, step) => {
       const accentBase = (step + accentPhase) % 4 === 0 ? 0.95 : 0.82;
-      const accent = accentBase + (random() * 0.18 - 0.09) * randomnessRatio;
+      const accent = accentBase + (randomnessRandom() * 0.18 - 0.09) * randomnessRatio;
       const weight = stepRhythmWeight(step, accentPhase, rowOptions.phraseLength);
       const stepPenalty = durationPenalty * weight;
 
@@ -730,18 +870,18 @@ function generateSeededPhraseRow(row, contour, rowOptions, root, modeIndex, rhyt
       Math.round(clamp(
         velocityBase
           + Math.sin((step + accentPhase) * 1.7) * velocitySwing
-          + (velocityNoise > 0 ? randomInt(random, -velocityNoise, velocityNoise) : 0),
+          + (velocityNoise > 0 ? randomInt(randomnessRandom, -velocityNoise, velocityNoise) : 0),
         28,
         127,
       ))
     )),
     stepMuted: degrees.map(() => false),
     stepSkipped: degrees.map((_, step) => (
-      complexityRatio < 0.3 && random() < 0.08 && step % 4 !== accentPhase % 4
+      complexityRatio < 0.3 && complexityRandom() < 0.08 && step % 4 !== accentPhase % 4
     )),
     stepProbability: degrees.map((_, step) => (
-      randomnessRatio > 0 && random() < randomnessRatio * 0.5 && step % 4 !== 0
-        ? Math.round(clamp(100 - randomnessRatio * randomInt(random, 18, 42), 20, 100))
+      randomnessRatio > 0 && randomnessRandom() < randomnessRatio * 0.5 && step % 4 !== 0
+        ? Math.round(clamp(100 - randomnessRatio * randomInt(randomnessRandom, 18, 42), 20, 100))
         : defaultStepProbabilityValue
     )),
     stepCycle: degrees.map(() => defaultStepCycle),

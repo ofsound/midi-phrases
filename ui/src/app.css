@@ -954,6 +954,22 @@
     white-space: nowrap;
   }
 
+  .seed-param-value--reshuffle {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    transition: color 120ms ease, opacity 120ms ease;
+  }
+
+  .seed-param-value--reshuffle:hover:not(:disabled) {
+    color: color-mix(in srgb, var(--color-accent) 82%, white);
+  }
+
+  .seed-param-value--reshuffle:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+
   .seed-param-row {
     display: flex;
     align-items: center;

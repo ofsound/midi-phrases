@@ -191,6 +191,10 @@ public:
         int timingVariance = defaultSeedingTimingVariance;
         int symmetry = 0;
         int seed = defaultSeedingSeed;
+        int repetitionSeed = 0;
+        int complexitySeed = 0;
+        int randomnessSeed = 0;
+        int timingVarianceSeed = 0;
     };
 
     void setPatternSeedModeState (int rhythmStep,

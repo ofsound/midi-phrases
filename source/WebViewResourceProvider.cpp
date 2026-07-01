@@ -67,6 +67,18 @@ PluginProcessor::SeedingRowState seedingRowStateFromVar (const juce::var& value)
                                       : PluginProcessor::defaultSeedingTimingVariance;
         rowState.symmetry = varToInt (object->getProperty ("symmetry"));
         rowState.seed = varToInt (object->getProperty ("seed"));
+        rowState.repetitionSeed = object->hasProperty ("repetitionSeed")
+                                      ? varToInt (object->getProperty ("repetitionSeed"))
+                                      : 0;
+        rowState.complexitySeed = object->hasProperty ("complexitySeed")
+                                      ? varToInt (object->getProperty ("complexitySeed"))
+                                      : 0;
+        rowState.randomnessSeed = object->hasProperty ("randomnessSeed")
+                                      ? varToInt (object->getProperty ("randomnessSeed"))
+                                      : 0;
+        rowState.timingVarianceSeed = object->hasProperty ("timingVarianceSeed")
+                                          ? varToInt (object->getProperty ("timingVarianceSeed"))
+                                          : 0;
     }
 
     return rowState;
@@ -94,6 +106,10 @@ juce::var createSeedModeStateVar (const PluginProcessor& processor, const int pa
         rowObject->setProperty ("timingVariance", rowState.timingVariance);
         rowObject->setProperty ("symmetry", rowState.symmetry);
         rowObject->setProperty ("seed", rowState.seed);
+        rowObject->setProperty ("repetitionSeed", rowState.repetitionSeed);
+        rowObject->setProperty ("complexitySeed", rowState.complexitySeed);
+        rowObject->setProperty ("randomnessSeed", rowState.randomnessSeed);
+        rowObject->setProperty ("timingVarianceSeed", rowState.timingVarianceSeed);
         seedingRowSettings.add (juce::var (rowObject.release()));
         seedingRowTargets.add (processor.isPatternSeedingRowTargeted (patternSlot, row) ? 1 : 0);
     }
@@ -318,6 +334,10 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
         rowObject->setProperty ("timingVariance", rowState.timingVariance);
         rowObject->setProperty ("symmetry", rowState.symmetry);
         rowObject->setProperty ("seed", rowState.seed);
+        rowObject->setProperty ("repetitionSeed", rowState.repetitionSeed);
+        rowObject->setProperty ("complexitySeed", rowState.complexitySeed);
+        rowObject->setProperty ("randomnessSeed", rowState.randomnessSeed);
+        rowObject->setProperty ("timingVarianceSeed", rowState.timingVarianceSeed);
         seedingRowSettings.add (juce::var (rowObject.release()));
         seedingRowTargets.add (processor.isPatternSeedingRowTargeted (patternSlot, row) ? 1 : 0);
     }

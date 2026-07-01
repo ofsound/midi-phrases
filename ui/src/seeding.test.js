@@ -12,6 +12,7 @@ import {
   normalizeSeedingRowSettings,
   normalizeSeedingSettings,
   phraseRowsFromGridState,
+  reshuffleSeedingAspectSeedUpdate,
   resolveSeedingCenterMidi,
   rhythmInterleaveRatio,
   seedingCenterMidiForIndex,
@@ -712,5 +713,67 @@ describe("mergeSeededPhraseRows", () => {
     expect(merged.rowTimingOffset[1]).toEqual(generated.rowTimingOffset[1]);
     expect(merged.rowTimingOffset[2]).toEqual(existing.rowTimingOffset[2]);
     expect(merged.rowTimingOffset[3]).toEqual(existing.rowTimingOffset[3]);
+  });
+});
+
+describe("seeding aspect seeds", () => {
+  const baseOptions = {
+    phraseLength: 8,
+    repetition: 55,
+    complexity: 36,
+    randomness: 45,
+    timingMeanMultiplierIndex: 5,
+    timingVariance: 52,
+    seed: 4242,
+  };
+
+  it("derives aspect seeds from the main seed when unset", () => {
+    const settings = normalizeSeedingRowSettings({ seed: 99 }, 2);
+
+    expect(settings.repetitionSeed).toBeGreaterThan(0);
+    expect(settings.complexitySeed).toBeGreaterThan(0);
+    expect(settings.randomnessSeed).toBeGreaterThan(0);
+    expect(settings.timingVarianceSeed).toBeGreaterThan(0);
+  });
+
+  it("re-shuffles only the targeted aspect when its seed changes", () => {
+    const baseline = generateSeededPhraseRows({
+      ...baseOptions,
+      timingVarianceSeed: 1001,
+      randomnessSeed: 2002,
+    });
+    const timingReshuffle = generateSeededPhraseRows({
+      ...baseOptions,
+      timingVarianceSeed: 3003,
+      randomnessSeed: 2002,
+    });
+    const randomnessReshuffle = generateSeededPhraseRows({
+      ...baseOptions,
+      timingVarianceSeed: 1001,
+      randomnessSeed: 4004,
+    });
+
+    expect(timingReshuffle).not.toEqual(baseline);
+    expect(randomnessReshuffle).not.toEqual(baseline);
+    expect(timingReshuffle.notes).toEqual(baseline.notes);
+    expect(randomnessReshuffle.stepTimingMultiplier).toEqual(baseline.stepTimingMultiplier);
+  });
+
+  it("keeps repetition-driven notes stable when only randomness is re-shuffled", () => {
+    const repetitionHeavy = generateSeededPhraseRows({
+      ...baseOptions,
+      repetition: 100,
+      randomness: 0,
+      complexity: 0,
+    });
+    const randomnessOnlyReshuffle = generateSeededPhraseRows({
+      ...baseOptions,
+      repetition: 100,
+      randomness: 0,
+      complexity: 0,
+      ...reshuffleSeedingAspectSeedUpdate("randomness"),
+    });
+
+    expect(randomnessOnlyReshuffle.notes).toEqual(repetitionHeavy.notes);
   });
 });

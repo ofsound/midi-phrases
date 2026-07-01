@@ -126,6 +126,9 @@
     mergeSeededPhraseRows,
     normalizeSeedModeState,
     phraseRowsFromGridState,
+    randomSeedingSeed,
+    refreshSeedingSeedsForRows,
+    reshuffleSeedingAspectSeedUpdate,
     seedingTimingMultiplierMaxIndex,
     seedingTimingMultiplierMinIndex,
     seedingRhythmStepMax,
@@ -2897,6 +2900,10 @@
             timingVariance: Number.parseInt(String(rowSettings?.timingVariance ?? defaultSeedModeState.rowSettings[0].timingVariance), 10),
             symmetry: Boolean(Number.parseInt(String(rowSettings?.symmetry ?? 0), 10)),
             seed: Number.parseInt(String(rowSettings?.seed ?? defaultSeedModeState.rowSettings[0].seed), 10),
+            repetitionSeed: Number.parseInt(String(rowSettings?.repetitionSeed ?? 0), 10),
+            complexitySeed: Number.parseInt(String(rowSettings?.complexitySeed ?? 0), 10),
+            randomnessSeed: Number.parseInt(String(rowSettings?.randomnessSeed ?? 0), 10),
+            timingVarianceSeed: Number.parseInt(String(rowSettings?.timingVarianceSeed ?? 0), 10),
           }))
         : undefined,
       rowTargets: Array.isArray(state.seedingRowTargets)
@@ -3045,35 +3052,50 @@
   }
 
   function nextSeedModeSeed() {
+    const newSeed = randomSeedingSeed();
+
     void applySeedModeState({
       ...currentSeedModeState(),
-      rowSettings: applySeedingRowSettingsUpdate(
-        seedModeRowSettings,
-        seedModeRowTargets,
-        { seed: Math.max(1, Math.floor(Math.random() * 2147483646)) },
-      ),
+      rowSettings: refreshSeedingSeedsForRows(seedModeRowSettings, seedModeRowTargets, newSeed),
     });
   }
 
   function shuffleSeedModeSettings() {
+    const newSeed = randomSeedingSeed();
+
     void applySeedModeState({
       ...currentSeedModeState(),
       rhythmStep: Math.floor(Math.random() * (seedingRhythmStepMax + 1)),
+      rowSettings: refreshSeedingSeedsForRows(
+        applySeedingRowSettingsUpdate(
+          seedModeRowSettings,
+          seedModeRowTargets,
+          {
+            repetition: Math.round(Math.min(100, Math.max(0, 18 + Math.random() * 70))),
+            complexity: Math.round(Math.min(100, Math.max(0, 20 + Math.random() * 72))),
+            randomness: Math.round(Math.min(100, Math.max(0, 24 + Math.random() * 68))),
+            timingMeanMultiplierIndex: Math.round(
+              seedingTimingMultiplierMinIndex
+                + Math.random() * (seedingTimingMultiplierMaxIndex - seedingTimingMultiplierMinIndex),
+            ),
+            timingVariance: Math.round(Math.min(100, Math.max(0, 18 + Math.random() * 72))),
+            symmetry: Math.random() > 0.62,
+          },
+        ),
+        seedModeRowTargets,
+        newSeed,
+      ),
+    });
+  }
+
+  /** @param {import("./seeding.js").SeedingReshuffleableAspect} aspect */
+  function reshuffleSeedModeAspect(aspect) {
+    void applySeedModeState({
+      ...currentSeedModeState(),
       rowSettings: applySeedingRowSettingsUpdate(
         seedModeRowSettings,
         seedModeRowTargets,
-        {
-          repetition: Math.round(Math.min(100, Math.max(0, 18 + Math.random() * 70))),
-          complexity: Math.round(Math.min(100, Math.max(0, 20 + Math.random() * 72))),
-          randomness: Math.round(Math.min(100, Math.max(0, 24 + Math.random() * 68))),
-          timingMeanMultiplierIndex: Math.round(
-            seedingTimingMultiplierMinIndex
-              + Math.random() * (seedingTimingMultiplierMaxIndex - seedingTimingMultiplierMinIndex),
-          ),
-          timingVariance: Math.round(Math.min(100, Math.max(0, 18 + Math.random() * 72))),
-          symmetry: Math.random() > 0.62,
-          seed: Math.max(1, Math.floor(Math.random() * 2147483646)),
-        },
+        reshuffleSeedingAspectSeedUpdate(aspect),
       ),
     });
   }
@@ -5936,6 +5958,7 @@
           onRowSettingsCommit={commitSeedModeRowSettings}
           onShuffle={shuffleSeedModeSettings}
           onNextSeed={nextSeedModeSeed}
+          onReshuffleAspect={reshuffleSeedModeAspect}
           onRowTargetToggle={toggleSeedModeRowTarget}
           onToggleAllRowTargets={toggleAllSeedModeRowTargets}
         />

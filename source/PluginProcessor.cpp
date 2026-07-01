@@ -70,6 +70,11 @@ int clampSeedingSeed (const int seed)
     return juce::jmax (1, seed);
 }
 
+int clampSeedingAspectSeed (const int seed)
+{
+    return seed >= 1 ? juce::jmax (1, seed) : 0;
+}
+
 int clampSeedingRhythmStep (const int rhythmStep)
 {
     return juce::jlimit (PluginProcessor::minSeedingRhythmStep,
@@ -91,6 +96,10 @@ PluginProcessor::SeedingRowState clampSeedingRowState (const PluginProcessor::Se
     clamped.timingVariance = clampSeedingPercent (rowState.timingVariance);
     clamped.symmetry = rowState.symmetry != 0 ? 1 : 0;
     clamped.seed = clampSeedingSeed (rowState.seed);
+    clamped.repetitionSeed = clampSeedingAspectSeed (rowState.repetitionSeed);
+    clamped.complexitySeed = clampSeedingAspectSeed (rowState.complexitySeed);
+    clamped.randomnessSeed = clampSeedingAspectSeed (rowState.randomnessSeed);
+    clamped.timingVarianceSeed = clampSeedingAspectSeed (rowState.timingVarianceSeed);
     return clamped;
 }
 
@@ -5567,6 +5576,10 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
             patternTree.setProperty (prefix + "TimingVariance", rowState.timingVariance, nullptr);
             patternTree.setProperty (prefix + "Symmetry", rowState.symmetry, nullptr);
             patternTree.setProperty (prefix + "Seed", rowState.seed, nullptr);
+            patternTree.setProperty (prefix + "RepetitionSeed", rowState.repetitionSeed, nullptr);
+            patternTree.setProperty (prefix + "ComplexitySeed", rowState.complexitySeed, nullptr);
+            patternTree.setProperty (prefix + "RandomnessSeed", rowState.randomnessSeed, nullptr);
+            patternTree.setProperty (prefix + "TimingVarianceSeed", rowState.timingVarianceSeed, nullptr);
             patternTree.setProperty (prefix + "Targeted",
                                      isPatternSeedingRowTargeted (patternSlot, seedingRow) ? 1 : 0,
                                      nullptr);
@@ -5883,6 +5896,14 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
                 static_cast<int> (patternTree.getProperty (prefix + "Symmetry", 0)) != 0 ? 1 : 0;
             rowState.seed = clampSeedingSeed (
                 static_cast<int> (patternTree.getProperty (prefix + "Seed", defaultSeedingSeed)));
+            rowState.repetitionSeed = clampSeedingAspectSeed (
+                static_cast<int> (patternTree.getProperty (prefix + "RepetitionSeed", 0)));
+            rowState.complexitySeed = clampSeedingAspectSeed (
+                static_cast<int> (patternTree.getProperty (prefix + "ComplexitySeed", 0)));
+            rowState.randomnessSeed = clampSeedingAspectSeed (
+                static_cast<int> (patternTree.getProperty (prefix + "RandomnessSeed", 0)));
+            rowState.timingVarianceSeed = clampSeedingAspectSeed (
+                static_cast<int> (patternTree.getProperty (prefix + "TimingVarianceSeed", 0)));
             pattern.seedingRowTargets[static_cast<size_t> (seedingRow)] =
                 static_cast<int> (patternTree.getProperty (prefix + "Targeted", seedingRow == 0 ? 1 : 0)) != 0 ? 1 : 0;
         }
