@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isScheduledNoteActiveAtBeat,
   isScheduledNoteActiveAtPatternBeat,
+  isScheduledNoteActiveAtPlaybackBeat,
   mapPlaybackBeatForPianoRoll,
   patternRepeatLengthQuarters,
   positiveMod,
@@ -97,5 +98,17 @@ describe("isScheduledNoteActiveAtPatternBeat", () => {
     expect(isScheduledNoteActiveAtPatternBeat(futureRepeat, displayBeat, 4)).toBe(true);
     expect(isScheduledNoteActiveAtBeat(noteUnderPlayhead, displayBeat)).toBe(true);
     expect(isScheduledNoteActiveAtBeat(futureRepeat, displayBeat)).toBe(false);
+  });
+
+  it("matches tiled repeats through the playback-beat helper used by the piano roll", () => {
+    const displayBeat = mapPlaybackBeatForPianoRoll(9, { patternLengthQuarters: 4 });
+    const tiledRepeat = { start: 9, end: 10, midi: 60, velocity: 100, row: 0, step: 0 };
+
+    expect(
+      isScheduledNoteActiveAtPlaybackBeat(tiledRepeat, displayBeat, {
+        patternLengthQuarters: 4,
+      }),
+    ).toBe(true);
+    expect(isScheduledNoteActiveAtBeat(tiledRepeat, displayBeat)).toBe(false);
   });
 });

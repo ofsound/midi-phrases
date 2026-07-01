@@ -599,7 +599,7 @@ private:
     void publishLoopBraceCommandToAudio (SequencerCommand::Type type, int patternSlot);
     void deactivateLoopBraceForPatternSelection (int patternSlot);
     void requestAudioPatternSlot (int patternSlot);
-    void applyAudioPatternSlot (int patternSlot);
+    void applyAudioPatternSlot (int patternSlot, double reanchorTransportPpq = -1.0);
     void requestAudioLoopSlot (int loopSlot);
     void applyAudioLoopSlot (int loopSlot, double reanchorTransportPpq);
     bool isAudioLoopSlotApplied (int loopSlot) const;
@@ -607,6 +607,9 @@ private:
     void reanchorLoopScheduleAt (double transportPpq);
     void clearLoopScheduleAnchor();
     double mapTransportToLoopSchedulePpq (double transportPpq) const;
+    void reanchorPatternScheduleAt (double transportPpq);
+    void clearPatternScheduleAnchor();
+    double mapTransportToPatternSchedulePpq (double transportPpq) const;
     void applyMuteOutputSilence (juce::MidiBuffer& midiMessages);
     void handleIncomingControlNotes (juce::MidiBuffer& midiMessages);
     bool shouldApplyPendingPatternSwitch (double ppqStart, double ppqEnd) const;
@@ -763,6 +766,7 @@ private:
     double sampleRateHz = 44100.0;
     bool wasPlaying = false;
     double loopScheduleAnchorTransportPpq = -1.0;
+    double patternScheduleAnchorTransportPpq = -1.0;
     bool loopScheduleReanchorRequested = false;
 
     static constexpr int recordQueueCapacity = maxPhraseStepsPerRow;
