@@ -23,6 +23,7 @@ const MAX_COMBINED_PREVIEW_NOTES = 4096;
 const COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR = 2;
 const ROUND_ROBIN_OVERLAP_FRACTION = 0.25;
 const HOCKET_MINIMUM_SLICE_OVERLAP_FRACTION = 0.5;
+const UNISON_OVERLAP_WINDOW_QUARTERS = 1 / 96;
 const DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS = 64;
 export const combinationModeMaskBits = 0x1ff;
 /** Display order matches processing order. Weave keeps its legacy bit and runs last. */
@@ -101,8 +102,111 @@ function isBloomGestureAnchor(ppq, duration, gesturePulse) {
 }
 
 /**
- * @typedef {{ start: number, end: number, midi: number, velocity: number, row: number, step: number }} ScheduledNote
+ * @typedef {{ start: number, end: number, midi: number, velocity: number, row: number, step: number, channel: number }} ScheduledNote
  */
+
+/** @param {number} channel */
+function clampMidiChannel(channel) {
+  return Math.min(16, Math.max(1, Math.round(channel)));
+}
+
+/** @param {number[]} rowMidiChannel @param {number} row */
+function midiChannelForRow(rowMidiChannel, row) {
+  return clampMidiChannel(rowMidiChannel[row] ?? row + 1);
+}
+
+/**
+ * @param {ScheduledNote[]} events
+ * @param {boolean} enabled
+ * @returns {ScheduledNote[]}
+ */
+export function cleanupUnisonOverlaps(events, enabled = true) {
+  if (!enabled || events.length <= 1) return events;
+
+  const sorted = [...events].sort((a, b) => (
+    (a.channel ?? 1) - (b.channel ?? 1)
+    || a.midi - b.midi
+    || a.start - b.start
+    || a.row - b.row
+    || a.step - b.step
+  ));
+  /** @type {ScheduledNote[]} */
+  const mergedEvents = [];
+
+  for (let index = 0; index < sorted.length;) {
+    const merged = {...sorted[index]};
+    let mergedEnd = merged.end;
+    let next = index + 1;
+
+    while (
+      next < sorted.length
+      && (sorted[next].channel ?? 1) === (merged.channel ?? 1)
+      && sorted[next].midi === merged.midi
+      && sorted[next].start <= merged.start + UNISON_OVERLAP_WINDOW_QUARTERS + EPSILON
+    ) {
+      merged.velocity = Math.max(merged.velocity, sorted[next].velocity);
+      mergedEnd = Math.max(mergedEnd, sorted[next].end);
+      next += 1;
+    }
+
+    merged.end = Math.max(merged.start, mergedEnd);
+    mergedEvents.push(merged);
+    index = next;
+  }
+
+  return mergedEvents.sort(
+    (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+  );
+}
+
+/**
+ * @param {ScheduledNote[]} events
+ * @param {boolean} enabled
+ * @param {number} repeatLengthQuarters
+ * @returns {ScheduledNote[]}
+ */
+export function applyWeaveMonophony(events, enabled = true, repeatLengthQuarters = 0) {
+  if (!enabled || events.length <= 1) return events;
+
+  const hashPpq = (ppq) => (
+    repeatLengthQuarters > EPSILON ? positiveMod(ppq, repeatLengthQuarters) : ppq
+  );
+
+  const selected = groupByStart([...events].sort(
+    (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+  )).map((group) => {
+    if (group.length === 1) return {...group[0]};
+
+    const totalWeight = group.reduce((total, event) => total + Math.max(1, event.velocity), 0);
+    let pick = deterministicEventHash(group[0].row, group[0].step, hashPpq(group[0].start)) % Math.max(1, totalWeight);
+
+    for (const event of group) {
+      pick -= Math.max(1, event.velocity);
+
+      if (pick < 0) return {...event};
+    }
+
+    return {...group[group.length - 1]};
+  });
+
+  /** @type {ScheduledNote[]} */
+  const monophonic = [];
+
+  for (let index = 0; index < selected.length; index += 1) {
+    const event = selected[index];
+    const next = selected[index + 1];
+    const end = next ? Math.min(event.end, next.start) : event.end;
+
+    if (end > event.start + EPSILON) {
+      monophonic.push({
+        ...event,
+        end,
+      });
+    }
+  }
+
+  return monophonic;
+}
 
 /**
  * Row timing offset in quarter notes for scheduling / piano-roll preview.
@@ -224,6 +328,7 @@ export function stepTriggerCountAtBeat({
  * @param {number[][]} params.stepDurationFraction
  * @param {number[][]} params.stepTimingMultiplier
  * @param {number[][]} params.stepVelocity
+ * @param {number[]} [params.rowMidiChannel]
  * @param {boolean[][]} [params.stepMuted]
  * @param {boolean[][]} [params.stepSkipped]
  * @param {number[][]} [params.stepProbability]
@@ -256,6 +361,7 @@ function buildPhraseScheduleCore({
   stepDurationFraction,
   stepTimingMultiplier,
   stepVelocity,
+  rowMidiChannel = [],
   stepMuted = [],
   stepSkipped = [],
   stepProbability = [],
@@ -397,6 +503,7 @@ function buildPhraseScheduleCore({
         velocity,
         row,
         step,
+        channel: midiChannelForRow(rowMidiChannel, row),
       };
     }
 
@@ -413,6 +520,7 @@ function buildPhraseScheduleCore({
     rowMuted,
     stepTimingMultiplier,
     stepVelocity,
+    rowMidiChannel,
     stepDurationFraction,
     stepMuted,
     stepSkipped,
@@ -445,17 +553,32 @@ function buildPhraseScheduleCore({
  * @returns {ScheduledNote[]}
  */
 export function buildPhraseSchedule(params) {
-  return applyGlobalTranspose(
-    applyVelocityTilt(
-      applyNoteBandpass(
-        buildPhraseScheduleBeforeBandpass(params),
-        params.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
-        params.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
+  const repeatLengthQuarters = patternRepeatLengthQuarters({
+    stepTimingMultiplier: params.stepTimingMultiplier ?? [],
+    rowMuted: params.rowMuted ?? [],
+    stepSkipped: params.stepSkipped ?? [],
+    stepCycle: params.stepCycle ?? [],
+    pulseIndex: params.pulseIndex ?? defaultPulseIndex,
+  });
+
+  return applyWeaveMonophony(
+    cleanupUnisonOverlaps(
+      applyGlobalTranspose(
+        applyVelocityTilt(
+          applyNoteBandpass(
+            buildPhraseScheduleBeforeBandpass(params),
+            params.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
+            params.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
+          ),
+          params.velocityTiltPivotMidi ?? defaultVelocityTiltPivotMidi,
+          params.velocityTiltAmount ?? defaultVelocityTiltAmount,
+        ),
+        params.globalTransposeSemitones ?? defaultGlobalTransposeSemitones,
       ),
-      params.velocityTiltPivotMidi ?? defaultVelocityTiltPivotMidi,
-      params.velocityTiltAmount ?? defaultVelocityTiltAmount,
+      (params.combinationModeMask ?? 0) !== 0,
     ),
-    params.globalTransposeSemitones ?? defaultGlobalTransposeSemitones,
+    combinationModeEnabled(params.combinationModeMask ?? 0, 4),
+    repeatLengthQuarters,
   );
 }
 
@@ -558,13 +681,14 @@ function activeRowPosition(activeRows, row) {
  * @param {ScheduledNote[]} events
  * @param {number[]} activeRows
  * @param {number[][]} notes
+ * @param {number[]} rowMidiChannel
  * @param {number} scaleRoot
  * @param {number} scaleModeIndex
  * @param {number} delayQuarters
  * @param {number} lengthQuarters
  * @returns {ScheduledNote[]}
  */
-function addCanonFollowers(events, activeRows, notes, scaleRoot, scaleModeIndex, delayQuarters, lengthQuarters) {
+function addCanonFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot, scaleModeIndex, delayQuarters, lengthQuarters) {
   if (activeRows.length <= 1 || events.length === 0) return events;
 
   const original = events.map((event) => ({...event}));
@@ -596,6 +720,7 @@ function addCanonFollowers(events, activeRows, notes, scaleRoot, scaleModeIndex,
       velocity: Math.min(127, Math.max(1, Math.round(event.velocity * 0.78))),
       row: targetRow,
       step: targetStep,
+      channel: midiChannelForRow(rowMidiChannel, targetRow),
     });
   }
 
@@ -608,13 +733,14 @@ function addCanonFollowers(events, activeRows, notes, scaleRoot, scaleModeIndex,
  * @param {ScheduledNote[]} events
  * @param {number[]} activeRows
  * @param {number[][]} notes
+ * @param {number[]} rowMidiChannel
  * @param {number} scaleRoot
  * @param {number} scaleModeIndex
  * @param {number} delayQuarters
  * @param {number} lengthQuarters
  * @returns {ScheduledNote[]}
  */
-function addRetroInversionFollowers(events, activeRows, notes, scaleRoot, scaleModeIndex, delayQuarters, lengthQuarters) {
+function addRetroInversionFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot, scaleModeIndex, delayQuarters, lengthQuarters) {
   if (activeRows.length <= 1 || events.length === 0) return events;
 
   const original = events.map((event) => ({...event}));
@@ -656,6 +782,7 @@ function addRetroInversionFollowers(events, activeRows, notes, scaleRoot, scaleM
       velocity: Math.min(127, Math.max(1, Math.round(event.velocity * 0.68))),
       row: targetRow,
       step: targetStep,
+      channel: midiChannelForRow(rowMidiChannel, targetRow),
     });
   }
 
@@ -667,12 +794,13 @@ function addRetroInversionFollowers(events, activeRows, notes, scaleRoot, scaleM
 /**
  * @param {ScheduledNote[]} events
  * @param {number[]} activeRows
+ * @param {number[]} rowMidiChannel
  * @param {number[][]} stepVelocity
  * @param {number} pulseQuarters
  * @param {number} lengthQuarters
  * @returns {ScheduledNote[]}
  */
-function hocketEvents(events, activeRows, stepVelocity, pulseQuarters, lengthQuarters) {
+function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQuarters, lengthQuarters) {
   if (activeRows.length <= 1 || events.length === 0) return events;
 
   const sliceQuarters = pulseQuarters / activeRows.length;
@@ -736,6 +864,7 @@ function hocketEvents(events, activeRows, stepVelocity, pulseQuarters, lengthQua
       hocketed.push({
         ...candidates[0],
         row: sliceTargetRow,
+        channel: midiChannelForRow(rowMidiChannel, sliceTargetRow),
       });
       continue;
     }
@@ -759,6 +888,7 @@ function hocketEvents(events, activeRows, stepVelocity, pulseQuarters, lengthQua
         hocketed.push({
           ...event,
           row: sliceTargetRow,
+          channel: midiChannelForRow(rowMidiChannel, sliceTargetRow),
         });
         break;
       }
@@ -802,6 +932,7 @@ function roundRobinWindowForPpq(ppq, activeRows, gesturePulse) {
  * @param {boolean[]} params.rowMuted
  * @param {number[][]} params.stepTimingMultiplier
  * @param {number[][]} params.stepVelocity
+ * @param {number[]} params.rowMidiChannel
  * @param {number[][]} params.stepDurationFraction
  * @param {boolean[][]} params.stepMuted
  * @param {boolean[][]} params.stepSkipped
@@ -812,10 +943,19 @@ function roundRobinWindowForPpq(ppq, activeRows, gesturePulse) {
  * @param {number} params.scaleModeIndex
  * @returns {ScheduledNote[]}
  */
-function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier, stepVelocity, stepDurationFraction, stepMuted, stepSkipped, pulseIndex, combinationModeMask, lengthQuarters, scaleRoot, scaleModeIndex}) {
+function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier, stepVelocity, rowMidiChannel, stepDurationFraction, stepMuted, stepSkipped, pulseIndex, combinationModeMask, lengthQuarters, scaleRoot, scaleModeIndex}) {
   if ((combinationModeMask & combinationModeMaskBits) === 0 || scheduled.length === 0) return scheduled;
 
   let events = scheduled.map((event) => ({...event}));
+  const weaveRepeatLengthQuarters = patternRepeatLengthQuarters({
+    stepTimingMultiplier,
+    rowMuted,
+    stepSkipped,
+    pulseIndex,
+  });
+  const weaveHashPpq = (ppq) => (
+    weaveRepeatLengthQuarters > EPSILON ? positiveMod(ppq, weaveRepeatLengthQuarters) : ppq
+  );
   const activeRows = notes
     .map((rowNotes, row) => {
       const layout = rowStepLayout(stepTimingMultiplier[row] ?? [], pulseIndex, stepSkipped[row] ?? []);
@@ -855,6 +995,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
       events,
       activeRows,
       notes,
+      rowMidiChannel,
       scaleRoot,
       scaleModeIndex,
       combinationGesturePulse / activeRows.length,
@@ -870,6 +1011,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
       events,
       activeRows,
       notes,
+      rowMidiChannel,
       scaleRoot,
       scaleModeIndex,
       combinationGesturePulse * 0.25,
@@ -878,7 +1020,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
   }
 
   if (combinationModeEnabled(combinationModeMask, 6) && activeRows.length > 1) {
-    events = hocketEvents(events, activeRows, stepVelocity, pulseQuartersForIndex(pulseIndex), lengthQuarters);
+    events = hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQuartersForIndex(pulseIndex), lengthQuarters);
   }
 
   if (events.length === 0) return [];
@@ -1094,7 +1236,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
       if (group.length === 1) return group[0];
 
       const totalWeight = group.reduce((total, event) => total + Math.max(1, event.velocity), 0);
-      let pick = deterministicEventHash(group[0].row, group[0].step, group[0].start) % Math.max(1, totalWeight);
+      let pick = deterministicEventHash(group[0].row, group[0].step, weaveHashPpq(group[0].start)) % Math.max(1, totalWeight);
 
       for (const event of group) {
         pick -= Math.max(1, event.velocity);

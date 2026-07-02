@@ -4,6 +4,8 @@ import {
   buildPhraseScheduleBeforeBandpass,
   combinationModes,
   buildPhraseScheduleWindowBeforeBandpass,
+  applyWeaveMonophony,
+  cleanupUnisonOverlaps,
   probabilityPasses,
   stepTriggerCountAtBeat,
 } from "./phraseSchedule.js";
@@ -425,6 +427,133 @@ describe("combination mode pulse-aware timing", () => {
     expect([60, 67]).toContain(startsByBeat.get(1.5)?.[0].midi);
     expect(startsByBeat.get(2.5)?.map((note) => note.midi)).toEqual([67]);
     expect(schedule).toHaveLength(4);
+  });
+
+  it("merges exact same-channel same-pitch combination attacks after final transforms", () => {
+    const schedule = buildPhraseSchedule({
+      notes: [[60], [60], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      rowMidiChannel: [1, 1, 3, 4],
+      stepDurationFraction: [[1], [1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[72], [104], [], []],
+      stepMuted: [[false], [false], [], []],
+      stepSkipped: [[false], [false], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1,
+      lengthQuarters: 1,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+    const firstAttack = schedule.filter((note) => note.start === 0 && note.midi === 60 && note.channel === 1);
+
+    expect(firstAttack).toHaveLength(1);
+    expect(firstAttack[0]).toMatchObject({velocity: 104, row: 0, step: 0});
+  });
+
+  it("merges near same-channel same-pitch attacks inside the unison cleanup window", () => {
+    const cleaned = cleanupUnisonOverlaps([
+      {start: 0, end: 0.25, midi: 60, velocity: 72, row: 0, step: 0, channel: 1},
+      {start: 1 / 192, end: 0.4, midi: 60, velocity: 104, row: 1, step: 0, channel: 1},
+    ]);
+
+    expect(cleaned).toHaveLength(1);
+    expect(cleaned[0]).toMatchObject({start: 0, end: 0.4, midi: 60, velocity: 104, row: 0, step: 0, channel: 1});
+  });
+
+  it("keeps different pitches, different channels, and later retriggers during unison cleanup", () => {
+    expect(cleanupUnisonOverlaps([
+      {start: 0, end: 0.25, midi: 60, velocity: 90, row: 0, step: 0, channel: 1},
+      {start: 0, end: 0.25, midi: 62, velocity: 90, row: 1, step: 0, channel: 1},
+    ])).toHaveLength(2);
+
+    expect(cleanupUnisonOverlaps([
+      {start: 0, end: 0.25, midi: 60, velocity: 90, row: 0, step: 0, channel: 1},
+      {start: 0, end: 0.25, midi: 60, velocity: 90, row: 1, step: 0, channel: 2},
+    ])).toHaveLength(2);
+
+    expect(cleanupUnisonOverlaps([
+      {start: 0, end: 0.25, midi: 60, velocity: 90, row: 0, step: 0, channel: 1},
+      {start: 0.25, end: 0.5, midi: 60, velocity: 90, row: 1, step: 0, channel: 1},
+    ])).toHaveLength(2);
+  });
+
+  it("trims Weave preview notes to the next selected attack", () => {
+    const schedule = buildPhraseSchedule({
+      notes: [[60], [64], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, rowTimingOffsetIndexForQuarters(0.5), defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      rowMidiChannel: [1, 2, 3, 4],
+      stepDurationFraction: [[1], [1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[100], [100], [], []],
+      stepMuted: [[false], [false], [], []],
+      stepSkipped: [[false], [false], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 4,
+      lengthQuarters: 2,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+
+    expect(schedule.map((note) => [note.start, note.end, note.midi])).toEqual([
+      [0, 0.5, 60],
+      [0.5, 1, 64],
+      [1, 1.5, 60],
+      [1.5, 2, 64],
+    ]);
+  });
+
+  it("selects one final event per start when applying Weave monophony", () => {
+    const woven = applyWeaveMonophony([
+      {start: 0, end: 1, midi: 60, velocity: 100, row: 0, step: 0, channel: 1},
+      {start: 0, end: 1, midi: 64, velocity: 100, row: 1, step: 0, channel: 2},
+      {start: 0.5, end: 1.5, midi: 67, velocity: 100, row: 2, step: 0, channel: 3},
+    ]);
+
+    expect(woven).toHaveLength(2);
+    expect(woven[0].end).toBe(0.5);
+    expect(woven[1]).toMatchObject({start: 0.5, midi: 67});
+  });
+
+  it("keeps Weave choices stable across phrase repeats", () => {
+    const schedule = buildPhraseSchedule({
+      notes: [[60], [64], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      rowMidiChannel: [1, 2, 3, 4],
+      stepDurationFraction: [[1], [1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[100], [100], [], []],
+      stepMuted: [[false], [false], [], []],
+      stepSkipped: [[false], [false], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 4,
+      lengthQuarters: 2,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+
+    expect(schedule.map((note) => [note.start, note.midi])).toEqual([
+      [0, 64],
+      [1, 64],
+    ]);
   });
 });
 

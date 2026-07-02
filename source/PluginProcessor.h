@@ -551,6 +551,7 @@ private:
     void flushPendingGeneratedNoteOffs (int sampleOffset, juce::MidiBuffer& midiMessages);
     void flushPendingCombinedNoteOffs (int bufferSamples, juce::MidiBuffer& midiMessages);
     void flushActiveGeneratedNotes (int sampleOffset, juce::MidiBuffer& midiMessages);
+    void flushActiveWeaveNotes (int sampleOffset, juce::MidiBuffer& midiMessages);
     void resetPlaybackMidiState();
     void addPendingNoteOn (const PendingNoteOn& note);
     void emitScheduledNoteOn (int row,

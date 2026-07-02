@@ -6548,6 +6548,7 @@
         {stepDurationFraction}
         {stepTimingMultiplier}
         {stepVelocity}
+        {rowMidiChannel}
         {stepMuted}
         {stepSkipped}
         stepProbability={stepProbability}

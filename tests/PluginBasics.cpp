@@ -99,6 +99,48 @@ int findNoteOnSampleOnChannel (const juce::MidiBuffer& midiMessages,
     return -1;
 }
 
+int findNoteOffSampleOnChannel (const juce::MidiBuffer& midiMessages,
+                                const int noteNumber,
+                                const int channel)
+{
+    for (const auto metadata : midiMessages)
+    {
+        const auto message = metadata.getMessage();
+
+        if (message.isNoteOff()
+            && message.getNoteNumber() == noteNumber
+            && message.getChannel() == channel)
+        {
+            return metadata.samplePosition;
+        }
+    }
+
+    return -1;
+}
+
+int countMidiMessagesForNoteOnChannel (const juce::MidiBuffer& midiMessages,
+                                       const int noteNumber,
+                                       const int channel,
+                                       const bool noteOn)
+{
+    auto count = 0;
+
+    for (const auto metadata : midiMessages)
+    {
+        const auto message = metadata.getMessage();
+        const auto matchesType = noteOn ? message.isNoteOn() : message.isNoteOff();
+
+        if (matchesType
+            && message.getNoteNumber() == noteNumber
+            && message.getChannel() == channel)
+        {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
 void configureFourRowOffsetHocketPattern (PluginProcessor& testPlugin)
 {
     testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
@@ -416,6 +458,66 @@ TEST_CASE ("Bloom mode adds scale-neighbor ornaments", "[instance]")
     CHECK (noteOnCounts[62] > 0); // upper scale-neighbor bloom / row source
 }
 
+TEST_CASE ("Combination modes merge duplicate same-channel unison attacks", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 256;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPatternScale (0, 1); // C major
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeCrossModulation, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+    testPlugin.setPhraseRowMidiChannel (0, 1);
+    testPlugin.setPhraseRowMidiChannel (1, 1);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 60);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (
+            row,
+            0,
+            PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 0.25);
+        testPlugin.setPhraseStepVelocity (row, 0, row == 0 ? 72 : 104);
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    playHead.info.setPpqPosition (0.0);
+    testPlugin.setPlayHead (&playHead);
+
+    testPlugin.processBlock (buffer, midi);
+
+    CHECK (countMidiMessagesForNoteOnChannel (midi, 60, 1, true) == 1);
+    CHECK (countMidiMessagesForNoteOnChannel (midi, 60, 1, false) == 1);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Counter mode adds offbeat response notes", "[instance]")
 {
     PluginProcessor testPlugin;
@@ -532,6 +634,244 @@ TEST_CASE ("Round Robin mode gates rows with overlap note choice", "[instance]")
     CHECK (noteOnCounts[67] > 0);
     CHECK (totalNoteOns == 4);
     testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Weave mode trims emitted notes to the next selected attack", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+    testPlugin.setPhraseRowTimingOffset (0, PluginProcessor::defaultRowTimingOffsetIndex);
+    testPlugin.setPhraseRowTimingOffset (1, PluginProcessor::defaultRowTimingOffsetIndex + 2);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 64);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (
+            row,
+            0,
+            PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    playHead.info.setPpqPosition (0.0);
+    testPlugin.setPlayHead (&playHead);
+
+    testPlugin.processBlock (buffer, midi);
+
+    CHECK (findNoteOnSampleOnChannel (midi, 60, 1) == 0);
+    CHECK (findNoteOffSampleOnChannel (midi, 60, 1) == 250);
+    CHECK (findNoteOnSampleOnChannel (midi, 64, 2) == 250);
+    testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Weave mode releases the previous note across audio block boundaries", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 128;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+    testPlugin.setPhraseRowTimingOffset (0, PluginProcessor::defaultRowTimingOffsetIndex);
+    testPlugin.setPhraseRowTimingOffset (1, PluginProcessor::defaultRowTimingOffsetIndex + 2);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 64);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (
+            row,
+            0,
+            PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    playHead.info.setPpqPosition (0.0);
+    testPlugin.processBlock (buffer, midi);
+    CHECK (findNoteOnSampleOnChannel (midi, 60, 1) == 0);
+    CHECK (findNoteOffSampleOnChannel (midi, 60, 1) == -1);
+
+    midi.clear();
+    playHead.info.setPpqPosition (static_cast<double> (blockSize) * (120.0 / 60.0) / sampleRate);
+    testPlugin.processBlock (buffer, midi);
+
+    CHECK (findNoteOffSampleOnChannel (midi, 60, 1) == 122);
+    CHECK (findNoteOnSampleOnChannel (midi, 64, 2) == 122);
+    testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Weave mode does not emit delayed followers from the pending queue", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 128;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPatternScale (0, 1); // C major
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeRetroInversion, true);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+    testPlugin.setPhraseRowTimingOffset (0, PluginProcessor::defaultRowTimingOffsetIndex);
+    testPlugin.setPhraseRowTimingOffset (1, PluginProcessor::defaultRowTimingOffsetIndex + 2);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 67);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (
+            row,
+            0,
+            PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    playHead.info.setPpqPosition (0.0);
+    testPlugin.processBlock (buffer, midi);
+    CHECK (findNoteOnSampleOnChannel (midi, 60, 1) == 0);
+
+    midi.clear();
+    playHead.info.setPpqPosition (static_cast<double> (blockSize) * (120.0 / 60.0) / sampleRate);
+    testPlugin.processBlock (buffer, midi);
+
+    CHECK (countMidiMessagesForNoteOnChannel (midi, 67, 2, true) == 1);
+    CHECK (findNoteOnSampleOnChannel (midi, 67, 2) == 122);
+    CHECK (findNoteOffSampleOnChannel (midi, 67, 2) == -1);
+    testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Weave mode keeps selected notes stable across phrase repeats", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 128;
+    constexpr int blockCount = 10;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 64);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (
+            row,
+            0,
+            PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 0.5);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+    }
+
+    const auto outputEvents = collectHocketNoteOnEvents (
+        testPlugin,
+        sampleRate,
+        blockSize,
+        blockCount);
+
+    REQUIRE (outputEvents.size() >= 2);
+    CHECK (outputEvents[0].first == 0);
+    CHECK (outputEvents[1].first == 1000);
+    CHECK (outputEvents[0].second == outputEvents[1].second);
+    CHECK (outputEvents[0].second == 64);
 }
 
 TEST_CASE ("Hocket mode slices overlapping rows into interlocking handoffs", "[instance]")

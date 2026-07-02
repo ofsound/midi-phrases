@@ -14,7 +14,9 @@
 import {
   buildPhraseScheduleBeforeBandpass,
   buildPhraseScheduleWindowBeforeBandpass,
+  applyWeaveMonophony,
   combinationModeEnabled,
+  cleanupUnisonOverlaps,
   DEFAULT_PREVIEW_LENGTH_QUARTERS,
   isBlackKey,
   isScheduledNoteActiveAtPlaybackBeat,
@@ -33,6 +35,7 @@ import { scaledPx } from "./uiScale.svelte.js";
    * @property {any} [stepDurationFraction]
    * @property {any} [stepTimingMultiplier]
    * @property {any} [stepVelocity]
+   * @property {any} [rowMidiChannel]
    * @property {any} [stepMuted]
    * @property {any} [stepSkipped]
    * @property {any} [stepProbability]
@@ -74,6 +77,7 @@ import { scaledPx } from "./uiScale.svelte.js";
     stepDurationFraction = [],
     stepTimingMultiplier = [],
     stepVelocity = [],
+    rowMidiChannel = [1, 2, 3, 4],
     stepMuted = [],
     stepSkipped = [],
     stepProbability = [],
@@ -216,6 +220,7 @@ import { scaledPx } from "./uiScale.svelte.js";
       stepDurationFraction,
       stepTimingMultiplier,
       stepVelocity,
+      rowMidiChannel,
       stepMuted,
       stepSkipped,
       stepProbability,
@@ -242,13 +247,20 @@ import { scaledPx } from "./uiScale.svelte.js";
   );
 
   let scheduled = $derived(
-    applyGlobalTranspose(
-      applyVelocityTilt(
-        applyNoteBandpass(scheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
-        velocityTiltPivotMidi,
-        velocityTiltAmount,
+    applyWeaveMonophony(
+      cleanupUnisonOverlaps(
+        applyGlobalTranspose(
+          applyVelocityTilt(
+            applyNoteBandpass(scheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
+            velocityTiltPivotMidi,
+            velocityTiltAmount,
+          ),
+          globalTransposeSemitones,
+        ),
+        combinationModeMask !== 0,
       ),
-      globalTransposeSemitones,
+      combinationModeEnabled(combinationModeMask, 4),
+      patternRepeatQuarters,
     ),
   );
 
@@ -260,6 +272,7 @@ import { scaledPx } from "./uiScale.svelte.js";
       stepDurationFraction,
       stepTimingMultiplier,
       stepVelocity,
+      rowMidiChannel,
       stepMuted,
       stepSkipped,
       stepProbability,
@@ -284,13 +297,20 @@ import { scaledPx } from "./uiScale.svelte.js";
   );
 
   let fullScheduled = $derived(
-    applyGlobalTranspose(
-      applyVelocityTilt(
-        applyNoteBandpass(fullScheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
-        velocityTiltPivotMidi,
-        velocityTiltAmount,
+    applyWeaveMonophony(
+      cleanupUnisonOverlaps(
+        applyGlobalTranspose(
+          applyVelocityTilt(
+            applyNoteBandpass(fullScheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
+            velocityTiltPivotMidi,
+            velocityTiltAmount,
+          ),
+          globalTransposeSemitones,
+        ),
+        combinationModeMask !== 0,
       ),
-      globalTransposeSemitones,
+      combinationModeEnabled(combinationModeMask, 4),
+      patternRepeatQuarters,
     ),
   );
 
