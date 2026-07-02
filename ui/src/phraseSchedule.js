@@ -731,9 +731,13 @@ function hocketEvents(events, activeRows, pulseQuarters, lengthQuarters) {
       continue;
     }
 
-    const targetRow = candidates[0]?.row ?? activeRows[0];
+    candidates.sort(
+      (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+    );
+
+    const sliceTargetRow = activeRows[((slice % activeRows.length) + activeRows.length) % activeRows.length];
     const totalWeight = candidates.reduce((total, event) => total + Math.max(1, event.velocity), 0);
-    let pick = deterministicEventHash(targetRow, slice, slice * sliceQuarters) % Math.max(1, totalWeight);
+    let pick = deterministicEventHash(sliceTargetRow, slice, slice * sliceQuarters) % Math.max(1, totalWeight);
 
     for (const event of candidates) {
       pick -= Math.max(1, event.velocity);

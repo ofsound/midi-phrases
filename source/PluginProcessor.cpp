@@ -146,13 +146,20 @@ bool cycleGateMatches (const int count, const int cycle, const int mask)
     return ((pattern >> phase) & 1) != 0;
 }
 
-float nextRandomUnit (std::uint32_t& state)
+bool probabilityPassesDeterministic (const int step, const int triggerCount, const int probability)
 {
-    state ^= state << 13;
-    state ^= state >> 17;
-    state ^= state << 5;
+    const auto chance = clampStepProbability (probability);
 
-    return static_cast<float> (state & 0x00FFFFFFu) / static_cast<float> (0x01000000u);
+    if (chance >= PluginProcessor::maxStepProbabilityValue)
+        return true;
+
+    if (chance <= 0)
+        return false;
+
+    const auto hash = static_cast<std::uint32_t> (step) * 2654435761u
+                      + static_cast<std::uint32_t> (triggerCount) * 1597334677u;
+
+    return (hash % 100u) < static_cast<std::uint32_t> (chance);
 }
 
 double nextRandomUnitDouble (std::uint32_t& state)
@@ -162,6 +169,11 @@ double nextRandomUnitDouble (std::uint32_t& state)
     state ^= state << 5;
 
     return static_cast<double> (state) / static_cast<double> (UINT32_MAX);
+}
+
+float nextRandomUnit (std::uint32_t& state)
+{
+    return static_cast<float> (nextRandomUnitDouble (state));
 }
 
 bool isBloomGestureAnchor (const double ppq,
@@ -453,6 +465,29 @@ std::uint32_t deterministicEventHash (const int row, const int step, const doubl
     value *= 0x846CA68Bu;
     value ^= value >> 16;
     return value;
+}
+
+int gcdInt (const int a, const int b)
+{
+    auto x = std::abs (a);
+    auto y = std::abs (b);
+
+    while (y != 0)
+    {
+        const auto next = x % y;
+        x = y;
+        y = next;
+    }
+
+    return x;
+}
+
+int lcmInt (const int a, const int b)
+{
+    if (a == 0 || b == 0)
+        return 0;
+
+    return std::abs (a / gcdInt (a, b) * b);
 }
 
 int humanizeVelocityValue (int velocity, const int humanizePercent, std::uint32_t& randomState)
@@ -4202,6 +4237,62 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         return true;
     };
 
+    const auto hocketModeEnabled =
+        combinationModeEnabled (modeMask, combinationModeHocket) && activeRowCount > 1;
+
+    const auto patternRepeatLengthQuarters = [&] {
+        auto repeatUnits = 0;
+
+        for (int row = 0; row < phraseRowCount; ++row)
+        {
+            if (state.muted[static_cast<size_t> (row)] != 0)
+                continue;
+
+            const auto& rowSteps = state.rows[static_cast<size_t> (row)];
+
+            if (rowSteps.cycleLengthQuarters <= 1.0e-9)
+                continue;
+
+            auto units = static_cast<int> (std::lround (
+                rowSteps.cycleLengthQuarters / loopBraceSnapQuarters));
+            units = juce::jmax (1, units);
+            repeatUnits = repeatUnits == 0 ? units : lcmInt (repeatUnits, units);
+        }
+
+        return repeatUnits > 0
+                   ? static_cast<double> (repeatUnits) * loopBraceSnapQuarters
+                   : 0.0;
+    };
+
+    const auto emitPpqStart = schedulePpqStart;
+    const auto emitPpqEnd = schedulePpqEnd;
+    auto collectionPpqStart = emitPpqStart;
+    auto collectionPpqEnd = emitPpqEnd;
+    auto hocketLengthQuarters = emitPpqEnd;
+
+    if (hocketModeEnabled)
+    {
+        const auto& loop = audioLoopBrace();
+        const auto patternRepeat = patternRepeatLengthQuarters();
+        collectionPpqStart = loop.enabled != 0 ? loop.startQuarters : 0.0;
+
+        if (loop.enabled != 0)
+        {
+            collectionPpqEnd = loop.endQuarters;
+            hocketLengthQuarters = loop.endQuarters;
+        }
+        else if (patternRepeat > epsilon)
+        {
+            collectionPpqEnd = juce::jmax (patternRepeat, emitPpqEnd + pulse);
+            hocketLengthQuarters = collectionPpqEnd;
+        }
+        else
+        {
+            collectionPpqEnd = emitPpqEnd + pulse;
+            hocketLengthQuarters = collectionPpqEnd;
+        }
+    }
+
     for (int row = 0; row < phraseRowCount; ++row)
     {
         if (state.muted[static_cast<size_t> (row)] != 0)
@@ -4218,6 +4309,24 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             rowTimingOffsetForIndex (state.timingOffset[static_cast<size_t> (row)]) * pulse;
         auto& scratch = processScratch[static_cast<size_t> (row)];
         auto triggerCount = 0;
+        std::array<int, maxPhraseStepsPerRow> stepTriggerCounts {};
+
+        if (hocketModeEnabled)
+        {
+            for (int step = 0; step < stepCount; ++step)
+            {
+                if (rowSteps.stepSkipped[static_cast<size_t> (step)] != 0)
+                    continue;
+
+                const auto stepStartInCycle = rowSteps.stepStartQuarters[static_cast<size_t> (step)];
+                const auto firstGlobalTrigger = static_cast<int> (std::ceil (
+                    (0.0 - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+                const auto previousTrigger = static_cast<int> (std::floor (
+                    (collectionPpqStart - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+                stepTriggerCounts[static_cast<size_t> (step)] =
+                    juce::jmax (0, previousTrigger - firstGlobalTrigger + 1);
+            }
+        }
 
         for (int step = 0; step < stepCount; ++step)
         {
@@ -4226,16 +4335,16 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
             const auto stepStartInCycle = rowSteps.stepStartQuarters[static_cast<size_t> (step)];
             const auto nMin = static_cast<int> (std::ceil (
-                (schedulePpqStart - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+                (collectionPpqStart - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
             const auto nMax = static_cast<int> (std::floor (
-                (schedulePpqEnd - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+                (collectionPpqEnd - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
 
             for (int cycle = nMin; cycle <= nMax; ++cycle)
             {
                 const auto triggerPpq = static_cast<double> (cycle) * cycleLengthQuarters
                                         + stepStartInCycle + offset;
 
-                if (triggerPpq < schedulePpqStart - epsilon || triggerPpq >= schedulePpqEnd - epsilon)
+                if (triggerPpq < collectionPpqStart - epsilon || triggerPpq >= collectionPpqEnd - epsilon)
                     continue;
 
                 if (triggerCount >= static_cast<int> (scratch.triggers.size()))
@@ -4257,7 +4366,9 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
         auto& lastTrigger = lastEmittedTriggerPpq[static_cast<size_t> (row)];
 
-        if (resetRowTriggersAtSegmentStart)
+        if (hocketModeEnabled)
+            lastTrigger = collectionPpqStart - cycleLengthQuarters - 1.0;
+        else if (resetRowTriggersAtSegmentStart)
             lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
         else if (schedulePpqStart + epsilon < lastTrigger)
             lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
@@ -4280,7 +4391,16 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             if (! activeNote.valid || collectionFull)
                 return;
 
-            const auto clippedEnd = juce::jmin (activeNote.endPpq, endTime);
+            if (hocketModeEnabled && activeNote.startPpq >= collectionPpqEnd - epsilon)
+            {
+                activeNote.valid = false;
+                return;
+            }
+
+            auto clippedEnd = juce::jmin (activeNote.endPpq, endTime);
+
+            if (hocketModeEnabled)
+                clippedEnd = juce::jmin (clippedEnd, collectionPpqEnd);
 
             if (clippedEnd <= activeNote.startPpq + epsilon)
             {
@@ -4317,12 +4437,23 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             lastTrigger = trigger.ppq;
 
             const auto step = trigger.step;
-            const auto stepStartInCycle = rowSteps.stepStartQuarters[static_cast<size_t> (step)];
-            const auto firstGlobalTrigger = static_cast<int> (std::ceil (
-                (0.0 - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
-            const auto cycleIndex = static_cast<int> (std::floor (
-                (trigger.ppq - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
-            const auto stepTriggerCount = cycleIndex - firstGlobalTrigger;
+            int stepTriggerCount = 0;
+
+            if (hocketModeEnabled)
+            {
+                stepTriggerCount = stepTriggerCounts[static_cast<size_t> (step)];
+                stepTriggerCounts[static_cast<size_t> (step)] = stepTriggerCount + 1;
+            }
+            else
+            {
+                const auto stepStartInCycle = rowSteps.stepStartQuarters[static_cast<size_t> (step)];
+                const auto firstGlobalTrigger = static_cast<int> (std::ceil (
+                    (0.0 - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+                const auto cycleIndex = static_cast<int> (std::floor (
+                    (trigger.ppq - stepStartInCycle - offset - epsilon) / cycleLengthQuarters));
+                stepTriggerCount = cycleIndex - firstGlobalTrigger;
+            }
+
             const auto cycle = clampStepCycle (rowSteps.cycle[static_cast<size_t> (step)]);
             const auto cycleMask =
                 clampStepCycleMask (rowSteps.cycleOffset[static_cast<size_t> (step)], cycle);
@@ -4341,10 +4472,17 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             if (probability <= 0)
                 continue;
 
-            if (probability < 100
-                && nextRandomUnit (playbackRandomState) * 100.0f
-                       >= static_cast<float> (probability))
+            if (hocketModeEnabled)
+            {
+                if (! probabilityPassesDeterministic (step, stepTriggerCount, probability))
+                    continue;
+            }
+            else if (probability < 100
+                     && nextRandomUnit (playbackRandomState) * 100.0f
+                            >= static_cast<float> (probability))
+            {
                 continue;
+            }
 
             const auto gateQuarters =
                 rowSteps.stepLengthQuarters[static_cast<size_t> (step)]
@@ -4353,7 +4491,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             if (gateQuarters <= epsilon)
                 continue;
 
-            velocity = humanizeVelocityValue (velocity, velocityHumanize, playbackRandomState);
+            if (! hocketModeEnabled)
+                velocity = humanizeVelocityValue (velocity, velocityHumanize, playbackRandomState);
 
             const auto swingDelay =
                 swingDelayQuartersForPpq (trigger.ppq, pulse, swing, swingSubdivision);
@@ -4373,7 +4512,9 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             activeNote.valid = true;
         }
 
-        if (activeNote.valid && ! collectionFull)
+        if (hocketModeEnabled)
+            flushActiveNote (collectionPpqEnd);
+        else if (activeNote.valid && ! collectionFull)
         {
             const auto gateQuarters = activeNote.endPpq - activeNote.startPpq;
 
@@ -4397,6 +4538,9 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
     std::sort (combinedEvents.begin(),
                combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
                compareCombinedEventsForWeave);
+
+    if (eventCount == 0)
+        return;
 
     const auto copyFilteredEvents = [&] (const size_t count) {
         for (size_t index = 0; index < count; ++index)
@@ -4627,6 +4771,22 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                 maxSlice = juce::jmax (maxSlice, lastSlice);
             }
 
+            const auto scheduleFirstSlice =
+                static_cast<int> (std::floor ((emitPpqStart + epsilon) / sliceQuarters));
+            const auto scheduleLastSlice =
+                static_cast<int> (std::ceil ((emitPpqEnd - epsilon) / sliceQuarters)) - 1;
+
+            if (minSlice > maxSlice)
+            {
+                minSlice = scheduleFirstSlice;
+                maxSlice = scheduleLastSlice;
+            }
+            else
+            {
+                minSlice = juce::jmin (minSlice, scheduleFirstSlice);
+                maxSlice = juce::jmax (maxSlice, scheduleLastSlice);
+            }
+
             auto write = static_cast<size_t> (0);
 
             if (minSlice <= maxSlice)
@@ -4636,12 +4796,19 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                     const auto sliceStart = static_cast<double> (slice) * sliceQuarters;
                     const auto sliceEnd = sliceStart + sliceQuarters;
 
-                    if (sliceStart >= schedulePpqEnd - epsilon)
+                    if (sliceStart < emitPpqStart - epsilon)
+                        continue;
+
+                    if (sliceStart >= emitPpqEnd - epsilon)
+                        continue;
+
+                    if (sliceStart >= hocketLengthQuarters - epsilon)
                         continue;
 
                     const auto targetIndex = ((slice % activeRowCount) + activeRowCount) % activeRowCount;
                     const auto targetRow = activeRows[static_cast<size_t> (targetIndex)];
-                    auto candidateCount = 0;
+                    std::array<size_t, 256> candidateIndices {};
+                    auto candidateCount = static_cast<size_t> (0);
                     auto totalWeight = 0;
 
                     for (size_t index = 0; index < eventCount; ++index)
@@ -4649,35 +4816,88 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                         const auto& event = combinedEvents[index];
                         const auto eventEnd = event.ppq + event.gateQuarters;
                         const auto start = juce::jmax (event.ppq, sliceStart);
-                        const auto end = juce::jmin (eventEnd, sliceEnd);
+                        const auto end = juce::jmin (eventEnd, sliceEnd, hocketLengthQuarters);
 
                         if (end <= start + epsilon)
                             continue;
 
-                        ++candidateCount;
-                        totalWeight += juce::jmax (1, event.velocity);
+                        const auto& sourceSteps = state.rows[static_cast<size_t> (event.row)];
+                        const auto sourceStepIndex =
+                            static_cast<size_t> (event.step % juce::jmax (1, sourceSteps.stepCount));
+                        const auto pickVelocity =
+                            sourceSteps.velocity[sourceStepIndex] > 0
+                                ? sourceSteps.velocity[sourceStepIndex]
+                                : event.velocity;
+
+                        if (candidateCount >= candidateIndices.size())
+                            break;
+
+                        candidateIndices[candidateCount++] = index;
+                        totalWeight += juce::jmax (1, pickVelocity);
                     }
 
                     if (candidateCount <= 0)
                         continue;
 
+                    if (candidateCount == 1)
+                    {
+                        const auto& source = combinedEvents[candidateIndices[0]];
+                        const auto sourceEnd = source.ppq + source.gateQuarters;
+                        const auto start = juce::jmax (source.ppq, sliceStart);
+                        const auto end = juce::jmin (sourceEnd, sliceEnd, hocketLengthQuarters);
+                        const auto gate = juce::jmin (end - start, sliceQuarters * 0.85);
+
+                        if (gate <= epsilon)
+                            continue;
+
+                        auto copy = source;
+                        copy.ppq = start;
+                        copy.gateQuarters = gate;
+                        copy.row = targetRow;
+                        copy.channel = state.midiChannel[static_cast<size_t> (targetRow)];
+                        combinedWorkingEvents[write++] = copy;
+                        continue;
+                    }
+
+                    std::sort (candidateIndices.begin(),
+                               candidateIndices.begin() + static_cast<std::ptrdiff_t> (candidateCount),
+                               [&] (const size_t a, const size_t b) {
+                                   const auto& eventA = combinedEvents[a];
+                                   const auto& eventB = combinedEvents[b];
+                                   const auto startA = juce::jmax (eventA.ppq, sliceStart);
+                                   const auto startB = juce::jmax (eventB.ppq, sliceStart);
+
+                                   if (std::abs (startA - startB) > epsilon)
+                                       return startA < startB;
+
+                                   if (eventA.note != eventB.note)
+                                       return eventA.note < eventB.note;
+
+                                   if (eventA.row != eventB.row)
+                                       return eventA.row < eventB.row;
+
+                                   return eventA.step < eventB.step;
+                               });
+
                     auto pick = static_cast<int> (
                         deterministicEventHash (targetRow, slice, sliceStart)
                         % static_cast<std::uint32_t> (juce::jmax (1, totalWeight)));
-                    auto selected = static_cast<size_t> (0);
+                    auto selected = candidateIndices[0];
                     auto found = false;
 
-                    for (size_t index = 0; index < eventCount; ++index)
+                    for (size_t candidateIndex = 0; candidateIndex < candidateCount; ++candidateIndex)
                     {
+                        const auto index = candidateIndices[candidateIndex];
                         const auto& event = combinedEvents[index];
-                        const auto eventEnd = event.ppq + event.gateQuarters;
-                        const auto start = juce::jmax (event.ppq, sliceStart);
-                        const auto end = juce::jmin (eventEnd, sliceEnd);
+                        const auto& sourceSteps = state.rows[static_cast<size_t> (event.row)];
+                        const auto sourceStepIndex =
+                            static_cast<size_t> (event.step % juce::jmax (1, sourceSteps.stepCount));
+                        const auto pickVelocity =
+                            sourceSteps.velocity[sourceStepIndex] > 0
+                                ? sourceSteps.velocity[sourceStepIndex]
+                                : event.velocity;
 
-                        if (end <= start + epsilon)
-                            continue;
-
-                        pick -= juce::jmax (1, event.velocity);
+                        pick -= juce::jmax (1, pickVelocity);
 
                         if (pick < 0)
                         {
@@ -4693,7 +4913,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                     const auto& source = combinedEvents[selected];
                     const auto sourceEnd = source.ppq + source.gateQuarters;
                     const auto start = juce::jmax (source.ppq, sliceStart);
-                    const auto end = juce::jmin (sourceEnd, sliceEnd);
+                    const auto end = juce::jmin (sourceEnd, sliceEnd, hocketLengthQuarters);
                     const auto gate = juce::jmin (end - start, sliceQuarters * 0.85);
 
                     if (gate <= epsilon)
@@ -5258,7 +5478,14 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         if (event.gateQuarters <= epsilon || event.velocity <= 0)
             continue;
 
-        const auto stepLength = event.gateQuarters;
+        const auto clippedEventPpq = juce::jmax (event.ppq, schedulePpqStart);
+        const auto clippedGateQuarters =
+            event.gateQuarters - (clippedEventPpq - event.ppq);
+
+        if (clippedGateQuarters <= epsilon)
+            continue;
+
+        const auto stepLength = clippedGateQuarters;
         const auto timingRange = stepLength * timingHumanizeScale
                                  * (static_cast<double> (clampPercent (timingHumanize)) / 100.0);
         const auto timingOffset =
@@ -5266,7 +5493,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                               : 0.0;
         const auto delayQuarters = juce::jmax (0.0, timingOffset);
         const auto transportPpqAtNoteOn =
-            segmentTransportStartPpq + (event.ppq + delayQuarters - schedulePpqStart);
+            segmentTransportStartPpq + (clippedEventPpq + delayQuarters - schedulePpqStart);
         const auto sampleOffset = static_cast<int> (std::lround (
             (transportPpqAtNoteOn - bufferTransportStartPpq) / ppqPerSample));
         const auto segmentTransportEndPpq =
@@ -5283,8 +5510,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                                              schedulePpqEnd);
         const auto gateEndTransportPpq =
             scheduleEndsBeforeBuffer && ! sustainAcrossLoop
-                ? juce::jmin (transportPpqAtNoteOn + event.gateQuarters, segmentTransportEndPpq)
-                : transportPpqAtNoteOn + event.gateQuarters;
+                ? juce::jmin (transportPpqAtNoteOn + clippedGateQuarters, segmentTransportEndPpq)
+                : transportPpqAtNoteOn + clippedGateQuarters;
         const auto effectiveGateQuarters = gateEndTransportPpq - transportPpqAtNoteOn;
 
         if (effectiveGateQuarters <= epsilon)
@@ -5298,7 +5525,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                                          : juce::jmax (
                                                1,
                                                static_cast<int> (std::lround (
-                                                   event.gateQuarters / ppqPerSample)));
+                                                   clippedGateQuarters / ppqPerSample)));
 
         if (sampleOffset >= bufferSamples)
         {

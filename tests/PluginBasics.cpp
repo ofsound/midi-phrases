@@ -98,6 +98,100 @@ int findNoteOnSampleOnChannel (const juce::MidiBuffer& midiMessages,
 
     return -1;
 }
+
+void configureFourRowOffsetHocketPattern (PluginProcessor& testPlugin)
+{
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, true);
+
+    for (int row = 0; row < 4; ++row)
+    {
+        testPlugin.setPhraseRowMuted (row, false);
+        testPlugin.setPhraseRowTimingOffset (
+            row,
+            PluginProcessor::defaultRowTimingOffsetIndex + row);
+    }
+
+    ensurePhraseRowStepCount (testPlugin, 0, 3);
+    ensurePhraseRowStepCount (testPlugin, 1, 3);
+    ensurePhraseRowStepCount (testPlugin, 2, 4);
+    ensurePhraseRowStepCount (testPlugin, 3, 3);
+
+    const std::array<std::array<int, 4>, 4> notes { {
+        { 53, 55, 55, 0 },
+        { 57, 53, 58, 0 },
+        { 55, 62, 57, 57 },
+        { 50, 48, 48, 0 },
+    } };
+
+    for (int row = 0; row < 4; ++row)
+    {
+        const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+        for (int step = 0; step < stepCount; ++step)
+            testPlugin.setPhraseNote (row, step, notes[static_cast<size_t> (row)][static_cast<size_t> (step)]);
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            testPlugin.setPhraseStepTimingMultiplier (
+                row,
+                step,
+                PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (row, step, 100);
+        }
+    }
+}
+
+std::vector<std::pair<int, int>> collectHocketNoteOnEvents (PluginProcessor& testPlugin,
+                                                            const double sampleRate,
+                                                            const int blockSize,
+                                                            const int blockCount)
+{
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    std::vector<std::pair<int, int>> events;
+    const auto ppqPerSample = (120.0 / 60.0) / sampleRate;
+
+    for (int block = 0; block < blockCount; ++block)
+    {
+        midi.clear();
+        const auto blockStartPpq = static_cast<double> (block * blockSize) * ppqPerSample;
+        playHead.info.setPpqPosition (blockStartPpq);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (! message.isNoteOn())
+                continue;
+
+            const auto eventPpq = blockStartPpq + static_cast<double> (metadata.samplePosition) * ppqPerSample;
+            events.emplace_back (static_cast<int> (std::lround (eventPpq * 1000.0)),
+                                 message.getNoteNumber());
+        }
+    }
+
+    testPlugin.setPlayHead (nullptr);
+    return events;
+}
 }
 
 TEST_CASE ("Echo mode follows pattern scale", "[instance]")
@@ -778,6 +872,168 @@ TEST_CASE ("Hocket mode keeps four offset multi-step rows monophonic in audio ou
     CHECK (maxSimultaneousNoteOns <= 1);
     CHECK (shortestAudibleGateSamples > 50);
     testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Hocket mode matches output across block sizes", "[instance]")
+{
+    constexpr double sampleRate = 1000.0;
+    constexpr int smallBlockSize = 256;
+    constexpr int largeBlockSize = 2048;
+    constexpr int blockCount = 32;
+
+    PluginProcessor smallBlockPlugin;
+    smallBlockPlugin.prepareToPlay (sampleRate, smallBlockSize);
+    configureFourRowOffsetHocketPattern (smallBlockPlugin);
+    const auto smallBlockEvents =
+        collectHocketNoteOnEvents (smallBlockPlugin, sampleRate, smallBlockSize, blockCount);
+
+    PluginProcessor largeBlockPlugin;
+    largeBlockPlugin.prepareToPlay (sampleRate, largeBlockSize);
+    configureFourRowOffsetHocketPattern (largeBlockPlugin);
+    const auto largeBlockEvents =
+        collectHocketNoteOnEvents (largeBlockPlugin, sampleRate, largeBlockSize, 4);
+
+    REQUIRE (smallBlockEvents.size() > 0);
+    REQUIRE (largeBlockEvents.size() > 0);
+
+    const auto compareCount =
+        juce::jmin (smallBlockEvents.size(), largeBlockEvents.size());
+
+    for (size_t index = 0; index < static_cast<size_t> (compareCount); ++index)
+    {
+        CHECK (smallBlockEvents[index].first == largeBlockEvents[index].first);
+        CHECK (smallBlockEvents[index].second == largeBlockEvents[index].second);
+    }
+}
+
+TEST_CASE ("Hocket mode matches preview schedule for four offset rows", "[instance]")
+{
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 256;
+    constexpr int blockCount = 32;
+
+    PluginProcessor testPlugin;
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    configureFourRowOffsetHocketPattern (testPlugin);
+
+    const auto outputEvents =
+        collectHocketNoteOnEvents (testPlugin, sampleRate, blockSize, blockCount);
+
+    std::vector<std::pair<int, int>> filteredEvents;
+    filteredEvents.reserve (outputEvents.size());
+
+    for (const auto& event : outputEvents)
+    {
+        if (event.first < 16000)
+            filteredEvents.push_back (event);
+    }
+
+    const std::array<std::pair<int, int>, 64> expectedEvents { {
+        { 0, 53 },
+        { 250, 53 },
+        { 500, 57 },
+        { 750, 57 },
+        { 1000, 55 },
+        { 1250, 55 },
+        { 1500, 62 },
+        { 1750, 48 },
+        { 2000, 48 },
+        { 2250, 62 },
+        { 2500, 58 },
+        { 2750, 58 },
+        { 3000, 53 },
+        { 3250, 53 },
+        { 3500, 57 },
+        { 3750, 50 },
+        { 4000, 50 },
+        { 4250, 57 },
+        { 4500, 50 },
+        { 4750, 53 },
+        { 5000, 55 },
+        { 5250, 58 },
+        { 5500, 48 },
+        { 5750, 62 },
+        { 6000, 62 },
+        { 6250, 48 },
+        { 6500, 57 },
+        { 6750, 57 },
+        { 7000, 57 },
+        { 7250, 50 },
+        { 7500, 55 },
+        { 7750, 55 },
+        { 8000, 53 },
+        { 8250, 58 },
+        { 8500, 48 },
+        { 8750, 48 },
+        { 9000, 55 },
+        { 9250, 57 },
+        { 9500, 48 },
+        { 9750, 53 },
+        { 10000, 55 },
+        { 10250, 62 },
+        { 10500, 50 },
+        { 10750, 57 },
+        { 11000, 48 },
+        { 11250, 58 },
+        { 11500, 55 },
+        { 11750, 57 },
+        { 12000, 58 },
+        { 12250, 48 },
+        { 12500, 55 },
+        { 12750, 50 },
+        { 13000, 55 },
+        { 13250, 55 },
+        { 13500, 55 },
+        { 13750, 53 },
+        { 14000, 55 },
+        { 14250, 55 },
+        { 14500, 55 },
+        { 14750, 58 },
+        { 15000, 48 },
+        { 15250, 57 },
+        { 15500, 57 },
+        { 15750, 53 },
+    } };
+
+    REQUIRE (filteredEvents.size() == expectedEvents.size());
+
+    for (size_t index = 0; index < expectedEvents.size(); ++index)
+    {
+        CHECK (filteredEvents[index].first == expectedEvents[index].first);
+        CHECK (filteredEvents[index].second == expectedEvents[index].second);
+    }
+}
+
+TEST_CASE ("Hocket mode matches output across DAW-sized blocks", "[instance]")
+{
+    constexpr double sampleRate = 44100.0;
+    constexpr int smallBlockSize = 512;
+    constexpr int largeBlockSize = 4096;
+    constexpr int blockCount = 128;
+
+    PluginProcessor smallBlockPlugin;
+    smallBlockPlugin.prepareToPlay (sampleRate, smallBlockSize);
+    configureFourRowOffsetHocketPattern (smallBlockPlugin);
+    const auto smallBlockEvents =
+        collectHocketNoteOnEvents (smallBlockPlugin, sampleRate, smallBlockSize, blockCount);
+
+    PluginProcessor largeBlockPlugin;
+    largeBlockPlugin.prepareToPlay (sampleRate, largeBlockSize);
+    configureFourRowOffsetHocketPattern (largeBlockPlugin);
+    const auto largeBlockEvents =
+        collectHocketNoteOnEvents (largeBlockPlugin, sampleRate, largeBlockSize, 16);
+
+    REQUIRE (smallBlockEvents.size() > 0);
+    REQUIRE (largeBlockEvents.size() > 0);
+
+    const auto compareCount =
+        juce::jmin (smallBlockEvents.size(), largeBlockEvents.size());
+
+    for (size_t index = 0; index < static_cast<size_t> (compareCount); ++index)
+    {
+        CHECK (smallBlockEvents[index].first == largeBlockEvents[index].first);
+        CHECK (smallBlockEvents[index].second == largeBlockEvents[index].second);
+    }
 }
 
 TEST_CASE ("Canon mode adds delayed scale-aware followers", "[instance]")
