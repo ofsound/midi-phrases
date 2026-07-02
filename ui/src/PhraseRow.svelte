@@ -1427,6 +1427,15 @@
     event.stopPropagation();
   }
 
+  /** @param {EventTarget | null} target */
+  function isStepValueDragTarget(target) {
+    if (!(target instanceof Element)) return false;
+
+    return Boolean(
+      target.closest("[data-step-duration], [data-step-note], [data-step-velocity]"),
+    );
+  }
+
   /** @param {PointerEvent} event @param {number} step */
   function handleStepControlPointerDown(event, step) {
     if (stepInspectorInteractionDisabled || event.button !== 0) return;
@@ -1443,9 +1452,7 @@
       return;
     }
 
-    if (
-      target.closest("[data-step-duration], [data-step-note], [data-step-velocity]")
-    ) {
+    if (isStepValueDragTarget(target)) {
       return;
     }
 
@@ -1544,6 +1551,8 @@
   /** @param {PointerEvent} event @param {number} step */
   function handleFullStepPointerDownCapture(event, step) {
     if (!event.shiftKey || event.button !== 0 || stepInspectorInteractionDisabled) return;
+
+    if (isStepValueDragTarget(event.target)) return;
 
     onBulkSelectPointerDown(event, { toggleStep: true });
     event.stopImmediatePropagation();
