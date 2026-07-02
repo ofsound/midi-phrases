@@ -2979,16 +2979,22 @@
     });
   }
 
-  async function applySeedModeState(nextState = currentSeedModeState(), { syncNative = true } = {}) {
+  async function applySeedModeState(
+    nextState = currentSeedModeState(),
+    { syncNative = true, applyRhythmToAllRows = false } = {},
+  ) {
     if (projectOperationBusy) return;
 
     beginSeedModeHistory();
     const normalized = normalizeSeedModeState(nextState);
+    const shouldApplyRhythmToAllRows =
+      applyRhythmToAllRows || normalized.rhythmStep !== seedModeRhythmStep;
+
     seedModeRhythmStep = normalized.rhythmStep;
     seedModeRowSettings = normalized.rowSettings;
     seedModeRowTargets = normalized.rowTargets;
 
-    if (!hasSeedingRowTargets(seedModeRowTargets)) {
+    if (!hasSeedingRowTargets(seedModeRowTargets) && !shouldApplyRhythmToAllRows) {
       return;
     }
 
@@ -3012,7 +3018,9 @@
       scaleRoot,
       scaleModeIndex,
     );
-    const merged = mergeSeededPhraseRows(existing, generated, seedModeRowTargets);
+    const merged = mergeSeededPhraseRows(existing, generated, seedModeRowTargets, {
+      applyRhythmToAllRows: shouldApplyRhythmToAllRows,
+    });
 
     try {
       assignGeneratedPhraseRows(merged);
@@ -3068,14 +3076,14 @@
     void applySeedModeState({
       ...currentSeedModeState(),
       rhythmStep,
-    }, { syncNative: false });
+    }, { syncNative: false, applyRhythmToAllRows: true });
   }
 
   function commitSeedModeRhythmStep(rhythmStep) {
     void applySeedModeState({
       ...currentSeedModeState(),
       rhythmStep,
-    }, { syncNative: true });
+    }, { syncNative: true, applyRhythmToAllRows: true });
   }
 
   function previewSeedModeRowSettings(rowSettings) {

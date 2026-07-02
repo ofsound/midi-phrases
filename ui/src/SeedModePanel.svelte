@@ -86,33 +86,31 @@
 
 <aside class="seed-mode-panel grid w-[25rem] max-w-[42vw] shrink-0 content-start gap-2 self-stretch border-r border-border-subtle bg-transparent pt-4 pb-1 pr-4 pl-0 sm:pr-5">
   <div class="grid gap-2">
-    <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,50%)] items-end gap-3">
-      <SeedRowTargetRail
-        class="min-w-0"
-        {rowTargets}
-        {rowColorsEnabled}
-        {busy}
-        {onRowTargetToggle}
-        {onToggleAllRowTargets}
-      />
+    <label class="seed-param-control border-b border-border-subtle pb-2">
+      <span class="seed-param-label">Global Overlap</span>
+      <div class="seed-param-row">
+        <AccentRangeSlider
+          value={rhythmStep}
+          min={seedingRhythmStepMin}
+          max={seedingRhythmStepMax}
+          disabled={busy}
+          ariaLabel="Global rhythm overlap to interleave"
+          onGestureStart={onGestureStart}
+          onValuePreview={onRhythmPreview}
+          onValueCommit={onRhythmCommit}
+        />
+        <span class="seed-param-value" aria-hidden="true">{rhythmStep}</span>
+      </div>
+    </label>
 
-      <label class="grid min-w-0 gap-0.5">
-        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Overlap</span>
-        <div class="seed-param-row">
-          <AccentRangeSlider
-            value={rhythmStep}
-            min={seedingRhythmStepMin}
-            max={seedingRhythmStepMax}
-            disabled={busy}
-            ariaLabel="Rhythm overlap to interleave"
-            onGestureStart={onGestureStart}
-            onValuePreview={onRhythmPreview}
-            onValueCommit={onRhythmCommit}
-          />
-          <span class="seed-param-value" aria-hidden="true">{rhythmStep}</span>
-        </div>
-      </label>
-    </div>
+    <SeedRowTargetRail
+      class="min-w-0 pb-1"
+      {rowTargets}
+      {rowColorsEnabled}
+      {busy}
+      {onRowTargetToggle}
+      {onToggleAllRowTargets}
+    />
 
     <label class="seed-param-control" style={seedParamAccentStyle}>
       <span class="seed-param-label">Steps</span>

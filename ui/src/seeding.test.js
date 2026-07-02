@@ -714,6 +714,32 @@ describe("mergeSeededPhraseRows", () => {
     expect(merged.rowTimingOffset[2]).toEqual(existing.rowTimingOffset[2]);
     expect(merged.rowTimingOffset[3]).toEqual(existing.rowTimingOffset[3]);
   });
+
+  it("applies rhythm fields to all rows when rhythm is global", () => {
+    const existing = generateSeededPhraseRows({ ...baseOptions, seed: 1, rhythmStep: seedingRhythmStepMin });
+    const generated = generateSeededPhraseRows({ ...baseOptions, seed: 2, rhythmStep: seedingRhythmStepMax });
+    const merged = mergeSeededPhraseRows(
+      existing,
+      generated,
+      [false, true, false, false],
+      { applyRhythmToAllRows: true },
+    );
+
+    for (let row = 0; row < 4; row += 1) {
+      expect(merged.stepTimingMultiplier[row]).toEqual(generated.stepTimingMultiplier[row]);
+      expect(merged.stepDurationFraction[row]).toEqual(generated.stepDurationFraction[row]);
+      expect(merged.rowTimingOffset[row]).toEqual(generated.rowTimingOffset[row]);
+    }
+
+    expect(merged.notes[0]).toEqual(existing.notes[0]);
+    expect(merged.notes[1]).toEqual(generated.notes[1]);
+    expect(merged.notes[2]).toEqual(existing.notes[2]);
+    expect(merged.notes[3]).toEqual(existing.notes[3]);
+    expect(merged.stepVelocity[0]).toEqual(existing.stepVelocity[0]);
+    expect(merged.stepVelocity[1]).toEqual(generated.stepVelocity[1]);
+    expect(merged.stepVelocity[2]).toEqual(existing.stepVelocity[2]);
+    expect(merged.stepVelocity[3]).toEqual(existing.stepVelocity[3]);
+  });
 });
 
 describe("seeding aspect seeds", () => {

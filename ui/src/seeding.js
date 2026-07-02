@@ -1026,23 +1026,28 @@ export function phraseRowsFromGridState(state = {}) {
 
 /**
  * Merge generated phrase rows into existing state, overwriting only targeted rows.
+ * When requested, rhythm-shaped fields are applied to all rows because rhythmStep is global.
  *
  * @param {GeneratedPhraseRows} existing
  * @param {GeneratedPhraseRows} generated
  * @param {boolean[]} rowTargets
+ * @param {{ applyRhythmToAllRows?: boolean }} [options]
  */
-export function mergeSeededPhraseRows(existing, generated, rowTargets) {
+export function mergeSeededPhraseRows(existing, generated, rowTargets, options = {}) {
   const targets = normalizeSeedModeRowTargets(rowTargets);
-  const perRowKeys = [
+  const applyRhythmToAllRows = Boolean(options.applyRhythmToAllRows);
+  const targetedRowKeys = [
     "notes",
-    "stepTimingMultiplier",
-    "stepDurationFraction",
     "stepVelocity",
     "stepMuted",
     "stepSkipped",
     "stepProbability",
     "stepCycle",
     "stepCycleOffset",
+  ];
+  const rhythmKeys = [
+    "stepTimingMultiplier",
+    "stepDurationFraction",
   ];
 
   /** @type {GeneratedPhraseRows} */
@@ -1061,12 +1066,17 @@ export function mergeSeededPhraseRows(existing, generated, rowTargets) {
 
   for (let row = 0; row < 4; row += 1) {
     const source = targets[row] ? generated : existing;
+    const rhythmSource = applyRhythmToAllRows || targets[row] ? generated : existing;
 
-    for (const key of perRowKeys) {
+    for (const key of targetedRowKeys) {
       merged[key][row] = [...(source[key]?.[row] ?? [])];
     }
 
-    merged.rowTimingOffset[row] = targets[row]
+    for (const key of rhythmKeys) {
+      merged[key][row] = [...(rhythmSource[key]?.[row] ?? [])];
+    }
+
+    merged.rowTimingOffset[row] = applyRhythmToAllRows || targets[row]
       ? (generated.rowTimingOffset?.[row] ?? existing.rowTimingOffset?.[row] ?? defaultRowTimingOffsetIndex)
       : (existing.rowTimingOffset?.[row] ?? defaultRowTimingOffsetIndex);
   }
