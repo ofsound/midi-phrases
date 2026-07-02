@@ -7,10 +7,10 @@ export const pulseCount = pulseQuartersValues.length;
 export const defaultPulseIndex = 1;
 
 export const pulseOptions = [
-  { index: 0, label: "8th" },
-  { index: 1, label: "Quarter" },
-  { index: 2, label: "Half" },
   { index: 3, label: "Whole" },
+  { index: 2, label: "Half" },
+  { index: 1, label: "Quarter" },
+  { index: 0, label: "8th" },
 ];
 
 /** @type {('eighth' | 'quarter' | 'half' | 'whole')[]} */

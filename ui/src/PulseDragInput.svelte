@@ -102,8 +102,8 @@
       : 'border-border hover:border-border-strong text-text'}"
   role="slider"
   aria-label={ariaLabel}
-  aria-valuemin={pulseOptions[0]?.index}
-  aria-valuemax={pulseOptions[pulseOptions.length - 1]?.index}
+  aria-valuemin={0}
+  aria-valuemax={maxIndex}
   aria-valuenow={value}
   aria-valuetext={currentLabel}
   tabindex="-1"
