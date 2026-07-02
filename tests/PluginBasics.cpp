@@ -2675,6 +2675,147 @@ TEST_CASE ("Pattern shimmer adds delayed octave-up taps", "[instance]")
     testPlugin.setPlayHead (nullptr);
 }
 
+TEST_CASE ("Weave mode keeps octavizer copies after thinning multi-row collisions", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, true);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseRowMuted (row, false);
+        ensurePhraseRowStepCount (testPlugin, row, 1);
+        testPlugin.setPhraseNote (row, 0, 60 + row * 4);
+        testPlugin.setPhraseStepTimingMultiplier (
+            row, 0, PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+    }
+
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    testPlugin.setPatternOctavizerDown8vaEnabled (true);
+    testPlugin.setPatternOctavizerUp8vaEnabled (true);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    playHead.info.setPpqPosition (0.0);
+    testPlugin.setPlayHead (&playHead);
+
+    testPlugin.processBlock (buffer, midi);
+
+    std::array<int, 128> noteOnCounts {};
+
+    for (const auto metadata : midi)
+    {
+        const auto message = metadata.getMessage();
+
+        if (message.isNoteOn())
+            ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+    }
+
+    CHECK (noteOnCounts[52] == 1);
+    CHECK (noteOnCounts[64] == 1);
+    CHECK (noteOnCounts[60] == 0);
+    CHECK (noteOnCounts[76] == 1);
+    testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Weave mode keeps shimmer taps after thinning multi-row collisions", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, true);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseRowMuted (row, false);
+        ensurePhraseRowStepCount (testPlugin, row, 1);
+        testPlugin.setPhraseNote (row, 0, 60 + row * 4);
+        testPlugin.setPhraseStepTimingMultiplier (
+            row, 0, PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+    }
+
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    testPlugin.setPatternShimmerEnabled (true);
+    testPlugin.setPatternShimmerDelayMultiplierIndex (
+        PluginProcessor::defaultStepTimingMultiplierIndex);
+    testPlugin.setPatternShimmerFeedbackPercent (80);
+    testPlugin.setPatternShimmerMixPercent (PluginProcessor::maxPercentValue);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    testPlugin.setPlayHead (&playHead);
+
+    std::array<int, 128> noteOnCounts {};
+
+    for (int block = 0; block < 700; ++block)
+    {
+        midi.clear();
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                      * (120.0 / 60.0) / sampleRate);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+                ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+        }
+
+        if (playHead.info.getPpqPosition() >= 4.0)
+            break;
+    }
+
+    CHECK (noteOnCounts[64] > 0);
+    CHECK (noteOnCounts[76] > 0);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Pattern note bandpass filters shimmer taps", "[instance]")
 {
     PluginProcessor testPlugin;

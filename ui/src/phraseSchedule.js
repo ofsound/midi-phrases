@@ -262,6 +262,40 @@ function clipScheduleToWindow(events, windowStart, windowEnd) {
 }
 
 /**
+ * Trim woven carrier gates to the next attack. Collision picking stays in applyCombinationModes.
+ *
+ * @param {ScheduledNote[]} events
+ * @param {boolean} [enabled]
+ * @returns {ScheduledNote[]}
+ */
+export function applyWeaveGateTrimming(events, enabled = true) {
+  if (!enabled || events.length <= 1) return events;
+
+  const sorted = [...events].sort(
+    (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+  );
+  /** @type {ScheduledNote[]} */
+  const monophonic = [];
+
+  for (let index = 0; index < sorted.length; index += 1) {
+    const event = sorted[index];
+    const next = sorted[index + 1];
+    const end = next ? Math.min(event.end, next.start) : event.end;
+
+    if (end > event.start + EPSILON) {
+      monophonic.push({
+        ...event,
+        end,
+      });
+    }
+  }
+
+  return monophonic;
+}
+
+/**
+ * Collision pick plus gate trim — mirrors the full pre-rail Weave stage for tests.
+ *
  * @param {ScheduledNote[]} events
  * @param {boolean} enabled
  * @param {number} repeatLengthQuarters
@@ -291,23 +325,7 @@ export function applyWeaveMonophony(events, enabled = true, repeatLengthQuarters
     return {...group[group.length - 1]};
   });
 
-  /** @type {ScheduledNote[]} */
-  const monophonic = [];
-
-  for (let index = 0; index < selected.length; index += 1) {
-    const event = selected[index];
-    const next = selected[index + 1];
-    const end = next ? Math.min(event.end, next.start) : event.end;
-
-    if (end > event.start + EPSILON) {
-      monophonic.push({
-        ...event,
-        end,
-      });
-    }
-  }
-
-  return monophonic;
+  return applyWeaveGateTrimming(selected, true);
 }
 
 /**
@@ -648,7 +666,12 @@ function buildPhraseScheduleCore({
     scheduleStartQuarters: ppqStart,
   });
 
-  const octavized = applyOctavizer(combined, {
+  const woven = applyWeaveGateTrimming(
+    combined,
+    combinationModeEnabled(combinationModeMask, 4),
+  );
+
+  const octavized = applyOctavizer(woven, {
     down8vaEnabled: octavizerDown8vaEnabled,
     up8vaEnabled: octavizerUp8vaEnabled,
     down8vaRelativeVelocity: octavizerDown8vaRelativeVelocity,
@@ -674,16 +697,6 @@ export function buildPhraseSchedule(params) {
     params.loopOutputStartQuarters,
     params.loopOutputEndQuarters,
   );
-  const repeatLengthQuarters = loopOutputActive
-    ? (params.loopOutputEndQuarters - params.loopOutputStartQuarters)
-    : patternRepeatLengthQuarters({
-      stepTimingMultiplier: params.stepTimingMultiplier ?? [],
-      rowMuted: params.rowMuted ?? [],
-      stepSkipped: params.stepSkipped ?? [],
-      stepCycle: params.stepCycle ?? [],
-      pulseIndex: params.pulseIndex ?? defaultPulseIndex,
-    });
-  const combinationModesActive = (params.combinationModeMask ?? 0) !== 0;
   const finalTransformed = applyGlobalTranspose(
     applyVelocityTilt(
       applyNoteBandpass(
@@ -697,14 +710,7 @@ export function buildPhraseSchedule(params) {
     params.globalTransposeSemitones ?? defaultGlobalTransposeSemitones,
   );
 
-  const postProcessed = suppressHeldNoteRetriggers(
-    applyWeaveMonophony(
-      cleanupUnisonOverlaps(finalTransformed, combinationModesActive),
-      combinationModeEnabled(params.combinationModeMask ?? 0, 4),
-      repeatLengthQuarters,
-    ),
-    true,
-  );
+  const postProcessed = suppressHeldNoteRetriggers(finalTransformed, true);
 
   if (loopOutputActive) {
     return filterScheduleForNoteOnEmission(

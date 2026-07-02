@@ -12,7 +12,6 @@ constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double roundRobinOverlapFraction = 0.25;
 constexpr double hocketMinimumSliceOverlapFraction = 0.5;
-constexpr double unisonOverlapWindowQuarters = 1.0 / 96.0;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
 constexpr int phraseStateVersion = 25;
@@ -5455,6 +5454,34 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         copyFilteredEvents (eventCount);
     }
 
+    if (weaveModeEnabled && eventCount > 1)
+    {
+        sortCombinedEvents();
+
+        for (size_t index = 0; index + 1 < eventCount; ++index)
+        {
+            auto& event = combinedEvents[index];
+            const auto eventEnd = event.ppq + event.gateQuarters;
+            const auto clippedEnd = juce::jmin (eventEnd, combinedEvents[index + 1].ppq);
+            event.gateQuarters = juce::jmax (0.0, clippedEnd - event.ppq);
+        }
+
+        auto write = static_cast<size_t> (0);
+
+        for (size_t index = 0; index < eventCount; ++index)
+        {
+            if (combinedEvents[index].gateQuarters <= epsilon)
+                continue;
+
+            if (write != index)
+                combinedEvents[write] = combinedEvents[index];
+
+            ++write;
+        }
+
+        eventCount = write;
+    }
+
     {
         const auto downEnabled = activePattern.octavizerDown8vaEnabled != 0;
         const auto upEnabled = activePattern.octavizerUp8vaEnabled != 0;
@@ -5630,129 +5657,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         }
     }
 
-    if (modeMask != 0 && eventCount > 1)
-    {
-        std::sort (combinedEvents.begin(),
-                   combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
-                   [] (const CombinedNoteEvent& a, const CombinedNoteEvent& b) {
-                       if (a.note != b.note)
-                           return a.note < b.note;
-
-                       if (std::abs (a.ppq - b.ppq) > 1.0e-9)
-                           return a.ppq < b.ppq;
-
-                       if (a.channel != b.channel)
-                           return a.channel < b.channel;
-
-                       if (a.row != b.row)
-                           return a.row < b.row;
-
-                       return a.step < b.step;
-                   });
-
-        auto write = static_cast<size_t> (0);
-
-        for (size_t read = 0; read < eventCount;)
-        {
-            auto merged = combinedEvents[read];
-            auto mergedEnd = merged.ppq + merged.gateQuarters;
-            auto groupEnd = read + 1;
-
-            while (groupEnd < eventCount
-                   && combinedEvents[groupEnd].note == merged.note
-                   && combinedEvents[groupEnd].ppq <= merged.ppq + unisonOverlapWindowQuarters + epsilon)
-            {
-                const auto& candidate = combinedEvents[groupEnd];
-                merged.velocity = juce::jmax (merged.velocity, candidate.velocity);
-                mergedEnd = juce::jmax (mergedEnd, candidate.ppq + candidate.gateQuarters);
-                ++groupEnd;
-            }
-
-            merged.gateQuarters = juce::jmax (0.0, mergedEnd - merged.ppq);
-
-            if (write < combinedWorkingEvents.size())
-                combinedWorkingEvents[write++] = merged;
-
-            read = groupEnd;
-        }
-
-        eventCount = write;
-        copyFilteredEvents (eventCount);
-        sortCombinedEvents();
-    }
-
-    if (weaveModeEnabled && eventCount > 1)
-    {
-        sortCombinedEvents();
-        auto write = static_cast<size_t> (0);
-
-        for (size_t read = 0; read < eventCount;)
-        {
-            auto groupEnd = read + 1;
-
-            while (groupEnd < eventCount
-                   && std::abs (combinedEvents[groupEnd].ppq - combinedEvents[read].ppq) <= epsilon)
-            {
-                ++groupEnd;
-            }
-
-            auto selected = read;
-
-            if (groupEnd - read > 1)
-            {
-                auto totalWeight = 0;
-
-                for (size_t index = read; index < groupEnd; ++index)
-                    totalWeight += juce::jmax (1, combinedEvents[index].velocity);
-
-                auto pick = static_cast<int> (
-                    deterministicEventHash (combinedEvents[read].row,
-                                            combinedEvents[read].step,
-                                            weaveHashPpq (combinedEvents[read].ppq))
-                    % static_cast<std::uint32_t> (juce::jmax (1, totalWeight)));
-
-                for (size_t index = read; index < groupEnd; ++index)
-                {
-                    pick -= juce::jmax (1, combinedEvents[index].velocity);
-
-                    if (pick < 0)
-                    {
-                        selected = index;
-                        break;
-                    }
-                }
-            }
-
-            if (write < combinedWorkingEvents.size())
-                combinedWorkingEvents[write++] = combinedEvents[selected];
-
-            read = groupEnd;
-        }
-
-        for (size_t index = 0; index < write; ++index)
-        {
-            auto& event = combinedWorkingEvents[index];
-            const auto eventEnd = event.ppq + event.gateQuarters;
-            const auto clippedEnd =
-                index + 1 < write ? juce::jmin (eventEnd, combinedWorkingEvents[index + 1].ppq)
-                                  : eventEnd;
-            event.gateQuarters = juce::jmax (0.0, clippedEnd - event.ppq);
-        }
-
-        auto compacted = static_cast<size_t> (0);
-
-        for (size_t index = 0; index < write; ++index)
-        {
-            if (combinedWorkingEvents[index].gateQuarters <= epsilon)
-                continue;
-
-            combinedEvents[compacted++] = combinedWorkingEvents[index];
-        }
-
-        eventCount = compacted;
-        sortCombinedEvents();
-    }
-
     if (eventCount > 1)
     {
         std::sort (combinedEvents.begin(),
@@ -5833,6 +5737,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         }
     };
 
+    auto lastWeaveFlushPpq = -std::numeric_limits<double>::infinity();
+
     for (size_t index = 0; index < eventCount; ++index)
     {
         auto event = combinedEvents[index];
@@ -5902,6 +5808,12 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                                                static_cast<int> (std::lround (
                                                    clippedGateQuarters / ppqPerSample)));
 
+        if (weaveModeEnabled && std::abs (event.ppq - lastWeaveFlushPpq) > epsilon)
+        {
+            flushActiveWeaveNotes (sampleOffset, midiMessages);
+            lastWeaveFlushPpq = event.ppq;
+        }
+
         if (sampleOffset >= bufferSamples)
         {
             addPendingNoteOn (PendingNoteOn { event.row,
@@ -5914,9 +5826,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                                               1 });
             continue;
         }
-
-        if (weaveModeEnabled)
-            flushActiveWeaveNotes (sampleOffset, midiMessages);
 
         emitLayeredGeneratedNote (event.channel,
                                   event.note,

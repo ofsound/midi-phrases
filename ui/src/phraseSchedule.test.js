@@ -432,7 +432,7 @@ describe("combination mode pulse-aware timing", () => {
     expect(schedule).toHaveLength(4);
   });
 
-  it("merges exact same-channel same-pitch combination attacks after final transforms", () => {
+  it("does not merge combination attacks again after the processing rail", () => {
     const schedule = buildPhraseSchedule({
       notes: [[60], [60], [], []],
       rowMuted: [false, false, true, true],
@@ -457,7 +457,7 @@ describe("combination mode pulse-aware timing", () => {
     const firstAttack = schedule.filter((note) => note.start === 0 && note.midi === 60 && note.channel === 1);
 
     expect(firstAttack).toHaveLength(1);
-    expect(firstAttack[0]).toMatchObject({velocity: 104, row: 0, step: 0});
+    expect(firstAttack[0]).toMatchObject({velocity: 72, row: 0, step: 0});
   });
 
   it("merges near same-channel same-pitch attacks inside the unison cleanup window", () => {
@@ -632,6 +632,66 @@ describe("combination mode pulse-aware timing", () => {
       [0, 64],
       [1, 64],
     ]);
+  });
+
+  it("keeps octavizer copies after Weave thins multi-row collisions", () => {
+    const schedule = buildPhraseSchedule({
+      notes: [[60], [64], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      rowMidiChannel: [1, 2, 3, 4],
+      stepDurationFraction: [[1], [1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[100], [100], [], []],
+      stepMuted: [[false], [false], [], []],
+      stepSkipped: [[false], [false], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 4,
+      lengthQuarters: 2,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+      octavizerDown8vaEnabled: true,
+      octavizerUp8vaEnabled: true,
+    });
+
+    const sameStart = schedule.filter((note) => note.start === 0);
+
+    expect(sameStart.map((note) => note.midi).sort((a, b) => a - b)).toEqual([52, 64, 76]);
+  });
+
+  it("keeps shimmer taps after Weave thins multi-row collisions", () => {
+    const schedule = buildPhraseSchedule({
+      notes: [[60], [64], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      rowMidiChannel: [1, 2, 3, 4],
+      stepDurationFraction: [[1], [1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[100], [100], [], []],
+      stepMuted: [[false], [false], [], []],
+      stepSkipped: [[false], [false], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 4,
+      lengthQuarters: 4,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+      shimmerEnabled: true,
+      shimmerDelayMultiplierIndex: defaultStepTimingMultiplierIndex,
+      shimmerFeedbackPercent: 80,
+      shimmerMixPercent: 100,
+    });
+
+    expect(schedule.some((note) => note.midi === 76 && note.start > 0)).toBe(true);
   });
 });
 
