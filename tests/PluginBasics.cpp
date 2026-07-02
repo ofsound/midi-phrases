@@ -844,6 +844,75 @@ TEST_CASE ("Canon mode adds delayed scale-aware followers", "[instance]")
     testPlugin.setPlayHead (nullptr);
 }
 
+TEST_CASE ("Canon mode emits followers scheduled on block boundary", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 1000;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPatternScale (0, 1); // C major
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeCanon, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+    testPlugin.setPhraseRowMidiChannel (1, 12);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 2);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (0, 1, 64);
+    testPlugin.setPhraseNote (1, 0, 67);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            testPlugin.setPhraseStepTimingMultiplier (
+                row,
+                step,
+                PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (row, step, 100);
+        }
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    playHead.info.setPpqPosition (0.0);
+    midi.clear();
+    testPlugin.processBlock (buffer, midi);
+
+    playHead.info.setPpqPosition (2.0);
+    midi.clear();
+    testPlugin.processBlock (buffer, midi);
+
+    CHECK (findNoteOnSampleOnChannel (midi, 71, 12) == 0);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Retro-Inv mode adds reversed inverted followers", "[instance]")
 {
     PluginProcessor testPlugin;

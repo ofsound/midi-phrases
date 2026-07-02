@@ -5258,9 +5258,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         if (event.gateQuarters <= epsilon || event.velocity <= 0)
             continue;
 
-        if (event.ppq >= schedulePpqEnd - epsilon)
-            continue;
-
         const auto stepLength = event.gateQuarters;
         const auto timingRange = stepLength * timingHumanizeScale
                                  * (static_cast<double> (clampPercent (timingHumanize)) / 100.0);
