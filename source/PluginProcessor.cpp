@@ -11,6 +11,7 @@ namespace
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double roundRobinOverlapFraction = 0.25;
+constexpr double hocketMinimumSliceOverlapFraction = 0.5;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
 constexpr int phraseStateVersion = 25;
@@ -4750,6 +4751,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
     if (combinationModeEnabled (modeMask, combinationModeHocket) && activeRowCount > 1)
     {
         const auto sliceQuarters = pulse / static_cast<double> (activeRowCount);
+        const auto minimumHocketSliceOverlap =
+            sliceQuarters * hocketMinimumSliceOverlapFraction;
 
         if (sliceQuarters > epsilon)
         {
@@ -4817,8 +4820,10 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                         const auto eventEnd = event.ppq + event.gateQuarters;
                         const auto start = juce::jmax (event.ppq, sliceStart);
                         const auto end = juce::jmin (eventEnd, sliceEnd, hocketLengthQuarters);
+                        const auto overlap = end - start;
 
-                        if (end <= start + epsilon)
+                        if (overlap <= epsilon
+                            || overlap + epsilon < minimumHocketSliceOverlap)
                             continue;
 
                         const auto& sourceSteps = state.rows[static_cast<size_t> (event.row)];

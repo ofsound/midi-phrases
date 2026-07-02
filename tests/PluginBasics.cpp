@@ -1004,6 +1004,46 @@ TEST_CASE ("Hocket mode matches preview schedule for four offset rows", "[instan
     }
 }
 
+TEST_CASE ("Hocket mode drops tiny slice overlaps", "[instance]")
+{
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 512;
+    constexpr int blockCount = 2;
+
+    PluginProcessor testPlugin;
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 67);
+    testPlugin.setPhraseStepTimingMultiplier (
+        0,
+        0,
+        PluginProcessor::defaultStepTimingMultiplierIndex);
+    testPlugin.setPhraseStepTimingMultiplier (
+        1,
+        0,
+        PluginProcessor::defaultStepTimingMultiplierIndex);
+    testPlugin.setPhraseStepDurationFraction (0, 0, 0.2);
+    testPlugin.setPhraseStepDurationFraction (1, 0, 1.0);
+    testPlugin.setPhraseStepVelocity (0, 0, 100);
+    testPlugin.setPhraseStepVelocity (1, 0, 0);
+
+    const auto outputEvents =
+        collectHocketNoteOnEvents (testPlugin, sampleRate, blockSize, blockCount);
+
+    CHECK (outputEvents.empty());
+}
+
 TEST_CASE ("Hocket mode matches output across DAW-sized blocks", "[instance]")
 {
     constexpr double sampleRate = 44100.0;

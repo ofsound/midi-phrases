@@ -308,7 +308,7 @@ describe("combination mode pulse-aware timing", () => {
       notes: [[60], [67], [], []],
       rowMuted: [false, false, true, true],
       rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
-      stepDurationFraction: [[0.05], [1], [], []],
+      stepDurationFraction: [[0.2], [1], [], []],
       stepTimingMultiplier: [
         [defaultStepTimingMultiplierIndex],
         [defaultStepTimingMultiplierIndex],

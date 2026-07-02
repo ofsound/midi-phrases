@@ -22,7 +22,7 @@ const EPSILON = 1e-9;
 const MAX_COMBINED_PREVIEW_NOTES = 4096;
 const COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR = 2;
 const ROUND_ROBIN_OVERLAP_FRACTION = 0.25;
-const HOCKET_MINIMUM_SLICE_OVERLAP_FRACTION = 0.2;
+const HOCKET_MINIMUM_SLICE_OVERLAP_FRACTION = 0.5;
 const DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS = 64;
 export const combinationModeMaskBits = 0x1ff;
 /** Display order matches processing order. Weave keeps its legacy bit and runs last. */
