@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   buildPhraseSchedule,
   buildPhraseScheduleBeforeBandpass,
+  buildPhraseScheduleWindow,
   combinationModes,
   buildPhraseScheduleWindowBeforeBandpass,
   applyWeaveMonophony,
   cleanupUnisonOverlaps,
+  filterScheduleForNoteOnEmission,
   probabilityPasses,
   stepTriggerCountAtBeat,
   suppressHeldNoteRetriggers,
@@ -496,7 +498,7 @@ describe("combination mode pulse-aware timing", () => {
     ]);
 
     expect(cleaned).toEqual([
-      {start: 0, end: 2, midi: 60, velocity: 72, row: 0, step: 0, channel: 1},
+      {start: 0, end: 2, midi: 60, velocity: 72, row: 0, step: 0, channel: 1, extendedByHeldOverlap: true},
     ]);
   });
 
@@ -522,7 +524,7 @@ describe("combination mode pulse-aware timing", () => {
     ]);
 
     expect(cleaned).toEqual([
-      {start: 0, end: 0.75, midi: 60, velocity: 72, row: 0, step: 0, channel: 1},
+      {start: 0, end: 0.75, midi: 60, velocity: 72, row: 0, step: 0, channel: 1, extendedByHeldOverlap: true},
     ]);
   });
 
@@ -744,6 +746,183 @@ describe("windowed phrase schedule preview", () => {
     });
 
     expect(comparableNotes(windowed)).toEqual(comparableNotes(clippedToWindow(full, 8, 16)));
+  });
+
+  it("collects Hocket history from loop start when loop output bounds are active", () => {
+    const params = fourRowOffsetHocketParams();
+    const loopStart = 8;
+    const loopEnd = 16;
+    const loopOutput = buildPhraseScheduleBeforeBandpass({
+      ...params,
+      loopOutputStartQuarters: loopStart,
+      loopOutputEndQuarters: loopEnd,
+      lengthQuarters: loopEnd,
+    });
+    const naiveClip = clippedToWindow(buildPhraseScheduleBeforeBandpass(params), loopStart, loopEnd);
+
+    expect(loopOutput.every((note) => note.start >= loopStart && note.start < loopEnd)).toBe(true);
+    expect(comparableNotes(loopOutput)).not.toEqual(comparableNotes(naiveClip));
+    expect(loopOutput[0]).toMatchObject({ start: loopStart, midi: 55, step: 2 });
+  });
+
+  it("matches loop-output Hocket windows to the loop-output schedule", () => {
+    const params = fourRowOffsetHocketParams();
+    const loopStart = 8;
+    const loopEnd = 16;
+    const loopOutput = buildPhraseScheduleBeforeBandpass({
+      ...params,
+      loopOutputStartQuarters: loopStart,
+      loopOutputEndQuarters: loopEnd,
+      lengthQuarters: loopEnd,
+    });
+    const windowed = buildPhraseScheduleWindowBeforeBandpass({
+      ...params,
+      windowStartQuarters: loopStart,
+      windowEndQuarters: loopEnd,
+      windowLookbackQuarters: 0,
+      loopOutputStartQuarters: loopStart,
+      loopOutputEndQuarters: loopEnd,
+      lengthQuarters: loopEnd,
+    });
+
+    expect(comparableNotes(windowed)).toEqual(comparableNotes(loopOutput));
+  });
+
+  it("does not emit Hocket slices outside loop output bounds", () => {
+    const loopStart = 8;
+    const loopEnd = 16;
+    const loopOutput = buildPhraseSchedule({
+      ...fourRowOffsetHocketParams(),
+      loopOutputStartQuarters: loopStart,
+      loopOutputEndQuarters: loopEnd,
+      lengthQuarters: loopEnd,
+    });
+
+    expect(loopOutput.length).toBeGreaterThan(0);
+    expect(loopOutput.every((note) => note.start >= loopStart - 1e-6 && note.start < loopEnd - 1e-6)).toBe(true);
+    expect(loopOutput.every((note) => note.end <= loopEnd + 1e-6)).toBe(true);
+  });
+});
+
+function userLoopHocketParams(overrides = {}) {
+  const timing3 = [
+    defaultStepTimingMultiplierIndex,
+    defaultStepTimingMultiplierIndex,
+    defaultStepTimingMultiplierIndex,
+  ];
+  const timing4 = [
+    defaultStepTimingMultiplierIndex,
+    defaultStepTimingMultiplierIndex,
+    defaultStepTimingMultiplierIndex,
+    defaultStepTimingMultiplierIndex,
+  ];
+
+  return {
+    notes: [
+      [48, 48, 48, 43],
+      [43, 43, 46],
+      [55, 51, 53, 58],
+      [],
+    ],
+    rowMuted: [false, false, false, true],
+    rowTimingOffset: [
+      defaultRowTimingOffsetIndex,
+      defaultRowTimingOffsetIndex + 1,
+      defaultRowTimingOffsetIndex + 2,
+      defaultRowTimingOffsetIndex,
+    ],
+    stepDurationFraction: [
+      [1, 1, 1, 1],
+      [1, 1, 1],
+      [1, 1, 1, 1],
+      [],
+    ],
+    stepTimingMultiplier: [timing4, timing3, timing4, []],
+    stepVelocity: [
+      [100, 100, 100, 100],
+      [100, 100, 100],
+      [100, 100, 100, 100],
+      [],
+    ],
+    stepMuted: [
+      [false, false, false, false],
+      [false, false, false],
+      [false, false, false, false],
+      [],
+    ],
+    stepSkipped: [
+      [false, false, false, false],
+      [false, false, false],
+      [false, false, false, false],
+      [],
+    ],
+    pulseIndex: 1,
+    combinationModeMask: 1 << 6,
+    scaleRoot: 0,
+    scaleModeIndex: 1,
+    ...overrides,
+  };
+}
+
+describe("loop hocket emission parity", () => {
+  it("drops held-overlap extensions that start before the loop window", () => {
+    const filtered = filterScheduleForNoteOnEmission([
+      {start: 3.5, end: 4.5, midi: 60, velocity: 100, row: 0, step: 0, channel: 1, extendedByHeldOverlap: true},
+      {start: 4.25, end: 5, midi: 60, velocity: 100, row: 1, step: 0, channel: 1},
+    ], 4, 8);
+
+    expect(filtered).toEqual([
+      {start: 4.25, end: 5, midi: 60, velocity: 100, row: 1, step: 0, channel: 1},
+    ]);
+  });
+
+  it("matches the C++ loop 4-8 note-on list for the user hocket pattern", () => {
+    const loopStart = 4;
+    const loopEnd = 8;
+    const schedule = buildPhraseSchedule({
+      ...userLoopHocketParams(),
+      loopOutputStartQuarters: loopStart,
+      loopOutputEndQuarters: loopEnd,
+      lengthQuarters: loopEnd,
+    });
+
+    expect(schedule).toHaveLength(12);
+    expect(schedule.filter((note) => note.midi === 46)).toHaveLength(1);
+    expect(schedule.map((note) => [Number(note.start.toFixed(3)), note.midi])).toEqual([
+      [4, 48],
+      [4.5, 55],
+      [4.667, 48],
+      [5, 43],
+      [5.333, 48],
+      [5.667, 46],
+      [6, 51],
+      [6.5, 53],
+      [6.667, 53],
+      [7, 53],
+      [7.333, 43],
+      [7.667, 43],
+    ]);
+  });
+
+  it("uses the same loop-output schedule for windowed preview requests", () => {
+    const loopStart = 4;
+    const loopEnd = 8;
+    const loopOutput = buildPhraseSchedule({
+      ...userLoopHocketParams(),
+      loopOutputStartQuarters: loopStart,
+      loopOutputEndQuarters: loopEnd,
+      lengthQuarters: loopEnd,
+    });
+    const windowed = buildPhraseScheduleWindow({
+      ...userLoopHocketParams(),
+      loopOutputStartQuarters: loopStart,
+      loopOutputEndQuarters: loopEnd,
+      lengthQuarters: loopEnd,
+      windowStartQuarters: loopStart,
+      windowEndQuarters: loopEnd,
+    });
+
+    expect(windowed).toEqual(loopOutput);
   });
 });
 

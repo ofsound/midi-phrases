@@ -4,25 +4,19 @@
   import { clearActiveCursor, setActiveCursor } from "./cursor.js";
   import { beatFromClientX, clampLoopBrace, loopBraceSnapQuarters } from "./loopBraceLayout.js";
   import { defaultPulseIndex } from "./pulseLayout.js";
-  import { applyNoteBandpass } from "./noteBandpass.js";
   import { noteBandpassPreview } from "./noteBandpassPreview.svelte.js";
   import { pagedPlaybackScrollLeft } from "./pianoRollAutoScroll.js";
   import { fittedPitchRangeForSchedule } from "./pianoRollViewport.js";
-  import { applyVelocityTilt } from "./velocityTilt.js";
-  import { applyGlobalTranspose } from "./globalTranspose.js";
   import { defaultShimmerFeedbackPercent, defaultShimmerMixPercent } from "./shimmer.js";
 import {
-  buildPhraseScheduleBeforeBandpass,
-  buildPhraseScheduleWindowBeforeBandpass,
-  applyWeaveMonophony,
+  buildPhraseSchedule,
+  buildPhraseScheduleWindow,
   combinationModeEnabled,
-  cleanupUnisonOverlaps,
   DEFAULT_PREVIEW_LENGTH_QUARTERS,
   isBlackKey,
   isScheduledNoteActiveAtPlaybackBeat,
   mapPlaybackBeatForPianoRoll,
   patternRepeatLengthQuarters,
-  suppressHeldNoteRetriggers,
 } from "./phraseSchedule.js";
 import { pianoRollContentLengthQuarters, rollLengthQuartersForCycle } from "./rowPianoRollShape.js";
 import { scaledPx } from "./uiScale.svelte.js";
@@ -169,6 +163,10 @@ import { scaledPx } from "./uiScale.svelte.js";
     }),
   );
   let hocketModeActive = $derived(combinationModeEnabled(combinationModeMask, 6));
+  let loopSpanQuarters = $derived(Math.max(loopBraceSnapQuarters, displayEnd - displayStart));
+  let loopOutputView = $derived(loopEnabled && displayEnd > displayStart);
+  let outputViewStart = $derived(loopOutputView ? displayStart : 0);
+  let outputViewEnd = $derived(loopOutputView ? displayEnd : 0);
   let autoContentLengthQuarters = $derived(
     pianoRollContentLengthQuarters({
       patternLengthQuarters: patternRepeatQuarters,
@@ -178,24 +176,35 @@ import { scaledPx } from "./uiScale.svelte.js";
     }),
   );
   let previewContentLengthQuarters = $derived(
-    hocketModeActive && !loopEnabled && autoContentLengthQuarters > 0
-      ? Math.min(
-          DEFAULT_PREVIEW_LENGTH_QUARTERS,
-          Math.max(
-            autoContentLengthQuarters,
-            hocketPreviewMinimumQuarters,
-            rollLengthQuartersForCycle(autoContentLengthQuarters * hocketPreviewCycleCount),
-          ),
-        )
-      : autoContentLengthQuarters,
+    loopOutputView
+      ? loopSpanQuarters
+      : hocketModeActive && autoContentLengthQuarters > 0
+        ? Math.min(
+            DEFAULT_PREVIEW_LENGTH_QUARTERS,
+            Math.max(
+              autoContentLengthQuarters,
+              hocketPreviewMinimumQuarters,
+              rollLengthQuartersForCycle(autoContentLengthQuarters * hocketPreviewCycleCount),
+            ),
+          )
+        : autoContentLengthQuarters,
   );
   let autoLengthQuarters = $derived(
     previewContentLengthQuarters > 0
       ? rollLengthQuartersForCycle(previewContentLengthQuarters)
       : DEFAULT_PREVIEW_LENGTH_QUARTERS,
   );
-  let scheduleLengthQuarters = $derived(lengthQuarters ?? previewContentLengthQuarters);
-  let resolvedLengthQuarters = $derived(lengthQuarters ?? autoLengthQuarters);
+  let scheduleLengthQuarters = $derived(
+    loopOutputView
+      ? outputViewEnd
+      : (lengthQuarters ?? previewContentLengthQuarters),
+  );
+  let resolvedLengthQuarters = $derived(
+    loopOutputView
+      ? rollLengthQuartersForCycle(loopSpanQuarters)
+      : (lengthQuarters ?? autoLengthQuarters),
+  );
+  let timelineOriginQuarters = $derived(loopOutputView ? outputViewStart : 0);
   let visibleStartQuarter = $derived(viewportScrollLeftPx / pxPerQuarter);
   let visibleEndQuarter = $derived(
     viewportWidthPx > 0
@@ -203,122 +212,86 @@ import { scaledPx } from "./uiScale.svelte.js";
       : Math.min(resolvedLengthQuarters, 32),
   );
   let renderWindowStart = $derived(
-    Math.max(0, Math.floor(visibleStartQuarter - renderOverscanQuarters)),
+    loopOutputView
+      ? 0
+      : Math.max(0, Math.floor(visibleStartQuarter - renderOverscanQuarters)),
   );
   let renderWindowEnd = $derived(
-    Math.min(resolvedLengthQuarters, Math.ceil(visibleEndQuarter + renderOverscanQuarters)),
+    loopOutputView
+      ? resolvedLengthQuarters
+      : Math.min(resolvedLengthQuarters, Math.ceil(visibleEndQuarter + renderOverscanQuarters)),
   );
+  let scheduleWindowStart = $derived(loopOutputView ? outputViewStart : renderWindowStart);
+  let scheduleWindowEnd = $derived(loopOutputView ? outputViewEnd : renderWindowEnd);
   let renderWindowLeftPx = $derived(renderWindowStart * pxPerQuarter);
   let renderWindowWidthPx = $derived(
     Math.max(1, (renderWindowEnd - renderWindowStart) * pxPerQuarter),
   );
 
-  let scheduledBeforeBandpass = $derived(
-    buildPhraseScheduleWindowBeforeBandpass({
-      notes,
-      rowMuted,
-      rowTimingOffset,
-      stepDurationFraction,
-      stepTimingMultiplier,
-      stepVelocity,
-      rowMidiChannel,
-      stepMuted,
-      stepSkipped,
-      stepProbability,
-      stepCycle,
-      stepCycleOffset,
-      pulseIndex,
-      swingPercent,
-      swingSubdivisionIndex,
-      combinationModeMask,
-      lengthQuarters: scheduleLengthQuarters,
-      scaleRoot,
-      scaleModeIndex,
-      octavizerDown8vaEnabled,
-      octavizerUp8vaEnabled,
-      octavizerDown8vaRelativeVelocity,
-      octavizerUp8vaRelativeVelocity,
-      shimmerEnabled,
-      shimmerDelayMultiplierIndex,
-      shimmerFeedbackPercent,
-      shimmerMixPercent,
-      windowStartQuarters: renderWindowStart,
-      windowEndQuarters: renderWindowEnd,
-    }),
+  let phraseScheduleBaseParams = $derived({
+    notes,
+    rowMuted,
+    rowTimingOffset,
+    stepDurationFraction,
+    stepTimingMultiplier,
+    stepVelocity,
+    rowMidiChannel,
+    stepMuted,
+    stepSkipped,
+    stepProbability,
+    stepCycle,
+    stepCycleOffset,
+    pulseIndex,
+    swingPercent,
+    swingSubdivisionIndex,
+    combinationModeMask,
+    scaleRoot,
+    scaleModeIndex,
+    octavizerDown8vaEnabled,
+    octavizerUp8vaEnabled,
+    octavizerDown8vaRelativeVelocity,
+    octavizerUp8vaRelativeVelocity,
+    shimmerEnabled,
+    shimmerDelayMultiplierIndex,
+    shimmerFeedbackPercent,
+    shimmerMixPercent,
+  });
+
+  let phraseScheduleRenderParams = $derived({
+    ...phraseScheduleBaseParams,
+    lengthQuarters: scheduleLengthQuarters,
+    noteBandpassLowMidi: displayBandpassLow,
+    noteBandpassHighMidi: displayBandpassHigh,
+    velocityTiltPivotMidi,
+    velocityTiltAmount,
+    globalTransposeSemitones,
+  });
+
+  let loopOutputSchedule = $derived(
+    loopOutputView
+      ? buildPhraseSchedule({
+          ...phraseScheduleRenderParams,
+          lengthQuarters: outputViewEnd,
+          loopOutputStartQuarters: outputViewStart,
+          loopOutputEndQuarters: outputViewEnd,
+        })
+      : [],
   );
 
   let scheduled = $derived(
-    suppressHeldNoteRetriggers(
-      applyWeaveMonophony(
-        cleanupUnisonOverlaps(
-          applyGlobalTranspose(
-            applyVelocityTilt(
-              applyNoteBandpass(scheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
-              velocityTiltPivotMidi,
-              velocityTiltAmount,
-            ),
-            globalTransposeSemitones,
-          ),
-          combinationModeMask !== 0,
-        ),
-        combinationModeEnabled(combinationModeMask, 4),
-        patternRepeatQuarters,
-      ),
-      true,
-    ),
-  );
-
-  let fullScheduledBeforeBandpass = $derived(
-    buildPhraseScheduleBeforeBandpass({
-      notes,
-      rowMuted,
-      rowTimingOffset,
-      stepDurationFraction,
-      stepTimingMultiplier,
-      stepVelocity,
-      rowMidiChannel,
-      stepMuted,
-      stepSkipped,
-      stepProbability,
-      stepCycle,
-      stepCycleOffset,
-      pulseIndex,
-      swingPercent,
-      swingSubdivisionIndex,
-      combinationModeMask,
-      lengthQuarters: scheduleLengthQuarters,
-      scaleRoot,
-      scaleModeIndex,
-      octavizerDown8vaEnabled,
-      octavizerUp8vaEnabled,
-      octavizerDown8vaRelativeVelocity,
-      octavizerUp8vaRelativeVelocity,
-      shimmerEnabled,
-      shimmerDelayMultiplierIndex,
-      shimmerFeedbackPercent,
-      shimmerMixPercent,
-    }),
+    loopOutputView
+      ? loopOutputSchedule
+      : buildPhraseScheduleWindow({
+          ...phraseScheduleRenderParams,
+          windowStartQuarters: scheduleWindowStart,
+          windowEndQuarters: scheduleWindowEnd,
+        }),
   );
 
   let fullScheduled = $derived(
-    suppressHeldNoteRetriggers(
-      applyWeaveMonophony(
-        cleanupUnisonOverlaps(
-          applyGlobalTranspose(
-            applyVelocityTilt(
-              applyNoteBandpass(fullScheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
-              velocityTiltPivotMidi,
-              velocityTiltAmount,
-            ),
-            globalTransposeSemitones,
-          ),
-          combinationModeMask !== 0,
-        ),
-        combinationModeEnabled(combinationModeMask, 4),
-        patternRepeatQuarters,
-      ),
-      true,
-    ),
+    loopOutputView
+      ? loopOutputSchedule
+      : buildPhraseSchedule(phraseScheduleRenderParams),
   );
 
   let pitchRange = $derived(fittedPitchRangeForSchedule(fullScheduled));
@@ -334,16 +307,26 @@ import { scaledPx } from "./uiScale.svelte.js";
   let noteHeightPx = $derived(Math.max(1, rowHeightPx - noteVerticalInsetPx * 2));
   let noteCornerRadiusPx = $derived(Math.min(2, noteHeightPx / 2));
   let loopSpan = $derived(Math.max(loopBraceSnapQuarters, displayEnd - displayStart));
-  let loopLeftPx = $derived(displayStart * pxPerQuarter);
-  let loopWidthPx = $derived(loopSpan * pxPerQuarter);
-  let displayPlaybackBeat = $derived(
-    hocketModeActive && !loopEnabled
-      ? playbackBeat
-      : mapPlaybackBeatForPianoRoll(playbackBeat, {
-          loopEnabled,
-          patternLengthQuarters: patternRepeatQuarters,
-        }),
+  let loopLeftPx = $derived(loopOutputView ? 0 : displayStart * pxPerQuarter);
+  let loopWidthPx = $derived(
+    loopOutputView ? resolvedLengthQuarters * pxPerQuarter : loopSpan * pxPerQuarter,
   );
+  let displayPlaybackBeat = $derived.by(() => {
+    if (playbackBeat < 0) return -1;
+
+    if (loopOutputView) {
+      return playbackBeat - outputViewStart;
+    }
+
+    if (hocketModeActive) {
+      return playbackBeat;
+    }
+
+    return mapPlaybackBeatForPianoRoll(playbackBeat, {
+      loopEnabled,
+      patternLengthQuarters: patternRepeatQuarters,
+    });
+  });
   let showPlaybackPlayhead = $derived(displayPlaybackBeat >= 0);
   let playbackPlayheadLeftPx = $derived(displayPlaybackBeat * pxPerQuarter);
 
@@ -427,6 +410,11 @@ import { scaledPx } from "./uiScale.svelte.js";
     return (pitchRange.maxMidi - midi) * rowHeightPx;
   }
 
+  /** @param {number} beat */
+  function beatToDisplayPx(beat) {
+    return (beat - timelineOriginQuarters) * pxPerQuarter;
+  }
+
   /** @param {number} start @param {number} end */
   function noteWidthPx(start, end) {
     return Math.max(1, (end - start) * pxPerQuarter - 1);
@@ -444,12 +432,22 @@ import { scaledPx } from "./uiScale.svelte.js";
       : "bg-piano-roll-white-key border-b border-piano-roll-white-key-line";
   }
 
+  /** @param {PointerEvent} event */
+  function beatFromPointer(event) {
+    if (!scrollElement) return 0;
+
+    const relativeBeat = beatFromClientX(event.clientX, scrollElement, pxPerQuarter);
+
+    return loopOutputView ? timelineOriginQuarters + relativeBeat : relativeBeat;
+  }
+
   /** @param {{ enabled?: boolean, start?: number, end?: number }} next */
   async function commitLoopBrace(next) {
+    const maxBeat = loopOutputView ? autoContentLengthQuarters : resolvedLengthQuarters;
     const clamped = clampLoopBrace(
       next.start ?? loopStart,
       next.end ?? loopEnd,
-      resolvedLengthQuarters,
+      maxBeat,
     );
 
     await onLoopBraceChange({
@@ -467,7 +465,7 @@ import { scaledPx } from "./uiScale.svelte.js";
     dragDisplayEnd = loopEnd;
     dragMode = mode;
     dragPointerId = event.pointerId;
-    dragStartBeat = beatFromClientX(event.clientX, scrollElement, pxPerQuarter);
+    dragStartBeat = beatFromPointer(event);
     dragAnchorStart = loopStart;
     dragAnchorEnd = loopEnd;
 
@@ -480,7 +478,7 @@ import { scaledPx } from "./uiScale.svelte.js";
   function moveLoopDrag(event) {
     if (dragMode === null || event.pointerId !== dragPointerId || !scrollElement) return;
 
-    const beat = beatFromClientX(event.clientX, scrollElement, pxPerQuarter);
+    const beat = beatFromPointer(event);
 
     if (dragMode === "move") {
       const delta = beat - dragStartBeat;
@@ -490,14 +488,15 @@ import { scaledPx } from "./uiScale.svelte.js";
       const span = dragAnchorEnd - dragAnchorStart;
       let nextStart = dragAnchorStart + delta;
       let nextEnd = nextStart + span;
+      const maxBeat = loopOutputView ? autoContentLengthQuarters : resolvedLengthQuarters;
 
       if (nextStart < 0) {
         nextStart = 0;
         nextEnd = span;
       }
 
-      if (nextEnd > resolvedLengthQuarters) {
-        nextEnd = resolvedLengthQuarters;
+      if (nextEnd > maxBeat) {
+        nextEnd = maxBeat;
         nextStart = nextEnd - span;
       }
 
@@ -560,14 +559,15 @@ import { scaledPx } from "./uiScale.svelte.js";
     const span = displayEnd - displayStart;
     let nextStart = displayStart + delta;
     let nextEnd = nextStart + span;
+    const maxBeat = loopOutputView ? autoContentLengthQuarters : resolvedLengthQuarters;
 
     if (nextStart < 0) {
       nextStart = 0;
       nextEnd = span;
     }
 
-    if (nextEnd > resolvedLengthQuarters) {
-      nextEnd = resolvedLengthQuarters;
+    if (nextEnd > maxBeat) {
+      nextEnd = maxBeat;
       nextStart = nextEnd - span;
     }
 
@@ -575,7 +575,9 @@ import { scaledPx } from "./uiScale.svelte.js";
   }
 
   let pitchRows = $derived(Array.from({ length: pitchSpan }, (_, index) => pitchRange.maxMidi - index));
-  let barLines = $derived(Array.from({ length: Math.floor(resolvedLengthQuarters / 4) + 1 }, (_, bar) => bar * 4));
+  let barLines = $derived(
+    Array.from({ length: Math.floor(resolvedLengthQuarters / 4) + 1 }, (_, bar) => bar * 4),
+  );
 
   /** @param {HTMLCanvasElement} node */
   function staticCanvasAttachment(node) {
@@ -726,8 +728,8 @@ import { scaledPx } from "./uiScale.svelte.js";
     let loopBounds = null;
 
     if (loopEnabled) {
-      const left = displayStart * pxPerQuarter - windowLeftPx;
-      const width = loopSpan * pxPerQuarter;
+      const left = loopOutputView ? 0 : displayStart * pxPerQuarter - windowLeftPx;
+      const width = loopOutputView ? resolvedLengthQuarters * pxPerQuarter : loopSpan * pxPerQuarter;
 
       if (left < renderWindowWidthPx && left + width > 0) {
         loopBounds = { left, width };
@@ -736,11 +738,11 @@ import { scaledPx } from "./uiScale.svelte.js";
       }
     }
 
-    const firstQuarter = Math.ceil(renderWindowStart);
-    const lastQuarter = Math.floor(renderWindowEnd);
+    const firstQuarter = Math.ceil(renderWindowStart + timelineOriginQuarters);
+    const lastQuarter = Math.floor(renderWindowEnd + timelineOriginQuarters);
 
     for (let quarter = firstQuarter; quarter <= lastQuarter; quarter += 1) {
-      const x = quarter * pxPerQuarter - windowLeftPx + 0.5;
+      const x = beatToDisplayPx(quarter) - windowLeftPx + 0.5;
 
       context.strokeStyle = quarter % 4 === 0
         ? themeColor("--theme-piano-roll-bar-line")
@@ -768,7 +770,7 @@ import { scaledPx } from "./uiScale.svelte.js";
 
       const palette = resolvedNotePalette(notePaletteForRow(note.row));
       const opacity = Math.max(0.2, note.velocity / 127);
-      const x = note.start * pxPerQuarter - windowLeftPx;
+      const x = beatToDisplayPx(note.start) - windowLeftPx;
       const y = pitchTopPx(note.midi) + noteVerticalInsetPx;
       const width = noteWidthPx(note.start, note.end);
       const height = noteHeightPx;
@@ -795,9 +797,12 @@ import { scaledPx } from "./uiScale.svelte.js";
     if (!context || !showPlaybackPlayhead) return;
 
     const windowLeftPx = renderWindowStart * pxPerQuarter;
+    const absolutePlaybackBeat = loopOutputView
+      ? displayPlaybackBeat + outputViewStart
+      : displayPlaybackBeat;
 
     for (const note of scheduled) {
-      const noteIsActive = isScheduledNoteActiveAtPlaybackBeat(note, displayPlaybackBeat, {
+      const noteIsActive = isScheduledNoteActiveAtPlaybackBeat(note, absolutePlaybackBeat, {
         loopEnabled,
         patternLengthQuarters: patternRepeatQuarters,
       });
@@ -805,7 +810,7 @@ import { scaledPx } from "./uiScale.svelte.js";
       if (note.velocity <= 0 || !noteIsActive) continue;
 
       const palette = resolvedNotePalette(notePaletteForRow(note.row));
-      const x = note.start * pxPerQuarter - windowLeftPx;
+      const x = beatToDisplayPx(note.start) - windowLeftPx;
       const y = pitchTopPx(note.midi) + noteVerticalInsetPx;
       const width = noteWidthPx(note.start, note.end);
       const height = noteHeightPx;
@@ -843,7 +848,7 @@ import { scaledPx } from "./uiScale.svelte.js";
   });
 
   $effect(() => {
-    if (!gridScrollElement || viewportWidthPx <= 0 || dragMode !== null) return;
+    if (!gridScrollElement || viewportWidthPx <= 0 || dragMode !== null || loopOutputView) return;
 
     const viewportStart = gridScrollElement.scrollLeft / pxPerQuarter;
     const viewportEnd = (gridScrollElement.scrollLeft + viewportWidthPx) / pxPerQuarter;
@@ -851,6 +856,14 @@ import { scaledPx } from "./uiScale.svelte.js";
     if (displayStart >= viewportStart && displayStart <= viewportEnd) return;
 
     setHorizontalScrollLeft((displayStart - 2) * pxPerQuarter);
+  });
+
+  $effect(() => {
+    if (!gridScrollElement || viewportWidthPx <= 0 || dragMode !== null || !loopOutputView) return;
+
+    if (gridScrollElement.scrollLeft <= 1) return;
+
+    setHorizontalScrollLeft(0);
   });
 
   $effect(() => {
@@ -941,7 +954,7 @@ import { scaledPx } from "./uiScale.svelte.js";
               class="pointer-events-none absolute top-0 bottom-0 border-l border-piano-roll-bar-line"
               style:left="{bar * pxPerQuarter}px"
             >
-              <span class="absolute top-1 left-1 text-[9px] font-medium text-text-muted">{bar}</span>
+              <span class="absolute top-1 left-1 text-[9px] font-medium text-text-muted">{formatBeat(timelineOriginQuarters + bar)}</span>
             </div>
           {/each}
 

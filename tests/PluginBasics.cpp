@@ -683,6 +683,93 @@ TEST_CASE ("Combination modes extend held same-note suppression across audio blo
     testPlugin.setPlayHead (nullptr);
 }
 
+TEST_CASE ("Plain rows suppress held same-note retriggers across audio blocks", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 128;
+    constexpr auto ppqPerSample = (120.0 / 60.0) / sampleRate;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+    testPlugin.setPhraseRowMidiChannel (0, 1);
+    testPlugin.setPhraseRowMidiChannel (1, 1);
+    testPlugin.setPhraseRowTimingOffset (1, PluginProcessor::defaultRowTimingOffsetIndex + 2);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 60);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (
+            row,
+            0,
+            PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+        testPlugin.setPhraseStepCycle (row, 0, 2);
+        testPlugin.setPhraseStepCycleOffset (row, 0, 1);
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    auto noteOnCount = 0;
+    auto noteOffCount = 0;
+    auto noteOffGlobalSample = -1;
+
+    for (int block = 0; block < 7; ++block)
+    {
+        midi.clear();
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize) * ppqPerSample);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.getNoteNumber() != 60 || message.getChannel() != 1)
+                continue;
+
+            if (message.isNoteOn())
+                ++noteOnCount;
+            else if (message.isNoteOff())
+            {
+                ++noteOffCount;
+                noteOffGlobalSample = block * blockSize + metadata.samplePosition;
+            }
+        }
+    }
+
+    CHECK (noteOnCount == 1);
+    CHECK (noteOffCount == 1);
+    CHECK (noteOffGlobalSample == 750);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Combination modes merge overlapping unisons across channels", "[instance]")
 {
     PluginProcessor testPlugin;
@@ -1569,6 +1656,114 @@ TEST_CASE ("Hocket mode matches preview schedule for four offset rows", "[instan
         CHECK (filteredEvents[index].first == expectedEvents[index].first);
         CHECK (filteredEvents[index].second == expectedEvents[index].second);
     }
+}
+
+TEST_CASE ("Loop hocket user pattern emits one A#2 per loop pass", "[instance]")
+{
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 256;
+
+    PluginProcessor testPlugin;
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, true);
+
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, false);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    testPlugin.setPhraseRowTimingOffset (0, PluginProcessor::defaultRowTimingOffsetIndex);
+    testPlugin.setPhraseRowTimingOffset (1, PluginProcessor::defaultRowTimingOffsetIndex + 1);
+    testPlugin.setPhraseRowTimingOffset (2, PluginProcessor::defaultRowTimingOffsetIndex + 2);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 4);
+    ensurePhraseRowStepCount (testPlugin, 1, 3);
+    ensurePhraseRowStepCount (testPlugin, 2, 4);
+
+    const std::array<std::array<int, 4>, 3> notes { {
+        { 48, 48, 48, 43 },
+        { 43, 43, 46, 0 },
+        { 55, 51, 53, 58 },
+    } };
+
+    for (int row = 0; row < 3; ++row)
+    {
+        const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            testPlugin.setPhraseNote (row, step, notes[static_cast<size_t> (row)][static_cast<size_t> (step)]);
+            testPlugin.setPhraseStepTimingMultiplier (row, step, PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (row, step, 100);
+        }
+    }
+
+    testPlugin.setLoopBraceStartQuarters (4.0);
+    testPlugin.setLoopBraceEndQuarters (8.0);
+    testPlugin.setLoopBraceEnabled (true);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    const auto ppqPerSample = (120.0 / 60.0) / sampleRate;
+    std::vector<std::pair<double, int>> noteOns;
+
+    for (int block = 0; block < 40; ++block)
+    {
+        midi.clear();
+        const auto blockStartPpq = static_cast<double> (block * blockSize) * ppqPerSample;
+        playHead.info.setPpqPosition (blockStartPpq);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (! message.isNoteOn())
+                continue;
+
+            const auto ppq = blockStartPpq + static_cast<double> (metadata.samplePosition) * ppqPerSample;
+
+            if (ppq >= 4.0 - 1.0e-6 && ppq < 8.0 - 1.0e-6)
+                noteOns.emplace_back (ppq, message.getNoteNumber());
+        }
+
+        if (blockStartPpq >= 8.0)
+            break;
+    }
+
+    auto aSharp2Count = 0;
+
+    for (const auto& [ppq, note] : noteOns)
+    {
+        if (note == 46)
+            ++aSharp2Count;
+
+        WARN ("NOTEON ppq=" << ppq << " midi=" << note);
+    }
+
+    WARN ("total note-ons in loop: " << noteOns.size());
+    WARN ("A#2 count: " << aSharp2Count);
+
+    CHECK (aSharp2Count == 1);
+    testPlugin.setPlayHead (nullptr);
 }
 
 TEST_CASE ("Hocket mode drops tiny slice overlaps", "[instance]")

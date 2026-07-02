@@ -4253,7 +4253,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         combinationModeEnabled (modeMask, combinationModeHocket) && activeRowCount > 1;
     const auto weaveModeEnabled =
         combinationModeEnabled (modeMask, combinationModeWeave) && activeRowCount > 1;
-    const auto heldNoteDeOverlapLookbackEnabled = modeMask != 0;
+    constexpr auto heldNoteDeOverlapLookbackEnabled = true;
 
     const auto patternRepeatLengthQuarters = [&] {
         auto repeatUnits = 0;
@@ -4419,14 +4419,22 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                        return a.ppq < b.ppq;
                    });
 
-        auto& lastTrigger = lastEmittedTriggerPpq[static_cast<size_t> (row)];
+        auto& lastEmittedTrigger = lastEmittedTriggerPpq[static_cast<size_t> (row)];
+        const auto previousLastEmittedTrigger = lastEmittedTrigger;
+        auto lastCollectedTrigger = lastEmittedTrigger;
 
         if (hocketModeEnabled || weaveModeEnabled || heldNoteDeOverlapLookbackEnabled)
-            lastTrigger = collectionPpqStart - cycleLengthQuarters - 1.0;
+            lastCollectedTrigger = collectionPpqStart - cycleLengthQuarters - 1.0;
         else if (resetRowTriggersAtSegmentStart)
-            lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
-        else if (schedulePpqStart + epsilon < lastTrigger)
-            lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
+        {
+            lastEmittedTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
+            lastCollectedTrigger = lastEmittedTrigger;
+        }
+        else if (schedulePpqStart + epsilon < lastEmittedTrigger)
+        {
+            lastEmittedTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
+            lastCollectedTrigger = lastEmittedTrigger;
+        }
 
         struct ActiveCombinedNote
         {
@@ -4486,10 +4494,23 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
             const auto trigger = scratch.triggers[static_cast<size_t> (triggerIndex)];
 
-            if (trigger.ppq <= lastTrigger + epsilon)
+            if (trigger.ppq <= lastCollectedTrigger + epsilon)
                 continue;
 
-            lastTrigger = trigger.ppq;
+            lastCollectedTrigger = trigger.ppq;
+
+            if (heldNoteDeOverlapLookbackEnabled
+                && ! hocketModeEnabled
+                && ! weaveModeEnabled
+                && ! resetRowTriggersAtSegmentStart
+                && trigger.ppq >= schedulePpqStart - epsilon
+                && trigger.ppq <= previousLastEmittedTrigger + epsilon)
+            {
+                continue;
+            }
+
+            if (trigger.ppq >= schedulePpqStart - epsilon)
+                lastEmittedTrigger = trigger.ppq;
 
             const auto step = trigger.step;
             int stepTriggerCount = 0;
@@ -5687,6 +5708,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             {
                 const auto& candidate = combinedEvents[next];
                 mergedEnd = juce::jmax (mergedEnd, candidate.ppq + candidate.gateQuarters);
+                merged.extendedByHeldOverlap = true;
                 ++next;
             }
 
@@ -5742,7 +5764,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         if (heldNoteDeOverlapLookbackEnabled
             && (event.ppq < schedulePpqStart - epsilon || event.ppq >= schedulePpqEnd - epsilon))
         {
-            if (event.ppq < schedulePpqStart - epsilon)
+            if (event.ppq < schedulePpqStart - epsilon && event.extendedByHeldOverlap)
                 extendPendingCombinedNoteOff (event);
 
             continue;

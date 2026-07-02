@@ -187,6 +187,7 @@ export function suppressHeldNoteRetriggers(events, enabled = true) {
       && sorted[next].start < mergedEnd - EPSILON
     ) {
       mergedEnd = Math.max(mergedEnd, sorted[next].end);
+      merged.extendedByHeldOverlap = true;
       next += 1;
     }
 
@@ -198,6 +199,66 @@ export function suppressHeldNoteRetriggers(events, enabled = true) {
   return mergedEvents.sort(
     (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
   );
+}
+
+/**
+ * Keep only notes that produce a note-on inside the emission window.
+ * Mirrors PluginProcessor::processCombinedScheduledRange note-on gating.
+ *
+ * @param {ScheduledNote[]} events
+ * @param {number} emitStartQuarters
+ * @param {number} emitEndQuarters
+ * @returns {ScheduledNote[]}
+ */
+export function filterScheduleForNoteOnEmission(events, emitStartQuarters, emitEndQuarters) {
+  if (emitEndQuarters <= emitStartQuarters + EPSILON) return [];
+
+  /** @type {ScheduledNote[]} */
+  const emitted = [];
+
+  for (const event of events) {
+    if (event.velocity <= 0) continue;
+
+    const gate = event.end - event.start;
+
+    if (gate <= EPSILON) continue;
+
+    if (event.start >= emitEndQuarters - EPSILON) continue;
+
+    if (event.start < emitStartQuarters - EPSILON) continue;
+
+    const clippedStart = Math.max(event.start, emitStartQuarters);
+    const clippedEnd = Math.min(event.end, emitEndQuarters);
+
+    if (clippedEnd <= clippedStart + EPSILON) continue;
+
+    emitted.push({
+      ...event,
+      start: clippedStart,
+      end: clippedEnd,
+    });
+  }
+
+  return emitted;
+}
+
+/**
+ * @param {ScheduledNote[]} events
+ * @param {number} windowStart
+ * @param {number} windowEnd
+ * @returns {ScheduledNote[]}
+ */
+function clipScheduleToWindow(events, windowStart, windowEnd) {
+  if (windowEnd <= windowStart + EPSILON) return [];
+
+  return events
+    .filter((note) => note.end > windowStart + EPSILON && note.start < windowEnd - EPSILON)
+    .map((note) => ({
+      ...note,
+      start: Math.max(windowStart, note.start),
+      end: Math.min(windowEnd, note.end),
+    }))
+    .filter((note) => note.end > note.start + EPSILON);
 }
 
 /**
@@ -395,6 +456,16 @@ export function stepTriggerCountAtBeat({
  * @param {number} [params.shimmerMixPercent]
  * @returns {ScheduledNote[]}
  */
+/**
+ * @param {number | undefined} start
+ * @param {number | undefined} end
+ */
+export function loopOutputBoundsActive(start, end) {
+  return start !== undefined
+    && end !== undefined
+    && end > start + EPSILON;
+}
+
 function buildPhraseScheduleCore({
   notes,
   rowMuted,
@@ -425,6 +496,8 @@ function buildPhraseScheduleCore({
   shimmerFeedbackPercent = defaultShimmerFeedbackPercent,
   shimmerMixPercent = defaultShimmerMixPercent,
   scheduleStartQuarters = 0,
+  loopOutputStartQuarters,
+  loopOutputEndQuarters,
 }) {
   const ppqStart = Math.max(0, scheduleStartQuarters);
   const ppqEnd = lengthQuarters;
@@ -570,6 +643,9 @@ function buildPhraseScheduleCore({
     lengthQuarters,
     scaleRoot,
     scaleModeIndex,
+    loopOutputStartQuarters,
+    loopOutputEndQuarters,
+    scheduleStartQuarters: ppqStart,
   });
 
   const octavized = applyOctavizer(combined, {
@@ -594,13 +670,19 @@ function buildPhraseScheduleCore({
  * @returns {ScheduledNote[]}
  */
 export function buildPhraseSchedule(params) {
-  const repeatLengthQuarters = patternRepeatLengthQuarters({
-    stepTimingMultiplier: params.stepTimingMultiplier ?? [],
-    rowMuted: params.rowMuted ?? [],
-    stepSkipped: params.stepSkipped ?? [],
-    stepCycle: params.stepCycle ?? [],
-    pulseIndex: params.pulseIndex ?? defaultPulseIndex,
-  });
+  const loopOutputActive = loopOutputBoundsActive(
+    params.loopOutputStartQuarters,
+    params.loopOutputEndQuarters,
+  );
+  const repeatLengthQuarters = loopOutputActive
+    ? (params.loopOutputEndQuarters - params.loopOutputStartQuarters)
+    : patternRepeatLengthQuarters({
+      stepTimingMultiplier: params.stepTimingMultiplier ?? [],
+      rowMuted: params.rowMuted ?? [],
+      stepSkipped: params.stepSkipped ?? [],
+      stepCycle: params.stepCycle ?? [],
+      pulseIndex: params.pulseIndex ?? defaultPulseIndex,
+    });
   const combinationModesActive = (params.combinationModeMask ?? 0) !== 0;
   const finalTransformed = applyGlobalTranspose(
     applyVelocityTilt(
@@ -615,7 +697,7 @@ export function buildPhraseSchedule(params) {
     params.globalTransposeSemitones ?? defaultGlobalTransposeSemitones,
   );
 
-  return suppressHeldNoteRetriggers(
+  const postProcessed = suppressHeldNoteRetriggers(
     applyWeaveMonophony(
       cleanupUnisonOverlaps(finalTransformed, combinationModesActive),
       combinationModeEnabled(params.combinationModeMask ?? 0, 4),
@@ -623,6 +705,61 @@ export function buildPhraseSchedule(params) {
     ),
     true,
   );
+
+  if (loopOutputActive) {
+    return filterScheduleForNoteOnEmission(
+      postProcessed,
+      params.loopOutputStartQuarters,
+      params.loopOutputEndQuarters,
+    );
+  }
+
+  return postProcessed;
+}
+
+/**
+ * Full preview schedule for a beat window, including overlap corrections on lookback.
+ *
+ * @param {Parameters<typeof buildPhraseSchedule>[0] & {
+ *   windowStartQuarters?: number,
+ *   windowEndQuarters?: number,
+ *   windowLookbackQuarters?: number,
+ * }} params
+ * @returns {ScheduledNote[]}
+ */
+export function buildPhraseScheduleWindow(params) {
+  const {
+    windowStartQuarters = 0,
+    windowEndQuarters = params.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS,
+    windowLookbackQuarters = DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS,
+    loopOutputStartQuarters,
+    loopOutputEndQuarters,
+    ...scheduleParams
+  } = params;
+  const loopOutputActive = loopOutputBoundsActive(loopOutputStartQuarters, loopOutputEndQuarters);
+
+  if (loopOutputActive) {
+    return buildPhraseSchedule({
+      ...scheduleParams,
+      loopOutputStartQuarters,
+      loopOutputEndQuarters,
+      lengthQuarters: loopOutputEndQuarters,
+    });
+  }
+
+  const timelineEnd = Math.max(0, scheduleParams.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS);
+  const windowStart = Math.min(timelineEnd, Math.max(0, windowStartQuarters));
+  const windowEnd = Math.min(timelineEnd, Math.max(windowStart, windowEndQuarters));
+
+  if (windowEnd <= windowStart) return [];
+
+  const schedule = buildPhraseSchedule({
+    ...scheduleParams,
+    lengthQuarters: windowEnd,
+    scheduleStartQuarters: Math.max(0, windowStart - Math.max(0, windowLookbackQuarters)),
+  });
+
+  return clipScheduleToWindow(schedule, windowStart, windowEnd);
 }
 
 /**
@@ -638,10 +775,30 @@ export function buildPhraseScheduleBeforeBandpass(params) {
     velocityTiltPivotMidi: _velocityTiltPivotMidi,
     velocityTiltAmount: _velocityTiltAmount,
     globalTransposeSemitones: _globalTransposeSemitones,
+    loopOutputStartQuarters,
+    loopOutputEndQuarters,
+    scheduleStartQuarters,
     ...scheduleParams
   } = params;
+  const loopOutputActive = loopOutputBoundsActive(loopOutputStartQuarters, loopOutputEndQuarters);
+  const outputStart = loopOutputActive ? loopOutputStartQuarters : 0;
+  const outputEnd = loopOutputActive
+    ? loopOutputEndQuarters
+    : (scheduleParams.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS);
+  const hocketModeEnabled = combinationModeEnabled(scheduleParams.combinationModeMask ?? 0, 6);
+  const resolvedScheduleStart = scheduleStartQuarters ?? (
+    hocketModeEnabled
+      ? (loopOutputActive ? outputStart : 0)
+      : (loopOutputActive ? outputStart : 0)
+  );
 
-  return buildPhraseScheduleCore(scheduleParams);
+  return buildPhraseScheduleCore({
+    ...scheduleParams,
+    lengthQuarters: loopOutputActive ? outputEnd : (scheduleParams.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS),
+    scheduleStartQuarters: resolvedScheduleStart,
+    loopOutputStartQuarters: loopOutputActive ? outputStart : undefined,
+    loopOutputEndQuarters: loopOutputActive ? outputEnd : undefined,
+  });
 }
 
 /**
@@ -666,15 +823,28 @@ export function buildPhraseScheduleWindowBeforeBandpass(params) {
     windowStartQuarters = 0,
     windowEndQuarters = params.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS,
     windowLookbackQuarters = DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS,
+    loopOutputStartQuarters,
+    loopOutputEndQuarters,
     ...scheduleParams
   } = params;
-  const timelineEnd = Math.max(0, scheduleParams.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS);
-  const windowStart = Math.min(timelineEnd, Math.max(0, windowStartQuarters));
-  const windowEnd = Math.min(timelineEnd, Math.max(windowStart, windowEndQuarters));
-  const hocketWindowNeedsFullHistory = combinationModeEnabled(scheduleParams.combinationModeMask ?? 0, 6);
-  const scheduleStart = hocketWindowNeedsFullHistory
-    ? 0
-    : Math.max(0, windowStart - Math.max(0, windowLookbackQuarters));
+  const loopOutputActive = loopOutputBoundsActive(loopOutputStartQuarters, loopOutputEndQuarters);
+  const outputStart = loopOutputActive ? loopOutputStartQuarters : 0;
+  const outputEnd = loopOutputActive
+    ? loopOutputEndQuarters
+    : Math.max(0, scheduleParams.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS);
+  const timelineEnd = loopOutputActive
+    ? outputEnd
+    : Math.max(0, scheduleParams.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS);
+  const windowStart = loopOutputActive
+    ? outputStart
+    : Math.min(timelineEnd, Math.max(0, windowStartQuarters));
+  const windowEnd = loopOutputActive
+    ? outputEnd
+    : Math.min(timelineEnd, Math.max(windowStart, windowEndQuarters));
+  const hocketModeEnabled = combinationModeEnabled(scheduleParams.combinationModeMask ?? 0, 6);
+  const scheduleStart = hocketModeEnabled
+    ? (loopOutputActive ? outputStart : 0)
+    : Math.max(loopOutputActive ? outputStart : 0, windowStart - Math.max(0, windowLookbackQuarters));
 
   if (windowEnd <= windowStart) return [];
 
@@ -682,6 +852,8 @@ export function buildPhraseScheduleWindowBeforeBandpass(params) {
     ...scheduleParams,
     lengthQuarters: windowEnd,
     scheduleStartQuarters: scheduleStart,
+    loopOutputStartQuarters: loopOutputActive ? outputStart : undefined,
+    loopOutputEndQuarters: loopOutputActive ? outputEnd : undefined,
   })
     .filter((note) => note.end > windowStart + EPSILON && note.start < windowEnd - EPSILON)
     .map((note) => ({
@@ -841,15 +1013,23 @@ function addRetroInversionFollowers(events, activeRows, notes, rowMidiChannel, s
  * @param {number[][]} stepVelocity
  * @param {number} pulseQuarters
  * @param {number} lengthQuarters
+ * @param {{
+ *   emitStartQuarters?: number,
+ *   emitEndQuarters?: number,
+ *   hocketLengthQuarters?: number,
+ * }} [options]
  * @returns {ScheduledNote[]}
  */
-function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQuarters, lengthQuarters) {
+function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQuarters, lengthQuarters, options = {}) {
   if (activeRows.length <= 1 || events.length === 0) return events;
 
   const sliceQuarters = pulseQuarters / activeRows.length;
 
   if (sliceQuarters <= EPSILON) return events;
 
+  const emitStart = options.emitStartQuarters ?? 0;
+  const emitEnd = options.emitEndQuarters ?? lengthQuarters;
+  const hocketLength = options.hocketLengthQuarters ?? lengthQuarters;
   const minimumSliceOverlap = sliceQuarters * HOCKET_MINIMUM_SLICE_OVERLAP_FRACTION;
   /** @type {Map<number, ScheduledNote[]>} */
   const candidatesBySlice = new Map();
@@ -866,10 +1046,10 @@ function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQua
       const sliceStart = slice * sliceQuarters;
       const sliceEnd = sliceStart + sliceQuarters;
 
-      if (sliceStart >= lengthQuarters - EPSILON) continue;
+      if (sliceStart >= hocketLength - EPSILON) continue;
 
       const start = Math.max(event.start, sliceStart);
-      const end = Math.min(eventEnd, sliceEnd, lengthQuarters);
+      const end = Math.min(eventEnd, sliceEnd, hocketLength);
       const duration = end - start;
 
       if (duration <= EPSILON || duration + EPSILON < minimumSliceOverlap) continue;
@@ -893,19 +1073,65 @@ function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQua
     }
   }
 
-  if (candidatesBySlice.size === 0) return [];
+  let minSlice = Number.POSITIVE_INFINITY;
+  let maxSlice = Number.NEGATIVE_INFINITY;
+
+  for (const slice of candidatesBySlice.keys()) {
+    minSlice = Math.min(minSlice, slice);
+    maxSlice = Math.max(maxSlice, slice);
+  }
+
+  const scheduleFirstSlice = Math.floor((emitStart + EPSILON) / sliceQuarters);
+  const scheduleLastSlice = Math.ceil((emitEnd - EPSILON) / sliceQuarters) - 1;
+
+  if (!Number.isFinite(minSlice) || minSlice > maxSlice) {
+    minSlice = scheduleFirstSlice;
+    maxSlice = scheduleLastSlice;
+  } else {
+    minSlice = Math.min(minSlice, scheduleFirstSlice);
+    maxSlice = Math.max(maxSlice, scheduleLastSlice);
+  }
+
+  if (minSlice > maxSlice) return [];
+
+  const candidateWeight = (event) => {
+    const sourceStepVelocity = stepVelocity[event.row]?.[event.step % Math.max(1, stepVelocity[event.row]?.length ?? 1)];
+
+    return Math.max(1, sourceStepVelocity > 0 ? sourceStepVelocity : event.velocity);
+  };
 
   /** @type {ScheduledNote[]} */
   const hocketed = [];
 
-  for (const [slice, candidates] of [...candidatesBySlice.entries()].sort((a, b) => a[0] - b[0])) {
+  for (let slice = minSlice; slice <= maxSlice; slice += 1) {
     if (hocketed.length >= MAX_COMBINED_PREVIEW_NOTES) break;
+
+    const sliceStart = slice * sliceQuarters;
+    const sliceEnd = sliceStart + sliceQuarters;
+
+    if (sliceStart < emitStart - EPSILON) continue;
+    if (sliceStart >= emitEnd - EPSILON) continue;
+    if (sliceStart >= hocketLength - EPSILON) continue;
+
+    const candidates = candidatesBySlice.get(slice);
+
+    if (!candidates || candidates.length === 0) continue;
 
     const sliceTargetRow = activeRows[((slice % activeRows.length) + activeRows.length) % activeRows.length];
 
     if (candidates.length === 1) {
+      const source = candidates[0];
+      const sourceEnd = source.end;
+      const start = Math.max(source.start, sliceStart);
+      const end = Math.min(sourceEnd, sliceEnd, hocketLength);
+      const gate = Math.min(end - start, sliceQuarters * 0.85);
+
+      if (gate <= EPSILON) continue;
+
       hocketed.push({
-        ...candidates[0],
+        ...source,
+        start,
+        end: start + gate,
         row: sliceTargetRow,
         channel: midiChannelForRow(rowMidiChannel, sliceTargetRow),
       });
@@ -916,26 +1142,37 @@ function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQua
       (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
     );
 
-    const candidateWeight = (event) => {
-      const sourceStepVelocity = stepVelocity[event.row]?.[event.step % Math.max(1, stepVelocity[event.row]?.length ?? 1)];
-
-      return Math.max(1, sourceStepVelocity > 0 ? sourceStepVelocity : event.velocity);
-    };
     const totalWeight = candidates.reduce((total, event) => total + candidateWeight(event), 0);
-    let pick = deterministicEventHash(sliceTargetRow, slice, slice * sliceQuarters) % Math.max(1, totalWeight);
+    let pick = deterministicEventHash(sliceTargetRow, slice, sliceStart) % Math.max(1, totalWeight);
+    let selected = candidates[0];
+    let found = false;
 
     for (const event of candidates) {
       pick -= candidateWeight(event);
 
       if (pick < 0) {
-        hocketed.push({
-          ...event,
-          row: sliceTargetRow,
-          channel: midiChannelForRow(rowMidiChannel, sliceTargetRow),
-        });
+        selected = event;
+        found = true;
         break;
       }
     }
+
+    if (!found) continue;
+
+    const sourceEnd = selected.end;
+    const start = Math.max(selected.start, sliceStart);
+    const end = Math.min(sourceEnd, sliceEnd, hocketLength);
+    const gate = Math.min(end - start, sliceQuarters * 0.85);
+
+    if (gate <= EPSILON) continue;
+
+    hocketed.push({
+      ...selected,
+      start,
+      end: start + gate,
+      row: sliceTargetRow,
+      channel: midiChannelForRow(rowMidiChannel, sliceTargetRow),
+    });
   }
 
   return hocketed.sort(
@@ -986,19 +1223,47 @@ function roundRobinWindowForPpq(ppq, activeRows, gesturePulse) {
  * @param {number} params.scaleModeIndex
  * @returns {ScheduledNote[]}
  */
-function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier, stepVelocity, rowMidiChannel, stepDurationFraction, stepMuted, stepSkipped, pulseIndex, combinationModeMask, lengthQuarters, scaleRoot, scaleModeIndex}) {
+function applyCombinationModes({
+  scheduled,
+  notes,
+  rowMuted,
+  stepTimingMultiplier,
+  stepVelocity,
+  rowMidiChannel,
+  stepDurationFraction,
+  stepMuted,
+  stepSkipped,
+  pulseIndex,
+  combinationModeMask,
+  lengthQuarters,
+  scaleRoot,
+  scaleModeIndex,
+  loopOutputStartQuarters,
+  loopOutputEndQuarters,
+  scheduleStartQuarters = 0,
+}) {
   if ((combinationModeMask & combinationModeMaskBits) === 0 || scheduled.length === 0) return scheduled;
 
   let events = scheduled.map((event) => ({...event}));
+  const loopOutputActive = loopOutputBoundsActive(loopOutputStartQuarters, loopOutputEndQuarters);
+  const emitStartQuarters = loopOutputActive ? loopOutputStartQuarters : scheduleStartQuarters;
+  const emitEndQuarters = lengthQuarters;
+  const hocketLengthQuarters = loopOutputActive ? loopOutputEndQuarters : lengthQuarters;
   const weaveRepeatLengthQuarters = patternRepeatLengthQuarters({
     stepTimingMultiplier,
     rowMuted,
     stepSkipped,
     pulseIndex,
   });
-  const weaveHashPpq = (ppq) => (
-    weaveRepeatLengthQuarters > EPSILON ? positiveMod(ppq, weaveRepeatLengthQuarters) : ppq
-  );
+  const weaveHashPpq = (ppq) => {
+    if (loopOutputActive) {
+      const loopLength = loopOutputEndQuarters - loopOutputStartQuarters;
+
+      return loopOutputStartQuarters + positiveMod(ppq - loopOutputStartQuarters, loopLength);
+    }
+
+    return weaveRepeatLengthQuarters > EPSILON ? positiveMod(ppq, weaveRepeatLengthQuarters) : ppq;
+  };
   const activeRows = notes
     .map((rowNotes, row) => {
       const layout = rowStepLayout(stepTimingMultiplier[row] ?? [], pulseIndex, stepSkipped[row] ?? []);
@@ -1063,7 +1328,19 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
   }
 
   if (combinationModeEnabled(combinationModeMask, 6) && activeRows.length > 1) {
-    events = hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQuartersForIndex(pulseIndex), lengthQuarters);
+    events = hocketEvents(
+      events,
+      activeRows,
+      rowMidiChannel,
+      stepVelocity,
+      pulseQuartersForIndex(pulseIndex),
+      lengthQuarters,
+      {
+        emitStartQuarters,
+        emitEndQuarters,
+        hocketLengthQuarters,
+      },
+    );
   }
 
   if (events.length === 0) return [];
