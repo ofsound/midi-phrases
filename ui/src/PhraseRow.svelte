@@ -55,9 +55,9 @@
   } from "./rowAccentTheme.js";
   import {
     phraseGridOriginLeftOffsetPx,
+    phraseRowEndAddStepOverlayLeftPx as resolvePhraseRowEndAddStepOverlayLeftPx,
     phraseRowEndAddStepInsetPx,
     phraseRowEndAddStepReservePx,
-    phraseRowEndStepTailPaddingPx,
     phraseRowMinHeightPx,
     phraseStepCellMinHeightPx,
     phraseStepDropIndicatorHeightPx,
@@ -2131,21 +2131,11 @@
       .map((id, step) => (blockSet.has(id) ? null : stepTimingMultiplier[step]))
       .filter((multiplierIndex) => multiplierIndex !== null);
   });
-  let rowEndGridSpanPx = $derived(
-    sourceDragRemainingTimingMultipliers !== null
-      ? rowGridWidthPx(sourceDragRemainingTimingMultipliers)
-      : rowGridSpanPx,
-  );
   let sourceDragVisuallyEmpty = $derived(
     sourceDragRemainingTimingMultipliers !== null
       && sourceDragRemainingTimingMultipliers.length === 0,
   );
   let addStepIsFirstVisible = $derived(isEmptyRow || sourceDragVisuallyEmpty);
-  let rowEndAddStepOverlayLeftPx = $derived(
-    sourceDragVisuallyEmpty
-      ? layoutPx(stepCellPaddingPx() - phraseRowEndAddStepInsetPx())
-      : layoutPx(rowEndGridSpanPx - stepCellPaddingPx() + phraseRowEndStepTailPaddingPx()),
-  );
   let trailingInsertLeftPx = $derived(insertLeftAtBoundary(rowGridSpanPx));
   /** @type {{ cellWidth: number, step: number, gapBefore: boolean }[]} */
   let rowCellLayouts = $derived(renderedDndItems.map((item, index) => {
@@ -2164,6 +2154,9 @@
   let stableDropCellWidths = $derived(stepIds.map((id, step) =>
     scaledShellWidthPx(multiplierIndexForDataStep(step)),
   ));
+  let rowEndAddStepOverlayLeftPx = $derived(
+    resolvePhraseRowEndAddStepOverlayLeftPx(rowCellLayouts),
+  );
 </script>
 
 {#snippet stepHeaderRemoveButton(step, dimmed)}

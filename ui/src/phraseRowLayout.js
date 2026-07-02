@@ -1,4 +1,9 @@
-import { rowGridWidthPx, rowTimingOffsetShiftPx, stepCellPaddingPx } from "./stepCellLayout.js";
+import {
+  rowGridWidthPx,
+  rowTimingOffsetShiftPx,
+  stepCellPaddingPx,
+  stepInsertZoneWidthPx,
+} from "./stepCellLayout.js";
 import { scaledPx } from "./uiScale.svelte.js";
 
 /** Leading inset before the quarter grid (half of PhraseRow’s scroll clip gutter). */
@@ -172,6 +177,44 @@ export function phraseRowEndAddStepReservePx() {
     phraseRowEndAddStepInsetPx() +
     phraseRowEndAddStepButtonWidthPx()
   );
+}
+
+/**
+ * Left edge for the row-end add-step overlay from the same rendered cell layout
+ * used by PhraseRow. Collapsed drag/shadow cells are ignored, while visible gaps
+ * before cells are included.
+ *
+ * @param {{ cellWidth?: number, gapBefore?: boolean }[]} cellLayouts
+ * @param {number} leadingPaddingPx
+ * @param {number} insertGapPx
+ */
+export function phraseRowEndAddStepOverlayLeftPx(
+  cellLayouts,
+  leadingPaddingPx = stepCellPaddingPx(),
+  insertGapPx = stepInsertZoneWidthPx(),
+) {
+  let rightPx = 0;
+  let visibleCount = 0;
+
+  for (const layout of cellLayouts) {
+    const cellWidth = Math.max(0, layout?.cellWidth ?? 0);
+
+    if (cellWidth <= 0) {
+      continue;
+    }
+
+    rightPx += visibleCount === 0 || !layout.gapBefore
+      ? leadingPaddingPx
+      : insertGapPx;
+    rightPx += cellWidth;
+    visibleCount += 1;
+  }
+
+  if (visibleCount === 0) {
+    return stepCellPaddingPx() - phraseRowEndAddStepInsetPx();
+  }
+
+  return rightPx + phraseRowEndStepTailPaddingPx();
 }
 
 /**

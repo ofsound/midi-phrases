@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   phraseGridOriginLeftOffsetPx,
+  phraseRowEndAddStepOverlayLeftPx,
   phraseRowsContentFitScale,
   phraseRowEndAddStepButtonWidthPx,
   phraseRowEndAddStepInsetPx,
@@ -9,7 +10,14 @@ import {
   phraseRowLeadingControlsWidthPx,
   phraseRowScrollPaddingRightPx,
 } from "./phraseRowLayout.js";
-import { defaultRowTimingOffsetIndex, rowGridWidthPx, rowTimingOffsetShiftPx, stepCellPaddingPx, rowTimingOffsetIndexForQuarters } from "./stepCellLayout.js";
+import {
+  defaultRowTimingOffsetIndex,
+  rowGridWidthPx,
+  rowTimingOffsetShiftPx,
+  stepCellPaddingPx,
+  stepInsertZoneWidthPx,
+  rowTimingOffsetIndexForQuarters,
+} from "./stepCellLayout.js";
 
 function phraseGridFieldWidthForContent(contentWidthPx) {
   return (
@@ -101,5 +109,47 @@ describe("phraseRowsContentFitScale", () => {
     expect(
       phraseRowsContentFitScale([[3]], [defaultRowTimingOffsetIndex], 0, 0, phraseRowEndAddStepReservePx()),
     ).toBe(1);
+  });
+});
+
+describe("phraseRowEndAddStepOverlayLeftPx", () => {
+  it("anchors the plus after the final rendered step", () => {
+    expect(
+      phraseRowEndAddStepOverlayLeftPx([
+        { cellWidth: 100, gapBefore: false },
+        { cellWidth: 50, gapBefore: true },
+        { cellWidth: 150, gapBefore: true },
+      ]),
+    ).toBeCloseTo(
+      stepCellPaddingPx()
+      + 100
+      + stepInsertZoneWidthPx()
+      + 50
+      + stepInsertZoneWidthPx()
+      + 150
+      + phraseRowEndStepTailPaddingPx(),
+    );
+  });
+
+  it("ignores collapsed drag preview cells before the final rendered step", () => {
+    expect(
+      phraseRowEndAddStepOverlayLeftPx([
+        { cellWidth: 100, gapBefore: false },
+        { cellWidth: 0, gapBefore: true },
+        { cellWidth: 150, gapBefore: true },
+      ]),
+    ).toBeCloseTo(
+      stepCellPaddingPx()
+      + 100
+      + stepInsertZoneWidthPx()
+      + 150
+      + phraseRowEndStepTailPaddingPx(),
+    );
+  });
+
+  it("places the first-step plus at the leading empty-row position", () => {
+    expect(phraseRowEndAddStepOverlayLeftPx([])).toBeCloseTo(
+      stepCellPaddingPx() - phraseRowEndAddStepInsetPx(),
+    );
   });
 });
