@@ -14,6 +14,7 @@
 import {
   buildPhraseScheduleBeforeBandpass,
   buildPhraseScheduleWindowBeforeBandpass,
+  combinationModeEnabled,
   DEFAULT_PREVIEW_LENGTH_QUARTERS,
   isBlackKey,
   isScheduledNoteActiveAtPlaybackBeat,
@@ -111,6 +112,8 @@ import { scaledPx } from "./uiScale.svelte.js";
   const baseKeyboardWidthPx = 44;
   const baseRulerHeightPx = 28;
   const renderOverscanQuarters = 8;
+  const hocketPreviewCycleCount = 4;
+  const hocketPreviewMinimumQuarters = 32;
 
   const notePalettes = [
     { fill: "--theme-note-row-1-fill", border: "--theme-note-row-1-border", activeFill: "--theme-note-row-1-active-fill", activeBorder: "--theme-note-row-1-active-border", glow: "--theme-note-row-1-glow" },
@@ -160,6 +163,7 @@ import { scaledPx } from "./uiScale.svelte.js";
       pulseIndex,
     }),
   );
+  let hocketModeActive = $derived(combinationModeEnabled(combinationModeMask, 6));
   let autoContentLengthQuarters = $derived(
     pianoRollContentLengthQuarters({
       patternLengthQuarters: patternRepeatQuarters,
@@ -168,12 +172,24 @@ import { scaledPx } from "./uiScale.svelte.js";
       minimumLengthQuarters: loopBraceSnapQuarters,
     }),
   );
+  let previewContentLengthQuarters = $derived(
+    hocketModeActive && !loopEnabled && autoContentLengthQuarters > 0
+      ? Math.min(
+          DEFAULT_PREVIEW_LENGTH_QUARTERS,
+          Math.max(
+            autoContentLengthQuarters,
+            hocketPreviewMinimumQuarters,
+            rollLengthQuartersForCycle(autoContentLengthQuarters * hocketPreviewCycleCount),
+          ),
+        )
+      : autoContentLengthQuarters,
+  );
   let autoLengthQuarters = $derived(
-    autoContentLengthQuarters > 0
-      ? rollLengthQuartersForCycle(autoContentLengthQuarters)
+    previewContentLengthQuarters > 0
+      ? rollLengthQuartersForCycle(previewContentLengthQuarters)
       : DEFAULT_PREVIEW_LENGTH_QUARTERS,
   );
-  let scheduleLengthQuarters = $derived(lengthQuarters ?? autoContentLengthQuarters);
+  let scheduleLengthQuarters = $derived(lengthQuarters ?? previewContentLengthQuarters);
   let resolvedLengthQuarters = $derived(lengthQuarters ?? autoLengthQuarters);
   let visibleStartQuarter = $derived(viewportScrollLeftPx / pxPerQuarter);
   let visibleEndQuarter = $derived(
@@ -294,10 +310,12 @@ import { scaledPx } from "./uiScale.svelte.js";
   let loopLeftPx = $derived(displayStart * pxPerQuarter);
   let loopWidthPx = $derived(loopSpan * pxPerQuarter);
   let displayPlaybackBeat = $derived(
-    mapPlaybackBeatForPianoRoll(playbackBeat, {
-      loopEnabled,
-      patternLengthQuarters: patternRepeatQuarters,
-    }),
+    hocketModeActive && !loopEnabled
+      ? playbackBeat
+      : mapPlaybackBeatForPianoRoll(playbackBeat, {
+          loopEnabled,
+          patternLengthQuarters: patternRepeatQuarters,
+        }),
   );
   let showPlaybackPlayhead = $derived(displayPlaybackBeat >= 0);
   let playbackPlayheadLeftPx = $derived(displayPlaybackBeat * pxPerQuarter);

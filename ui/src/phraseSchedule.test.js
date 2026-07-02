@@ -102,6 +102,67 @@ function combinationSchedule(pulseIndex, combinationModeMask) {
   });
 }
 
+function fourRowOffsetHocketParams(overrides = {}) {
+  const timing3 = [
+    defaultStepTimingMultiplierIndex,
+    defaultStepTimingMultiplierIndex,
+    defaultStepTimingMultiplierIndex,
+  ];
+  const timing4 = [
+    defaultStepTimingMultiplierIndex,
+    defaultStepTimingMultiplierIndex,
+    defaultStepTimingMultiplierIndex,
+    defaultStepTimingMultiplierIndex,
+  ];
+
+  return {
+    notes: [
+      [53, 55, 55],
+      [57, 53, 58],
+      [55, 62, 57, 57],
+      [50, 48, 48],
+    ],
+    rowMuted: [false, false, false, false],
+    rowTimingOffset: [
+      defaultRowTimingOffsetIndex,
+      defaultRowTimingOffsetIndex + 1,
+      defaultRowTimingOffsetIndex + 2,
+      defaultRowTimingOffsetIndex + 3,
+    ],
+    stepDurationFraction: [
+      [1, 1, 1],
+      [1, 1, 1],
+      [1, 1, 1, 1],
+      [1, 1, 1],
+    ],
+    stepTimingMultiplier: [timing3, timing3, timing4, timing3],
+    stepVelocity: [
+      [100, 100, 100],
+      [100, 100, 100],
+      [100, 100, 100, 100],
+      [100, 100, 100],
+    ],
+    stepMuted: [
+      [false, false, false],
+      [false, false, false],
+      [false, false, false, false],
+      [false, false, false],
+    ],
+    stepSkipped: [
+      [false, false, false],
+      [false, false, false],
+      [false, false, false, false],
+      [false, false, false],
+    ],
+    pulseIndex: 1,
+    combinationModeMask: 1 << 6,
+    lengthQuarters: 32,
+    scaleRoot: 0,
+    scaleModeIndex: 1,
+    ...overrides,
+  };
+}
+
 function firstGeneratedStart(schedule, midi) {
   return schedule.find((note) => note.midi === midi && note.start > 0)?.start;
 }
@@ -242,6 +303,31 @@ describe("combination mode pulse-aware timing", () => {
     }
   });
 
+  it("drops tiny Hocket slice overlaps instead of rendering blips", () => {
+    const schedule = buildPhraseScheduleBeforeBandpass({
+      notes: [[60], [67], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      stepDurationFraction: [[0.05], [1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[100], [0], [], []],
+      stepMuted: [[false], [false], [], []],
+      stepSkipped: [[false], [false], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 6,
+      lengthQuarters: 1,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+
+    expect(schedule).toEqual([]);
+  });
+
   it("leaves a single active row unchanged in Hocket mode", () => {
     const base = buildPhraseScheduleBeforeBandpass({
       notes: [[60], [], [], []],
@@ -275,6 +361,20 @@ describe("combination mode pulse-aware timing", () => {
     });
 
     expect(hocketed).toEqual(base);
+  });
+
+  it("continues deterministic Hocket choices after the first phrase repeat", () => {
+    const schedule = buildPhraseScheduleBeforeBandpass(fourRowOffsetHocketParams());
+    const firstCycle = schedule
+      .filter((note) => note.start >= 0 && note.start < 8)
+      .map((note) => [note.start, note.midi]);
+    const secondCycle = schedule
+      .filter((note) => note.start >= 8 && note.start < 16)
+      .map((note) => [note.start - 8, note.midi]);
+
+    expect(firstCycle.length).toBeGreaterThan(0);
+    expect(secondCycle.length).toBeGreaterThan(0);
+    expect(secondCycle).not.toEqual(firstCycle);
   });
 
   it("keeps Bloom ornaments on sparse half-note anchors at quarter pulse", () => {
@@ -426,6 +526,19 @@ describe("windowed phrase schedule preview", () => {
     expect(windowed).toHaveLength(1);
     expect(windowed[0].start).toBe(2);
     expect(windowed[0].end).toBe(3);
+  });
+
+  it("matches the full Hocket schedule for later windows without relying on lookback", () => {
+    const params = fourRowOffsetHocketParams();
+    const full = buildPhraseScheduleBeforeBandpass(params);
+    const windowed = buildPhraseScheduleWindowBeforeBandpass({
+      ...params,
+      windowStartQuarters: 8,
+      windowEndQuarters: 16,
+      windowLookbackQuarters: 0,
+    });
+
+    expect(comparableNotes(windowed)).toEqual(comparableNotes(clippedToWindow(full, 8, 16)));
   });
 });
 

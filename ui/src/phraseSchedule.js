@@ -22,6 +22,7 @@ const EPSILON = 1e-9;
 const MAX_COMBINED_PREVIEW_NOTES = 4096;
 const COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR = 2;
 const ROUND_ROBIN_OVERLAP_FRACTION = 0.25;
+const HOCKET_MINIMUM_SLICE_OVERLAP_FRACTION = 0.2;
 const DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS = 64;
 export const combinationModeMaskBits = 0x1ff;
 /** Display order matches processing order. Weave keeps its legacy bit and runs last. */
@@ -504,7 +505,10 @@ export function buildPhraseScheduleWindowBeforeBandpass(params) {
   const timelineEnd = Math.max(0, scheduleParams.lengthQuarters ?? DEFAULT_PREVIEW_LENGTH_QUARTERS);
   const windowStart = Math.min(timelineEnd, Math.max(0, windowStartQuarters));
   const windowEnd = Math.min(timelineEnd, Math.max(windowStart, windowEndQuarters));
-  const scheduleStart = Math.max(0, windowStart - Math.max(0, windowLookbackQuarters));
+  const hocketWindowNeedsFullHistory = combinationModeEnabled(scheduleParams.combinationModeMask ?? 0, 6);
+  const scheduleStart = hocketWindowNeedsFullHistory
+    ? 0
+    : Math.max(0, windowStart - Math.max(0, windowLookbackQuarters));
 
   if (windowEnd <= windowStart) return [];
 
@@ -663,17 +667,19 @@ function addRetroInversionFollowers(events, activeRows, notes, scaleRoot, scaleM
 /**
  * @param {ScheduledNote[]} events
  * @param {number[]} activeRows
+ * @param {number[][]} stepVelocity
  * @param {number} pulseQuarters
  * @param {number} lengthQuarters
  * @returns {ScheduledNote[]}
  */
-function hocketEvents(events, activeRows, pulseQuarters, lengthQuarters) {
+function hocketEvents(events, activeRows, stepVelocity, pulseQuarters, lengthQuarters) {
   if (activeRows.length <= 1 || events.length === 0) return events;
 
   const sliceQuarters = pulseQuarters / activeRows.length;
 
   if (sliceQuarters <= EPSILON) return events;
 
+  const minimumSliceOverlap = sliceQuarters * HOCKET_MINIMUM_SLICE_OVERLAP_FRACTION;
   /** @type {Map<number, ScheduledNote[]>} */
   const candidatesBySlice = new Map();
 
@@ -695,9 +701,8 @@ function hocketEvents(events, activeRows, pulseQuarters, lengthQuarters) {
       const end = Math.min(eventEnd, sliceEnd, lengthQuarters);
       const duration = end - start;
 
-      if (duration <= EPSILON) continue;
+      if (duration <= EPSILON || duration + EPSILON < minimumSliceOverlap) continue;
 
-      const targetRow = activeRows[((slice % activeRows.length) + activeRows.length) % activeRows.length];
       const gate = Math.min(duration, sliceQuarters * 0.85);
 
       if (gate <= EPSILON) continue;
@@ -706,7 +711,6 @@ function hocketEvents(events, activeRows, pulseQuarters, lengthQuarters) {
         ...event,
         start,
         end: start + gate,
-        row: targetRow,
       };
       const bucket = candidatesBySlice.get(slice);
 
@@ -726,8 +730,13 @@ function hocketEvents(events, activeRows, pulseQuarters, lengthQuarters) {
   for (const [slice, candidates] of [...candidatesBySlice.entries()].sort((a, b) => a[0] - b[0])) {
     if (hocketed.length >= MAX_COMBINED_PREVIEW_NOTES) break;
 
+    const sliceTargetRow = activeRows[((slice % activeRows.length) + activeRows.length) % activeRows.length];
+
     if (candidates.length === 1) {
-      hocketed.push(candidates[0]);
+      hocketed.push({
+        ...candidates[0],
+        row: sliceTargetRow,
+      });
       continue;
     }
 
@@ -735,15 +744,22 @@ function hocketEvents(events, activeRows, pulseQuarters, lengthQuarters) {
       (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
     );
 
-    const sliceTargetRow = activeRows[((slice % activeRows.length) + activeRows.length) % activeRows.length];
-    const totalWeight = candidates.reduce((total, event) => total + Math.max(1, event.velocity), 0);
+    const candidateWeight = (event) => {
+      const sourceStepVelocity = stepVelocity[event.row]?.[event.step % Math.max(1, stepVelocity[event.row]?.length ?? 1)];
+
+      return Math.max(1, sourceStepVelocity > 0 ? sourceStepVelocity : event.velocity);
+    };
+    const totalWeight = candidates.reduce((total, event) => total + candidateWeight(event), 0);
     let pick = deterministicEventHash(sliceTargetRow, slice, slice * sliceQuarters) % Math.max(1, totalWeight);
 
     for (const event of candidates) {
-      pick -= Math.max(1, event.velocity);
+      pick -= candidateWeight(event);
 
       if (pick < 0) {
-        hocketed.push(event);
+        hocketed.push({
+          ...event,
+          row: sliceTargetRow,
+        });
         break;
       }
     }
@@ -862,7 +878,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
   }
 
   if (combinationModeEnabled(combinationModeMask, 6) && activeRows.length > 1) {
-    events = hocketEvents(events, activeRows, pulseQuartersForIndex(pulseIndex), lengthQuarters);
+    events = hocketEvents(events, activeRows, stepVelocity, pulseQuartersForIndex(pulseIndex), lengthQuarters);
   }
 
   if (events.length === 0) return [];
