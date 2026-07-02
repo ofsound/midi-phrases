@@ -683,7 +683,7 @@ TEST_CASE ("Combination modes extend held same-note suppression across audio blo
     testPlugin.setPlayHead (nullptr);
 }
 
-TEST_CASE ("Combination modes preserve overlapping unisons on different channels", "[instance]")
+TEST_CASE ("Combination modes merge overlapping unisons across channels", "[instance]")
 {
     PluginProcessor testPlugin;
 
@@ -741,7 +741,7 @@ TEST_CASE ("Combination modes preserve overlapping unisons on different channels
     testPlugin.processBlock (buffer, midi);
 
     CHECK (countMidiMessagesForNoteOnChannel (midi, 60, 1, true) == 1);
-    CHECK (countMidiMessagesForNoteOnChannel (midi, 60, 2, true) == 1);
+    CHECK (countMidiMessagesForNoteOnChannel (midi, 60, 2, true) == 0);
     testPlugin.setPlayHead (nullptr);
 }
 

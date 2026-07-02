@@ -124,9 +124,9 @@ export function cleanupUnisonOverlaps(events, enabled = true) {
   if (!enabled || events.length <= 1) return events;
 
   const sorted = [...events].sort((a, b) => (
-    (a.channel ?? 1) - (b.channel ?? 1)
-    || a.midi - b.midi
+    a.midi - b.midi
     || a.start - b.start
+    || (a.channel ?? 1) - (b.channel ?? 1)
     || a.row - b.row
     || a.step - b.step
   ));
@@ -140,7 +140,6 @@ export function cleanupUnisonOverlaps(events, enabled = true) {
 
     while (
       next < sorted.length
-      && (sorted[next].channel ?? 1) === (merged.channel ?? 1)
       && sorted[next].midi === merged.midi
       && sorted[next].start <= merged.start + UNISON_OVERLAP_WINDOW_QUARTERS + EPSILON
     ) {
@@ -168,9 +167,9 @@ export function suppressHeldNoteRetriggers(events, enabled = true) {
   if (!enabled || events.length <= 1) return events;
 
   const sorted = [...events].sort((a, b) => (
-    (a.channel ?? 1) - (b.channel ?? 1)
-    || a.midi - b.midi
+    a.midi - b.midi
     || a.start - b.start
+    || (a.channel ?? 1) - (b.channel ?? 1)
     || a.row - b.row
     || a.step - b.step
   ));
@@ -184,7 +183,6 @@ export function suppressHeldNoteRetriggers(events, enabled = true) {
 
     while (
       next < sorted.length
-      && (sorted[next].channel ?? 1) === (merged.channel ?? 1)
       && sorted[next].midi === merged.midi
       && sorted[next].start < mergedEnd - EPSILON
     ) {

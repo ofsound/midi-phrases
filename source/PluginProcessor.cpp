@@ -5535,14 +5535,14 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         std::sort (combinedEvents.begin(),
                    combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
                    [] (const CombinedNoteEvent& a, const CombinedNoteEvent& b) {
-                       if (a.channel != b.channel)
-                           return a.channel < b.channel;
-
                        if (a.note != b.note)
                            return a.note < b.note;
 
                        if (std::abs (a.ppq - b.ppq) > 1.0e-9)
                            return a.ppq < b.ppq;
+
+                       if (a.channel != b.channel)
+                           return a.channel < b.channel;
 
                        if (a.row != b.row)
                            return a.row < b.row;
@@ -5559,7 +5559,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             auto groupEnd = read + 1;
 
             while (groupEnd < eventCount
-                   && combinedEvents[groupEnd].channel == merged.channel
                    && combinedEvents[groupEnd].note == merged.note
                    && combinedEvents[groupEnd].ppq <= merged.ppq + unisonOverlapWindowQuarters + epsilon)
             {
@@ -5659,14 +5658,14 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         std::sort (combinedEvents.begin(),
                    combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
                    [] (const CombinedNoteEvent& a, const CombinedNoteEvent& b) {
-                       if (a.channel != b.channel)
-                           return a.channel < b.channel;
-
                        if (a.note != b.note)
                            return a.note < b.note;
 
                        if (std::abs (a.ppq - b.ppq) > 1.0e-9)
                            return a.ppq < b.ppq;
+
+                       if (a.channel != b.channel)
+                           return a.channel < b.channel;
 
                        if (a.row != b.row)
                            return a.row < b.row;
@@ -5683,7 +5682,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             auto next = read + 1;
 
             while (next < eventCount
-                   && combinedEvents[next].channel == merged.channel
                    && combinedEvents[next].note == merged.note
                    && combinedEvents[next].ppq < mergedEnd - epsilon)
             {
@@ -5725,7 +5723,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         {
             auto& pending = pendingCombinedNoteOffs[i];
 
-            if (pending.note < 0 || pending.channel != event.channel || pending.note != event.note)
+            if (pending.note < 0 || pending.note != event.note)
                 continue;
 
             pending.samplesRemaining =

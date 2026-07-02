@@ -468,16 +468,19 @@ describe("combination mode pulse-aware timing", () => {
     expect(cleaned[0]).toMatchObject({start: 0, end: 0.4, midi: 60, velocity: 104, row: 0, step: 0, channel: 1});
   });
 
-  it("keeps different pitches, different channels, and later retriggers during unison cleanup", () => {
+  it("keeps different pitches and later retriggers during unison cleanup", () => {
     expect(cleanupUnisonOverlaps([
       {start: 0, end: 0.25, midi: 60, velocity: 90, row: 0, step: 0, channel: 1},
       {start: 0, end: 0.25, midi: 62, velocity: 90, row: 1, step: 0, channel: 1},
     ])).toHaveLength(2);
 
-    expect(cleanupUnisonOverlaps([
+    const crossChannelUnison = cleanupUnisonOverlaps([
       {start: 0, end: 0.25, midi: 60, velocity: 90, row: 0, step: 0, channel: 1},
-      {start: 0, end: 0.25, midi: 60, velocity: 90, row: 1, step: 0, channel: 2},
-    ])).toHaveLength(2);
+      {start: 0, end: 0.25, midi: 60, velocity: 104, row: 1, step: 0, channel: 2},
+    ]);
+
+    expect(crossChannelUnison).toHaveLength(1);
+    expect(crossChannelUnison[0]).toMatchObject({midi: 60, channel: 1, velocity: 104});
 
     expect(cleanupUnisonOverlaps([
       {start: 0, end: 0.25, midi: 60, velocity: 90, row: 0, step: 0, channel: 1},
@@ -497,20 +500,29 @@ describe("combination mode pulse-aware timing", () => {
     ]);
   });
 
-  it("keeps adjacent same-pitch notes and different channel or pitch overlaps", () => {
+  it("keeps adjacent same-pitch notes and different pitch overlaps", () => {
     const cleaned = suppressHeldNoteRetriggers([
       {start: 0, end: 0.5, midi: 60, velocity: 72, row: 0, step: 0, channel: 1},
       {start: 0.5, end: 1, midi: 60, velocity: 104, row: 1, step: 0, channel: 1},
       {start: 0.25, end: 0.75, midi: 62, velocity: 96, row: 2, step: 0, channel: 1},
+    ]);
+
+    expect(cleaned).toHaveLength(3);
+    expect(cleaned.map((note) => [note.start, note.end, note.midi, note.channel])).toEqual([
+      [0, 0.5, 60, 1],
+      [0.25, 0.75, 62, 1],
+      [0.5, 1, 60, 1],
+    ]);
+  });
+
+  it("merges overlapping same-pitch notes across channels", () => {
+    const cleaned = suppressHeldNoteRetriggers([
+      {start: 0, end: 0.5, midi: 60, velocity: 72, row: 0, step: 0, channel: 1},
       {start: 0.25, end: 0.75, midi: 60, velocity: 96, row: 3, step: 0, channel: 2},
     ]);
 
-    expect(cleaned).toHaveLength(4);
-    expect(cleaned.map((note) => [note.start, note.end, note.midi, note.channel])).toEqual([
-      [0, 0.5, 60, 1],
-      [0.25, 0.75, 60, 2],
-      [0.25, 0.75, 62, 1],
-      [0.5, 1, 60, 1],
+    expect(cleaned).toEqual([
+      {start: 0, end: 0.75, midi: 60, velocity: 72, row: 0, step: 0, channel: 1},
     ]);
   });
 
