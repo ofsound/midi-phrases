@@ -716,6 +716,7 @@ private:
         int note = 60;
         int velocity = defaultStepVelocity;
         bool extendedByHeldOverlap = false;
+        bool carrierOnlyForCombinationFollowers = false;
     };
 
     static constexpr size_t sequencerCommandQueueCapacity = 1024;

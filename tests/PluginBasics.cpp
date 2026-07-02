@@ -1658,6 +1658,126 @@ TEST_CASE ("Hocket mode matches preview schedule for four offset rows", "[instan
     }
 }
 
+TEST_CASE ("Hocket and Echo combination outputs match preview thinning", "[instance]")
+{
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 256;
+
+    PluginProcessor testPlugin;
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 4);
+    ensurePhraseRowStepCount (testPlugin, 1, 4);
+
+    const std::array<std::array<int, 4>, 2> rowNotes { {
+        { 60, 64, 67, 72 },
+        { 48, 52, 55, 58 },
+    } };
+
+    for (int row = 0; row < 2; ++row)
+    {
+        for (int step = 0; step < 4; ++step)
+        {
+            testPlugin.setPhraseNote (row, step, rowNotes[static_cast<size_t> (row)][static_cast<size_t> (step)]);
+            testPlugin.setPhraseStepTimingMultiplier (row, step, PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (row, step, 100);
+        }
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    const auto collectNoteOnList = [&] {
+        std::vector<std::pair<double, int>> noteOns;
+
+        for (int block = 0; block < 40; ++block)
+        {
+            midi.clear();
+            playHead.info.setPpqPosition (static_cast<double> (block * blockSize) * (120.0 / 60.0) / sampleRate);
+            testPlugin.processBlock (buffer, midi);
+
+            for (const auto metadata : midi)
+            {
+                const auto message = metadata.getMessage();
+
+                if (! message.isNoteOn())
+                    continue;
+
+                const auto ppq = playHead.info.getPpqPosition().orFallback (0.0)
+                                 + static_cast<double> (metadata.samplePosition) * (120.0 / 60.0) / sampleRate;
+                noteOns.emplace_back (ppq, message.getNoteNumber());
+            }
+
+            if (playHead.info.getPpqPosition() >= 8.0)
+                break;
+        }
+
+        return noteOns;
+    };
+
+    const auto countNoteOns = [&] (const std::vector<std::pair<double, int>>& noteOns) {
+        return static_cast<int> (noteOns.size());
+    };
+
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, false);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, false);
+    const auto plainCount = countNoteOns (collectNoteOnList());
+
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, true);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, false);
+    const auto hocketNoteOns = collectNoteOnList();
+    const auto hocketCount = countNoteOns (hocketNoteOns);
+
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, false);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+    const auto echoCount = countNoteOns (collectNoteOnList());
+
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, true);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+    CHECK (testPlugin.getCombinationModeMask() == ((1 << PluginProcessor::combinationModeHocket)
+                                                   | (1 << PluginProcessor::combinationModeMultiplyEcho)));
+    const auto hocketEchoNoteOns = collectNoteOnList();
+    const auto hocketEchoCount = countNoteOns (hocketEchoNoteOns);
+
+    WARN ("plain=" << plainCount << " hocket=" << hocketCount << " echo=" << echoCount
+                   << " hocket+echo=" << hocketEchoCount);
+
+    for (const auto& [ppq, note] : hocketNoteOns)
+        WARN ("hocket NOTEON ppq=" << ppq << " midi=" << note);
+
+    for (const auto& [ppq, note] : hocketEchoNoteOns)
+        WARN ("hocket+echo NOTEON ppq=" << ppq << " midi=" << note);
+
+    CHECK (hocketCount > 0);
+    CHECK (echoCount > 0);
+    CHECK (hocketEchoCount > 0);
+    CHECK (hocketEchoCount > hocketCount);
+    CHECK (hocketEchoNoteOns != hocketNoteOns);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Loop hocket user pattern emits one A#2 per loop pass", "[instance]")
 {
     constexpr double sampleRate = 1000.0;

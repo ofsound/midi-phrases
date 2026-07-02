@@ -4828,6 +4828,72 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         const auto sliceQuarters = pulse / static_cast<double> (activeRowCount);
         const auto minimumHocketSliceOverlap =
             sliceQuarters * hocketMinimumSliceOverlapFraction;
+        const auto maxModRowStepStartQuarters = [&] {
+            auto maxStart = 0.0;
+
+            for (int index = 0; index < activeRowCount; ++index)
+            {
+                const auto& rowSteps =
+                    state.rows[static_cast<size_t> (activeRows[static_cast<size_t> (index)])];
+
+                for (int step = 0; step < rowSteps.stepCount; ++step)
+                {
+                    const auto stepIndex = static_cast<size_t> (step);
+
+                    if (rowSteps.stepSkipped[stepIndex] != 0
+                        || rowSteps.stepMuted[stepIndex] != 0
+                        || rowSteps.velocity[stepIndex] <= 0)
+                        continue;
+
+                    maxStart = juce::jmax (maxStart, rowSteps.stepStartQuarters[stepIndex]);
+                }
+            }
+
+            return maxStart;
+        };
+        const auto combinationFollowerLead = [&] {
+            auto lead = 0.0;
+
+            if (combinationModeEnabled (modeMask, combinationModeMultiplyEcho)
+                || combinationModeEnabled (modeMask, combinationModeCounter)
+                || combinationModeEnabled (modeMask, combinationModeBloom))
+            {
+                lead = juce::jmax (lead, maxModRowStepStartQuarters());
+            }
+
+            if (combinationModeEnabled (modeMask, combinationModeCounter))
+                lead = juce::jmax (lead, combinationGesturePulse * 0.625);
+
+            if (combinationModeEnabled (modeMask, combinationModeBloom))
+                lead = juce::jmax (lead, combinationGesturePulse * 0.5);
+
+            if (activePattern.shimmerEnabled != 0)
+            {
+                const auto shimmerDelayQuarters =
+                    stepTimingMultiplierForIndex (activePattern.shimmerDelayMultiplierIndex) * pulse;
+
+                if (shimmerDelayQuarters > 1.0e-9)
+                {
+                    auto maxTapDelay = 0.0;
+
+                    for (int tap = 1; tap < 32; ++tap)
+                    {
+                        if (shimmerTapVelocity (100,
+                                                tap,
+                                                activePattern.shimmerFeedbackPercent,
+                                                activePattern.shimmerMixPercent)
+                            <= 0)
+                            break;
+
+                        maxTapDelay = static_cast<double> (tap) * shimmerDelayQuarters;
+                    }
+
+                    lead = juce::jmax (lead, maxTapDelay);
+                }
+            }
+
+            return lead;
+        }();
 
         if (sliceQuarters > epsilon)
         {
@@ -4849,10 +4915,18 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                 maxSlice = juce::jmax (maxSlice, lastSlice);
             }
 
-            const auto scheduleFirstSlice =
+            auto scheduleFirstSlice =
                 static_cast<int> (std::floor ((emitPpqStart + epsilon) / sliceQuarters));
             const auto scheduleLastSlice =
                 static_cast<int> (std::ceil ((emitPpqEnd - epsilon) / sliceQuarters)) - 1;
+
+            if (combinationFollowerLead > epsilon)
+            {
+                const auto extendedFirstSlice =
+                    static_cast<int> (std::floor ((emitPpqStart - combinationFollowerLead + epsilon)
+                                                  / sliceQuarters));
+                scheduleFirstSlice = juce::jmin (scheduleFirstSlice, extendedFirstSlice);
+            }
 
             if (minSlice > maxSlice)
             {
@@ -4873,8 +4947,10 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                 {
                     const auto sliceStart = static_cast<double> (slice) * sliceQuarters;
                     const auto sliceEnd = sliceStart + sliceQuarters;
+                    const auto carrierOnlyForCombinationFollowers =
+                        combinationFollowerLead > epsilon && sliceStart < emitPpqStart - epsilon;
 
-                    if (sliceStart < emitPpqStart - epsilon)
+                    if (sliceStart < emitPpqStart - epsilon && ! carrierOnlyForCombinationFollowers)
                         continue;
 
                     if (sliceStart >= emitPpqEnd - epsilon)
@@ -4935,6 +5011,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                         copy.gateQuarters = gate;
                         copy.row = targetRow;
                         copy.channel = state.midiChannel[static_cast<size_t> (targetRow)];
+                        copy.carrierOnlyForCombinationFollowers =
+                            carrierOnlyForCombinationFollowers;
                         combinedWorkingEvents[write++] = copy;
                         continue;
                     }
@@ -5004,6 +5082,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                     copy.gateQuarters = gate;
                     copy.row = targetRow;
                     copy.channel = state.midiChannel[static_cast<size_t> (targetRow)];
+                    copy.carrierOnlyForCombinationFollowers = carrierOnlyForCombinationFollowers;
                     combinedWorkingEvents[write++] = copy;
                 }
             }
@@ -5761,8 +5840,12 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         if (event.gateQuarters <= epsilon || event.velocity <= 0)
             continue;
 
+        if (event.carrierOnlyForCombinationFollowers)
+            continue;
+
         if (heldNoteDeOverlapLookbackEnabled
-            && (event.ppq < schedulePpqStart - epsilon || event.ppq >= schedulePpqEnd - epsilon))
+            && (event.ppq < schedulePpqStart - epsilon
+                || (! hocketModeEnabled && event.ppq >= schedulePpqEnd - epsilon)))
         {
             if (event.ppq < schedulePpqStart - epsilon && event.extendedByHeldOverlap)
                 extendPendingCombinedNoteOff (event);

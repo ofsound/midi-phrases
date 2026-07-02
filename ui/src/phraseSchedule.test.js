@@ -864,6 +864,60 @@ function userLoopHocketParams(overrides = {}) {
   };
 }
 
+describe("hocket and echo combination parity", () => {
+  const twoRowEchoParams = () => ({
+    notes: [[60, 64, 67, 72], [48, 52, 55, 58], [], []],
+    rowMuted: [false, false, true, true],
+    rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+    stepDurationFraction: [
+      [1, 1, 1, 1],
+      [1, 1, 1, 1],
+      [],
+      [],
+    ],
+    stepTimingMultiplier: [
+      [defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex],
+      [defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex],
+      [],
+      [],
+    ],
+    stepVelocity: [
+      [100, 100, 100, 100],
+      [100, 100, 100, 100],
+      [],
+      [],
+    ],
+    stepMuted: [
+      [false, false, false, false],
+      [false, false, false, false],
+      [],
+      [],
+    ],
+    stepSkipped: [
+      [false, false, false, false],
+      [false, false, false, false],
+      [],
+      [],
+    ],
+    pulseIndex: 1,
+    scaleRoot: 0,
+    scaleModeIndex: 1,
+    lengthQuarters: 8,
+  });
+
+  it("applies Echo after Hocket thinning, not to the full row schedule", () => {
+    const params = twoRowEchoParams();
+    const hocketOnly = buildPhraseSchedule({...params, combinationModeMask: 1 << 6});
+    const echoOnly = buildPhraseSchedule({...params, combinationModeMask: 1 << 3});
+    const hocketEcho = buildPhraseSchedule({...params, combinationModeMask: (1 << 6) | (1 << 3)});
+
+    expect(hocketOnly.length).toBeGreaterThan(0);
+    expect(echoOnly.length).toBeGreaterThan(hocketOnly.length);
+    expect(hocketEcho.length).toBeGreaterThan(hocketOnly.length);
+    expect(hocketEcho).not.toEqual(hocketOnly);
+  });
+});
+
 describe("loop hocket emission parity", () => {
   it("drops held-overlap extensions that start before the loop window", () => {
     const filtered = filterScheduleForNoteOnEmission([
