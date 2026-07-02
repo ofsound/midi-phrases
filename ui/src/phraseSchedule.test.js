@@ -8,6 +8,7 @@ import {
   cleanupUnisonOverlaps,
   probabilityPasses,
   stepTriggerCountAtBeat,
+  suppressHeldNoteRetriggers,
 } from "./phraseSchedule.js";
 import { defaultRowTimingOffsetIndex, defaultStepTimingMultiplierIndex, rowTimingOffsetIndexForQuarters } from "./stepCellLayout.js";
 
@@ -482,6 +483,69 @@ describe("combination mode pulse-aware timing", () => {
       {start: 0, end: 0.25, midi: 60, velocity: 90, row: 0, step: 0, channel: 1},
       {start: 0.25, end: 0.5, midi: 60, velocity: 90, row: 1, step: 0, channel: 1},
     ])).toHaveLength(2);
+  });
+
+  it("merges overlapping same-channel same-pitch notes into one held note", () => {
+    const cleaned = suppressHeldNoteRetriggers([
+      {start: 0, end: 1, midi: 60, velocity: 72, row: 0, step: 0, channel: 1},
+      {start: 0.5, end: 1.5, midi: 60, velocity: 104, row: 1, step: 0, channel: 1},
+      {start: 1.25, end: 2, midi: 60, velocity: 96, row: 2, step: 0, channel: 1},
+    ]);
+
+    expect(cleaned).toEqual([
+      {start: 0, end: 2, midi: 60, velocity: 72, row: 0, step: 0, channel: 1},
+    ]);
+  });
+
+  it("keeps adjacent same-pitch notes and different channel or pitch overlaps", () => {
+    const cleaned = suppressHeldNoteRetriggers([
+      {start: 0, end: 0.5, midi: 60, velocity: 72, row: 0, step: 0, channel: 1},
+      {start: 0.5, end: 1, midi: 60, velocity: 104, row: 1, step: 0, channel: 1},
+      {start: 0.25, end: 0.75, midi: 62, velocity: 96, row: 2, step: 0, channel: 1},
+      {start: 0.25, end: 0.75, midi: 60, velocity: 96, row: 3, step: 0, channel: 2},
+    ]);
+
+    expect(cleaned).toHaveLength(4);
+    expect(cleaned.map((note) => [note.start, note.end, note.midi, note.channel])).toEqual([
+      [0, 0.5, 60, 1],
+      [0.25, 0.75, 60, 2],
+      [0.25, 0.75, 62, 1],
+      [0.5, 1, 60, 1],
+    ]);
+  });
+
+  it("suppresses retriggers created by final octave transforms", () => {
+    const schedule = buildPhraseSchedule({
+      notes: [[60], [72], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, rowTimingOffsetIndexForQuarters(0.5), defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      rowMidiChannel: [1, 1, 3, 4],
+      stepDurationFraction: [[1], [1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[100], [80], [], []],
+      stepMuted: [[false], [false], [], []],
+      stepSkipped: [[false], [false], [], []],
+      stepCycle: [[2], [2], [], []],
+      stepCycleOffset: [[1], [1], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 0,
+      lengthQuarters: 2,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+      octavizerDown8vaEnabled: true,
+      octavizerDown8vaRelativeVelocity: 0,
+      noteBandpassLowMidi: 60,
+      noteBandpassHighMidi: 60,
+    });
+
+    expect(schedule.map((note) => [note.start, note.end, note.midi, note.channel, note.velocity])).toEqual([
+      [0, 1.5, 60, 1, 100],
+    ]);
   });
 
   it("trims Weave preview notes to the next selected attack", () => {

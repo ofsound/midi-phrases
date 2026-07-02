@@ -4253,6 +4253,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         combinationModeEnabled (modeMask, combinationModeHocket) && activeRowCount > 1;
     const auto weaveModeEnabled =
         combinationModeEnabled (modeMask, combinationModeWeave) && activeRowCount > 1;
+    const auto heldNoteDeOverlapLookbackEnabled = modeMask != 0;
 
     const auto patternRepeatLengthQuarters = [&] {
         auto repeatUnits = 0;
@@ -4337,6 +4338,15 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         collectionPpqStart = juce::jmax (lowerBound, emitPpqStart - lookbackQuarters);
         collectionPpqEnd = emitPpqEnd;
     }
+    else if (heldNoteDeOverlapLookbackEnabled)
+    {
+        const auto& loop = audioLoopBrace();
+        const auto lookbackQuarters =
+            juce::jmax (combinationGesturePulse * 2.0, maxActiveRowCycleQuarters);
+        const auto lowerBound = loop.enabled != 0 ? loop.startQuarters : 0.0;
+        collectionPpqStart = juce::jmax (lowerBound, emitPpqStart - lookbackQuarters);
+        collectionPpqEnd = emitPpqEnd;
+    }
 
     for (int row = 0; row < phraseRowCount; ++row)
     {
@@ -4356,7 +4366,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         auto triggerCount = 0;
         std::array<int, maxPhraseStepsPerRow> stepTriggerCounts {};
 
-        if (hocketModeEnabled || weaveModeEnabled)
+        if (hocketModeEnabled || weaveModeEnabled || heldNoteDeOverlapLookbackEnabled)
         {
             for (int step = 0; step < stepCount; ++step)
             {
@@ -4411,7 +4421,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
         auto& lastTrigger = lastEmittedTriggerPpq[static_cast<size_t> (row)];
 
-        if (hocketModeEnabled || weaveModeEnabled)
+        if (hocketModeEnabled || weaveModeEnabled || heldNoteDeOverlapLookbackEnabled)
             lastTrigger = collectionPpqStart - cycleLengthQuarters - 1.0;
         else if (resetRowTriggersAtSegmentStart)
             lastTrigger = schedulePpqStart - cycleLengthQuarters - 1.0;
@@ -4484,7 +4494,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             const auto step = trigger.step;
             int stepTriggerCount = 0;
 
-            if (hocketModeEnabled || weaveModeEnabled)
+            if (hocketModeEnabled || weaveModeEnabled || heldNoteDeOverlapLookbackEnabled)
             {
                 stepTriggerCount = stepTriggerCounts[static_cast<size_t> (step)];
                 stepTriggerCounts[static_cast<size_t> (step)] = stepTriggerCount + 1;
@@ -4517,7 +4527,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             if (probability <= 0)
                 continue;
 
-            if (hocketModeEnabled || weaveModeEnabled)
+            if (hocketModeEnabled || weaveModeEnabled || heldNoteDeOverlapLookbackEnabled)
             {
                 if (! probabilityPassesDeterministic (step, stepTriggerCount, probability))
                     continue;
@@ -5644,6 +5654,86 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         sortCombinedEvents();
     }
 
+    if (eventCount > 1)
+    {
+        std::sort (combinedEvents.begin(),
+                   combinedEvents.begin() + static_cast<std::ptrdiff_t> (eventCount),
+                   [] (const CombinedNoteEvent& a, const CombinedNoteEvent& b) {
+                       if (a.channel != b.channel)
+                           return a.channel < b.channel;
+
+                       if (a.note != b.note)
+                           return a.note < b.note;
+
+                       if (std::abs (a.ppq - b.ppq) > 1.0e-9)
+                           return a.ppq < b.ppq;
+
+                       if (a.row != b.row)
+                           return a.row < b.row;
+
+                       return a.step < b.step;
+                   });
+
+        auto write = static_cast<size_t> (0);
+
+        for (size_t read = 0; read < eventCount;)
+        {
+            auto merged = combinedEvents[read];
+            auto mergedEnd = merged.ppq + merged.gateQuarters;
+            auto next = read + 1;
+
+            while (next < eventCount
+                   && combinedEvents[next].channel == merged.channel
+                   && combinedEvents[next].note == merged.note
+                   && combinedEvents[next].ppq < mergedEnd - epsilon)
+            {
+                const auto& candidate = combinedEvents[next];
+                mergedEnd = juce::jmax (mergedEnd, candidate.ppq + candidate.gateQuarters);
+                ++next;
+            }
+
+            merged.gateQuarters = juce::jmax (0.0, mergedEnd - merged.ppq);
+
+            if (write < combinedWorkingEvents.size())
+                combinedWorkingEvents[write++] = merged;
+
+            read = next;
+        }
+
+        eventCount = write;
+        copyFilteredEvents (eventCount);
+        sortCombinedEvents();
+    }
+
+    const auto extendPendingCombinedNoteOff = [&] (const CombinedNoteEvent& event) {
+        const auto eventEndPpq = event.ppq + event.gateQuarters;
+
+        if (eventEndPpq <= schedulePpqStart + epsilon)
+            return;
+
+        const auto eventEndTransportPpq =
+            segmentTransportStartPpq + (eventEndPpq - schedulePpqStart);
+        const auto samplesUntilOff = static_cast<int> (std::lround (
+            (eventEndTransportPpq - bufferTransportStartPpq) / ppqPerSample));
+
+        if (samplesUntilOff <= bufferSamples)
+            return;
+
+        const auto samplesRemainingAfterBuffer = samplesUntilOff - bufferSamples;
+
+        for (size_t i = 0; i < pendingCombinedNoteOffCount; ++i)
+        {
+            auto& pending = pendingCombinedNoteOffs[i];
+
+            if (pending.note < 0 || pending.channel != event.channel || pending.note != event.note)
+                continue;
+
+            pending.samplesRemaining =
+                juce::jmax (pending.samplesRemaining, samplesRemainingAfterBuffer);
+            return;
+        }
+    };
+
     for (size_t index = 0; index < eventCount; ++index)
     {
         auto event = combinedEvents[index];
@@ -5651,9 +5741,12 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         if (event.gateQuarters <= epsilon || event.velocity <= 0)
             continue;
 
-        if (weaveModeEnabled
+        if (heldNoteDeOverlapLookbackEnabled
             && (event.ppq < schedulePpqStart - epsilon || event.ppq >= schedulePpqEnd - epsilon))
         {
+            if (event.ppq < schedulePpqStart - epsilon)
+                extendPendingCombinedNoteOff (event);
+
             continue;
         }
 

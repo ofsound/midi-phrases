@@ -162,6 +162,49 @@ export function cleanupUnisonOverlaps(events, enabled = true) {
 /**
  * @param {ScheduledNote[]} events
  * @param {boolean} enabled
+ * @returns {ScheduledNote[]}
+ */
+export function suppressHeldNoteRetriggers(events, enabled = true) {
+  if (!enabled || events.length <= 1) return events;
+
+  const sorted = [...events].sort((a, b) => (
+    (a.channel ?? 1) - (b.channel ?? 1)
+    || a.midi - b.midi
+    || a.start - b.start
+    || a.row - b.row
+    || a.step - b.step
+  ));
+  /** @type {ScheduledNote[]} */
+  const mergedEvents = [];
+
+  for (let index = 0; index < sorted.length;) {
+    const merged = {...sorted[index]};
+    let mergedEnd = merged.end;
+    let next = index + 1;
+
+    while (
+      next < sorted.length
+      && (sorted[next].channel ?? 1) === (merged.channel ?? 1)
+      && sorted[next].midi === merged.midi
+      && sorted[next].start < mergedEnd - EPSILON
+    ) {
+      mergedEnd = Math.max(mergedEnd, sorted[next].end);
+      next += 1;
+    }
+
+    merged.end = Math.max(merged.start, mergedEnd);
+    mergedEvents.push(merged);
+    index = next;
+  }
+
+  return mergedEvents.sort(
+    (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+  );
+}
+
+/**
+ * @param {ScheduledNote[]} events
+ * @param {boolean} enabled
  * @param {number} repeatLengthQuarters
  * @returns {ScheduledNote[]}
  */
@@ -560,25 +603,27 @@ export function buildPhraseSchedule(params) {
     stepCycle: params.stepCycle ?? [],
     pulseIndex: params.pulseIndex ?? defaultPulseIndex,
   });
-
-  return applyWeaveMonophony(
-    cleanupUnisonOverlaps(
-      applyGlobalTranspose(
-        applyVelocityTilt(
-          applyNoteBandpass(
-            buildPhraseScheduleBeforeBandpass(params),
-            params.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
-            params.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
-          ),
-          params.velocityTiltPivotMidi ?? defaultVelocityTiltPivotMidi,
-          params.velocityTiltAmount ?? defaultVelocityTiltAmount,
-        ),
-        params.globalTransposeSemitones ?? defaultGlobalTransposeSemitones,
+  const combinationModesActive = (params.combinationModeMask ?? 0) !== 0;
+  const finalTransformed = applyGlobalTranspose(
+    applyVelocityTilt(
+      applyNoteBandpass(
+        buildPhraseScheduleBeforeBandpass(params),
+        params.noteBandpassLowMidi ?? defaultNoteBandpassLowMidi,
+        params.noteBandpassHighMidi ?? defaultNoteBandpassHighMidi,
       ),
-      (params.combinationModeMask ?? 0) !== 0,
+      params.velocityTiltPivotMidi ?? defaultVelocityTiltPivotMidi,
+      params.velocityTiltAmount ?? defaultVelocityTiltAmount,
     ),
-    combinationModeEnabled(params.combinationModeMask ?? 0, 4),
-    repeatLengthQuarters,
+    params.globalTransposeSemitones ?? defaultGlobalTransposeSemitones,
+  );
+
+  return suppressHeldNoteRetriggers(
+    applyWeaveMonophony(
+      cleanupUnisonOverlaps(finalTransformed, combinationModesActive),
+      combinationModeEnabled(params.combinationModeMask ?? 0, 4),
+      repeatLengthQuarters,
+    ),
+    true,
   );
 }
 

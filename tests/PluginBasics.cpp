@@ -518,6 +518,233 @@ TEST_CASE ("Combination modes merge duplicate same-channel unison attacks", "[in
     testPlugin.setPlayHead (nullptr);
 }
 
+TEST_CASE ("Combination modes suppress same-note retriggers while held", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 900;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPatternScale (0, 1); // C major
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeCrossModulation, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+    testPlugin.setPhraseRowMidiChannel (0, 1);
+    testPlugin.setPhraseRowMidiChannel (1, 1);
+    testPlugin.setPhraseRowTimingOffset (1, PluginProcessor::defaultRowTimingOffsetIndex + 2);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 60);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (
+            row,
+            0,
+            PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+        testPlugin.setPhraseStepCycle (row, 0, 2);
+        testPlugin.setPhraseStepCycleOffset (row, 0, 1);
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    playHead.info.setPpqPosition (0.0);
+    testPlugin.setPlayHead (&playHead);
+
+    testPlugin.processBlock (buffer, midi);
+
+    std::vector<int> noteOnSamples;
+
+    for (const auto metadata : midi)
+    {
+        const auto message = metadata.getMessage();
+
+        if (message.isNoteOn() && message.getNoteNumber() == 60 && message.getChannel() == 1)
+            noteOnSamples.push_back (metadata.samplePosition);
+    }
+
+    CHECK (noteOnSamples == std::vector<int> { 0 });
+    CHECK (countMidiMessagesForNoteOnChannel (midi, 60, 1, true) == 1);
+    CHECK (countMidiMessagesForNoteOnChannel (midi, 60, 1, false) == 1);
+    CHECK (findNoteOnSampleOnChannel (midi, 60, 1) == 0);
+    CHECK (findNoteOffSampleOnChannel (midi, 60, 1) == 750);
+    testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Combination modes extend held same-note suppression across audio blocks", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 128;
+    constexpr auto ppqPerSample = (120.0 / 60.0) / sampleRate;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPatternScale (0, 1); // C major
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeCrossModulation, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+    testPlugin.setPhraseRowMidiChannel (0, 1);
+    testPlugin.setPhraseRowMidiChannel (1, 1);
+    testPlugin.setPhraseRowTimingOffset (1, PluginProcessor::defaultRowTimingOffsetIndex + 2);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 60);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (
+            row,
+            0,
+            PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+        testPlugin.setPhraseStepCycle (row, 0, 2);
+        testPlugin.setPhraseStepCycleOffset (row, 0, 1);
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    auto noteOnCount = 0;
+    auto noteOffCount = 0;
+    auto noteOffGlobalSample = -1;
+
+    for (int block = 0; block < 7; ++block)
+    {
+        midi.clear();
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize) * ppqPerSample);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.getNoteNumber() != 60 || message.getChannel() != 1)
+                continue;
+
+            if (message.isNoteOn())
+                ++noteOnCount;
+            else if (message.isNoteOff())
+            {
+                ++noteOffCount;
+                noteOffGlobalSample = block * blockSize + metadata.samplePosition;
+            }
+        }
+    }
+
+    CHECK (noteOnCount == 1);
+    CHECK (noteOffCount == 1);
+    CHECK (noteOffGlobalSample == 750);
+    testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Combination modes preserve overlapping unisons on different channels", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPatternScale (0, 1); // C major
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeCrossModulation, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+    testPlugin.setPhraseRowMidiChannel (0, 1);
+    testPlugin.setPhraseRowMidiChannel (1, 2);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 60);
+
+    for (int row = 0; row < 2; ++row)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (
+            row,
+            0,
+            PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+        testPlugin.setPhraseStepCycle (row, 0, 2);
+        testPlugin.setPhraseStepCycleOffset (row, 0, 1);
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    playHead.info.setPpqPosition (0.0);
+    testPlugin.setPlayHead (&playHead);
+
+    testPlugin.processBlock (buffer, midi);
+
+    CHECK (countMidiMessagesForNoteOnChannel (midi, 60, 1, true) == 1);
+    CHECK (countMidiMessagesForNoteOnChannel (midi, 60, 2, true) == 1);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Counter mode adds offbeat response notes", "[instance]")
 {
     PluginProcessor testPlugin;

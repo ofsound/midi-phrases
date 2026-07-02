@@ -22,6 +22,7 @@ import {
   isScheduledNoteActiveAtPlaybackBeat,
   mapPlaybackBeatForPianoRoll,
   patternRepeatLengthQuarters,
+  suppressHeldNoteRetriggers,
 } from "./phraseSchedule.js";
 import { pianoRollContentLengthQuarters, rollLengthQuartersForCycle } from "./rowPianoRollShape.js";
 import { scaledPx } from "./uiScale.svelte.js";
@@ -247,20 +248,23 @@ import { scaledPx } from "./uiScale.svelte.js";
   );
 
   let scheduled = $derived(
-    applyWeaveMonophony(
-      cleanupUnisonOverlaps(
-        applyGlobalTranspose(
-          applyVelocityTilt(
-            applyNoteBandpass(scheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
-            velocityTiltPivotMidi,
-            velocityTiltAmount,
+    suppressHeldNoteRetriggers(
+      applyWeaveMonophony(
+        cleanupUnisonOverlaps(
+          applyGlobalTranspose(
+            applyVelocityTilt(
+              applyNoteBandpass(scheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
+              velocityTiltPivotMidi,
+              velocityTiltAmount,
+            ),
+            globalTransposeSemitones,
           ),
-          globalTransposeSemitones,
+          combinationModeMask !== 0,
         ),
-        combinationModeMask !== 0,
+        combinationModeEnabled(combinationModeMask, 4),
+        patternRepeatQuarters,
       ),
-      combinationModeEnabled(combinationModeMask, 4),
-      patternRepeatQuarters,
+      true,
     ),
   );
 
@@ -297,20 +301,23 @@ import { scaledPx } from "./uiScale.svelte.js";
   );
 
   let fullScheduled = $derived(
-    applyWeaveMonophony(
-      cleanupUnisonOverlaps(
-        applyGlobalTranspose(
-          applyVelocityTilt(
-            applyNoteBandpass(fullScheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
-            velocityTiltPivotMidi,
-            velocityTiltAmount,
+    suppressHeldNoteRetriggers(
+      applyWeaveMonophony(
+        cleanupUnisonOverlaps(
+          applyGlobalTranspose(
+            applyVelocityTilt(
+              applyNoteBandpass(fullScheduledBeforeBandpass, displayBandpassLow, displayBandpassHigh),
+              velocityTiltPivotMidi,
+              velocityTiltAmount,
+            ),
+            globalTransposeSemitones,
           ),
-          globalTransposeSemitones,
+          combinationModeMask !== 0,
         ),
-        combinationModeMask !== 0,
+        combinationModeEnabled(combinationModeMask, 4),
+        patternRepeatQuarters,
       ),
-      combinationModeEnabled(combinationModeMask, 4),
-      patternRepeatQuarters,
+      true,
     ),
   );
 
