@@ -116,6 +116,8 @@ describe("combination mode pulse-aware timing", () => {
   it("places Round Robin after Cross-Mod and before Bloom in the mode rail", () => {
     expect(combinationModes.map((mode) => mode.name)).toEqual([
       "Cross-Mod",
+      "Canon",
+      "Retro-Inv",
       "Hocket",
       "Round Robin",
       "Bloom",
@@ -123,9 +125,90 @@ describe("combination mode pulse-aware timing", () => {
       "Echo",
       "Weave",
     ]);
-    expect(combinationModes[1]).toMatchObject({index: 6, bit: 64});
-    expect(combinationModes[2]).toMatchObject({index: 5, bit: 32});
-    expect(combinationModes[6]).toMatchObject({index: 4, bit: 16});
+    expect(combinationModes[1]).toMatchObject({index: 7, bit: 128});
+    expect(combinationModes[2]).toMatchObject({index: 8, bit: 256});
+    expect(combinationModes[3]).toMatchObject({index: 6, bit: 64});
+    expect(combinationModes[4]).toMatchObject({index: 5, bit: 32});
+    expect(combinationModes[8]).toMatchObject({index: 4, bit: 16});
+  });
+
+  it("adds scale-aware delayed Canon followers on the next active row", () => {
+    const schedule = buildPhraseScheduleBeforeBandpass({
+      notes: [[60, 64], [67], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      stepDurationFraction: [[1, 1], [1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[100, 100], [100], [], []],
+      stepMuted: [[false, false], [false], [], []],
+      stepSkipped: [[false, false], [false], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 7,
+      lengthQuarters: 3,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+
+    expect(schedule).toEqual(expect.arrayContaining([
+      expect.objectContaining({start: 1, midi: 67, row: 1, step: 0, velocity: 78}),
+      expect.objectContaining({start: 2, midi: 71, row: 1, step: 0, velocity: 78}),
+    ]));
+  });
+
+  it("adds reversed scale-degree inversion followers for Retro-Inv", () => {
+    const schedule = buildPhraseScheduleBeforeBandpass({
+      notes: [[60, 64, 67], [72], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      stepDurationFraction: [[1, 1, 1], [1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[100, 100, 100], [100], [], []],
+      stepMuted: [[false, false, false], [false], [], []],
+      stepSkipped: [[false, false, false], [false], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 8,
+      lengthQuarters: 2,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+
+    expect(schedule).toEqual(expect.arrayContaining([
+      expect.objectContaining({start: 0.5, midi: 65, row: 1, step: 0, velocity: 68}),
+    ]));
+  });
+
+  it("leaves a single active row unchanged in Canon and Retro-Inv modes", () => {
+    const baseParams = {
+      notes: [[60, 64], [], [], []],
+      rowMuted: [false, true, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      stepDurationFraction: [[1, 1], [], [], []],
+      stepTimingMultiplier: [[defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex], [], [], []],
+      stepVelocity: [[100, 100], [], [], []],
+      stepMuted: [[false, false], [], [], []],
+      stepSkipped: [[false, false], [], [], []],
+      pulseIndex: 1,
+      lengthQuarters: 2,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    };
+    const base = buildPhraseScheduleBeforeBandpass({...baseParams, combinationModeMask: 0});
+    const imitated = buildPhraseScheduleBeforeBandpass({
+      ...baseParams,
+      combinationModeMask: (1 << 7) | (1 << 8),
+    });
+
+    expect(imitated).toEqual(base);
   });
 
   it("hockets overlapping rows into one short handoff per pulse slice", () => {

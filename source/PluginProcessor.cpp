@@ -13,7 +13,7 @@ constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double roundRobinOverlapFraction = 0.25;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 24;
+constexpr int phraseStateVersion = 25;
 
 int clampStepProbability (const int probability)
 {
@@ -4495,6 +4495,112 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             if (durationGate > epsilon)
                 event.gateQuarters = durationGate;
         }
+    }
+
+    if (combinationModeEnabled (modeMask, combinationModeCanon) && activeRowCount > 1)
+    {
+        const auto originalCount = eventCount;
+
+        for (size_t index = 0; index < originalCount; ++index)
+            combinedWorkingEvents[index] = combinedEvents[index];
+
+        auto write = originalCount;
+        const auto canonDelay = combinationGesturePulse / static_cast<double> (activeRowCount);
+
+        for (size_t read = 0; read < originalCount && write < combinedWorkingEvents.size(); ++read)
+        {
+            const auto& source = combinedEvents[read];
+            const auto position = activeRowPosition (source.row);
+            const auto targetRow = activeRows[static_cast<size_t> ((position + 1) % activeRowCount)];
+            const auto& targetSteps = state.rows[static_cast<size_t> (targetRow)];
+
+            if (targetSteps.stepCount <= 0)
+                continue;
+
+            const auto targetStep = source.step % juce::jmax (1, targetSteps.stepCount);
+            const auto sourceBase = firstNoteForRow (source.row);
+            const auto targetBase = firstNoteForRow (targetRow);
+
+            auto copy = source;
+            copy.ppq = source.ppq + canonDelay;
+            copy.note = transposeMidiByScaleDegrees (
+                targetBase,
+                scaleDegreeDelta (sourceBase, source.note, scaleRoot, scaleModeIndex),
+                scaleRoot,
+                scaleModeIndex);
+            copy.velocity = juce::jlimit (
+                1,
+                127,
+                static_cast<int> (std::lround (static_cast<double> (source.velocity) * 0.78)));
+            copy.row = targetRow;
+            copy.channel = state.midiChannel[static_cast<size_t> (targetRow)];
+            copy.step = targetStep;
+            combinedWorkingEvents[write++] = copy;
+        }
+
+        eventCount = write;
+        copyFilteredEvents (eventCount);
+        sortCombinedEvents();
+    }
+
+    if (combinationModeEnabled (modeMask, combinationModeRetroInversion) && activeRowCount > 1)
+    {
+        const auto originalCount = eventCount;
+
+        for (size_t index = 0; index < originalCount; ++index)
+            combinedWorkingEvents[index] = combinedEvents[index];
+
+        auto write = originalCount;
+        const auto mirrorDelay = combinationGesturePulse * 0.25;
+
+        for (size_t read = 0; read < originalCount && write < combinedWorkingEvents.size(); ++read)
+        {
+            const auto& source = combinedEvents[read];
+            const auto& sourceSteps = state.rows[static_cast<size_t> (source.row)];
+
+            if (sourceSteps.stepCount <= 0)
+                continue;
+
+            const auto position = activeRowPosition (source.row);
+            const auto targetRow = activeRows[static_cast<size_t> ((position + 1) % activeRowCount)];
+            const auto& targetSteps = state.rows[static_cast<size_t> (targetRow)];
+
+            if (targetSteps.stepCount <= 0)
+                continue;
+
+            const auto sourceStep = source.step % juce::jmax (1, sourceSteps.stepCount);
+            const auto mirroredStep = sourceSteps.stepCount - 1 - sourceStep;
+            const auto targetStep = mirroredStep % juce::jmax (1, targetSteps.stepCount);
+            const auto sourceBase = firstNoteForRow (source.row);
+            const auto targetBase = firstNoteForRow (targetRow);
+            const auto mirroredSourceNote =
+                sourceSteps.notes[static_cast<size_t> (mirroredStep)];
+            const auto mirrorGate = source.gateQuarters * 0.7;
+
+            if (mirrorGate <= epsilon)
+                continue;
+
+            auto copy = source;
+            copy.ppq = source.ppq + mirrorDelay;
+            copy.gateQuarters = mirrorGate;
+            copy.note = transposeMidiByScaleDegrees (
+                targetBase,
+                -scaleDegreeDelta (sourceBase, mirroredSourceNote, scaleRoot, scaleModeIndex),
+                scaleRoot,
+                scaleModeIndex);
+            copy.velocity = juce::jlimit (
+                1,
+                127,
+                static_cast<int> (std::lround (static_cast<double> (source.velocity) * 0.68)));
+            copy.row = targetRow;
+            copy.channel = state.midiChannel[static_cast<size_t> (targetRow)];
+            copy.step = targetStep;
+            combinedWorkingEvents[write++] = copy;
+        }
+
+        eventCount = write;
+        copyFilteredEvents (eventCount);
+        sortCombinedEvents();
     }
 
     if (combinationModeEnabled (modeMask, combinationModeHocket) && activeRowCount > 1)

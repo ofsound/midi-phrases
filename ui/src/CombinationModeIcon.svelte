@@ -1,8 +1,8 @@
 <script>
   /**
-   * Combination-mode glyphs (Cross-Mod, Hocket, Bloom, Counter, Echo, Round Robin, Weave).
+   * Combination-mode glyphs (Cross-Mod, Canon, Retro-Inv, Hocket, Bloom, Counter, Echo, Round Robin, Weave).
    *
-   * @typedef {'crossMod' | 'hocket' | 'bloom' | 'counter' | 'echo' | 'roundRobin' | 'weave'} CombinationModeIconKind
+   * @typedef {'crossMod' | 'canon' | 'retroInv' | 'hocket' | 'bloom' | 'counter' | 'echo' | 'roundRobin' | 'weave'} CombinationModeIconKind
    * @typedef {Object} Props
    * @property {CombinationModeIconKind} kind
    * @property {string} [class]
@@ -47,6 +47,59 @@
       stroke-width="1.45"
       stroke-linecap="round"
       stroke-linejoin="round"
+    />
+  {:else if kind === "canon"}
+    <!-- Leader imitated by a delayed follower row. -->
+    <path
+      d="M4 8 H10.5 C13 8 14.5 11 17 11 H20"
+      stroke="currentColor"
+      stroke-width="1.45"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M4 14 H10.5 C13 14 14.5 17 17 17 H20"
+      stroke="currentColor"
+      stroke-width="1.45"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.62"
+    />
+    <circle cx="4" cy="8" r="1.55" fill="currentColor" />
+    <circle cx="20" cy="11" r="1.55" fill="currentColor" />
+    <circle cx="4" cy="14" r="1.55" fill="currentColor" opacity="0.62" />
+    <circle cx="20" cy="17" r="1.55" fill="currentColor" opacity="0.62" />
+    <path d="M10.2 5.8 V18.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity="0.35" />
+    <path d="M13.8 5.8 V18.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity="0.35" />
+  {:else if kind === "retroInv"}
+    <!-- Reversed contour reflected around the following row. -->
+    <path
+      d="M4 7 C8 7 10 12 12 12 C14 12 16 17 20 17"
+      stroke="currentColor"
+      stroke-width="1.45"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M4 17 C8 17 10 12 12 12 C14 12 16 7 20 7"
+      stroke="currentColor"
+      stroke-width="1.45"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.58"
+    />
+    <circle cx="4" cy="7" r="1.5" fill="currentColor" />
+    <circle cx="4" cy="17" r="1.5" fill="currentColor" opacity="0.58" />
+    <circle cx="20" cy="7" r="1.5" fill="currentColor" opacity="0.58" />
+    <circle cx="20" cy="17" r="1.5" fill="currentColor" />
+    <path d="M12 5.25 V18.75" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity="0.4" />
+    <path
+      d="M9.25 10.15 L12 12 L14.75 10.15"
+      stroke="currentColor"
+      stroke-width="1.1"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.45"
     />
   {:else if kind === "hocket"}
     <!-- Long gestures broken into alternating row handoffs. -->

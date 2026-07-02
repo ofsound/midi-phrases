@@ -23,10 +23,12 @@ const MAX_COMBINED_PREVIEW_NOTES = 4096;
 const COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR = 2;
 const ROUND_ROBIN_OVERLAP_FRACTION = 0.25;
 const DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS = 64;
-export const combinationModeMaskBits = 0x7f;
+export const combinationModeMaskBits = 0x1ff;
 /** Display order matches processing order. Weave keeps its legacy bit and runs last. */
 export const combinationModes = [
   {index: 0, bit: 1, icon: "crossMod", name: "Cross-Mod"},
+  {index: 7, bit: 128, icon: "canon", name: "Canon"},
+  {index: 8, bit: 256, icon: "retroInv", name: "Retro-Inv"},
   {index: 6, bit: 64, icon: "hocket", name: "Hocket"},
   {index: 5, bit: 32, icon: "roundRobin", name: "Round Robin"},
   {index: 1, bit: 2, icon: "bloom", name: "Bloom"},
@@ -543,6 +545,121 @@ function eventStartCollides(events, start) {
   return events.some((event) => Math.abs(event.start - start) <= EPSILON);
 }
 
+/** @param {number[]} activeRows @param {number} row */
+function activeRowPosition(activeRows, row) {
+  return Math.max(0, activeRows.indexOf(row));
+}
+
+/**
+ * @param {ScheduledNote[]} events
+ * @param {number[]} activeRows
+ * @param {number[][]} notes
+ * @param {number} scaleRoot
+ * @param {number} scaleModeIndex
+ * @param {number} delayQuarters
+ * @param {number} lengthQuarters
+ * @returns {ScheduledNote[]}
+ */
+function addCanonFollowers(events, activeRows, notes, scaleRoot, scaleModeIndex, delayQuarters, lengthQuarters) {
+  if (activeRows.length <= 1 || events.length === 0) return events;
+
+  const original = events.map((event) => ({...event}));
+  const combined = [...original];
+
+  for (const event of original) {
+    if (combined.length >= MAX_COMBINED_PREVIEW_NOTES) break;
+
+    const sourceRow = event.row;
+    const position = activeRowPosition(activeRows, sourceRow);
+    const targetRow = activeRows[(position + 1) % activeRows.length];
+    const targetNotes = notes[targetRow] ?? [];
+
+    if (targetNotes.length <= 0) continue;
+
+    const targetStep = event.step % targetNotes.length;
+    const sourceBase = notes[sourceRow]?.[0] ?? event.midi;
+    const targetBase = targetNotes[0] ?? event.midi;
+    const degreeDelta = scaleDegreeDelta(sourceBase, event.midi, scaleRoot, scaleModeIndex);
+    const start = event.start + delayQuarters;
+
+    if (start >= lengthQuarters - EPSILON) continue;
+
+    combined.push({
+      ...event,
+      start,
+      end: start + Math.max(0, event.end - event.start),
+      midi: transposeMidiByScaleDegrees(targetBase, degreeDelta, scaleRoot, scaleModeIndex),
+      velocity: Math.min(127, Math.max(1, Math.round(event.velocity * 0.78))),
+      row: targetRow,
+      step: targetStep,
+    });
+  }
+
+  return combined.sort(
+    (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+  );
+}
+
+/**
+ * @param {ScheduledNote[]} events
+ * @param {number[]} activeRows
+ * @param {number[][]} notes
+ * @param {number} scaleRoot
+ * @param {number} scaleModeIndex
+ * @param {number} delayQuarters
+ * @param {number} lengthQuarters
+ * @returns {ScheduledNote[]}
+ */
+function addRetroInversionFollowers(events, activeRows, notes, scaleRoot, scaleModeIndex, delayQuarters, lengthQuarters) {
+  if (activeRows.length <= 1 || events.length === 0) return events;
+
+  const original = events.map((event) => ({...event}));
+  const combined = [...original];
+
+  for (const event of original) {
+    if (combined.length >= MAX_COMBINED_PREVIEW_NOTES) break;
+
+    const sourceRow = event.row;
+    const sourceNotes = notes[sourceRow] ?? [];
+
+    if (sourceNotes.length <= 0) continue;
+
+    const position = activeRowPosition(activeRows, sourceRow);
+    const targetRow = activeRows[(position + 1) % activeRows.length];
+    const targetNotes = notes[targetRow] ?? [];
+
+    if (targetNotes.length <= 0) continue;
+
+    const mirroredStep = sourceNotes.length - 1 - (event.step % sourceNotes.length);
+    const targetStep = mirroredStep % targetNotes.length;
+    const sourceBase = sourceNotes[0] ?? event.midi;
+    const targetBase = targetNotes[0] ?? event.midi;
+    const mirroredSourceNote = sourceNotes[mirroredStep] ?? sourceBase;
+    const mirroredDelta = scaleDegreeDelta(sourceBase, mirroredSourceNote, scaleRoot, scaleModeIndex);
+    const start = event.start + delayQuarters;
+
+    if (start >= lengthQuarters - EPSILON) continue;
+
+    const gate = Math.max(0, (event.end - event.start) * 0.7);
+
+    if (gate <= EPSILON) continue;
+
+    combined.push({
+      ...event,
+      start,
+      end: start + gate,
+      midi: transposeMidiByScaleDegrees(targetBase, -mirroredDelta, scaleRoot, scaleModeIndex),
+      velocity: Math.min(127, Math.max(1, Math.round(event.velocity * 0.68))),
+      row: targetRow,
+      step: targetStep,
+    });
+  }
+
+  return combined.sort(
+    (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+  );
+}
+
 /**
  * @param {ScheduledNote[]} events
  * @param {number[]} activeRows
@@ -692,7 +809,7 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
 
   if (combinationModeEnabled(combinationModeMask, 0) && activeRows.length > 1) {
     events = events.map((event) => {
-      const activeIndex = Math.max(0, activeRows.indexOf(event.row));
+      const activeIndex = activeRowPosition(activeRows, event.row);
       const pitchRow = activeRows[(activeIndex + 1) % activeRows.length];
       const velocityRow = activeRows[(activeIndex + 2) % activeRows.length];
       const durationRow = activeRows[(activeIndex + 3) % activeRows.length];
@@ -710,6 +827,34 @@ function applyCombinationModes({scheduled, notes, rowMuted, stepTimingMultiplier
         end: event.start + (duration > EPSILON ? duration : event.end - event.start),
       };
     });
+  }
+
+  if (combinationModeEnabled(combinationModeMask, 7) && activeRows.length > 1) {
+    const combinationGesturePulse = Math.max(pulseQuartersForIndex(pulseIndex), COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR);
+    events = addCanonFollowers(
+      events,
+      activeRows,
+      notes,
+      scaleRoot,
+      scaleModeIndex,
+      combinationGesturePulse / activeRows.length,
+      lengthQuarters,
+    );
+  }
+
+  if (events.length === 0) return [];
+
+  if (combinationModeEnabled(combinationModeMask, 8) && activeRows.length > 1) {
+    const combinationGesturePulse = Math.max(pulseQuartersForIndex(pulseIndex), COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR);
+    events = addRetroInversionFollowers(
+      events,
+      activeRows,
+      notes,
+      scaleRoot,
+      scaleModeIndex,
+      combinationGesturePulse * 0.25,
+      lengthQuarters,
+    );
   }
 
   if (combinationModeEnabled(combinationModeMask, 6) && activeRows.length > 1) {
