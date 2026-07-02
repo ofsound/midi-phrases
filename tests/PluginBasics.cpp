@@ -4,6 +4,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <cmath>
+#include <limits>
 
 TEST_CASE ("one is equal to one", "[dummy]")
 {
@@ -513,6 +514,269 @@ TEST_CASE ("Hocket mode slices overlapping rows into interlocking handoffs", "[i
         CHECK (count <= 1);
 
     CHECK (totalNoteOns >= 4);
+    testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Hocket mode keeps four offset rows monophonic in audio output", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 256;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, true);
+
+    for (int row = 0; row < 4; ++row)
+    {
+        testPlugin.setPhraseRowMuted (row, false);
+        testPlugin.setPhraseRowTimingOffset (
+            row,
+            PluginProcessor::defaultRowTimingOffsetIndex + row);
+        ensurePhraseRowStepCount (testPlugin, row, 1);
+        testPlugin.setPhraseNote (row, 0, 60 + row * 2);
+        testPlugin.setPhraseStepTimingMultiplier (
+            row,
+            0,
+            PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    auto maxSimultaneousNoteOns = 0;
+
+    for (int block = 0; block < 16; ++block)
+    {
+        midi.clear();
+        std::array<int, blockSize> noteOnsBySample {};
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                      * (120.0 / 60.0) / sampleRate);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (! message.isNoteOn())
+                continue;
+
+            ++noteOnsBySample[static_cast<size_t> (metadata.samplePosition)];
+            maxSimultaneousNoteOns =
+                juce::jmax (maxSimultaneousNoteOns,
+                            noteOnsBySample[static_cast<size_t> (metadata.samplePosition)]);
+        }
+    }
+
+    CHECK (maxSimultaneousNoteOns <= 1);
+    testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Hocket mode keeps four offset two-step rows monophonic in audio output", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 256;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, true);
+
+    for (int row = 0; row < 4; ++row)
+    {
+        testPlugin.setPhraseRowMuted (row, false);
+        testPlugin.setPhraseRowTimingOffset (
+            row,
+            PluginProcessor::defaultRowTimingOffsetIndex + row);
+        ensurePhraseRowStepCount (testPlugin, row, 2);
+        testPlugin.setPhraseNote (row, 0, 60 + row * 2);
+        testPlugin.setPhraseNote (row, 1, 62 + row * 2);
+        for (int step = 0; step < 2; ++step)
+        {
+            testPlugin.setPhraseStepTimingMultiplier (
+                row,
+                step,
+                PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (row, step, 100);
+        }
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override { return info; }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    auto maxSimultaneousNoteOns = 0;
+
+    for (int block = 0; block < 32; ++block)
+    {
+        midi.clear();
+        std::array<int, blockSize> noteOnsBySample {};
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                      * (120.0 / 60.0) / sampleRate);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+            if (! message.isNoteOn()) continue;
+            ++noteOnsBySample[static_cast<size_t> (metadata.samplePosition)];
+            maxSimultaneousNoteOns = juce::jmax (
+                maxSimultaneousNoteOns,
+                noteOnsBySample[static_cast<size_t> (metadata.samplePosition)]);
+        }
+    }
+
+    CHECK (maxSimultaneousNoteOns <= 1);
+    testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Hocket mode keeps four offset multi-step rows monophonic in audio output", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 256;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, true);
+
+    for (int row = 0; row < 4; ++row)
+    {
+        testPlugin.setPhraseRowMuted (row, false);
+        testPlugin.setPhraseRowTimingOffset (
+            row,
+            PluginProcessor::defaultRowTimingOffsetIndex + row);
+    }
+
+    ensurePhraseRowStepCount (testPlugin, 0, 3);
+    ensurePhraseRowStepCount (testPlugin, 1, 3);
+    ensurePhraseRowStepCount (testPlugin, 2, 4);
+    ensurePhraseRowStepCount (testPlugin, 3, 3);
+
+    const std::array<std::array<int, 4>, 4> notes { {
+        { 53, 55, 55, 0 },
+        { 57, 53, 58, 0 },
+        { 55, 62, 57, 57 },
+        { 50, 48, 48, 0 },
+    } };
+
+    for (int row = 0; row < 4; ++row)
+    {
+        const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+        for (int step = 0; step < stepCount; ++step)
+            testPlugin.setPhraseNote (row, step, notes[static_cast<size_t> (row)][static_cast<size_t> (step)]);
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            testPlugin.setPhraseStepTimingMultiplier (
+                row,
+                step,
+                PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (row, step, 100);
+        }
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    std::array<int, blockSize> noteOnsBySample {};
+    auto maxSimultaneousNoteOns = 0;
+    auto shortestAudibleGateSamples = std::numeric_limits<int>::max ();
+
+    for (int block = 0; block < 32; ++block)
+    {
+        midi.clear();
+        noteOnsBySample.fill (0);
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                      * (120.0 / 60.0) / sampleRate);
+        testPlugin.processBlock (buffer, midi);
+
+        std::array<int, blockSize> noteOnNotes {};
+        noteOnNotes.fill (-1);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+            {
+                const auto sample = metadata.samplePosition;
+                ++noteOnsBySample[static_cast<size_t> (sample)];
+                noteOnNotes[static_cast<size_t> (sample)] = message.getNoteNumber();
+                maxSimultaneousNoteOns =
+                    juce::jmax (maxSimultaneousNoteOns, noteOnsBySample[static_cast<size_t> (sample)]);
+            }
+
+            if (message.isNoteOff())
+            {
+                const auto sample = metadata.samplePosition;
+
+                for (int onSample = 0; onSample < sample; ++onSample)
+                {
+                    if (noteOnNotes[static_cast<size_t> (onSample)] == message.getNoteNumber())
+                    {
+                        shortestAudibleGateSamples =
+                            juce::jmin (shortestAudibleGateSamples, sample - onSample);
+                        noteOnNotes[static_cast<size_t> (onSample)] = -1;
+                    }
+                }
+            }
+        }
+    }
+
+    for (const auto count : noteOnsBySample)
+        CHECK (count <= 1);
+
+    CHECK (maxSimultaneousNoteOns <= 1);
+    CHECK (shortestAudibleGateSamples > 50);
     testPlugin.setPlayHead (nullptr);
 }
 

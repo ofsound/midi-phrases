@@ -4635,6 +4635,10 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                 {
                     const auto sliceStart = static_cast<double> (slice) * sliceQuarters;
                     const auto sliceEnd = sliceStart + sliceQuarters;
+
+                    if (sliceStart >= schedulePpqEnd - epsilon)
+                        continue;
+
                     const auto targetIndex = ((slice % activeRowCount) + activeRowCount) % activeRowCount;
                     const auto targetRow = activeRows[static_cast<size_t> (targetIndex)];
                     auto candidateCount = 0;
@@ -5252,6 +5256,9 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         auto event = combinedEvents[index];
 
         if (event.gateQuarters <= epsilon || event.velocity <= 0)
+            continue;
+
+        if (event.ppq >= schedulePpqEnd - epsilon)
             continue;
 
         const auto stepLength = event.gateQuarters;
