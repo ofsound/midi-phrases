@@ -4576,6 +4576,10 @@
 
     const key = stepSelectionKey(row, stepId);
 
+    if (locations.length <= 1) {
+      return [{ row, step, key }];
+    }
+
     if (!locations.some((location) => location.key === key)) {
       locations.push({ row, step, key });
     }
