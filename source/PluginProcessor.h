@@ -169,7 +169,7 @@ public:
     int getPatternShimmerFeedbackPercent (int patternSlot) const;
     int getPatternShimmerMixPercent (int patternSlot) const;
 
-    static constexpr int defaultSeedingPhraseLength = 3;
+    static constexpr int defaultSeedingPhraseLength = 4;
     static constexpr int minSeedingPhraseLength = 2;
     static constexpr int maxSeedingPhraseLength = 16;
     static constexpr int defaultSeedingCenterMidi = -1;

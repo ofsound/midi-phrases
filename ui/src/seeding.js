@@ -55,7 +55,7 @@ const rhythmDurationPenalties = [0, 0.02, 0.05, 0.07, 0.09, 0.12, 0.14, 0.16];
 const rhythmAccentTimingMultipliers = [1, 0.9375, 0.875, 0.8125, 0.75, 0.6875, 0.5625, 0.5];
 
 export const defaultSeedingSettings = {
-  phraseLength: 3,
+  phraseLength: 4,
   centerMidi: defaultSeedingCenterMidi,
   rangeSemitones: defaultSeedingRangeSemitones,
   repetition: 45,
