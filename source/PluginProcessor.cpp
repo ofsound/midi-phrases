@@ -353,6 +353,37 @@ int echoNoteFromModStep (const int carrierNote,
                                         modeIndex);
 }
 
+int foldMidiToNearestRegister (const int note, const int centerNote)
+{
+    constexpr auto maxDistanceSemitones = 7;
+    auto best = juce::jlimit (0, 127, note);
+    auto bestDistance = std::abs (best - centerNote);
+
+    for (int octaveOffset = -10; octaveOffset <= 10; ++octaveOffset)
+    {
+        const auto candidate = note + octaveOffset * 12;
+
+        if (candidate < 0 || candidate > 127)
+            continue;
+
+        const auto distance = std::abs (candidate - centerNote);
+
+        if (distance < bestDistance
+            || (distance == bestDistance && candidate < best))
+        {
+            best = candidate;
+            bestDistance = distance;
+        }
+    }
+
+    if (bestDistance <= maxDistanceSemitones)
+        return best;
+
+    return juce::jlimit (juce::jmax (0, centerNote - maxDistanceSemitones),
+                         juce::jmin (127, centerNote + maxDistanceSemitones),
+                         best);
+}
+
 bool combinationModeEnabled (const int mask, const int modeIndex)
 {
     const auto bit = combinationModeBit (modeIndex);
@@ -5203,6 +5234,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                                                               scaleRoot,
                                                               scaleModeIndex);
 
+                answerNote = foldMidiToNearestRegister (answerNote, source.note);
+
                 if (answerNote != source.note)
                 {
                     appendTendril (modRow,
@@ -5258,6 +5291,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                             + static_cast<double> (resolutionSteps.velocity[candidateIndex]) * 0.28));
                     }
                 }
+
+                resolutionNote = foldMidiToNearestRegister (resolutionNote, source.note);
 
                 if (resolutionNote != source.note)
                 {

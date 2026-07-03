@@ -112,6 +112,33 @@ function midiChannelForRow(rowMidiChannel, row) {
   return clampMidiChannel(rowMidiChannel[row] ?? row + 1);
 }
 
+function foldMidiToNearestRegister(midi, centerMidi) {
+  const maxDistanceSemitones = 7;
+  let best = Math.min(127, Math.max(0, Math.round(midi)));
+  const center = Math.min(127, Math.max(0, Math.round(centerMidi)));
+  let bestDistance = Math.abs(best - center);
+
+  for (let octaveOffset = -10; octaveOffset <= 10; octaveOffset += 1) {
+    const candidate = Math.round(midi) + octaveOffset * 12;
+
+    if (candidate < 0 || candidate > 127) continue;
+
+    const distance = Math.abs(candidate - center);
+
+    if (distance < bestDistance || (distance === bestDistance && candidate < best)) {
+      best = candidate;
+      bestDistance = distance;
+    }
+  }
+
+  if (bestDistance <= maxDistanceSemitones) return best;
+
+  return Math.min(
+    Math.min(127, center + maxDistanceSemitones),
+    Math.max(Math.max(0, center - maxDistanceSemitones), best),
+  );
+}
+
 /**
  * @param {ScheduledNote[]} events
  * @param {boolean} enabled
@@ -1442,6 +1469,8 @@ function applyCombinationModes({
           answerMidi = transposeMidiByScaleDegrees(answerMidi, direction, scaleRoot, scaleModeIndex);
         }
 
+        answerMidi = foldMidiToNearestRegister(answerMidi, event.midi);
+
         if (answerMidi !== event.midi) {
           appendTendril(
             modRow,
@@ -1480,6 +1509,8 @@ function applyCombinationModes({
             resolutionVelocity = event.velocity * 0.26 + (stepVelocity[resolutionCandidateRow]?.[candidateStep] ?? event.velocity) * 0.28;
           }
         }
+
+        resolutionMidi = foldMidiToNearestRegister(resolutionMidi, event.midi);
 
         if (resolutionMidi !== event.midi) {
           appendTendril(

@@ -506,6 +506,52 @@ TEST_CASE ("Tendril mode keeps generated note-ons on rhythmic gesture slots", "[
     CHECK (std::find (events.begin(), events.end(), std::pair<int, int> { 3000, 62 }) != events.end());
 }
 
+TEST_CASE ("Tendril mode folds wide answers into the source register", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 500;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 2);
+
+    testPlugin.setPhraseNote (0, 0, 60); // C4
+    testPlugin.setPhraseNote (1, 0, 72); // C5
+    testPlugin.setPhraseNote (1, 1, 91); // G6
+
+    for (int row = 0; row < 2; ++row)
+    {
+        const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            testPlugin.setPhraseStepTimingMultiplier (
+                row,
+                step,
+                PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (row, step, 100);
+        }
+    }
+
+    testPlugin.setPatternScale (0, 1); // C major
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeTendril, true);
+
+    const auto events = collectNoteOnEvents (testPlugin, sampleRate, blockSize, 4);
+
+    CHECK (std::find (events.begin(), events.end(), std::pair<int, int> { 1500, 55 }) != events.end());
+    CHECK (std::find (events.begin(), events.end(), std::pair<int, int> { 1500, 79 }) == events.end());
+}
+
 TEST_CASE ("Combination modes merge duplicate same-channel unison attacks", "[instance]")
 {
     PluginProcessor testPlugin;

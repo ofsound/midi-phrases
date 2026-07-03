@@ -231,12 +231,15 @@ slot (`50%`), reading the next playable step from the next active row. If that
 start collides with an existing event it nudges later by one full Tendril grid
 step, so collision handling remains on-grid. The answer uses the modulator row's
 MIDI channel, so multi-channel phrase rows can pass the response to a different
-instrument.
+instrument. Answer pitches preserve the borrowed contour's pitch class but are
+folded by octaves into the nearest register around the source note, bounded to
+`source ± 7` semitones.
 
 For long sources whose modulator moves by at least two scale degrees, Tendril may
 add a quiet resolution on the third grid slot (`75%`). With at least three active
 rows, the resolution borrows contour and MIDI channel from the following row;
 with only two active rows, it falls back to a scale-degree return from the source.
+Borrowed resolution pitches use the same nearest-register fold as answers.
 
 Output effect:
 

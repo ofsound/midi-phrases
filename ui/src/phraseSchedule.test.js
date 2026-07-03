@@ -396,6 +396,36 @@ describe("combination mode pulse-aware timing", () => {
     expect(halfPulseStart).toBeCloseTo(1, 9);
   });
 
+  it("folds wide Tendril answers into the source register", () => {
+    const schedule = buildPhraseScheduleBeforeBandpass({
+      notes: [[60], [72, 91], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      stepDurationFraction: [[1], [1, 1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[100], [100, 100], [], []],
+      stepMuted: [[false], [false, false], [], []],
+      stepSkipped: [[false], [false, false], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 1,
+      lengthQuarters: 2,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+
+    expect(schedule).toEqual(expect.arrayContaining([
+      expect.objectContaining({start: 1.5, midi: 55, row: 1, step: 1}),
+    ]));
+    expect(schedule).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({start: 1.5, midi: 79, row: 1, step: 1}),
+    ]));
+  });
+
   it("keeps Tendril note-ons on quarter-gesture slots at whole-note pulse", () => {
     const schedule = combinationSchedule(3, 1 << 1);
     const tendrilStarts = schedule
