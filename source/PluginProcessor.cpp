@@ -4851,281 +4851,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         sortCombinedEvents();
     }
 
-    if (combinationModeEnabled (modeMask, combinationModeHocket) && activeRowCount > 1)
-    {
-        const auto sliceQuarters = pulse / static_cast<double> (activeRowCount);
-        const auto minimumHocketSliceOverlap =
-            sliceQuarters * hocketMinimumSliceOverlapFraction;
-        const auto maxModRowStepStartQuarters = [&] {
-            auto maxStart = 0.0;
-
-            for (int index = 0; index < activeRowCount; ++index)
-            {
-                const auto& rowSteps =
-                    state.rows[static_cast<size_t> (activeRows[static_cast<size_t> (index)])];
-
-                for (int step = 0; step < rowSteps.stepCount; ++step)
-                {
-                    const auto stepIndex = static_cast<size_t> (step);
-
-                    if (rowSteps.stepSkipped[stepIndex] != 0
-                        || rowSteps.stepMuted[stepIndex] != 0
-                        || rowSteps.velocity[stepIndex] <= 0)
-                        continue;
-
-                    maxStart = juce::jmax (maxStart, rowSteps.stepStartQuarters[stepIndex]);
-                }
-            }
-
-            return maxStart;
-        };
-        const auto combinationFollowerLead = [&] {
-            auto lead = 0.0;
-
-            if (combinationModeEnabled (modeMask, combinationModeMultiplyEcho)
-                || combinationModeEnabled (modeMask, combinationModeTendril))
-            {
-                lead = juce::jmax (lead, maxModRowStepStartQuarters());
-            }
-
-            if (combinationModeEnabled (modeMask, combinationModeTendril))
-                lead = juce::jmax (lead, combinationGesturePulse * 0.75);
-
-            if (activePattern.shimmerEnabled != 0)
-            {
-                const auto shimmerDelayQuarters =
-                    stepTimingMultiplierForIndex (activePattern.shimmerDelayMultiplierIndex) * pulse;
-
-                if (shimmerDelayQuarters > 1.0e-9)
-                {
-                    auto maxTapDelay = 0.0;
-
-                    for (int tap = 1; tap < 32; ++tap)
-                    {
-                        if (shimmerTapVelocity (100,
-                                                tap,
-                                                activePattern.shimmerFeedbackPercent,
-                                                activePattern.shimmerMixPercent)
-                            <= 0)
-                            break;
-
-                        maxTapDelay = static_cast<double> (tap) * shimmerDelayQuarters;
-                    }
-
-                    lead = juce::jmax (lead, maxTapDelay);
-                }
-            }
-
-            return lead;
-        }();
-
-        if (sliceQuarters > epsilon)
-        {
-            auto sliceLoopFirst =
-                static_cast<int> (std::floor ((emitPpqStart + epsilon) / sliceQuarters));
-            const auto sliceLoopLast =
-                static_cast<int> (std::ceil ((emitPpqEnd - epsilon) / sliceQuarters)) - 1;
-
-            if (combinationFollowerLead > epsilon)
-            {
-                const auto extendedFirstSlice =
-                    static_cast<int> (std::floor ((emitPpqStart - combinationFollowerLead + epsilon)
-                                                  / sliceQuarters));
-                sliceLoopFirst = juce::jmin (sliceLoopFirst, extendedFirstSlice);
-            }
-
-            auto write = static_cast<size_t> (0);
-            auto eventScanStart = static_cast<size_t> (0);
-
-            if (sliceLoopFirst <= sliceLoopLast)
-            {
-                for (int slice = sliceLoopFirst; slice <= sliceLoopLast && write < combinedWorkingEvents.size(); ++slice)
-                {
-                    const auto sliceStart = static_cast<double> (slice) * sliceQuarters;
-                    const auto sliceEnd = sliceStart + sliceQuarters;
-                    const auto carrierOnlyForCombinationFollowers =
-                        combinationFollowerLead > epsilon && sliceStart < emitPpqStart - epsilon;
-
-                    if (sliceStart < emitPpqStart - epsilon && ! carrierOnlyForCombinationFollowers)
-                        continue;
-
-                    if (sliceStart >= emitPpqEnd - epsilon)
-                        continue;
-
-                    if (sliceStart >= hocketLengthQuarters - epsilon)
-                        continue;
-
-                    const auto targetIndex = ((slice % activeRowCount) + activeRowCount) % activeRowCount;
-                    const auto targetRow = activeRows[static_cast<size_t> (targetIndex)];
-                    std::array<size_t, 256> candidateIndices {};
-                    auto candidateCount = static_cast<size_t> (0);
-                    auto totalWeight = 0;
-
-                    while (eventScanStart < eventCount)
-                    {
-                        const auto& scanEvent = combinedEvents[eventScanStart];
-                        const auto scanEnd = scanEvent.ppq + scanEvent.gateQuarters;
-
-                        if (scanEnd > sliceStart + epsilon)
-                            break;
-
-                        ++eventScanStart;
-                    }
-
-                    for (size_t index = eventScanStart; index < eventCount; ++index)
-                    {
-                        const auto& event = combinedEvents[index];
-                        const auto eventEnd = event.ppq + event.gateQuarters;
-
-                        if (event.ppq >= sliceEnd - epsilon)
-                            break;
-
-                        if (eventEnd <= sliceStart + epsilon)
-                            continue;
-
-                        const auto start = juce::jmax (event.ppq, sliceStart);
-                        const auto end = juce::jmin (eventEnd, sliceEnd, hocketLengthQuarters);
-                        const auto overlap = end - start;
-
-                        if (overlap <= epsilon
-                            || overlap + epsilon < minimumHocketSliceOverlap)
-                            continue;
-
-                        const auto& sourceSteps = state.rows[static_cast<size_t> (event.row)];
-                        const auto sourceStepIndex =
-                            static_cast<size_t> (event.step % juce::jmax (1, sourceSteps.stepCount));
-                        const auto transformedEvent =
-                            deferCrossModToHocket ? applyCrossModEvent (event) : event;
-                        const auto pickVelocity =
-                            sourceSteps.velocity[sourceStepIndex] > 0
-                                ? sourceSteps.velocity[sourceStepIndex]
-                                : transformedEvent.velocity;
-
-                        if (candidateCount >= candidateIndices.size())
-                            break;
-
-                        candidateIndices[candidateCount++] = index;
-                        totalWeight += juce::jmax (1, pickVelocity);
-                    }
-
-                    if (candidateCount <= 0)
-                        continue;
-
-                    if (candidateCount == 1)
-                    {
-                        const auto& source = combinedEvents[candidateIndices[0]];
-                        const auto transformedSource =
-                            deferCrossModToHocket ? applyCrossModEvent (source) : source;
-                        const auto sourceEnd = source.ppq + source.gateQuarters;
-                        const auto start = juce::jmax (source.ppq, sliceStart);
-                        const auto end = juce::jmin (sourceEnd, sliceEnd, hocketLengthQuarters);
-                        const auto gate = juce::jmin (end - start, sliceQuarters * 0.85);
-
-                        if (gate <= epsilon)
-                            continue;
-
-                        auto copy = transformedSource;
-                        copy.ppq = start;
-                        copy.gateQuarters = gate;
-                        copy.row = targetRow;
-                        copy.channel = state.midiChannel[static_cast<size_t> (targetRow)];
-                        copy.carrierOnlyForCombinationFollowers =
-                            carrierOnlyForCombinationFollowers;
-                        combinedWorkingEvents[write++] = copy;
-                        continue;
-                    }
-
-                    std::sort (candidateIndices.begin(),
-                               candidateIndices.begin() + static_cast<std::ptrdiff_t> (candidateCount),
-                               [&] (const size_t a, const size_t b) {
-                                   const auto eventA =
-                                       deferCrossModToHocket
-                                           ? applyCrossModEvent (combinedEvents[a])
-                                           : combinedEvents[a];
-                                   const auto eventB =
-                                       deferCrossModToHocket
-                                           ? applyCrossModEvent (combinedEvents[b])
-                                           : combinedEvents[b];
-                                   const auto startA = juce::jmax (combinedEvents[a].ppq, sliceStart);
-                                   const auto startB = juce::jmax (combinedEvents[b].ppq, sliceStart);
-
-                                   if (std::abs (startA - startB) > epsilon)
-                                       return startA < startB;
-
-                                   if (eventA.note != eventB.note)
-                                       return eventA.note < eventB.note;
-
-                                   if (combinedEvents[a].row != combinedEvents[b].row)
-                                       return combinedEvents[a].row < combinedEvents[b].row;
-
-                                   return combinedEvents[a].step < combinedEvents[b].step;
-                               });
-
-                    auto pick = static_cast<int> (
-                        deterministicEventHash (targetRow, slice, sliceStart)
-                        % static_cast<std::uint32_t> (juce::jmax (1, totalWeight)));
-                    auto selected = candidateIndices[0];
-                    auto found = false;
-
-                    for (size_t candidateIndex = 0; candidateIndex < candidateCount; ++candidateIndex)
-                    {
-                        const auto index = candidateIndices[candidateIndex];
-                        const auto& event = combinedEvents[index];
-                        const auto transformedEvent =
-                            deferCrossModToHocket ? applyCrossModEvent (event) : event;
-                        const auto& sourceSteps = state.rows[static_cast<size_t> (event.row)];
-                        const auto sourceStepIndex =
-                            static_cast<size_t> (event.step % juce::jmax (1, sourceSteps.stepCount));
-                        const auto pickVelocity = juce::jmax (
-                            1,
-                            sourceSteps.velocity[sourceStepIndex] > 0
-                                ? sourceSteps.velocity[sourceStepIndex]
-                                : transformedEvent.velocity);
-
-                        pick -= pickVelocity;
-
-                        if (pick < 0)
-                        {
-                            selected = index;
-                            found = true;
-                            break;
-                        }
-                    }
-
-                    if (! found)
-                        continue;
-
-                    const auto& source = combinedEvents[selected];
-                    const auto transformedSource =
-                        deferCrossModToHocket ? applyCrossModEvent (source) : source;
-                    const auto sourceEnd = source.ppq + source.gateQuarters;
-                    const auto start = juce::jmax (source.ppq, sliceStart);
-                    const auto end = juce::jmin (sourceEnd, sliceEnd, hocketLengthQuarters);
-                    const auto gate = juce::jmin (end - start, sliceQuarters * 0.85);
-
-                    if (gate <= epsilon)
-                        continue;
-
-                    auto copy = transformedSource;
-                    copy.ppq = start;
-                    copy.gateQuarters = gate;
-                    copy.row = targetRow;
-                    copy.channel = state.midiChannel[static_cast<size_t> (targetRow)];
-                    copy.carrierOnlyForCombinationFollowers = carrierOnlyForCombinationFollowers;
-                    combinedWorkingEvents[write++] = copy;
-                }
-            }
-
-            eventCount = write;
-            copyFilteredEvents (eventCount);
-
-            if (eventCount == 0)
-                return;
-
-            sortCombinedEvents();
-        }
-    }
-
     if (combinationModeEnabled (modeMask, combinationModeTendril) && activeRowCount > 1)
     {
         auto write = static_cast<size_t> (0);
@@ -5361,6 +5086,275 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             return;
 
         sortCombinedEvents();
+    }
+
+    if (combinationModeEnabled (modeMask, combinationModeHocket) && activeRowCount > 1)
+    {
+        const auto sliceQuarters = pulse / static_cast<double> (activeRowCount);
+        const auto minimumHocketSliceOverlap =
+            sliceQuarters * hocketMinimumSliceOverlapFraction;
+        const auto maxModRowStepStartQuarters = [&] {
+            auto maxStart = 0.0;
+
+            for (int index = 0; index < activeRowCount; ++index)
+            {
+                const auto& rowSteps =
+                    state.rows[static_cast<size_t> (activeRows[static_cast<size_t> (index)])];
+
+                for (int step = 0; step < rowSteps.stepCount; ++step)
+                {
+                    const auto stepIndex = static_cast<size_t> (step);
+
+                    if (rowSteps.stepSkipped[stepIndex] != 0
+                        || rowSteps.stepMuted[stepIndex] != 0
+                        || rowSteps.velocity[stepIndex] <= 0)
+                        continue;
+
+                    maxStart = juce::jmax (maxStart, rowSteps.stepStartQuarters[stepIndex]);
+                }
+            }
+
+            return maxStart;
+        };
+        const auto combinationFollowerLead = [&] {
+            auto lead = 0.0;
+
+            if (combinationModeEnabled (modeMask, combinationModeMultiplyEcho))
+                lead = juce::jmax (lead, maxModRowStepStartQuarters());
+
+            if (activePattern.shimmerEnabled != 0)
+            {
+                const auto shimmerDelayQuarters =
+                    stepTimingMultiplierForIndex (activePattern.shimmerDelayMultiplierIndex) * pulse;
+
+                if (shimmerDelayQuarters > 1.0e-9)
+                {
+                    auto maxTapDelay = 0.0;
+
+                    for (int tap = 1; tap < 32; ++tap)
+                    {
+                        if (shimmerTapVelocity (100,
+                                                tap,
+                                                activePattern.shimmerFeedbackPercent,
+                                                activePattern.shimmerMixPercent)
+                            <= 0)
+                            break;
+
+                        maxTapDelay = static_cast<double> (tap) * shimmerDelayQuarters;
+                    }
+
+                    lead = juce::jmax (lead, maxTapDelay);
+                }
+            }
+
+            return lead;
+        }();
+
+        if (sliceQuarters > epsilon)
+        {
+            auto sliceLoopFirst =
+                static_cast<int> (std::floor ((emitPpqStart + epsilon) / sliceQuarters));
+            const auto sliceLoopLast =
+                static_cast<int> (std::ceil ((emitPpqEnd - epsilon) / sliceQuarters)) - 1;
+
+            if (combinationFollowerLead > epsilon)
+            {
+                const auto extendedFirstSlice =
+                    static_cast<int> (std::floor ((emitPpqStart - combinationFollowerLead + epsilon)
+                                                  / sliceQuarters));
+                sliceLoopFirst = juce::jmin (sliceLoopFirst, extendedFirstSlice);
+            }
+
+            auto write = static_cast<size_t> (0);
+            auto eventScanStart = static_cast<size_t> (0);
+
+            if (sliceLoopFirst <= sliceLoopLast)
+            {
+                for (int slice = sliceLoopFirst; slice <= sliceLoopLast && write < combinedWorkingEvents.size(); ++slice)
+                {
+                    const auto sliceStart = static_cast<double> (slice) * sliceQuarters;
+                    const auto sliceEnd = sliceStart + sliceQuarters;
+                    const auto carrierOnlyForCombinationFollowers =
+                        combinationFollowerLead > epsilon && sliceStart < emitPpqStart - epsilon;
+
+                    if (sliceStart < emitPpqStart - epsilon && ! carrierOnlyForCombinationFollowers)
+                        continue;
+
+                    if (sliceStart >= emitPpqEnd - epsilon)
+                        continue;
+
+                    if (sliceStart >= hocketLengthQuarters - epsilon)
+                        continue;
+
+                    const auto targetIndex = ((slice % activeRowCount) + activeRowCount) % activeRowCount;
+                    const auto targetRow = activeRows[static_cast<size_t> (targetIndex)];
+                    std::array<size_t, 256> candidateIndices {};
+                    auto candidateCount = static_cast<size_t> (0);
+                    auto totalWeight = 0;
+
+                    while (eventScanStart < eventCount)
+                    {
+                        const auto& scanEvent = combinedEvents[eventScanStart];
+                        const auto scanEnd = scanEvent.ppq + scanEvent.gateQuarters;
+
+                        if (scanEnd > sliceStart + epsilon)
+                            break;
+
+                        ++eventScanStart;
+                    }
+
+                    for (size_t index = eventScanStart; index < eventCount; ++index)
+                    {
+                        const auto& event = combinedEvents[index];
+                        const auto eventEnd = event.ppq + event.gateQuarters;
+
+                        if (event.ppq >= sliceEnd - epsilon)
+                            break;
+
+                        if (eventEnd <= sliceStart + epsilon)
+                            continue;
+
+                        const auto start = juce::jmax (event.ppq, sliceStart);
+                        const auto end = juce::jmin (eventEnd, sliceEnd, hocketLengthQuarters);
+                        const auto overlap = end - start;
+
+                        if (overlap <= epsilon
+                            || overlap + epsilon < minimumHocketSliceOverlap)
+                            continue;
+
+                        const auto& sourceSteps = state.rows[static_cast<size_t> (event.row)];
+                        const auto sourceStepIndex =
+                            static_cast<size_t> (event.step % juce::jmax (1, sourceSteps.stepCount));
+                        const auto transformedEvent =
+                            deferCrossModToHocket ? applyCrossModEvent (event) : event;
+                        const auto pickVelocity =
+                            sourceSteps.velocity[sourceStepIndex] > 0
+                                ? sourceSteps.velocity[sourceStepIndex]
+                                : transformedEvent.velocity;
+
+                        if (candidateCount >= candidateIndices.size())
+                            break;
+
+                        candidateIndices[candidateCount++] = index;
+                        totalWeight += juce::jmax (1, pickVelocity);
+                    }
+
+                    if (candidateCount <= 0)
+                        continue;
+
+                    if (candidateCount == 1)
+                    {
+                        const auto& source = combinedEvents[candidateIndices[0]];
+                        const auto transformedSource =
+                            deferCrossModToHocket ? applyCrossModEvent (source) : source;
+                        const auto sourceEnd = source.ppq + source.gateQuarters;
+                        const auto start = juce::jmax (source.ppq, sliceStart);
+                        const auto end = juce::jmin (sourceEnd, sliceEnd, hocketLengthQuarters);
+                        const auto gate = juce::jmin (end - start, sliceQuarters * 0.85);
+
+                        if (gate <= epsilon)
+                            continue;
+
+                        auto copy = transformedSource;
+                        copy.ppq = start;
+                        copy.gateQuarters = gate;
+                        copy.row = targetRow;
+                        copy.channel = state.midiChannel[static_cast<size_t> (targetRow)];
+                        copy.carrierOnlyForCombinationFollowers =
+                            carrierOnlyForCombinationFollowers;
+                        combinedWorkingEvents[write++] = copy;
+                        continue;
+                    }
+
+                    std::sort (candidateIndices.begin(),
+                               candidateIndices.begin() + static_cast<std::ptrdiff_t> (candidateCount),
+                               [&] (const size_t a, const size_t b) {
+                                   const auto eventA =
+                                       deferCrossModToHocket
+                                           ? applyCrossModEvent (combinedEvents[a])
+                                           : combinedEvents[a];
+                                   const auto eventB =
+                                       deferCrossModToHocket
+                                           ? applyCrossModEvent (combinedEvents[b])
+                                           : combinedEvents[b];
+                                   const auto startA = juce::jmax (combinedEvents[a].ppq, sliceStart);
+                                   const auto startB = juce::jmax (combinedEvents[b].ppq, sliceStart);
+
+                                   if (std::abs (startA - startB) > epsilon)
+                                       return startA < startB;
+
+                                   if (eventA.note != eventB.note)
+                                       return eventA.note < eventB.note;
+
+                                   if (combinedEvents[a].row != combinedEvents[b].row)
+                                       return combinedEvents[a].row < combinedEvents[b].row;
+
+                                   return combinedEvents[a].step < combinedEvents[b].step;
+                               });
+
+                    auto pick = static_cast<int> (
+                        deterministicEventHash (targetRow, slice, sliceStart)
+                        % static_cast<std::uint32_t> (juce::jmax (1, totalWeight)));
+                    auto selected = candidateIndices[0];
+                    auto found = false;
+
+                    for (size_t candidateIndex = 0; candidateIndex < candidateCount; ++candidateIndex)
+                    {
+                        const auto index = candidateIndices[candidateIndex];
+                        const auto& event = combinedEvents[index];
+                        const auto transformedEvent =
+                            deferCrossModToHocket ? applyCrossModEvent (event) : event;
+                        const auto& sourceSteps = state.rows[static_cast<size_t> (event.row)];
+                        const auto sourceStepIndex =
+                            static_cast<size_t> (event.step % juce::jmax (1, sourceSteps.stepCount));
+                        const auto pickVelocity = juce::jmax (
+                            1,
+                            sourceSteps.velocity[sourceStepIndex] > 0
+                                ? sourceSteps.velocity[sourceStepIndex]
+                                : transformedEvent.velocity);
+
+                        pick -= pickVelocity;
+
+                        if (pick < 0)
+                        {
+                            selected = index;
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (! found)
+                        continue;
+
+                    const auto& source = combinedEvents[selected];
+                    const auto transformedSource =
+                        deferCrossModToHocket ? applyCrossModEvent (source) : source;
+                    const auto sourceEnd = source.ppq + source.gateQuarters;
+                    const auto start = juce::jmax (source.ppq, sliceStart);
+                    const auto end = juce::jmin (sourceEnd, sliceEnd, hocketLengthQuarters);
+                    const auto gate = juce::jmin (end - start, sliceQuarters * 0.85);
+
+                    if (gate <= epsilon)
+                        continue;
+
+                    auto copy = transformedSource;
+                    copy.ppq = start;
+                    copy.gateQuarters = gate;
+                    copy.row = targetRow;
+                    copy.channel = state.midiChannel[static_cast<size_t> (targetRow)];
+                    copy.carrierOnlyForCombinationFollowers = carrierOnlyForCombinationFollowers;
+                    combinedWorkingEvents[write++] = copy;
+                }
+            }
+
+            eventCount = write;
+            copyFilteredEvents (eventCount);
+
+            if (eventCount == 0)
+                return;
+
+            sortCombinedEvents();
+        }
     }
 
     if (combinationModeEnabled (modeMask, combinationModeMultiplyEcho) && activeRowCount > 1)

@@ -30,8 +30,8 @@ export const combinationModes = [
   {index: 0, bit: 1, icon: "crossMod", name: "Cross-Mod"},
   {index: 7, bit: 128, icon: "canon", name: "Canon"},
   {index: 8, bit: 256, icon: "retroInv", name: "Retro-Inv"},
-  {index: 6, bit: 64, icon: "hocket", name: "Hocket"},
   {index: 1, bit: 2, icon: "tendril", name: "Tendril"},
+  {index: 6, bit: 64, icon: "hocket", name: "Hocket"},
   {index: 3, bit: 8, icon: "echo", name: "Echo"},
   {index: 4, bit: 16, icon: "weave", name: "Weave"},
 ];
@@ -1349,23 +1349,6 @@ function applyCombinationModes({
     );
   }
 
-  if (combinationModeEnabled(combinationModeMask, 6) && activeRows.length > 1) {
-    events = hocketEvents(
-      events,
-      activeRows,
-      rowMidiChannel,
-      stepVelocity,
-      pulseQuartersForIndex(pulseIndex),
-      lengthQuarters,
-      {
-        emitStartQuarters,
-        emitEndQuarters,
-        hocketLengthQuarters,
-        crossModTransform: deferCrossModToHocket ? applyCrossModEvent : undefined,
-      },
-    );
-  }
-
   if (events.length === 0) return [];
 
   if (combinationModeEnabled(combinationModeMask, 1) && activeRows.length > 1) {
@@ -1545,6 +1528,25 @@ function applyCombinationModes({
 
     events = tendriled.sort(
       (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+    );
+  }
+
+  if (events.length === 0) return [];
+
+  if (combinationModeEnabled(combinationModeMask, 6) && activeRows.length > 1) {
+    events = hocketEvents(
+      events,
+      activeRows,
+      rowMidiChannel,
+      stepVelocity,
+      pulseQuartersForIndex(pulseIndex),
+      lengthQuarters,
+      {
+        emitStartQuarters,
+        emitEndQuarters,
+        hocketLengthQuarters,
+        crossModTransform: deferCrossModToHocket ? applyCrossModEvent : undefined,
+      },
     );
   }
 

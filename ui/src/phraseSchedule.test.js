@@ -995,6 +995,43 @@ function userLoopHocketParams(overrides = {}) {
   };
 }
 
+describe("hocket and tendril combination", () => {
+  const twoRowOverlapParams = () => ({
+    notes: [[60], [67], [], []],
+    rowMuted: [false, false, true, true],
+    rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+    stepDurationFraction: [[1], [1], [], []],
+    stepTimingMultiplier: [
+      [defaultStepTimingMultiplierIndex],
+      [defaultStepTimingMultiplierIndex],
+      [],
+      [],
+    ],
+    stepVelocity: [[100], [100], [], []],
+    stepMuted: [[false], [false], [], []],
+    stepSkipped: [[false], [false], [], []],
+    pulseIndex: 1,
+    scaleRoot: 0,
+    scaleModeIndex: 1,
+    lengthQuarters: 2,
+  });
+
+  it("runs Tendril before Hocket and thins to one note per pulse slice", () => {
+    const params = twoRowOverlapParams();
+    const tendrilOnly = buildPhraseScheduleBeforeBandpass({...params, combinationModeMask: 1 << 1});
+    const tendrilHocket = buildPhraseScheduleBeforeBandpass({
+      ...params,
+      combinationModeMask: (1 << 1) | (1 << 6),
+    });
+
+    expect(tendrilOnly.length).toBeGreaterThan(tendrilHocket.length);
+
+    for (const start of [0, 0.5, 1, 1.5]) {
+      expect(tendrilHocket.filter((note) => note.start === start)).toHaveLength(1);
+    }
+  });
+});
+
 describe("hocket and echo combination parity", () => {
   const twoRowEchoParams = () => ({
     notes: [[60, 64, 67, 72], [48, 52, 55, 58], [], []],

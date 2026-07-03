@@ -394,13 +394,13 @@ Result: cross-routed phrase material with connective, scale-aware responses.
 
 ### Hocket + Tendril + Echo
 
-1. Hocket gates active rows into pulse slices.
-2. Tendril appends sparse curls and answers from the surviving handoffs.
-3. Echo multiplies only those rhythmically-selected carriers through the next
+1. Tendril appends sparse curls, answers, and optional resolutions on row carriers.
+2. Hocket gates the expanded pool into pulse slices (one winner per slice).
+3. Echo multiplies only those rhythmically-selected survivors through the next
    active row.
 
 Result: echoed material that still reads as a rhythmic handoff rather than a
-fully simultaneous multi-row convolution.
+fully simultaneous multi-row convolution or dense micro-cluster stack.
 
 ### Tendril + Echo + Weave
 
@@ -456,7 +456,7 @@ data, step cards, or recording input. Default range is C1–C7 per pattern.
 The UI preview follows the same mode order:
 
 ```text
-Cross-Mod -> Canon -> Retro-Inv -> Hocket -> Tendril -> Echo -> Weave -> Octavizer -> Shimmer -> Note Bandpass
+Cross-Mod -> Canon -> Retro-Inv -> Tendril -> Hocket -> Echo -> Weave -> Octavizer -> Shimmer -> Note Bandpass
 ```
 
 The preview intentionally differs in a few implementation details:
@@ -468,5 +468,5 @@ The preview intentionally differs in a few implementation details:
 - It does not emit MIDI or manage pending note-offs.
 
 The important musical outputs of the mode chain - how pitch is transformed, how
-Hocket gates rows in time, how Tendril appends phraselets, how Echo expands
+Hocket gates the tendril-expanded pool in time, how Tendril appends phraselets before thinning, how Echo expands
 events, and how Weave chooses collision winners - are mirrored.
