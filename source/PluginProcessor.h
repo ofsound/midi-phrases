@@ -758,6 +758,7 @@ private:
     int lastObservedParameterPatternSlot = 0;
     std::atomic<int> patternOutputArmed { 1 };
     std::atomic<int> muteFlushRequested { 0 };
+    std::atomic<int> combinationModeRescheduleRequested { 0 };
     std::atomic<int> pendingAudioPatternSlot { -1 };
     std::atomic<int> currentLoopSlot { -1 };
     std::atomic<int> audioActiveLoopSlot { -1 };

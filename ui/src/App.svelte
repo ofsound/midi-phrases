@@ -353,6 +353,8 @@
   let loopSlotAssigned = $state(Array.from({ length: 8 }, () => false));
   let loopSlotPattern = Array.from({ length: 8 }, () => 0);
   let combinationModeMask = $state(0);
+  let previewCombinationModeMask = $state(0);
+  let previewCombinationMaskFrame = 0;
   let scaleRoot = $state(defaultScaleRoot);
   let scaleModeIndex = $state(defaultScaleModeIndex);
   let noteBandpassLowMidi = $state(defaultNoteBandpassLowMidi);
@@ -981,24 +983,43 @@
     );
   }
 
-  async function toggleCombinationMode(modeIndex) {
+  function syncPreviewCombinationMask(mask) {
+    previewCombinationModeMask = mask & combinationModeMaskBits;
+  }
+
+  function schedulePreviewCombinationMask(mask) {
+    previewCombinationMaskFrame += 1;
+    const frame = previewCombinationMaskFrame;
+
+    requestAnimationFrame(() => {
+      if (frame !== previewCombinationMaskFrame) return;
+      syncPreviewCombinationMask(mask);
+    });
+  }
+
+  function toggleCombinationMode(modeIndex) {
     const bit = 1 << modeIndex;
     const enabled = (combinationModeMask & bit) === 0;
     const nextMask = enabled ? combinationModeMask | bit : combinationModeMask & ~bit;
 
     combinationModeMask = nextMask;
+    schedulePreviewCombinationMask(nextMask);
 
     if (!nativeFunctionAvailable("setCombinationModeEnabled")) return;
 
-    const confirmed = await getNativeFunction("setCombinationModeEnabled")(
+    void getNativeFunction("setCombinationModeEnabled")(
       modeIndex,
       enabled ? 1 : 0,
-    );
-    const parsed = Number.parseInt(String(confirmed), 10);
+    ).then((confirmed) => {
+      const parsed = Number.parseInt(String(confirmed), 10);
 
-    if (!Number.isNaN(parsed)) {
-      combinationModeMask = parsed & combinationModeMaskBits;
-    }
+      if (!Number.isNaN(parsed)) {
+        combinationModeMask = parsed & combinationModeMaskBits;
+        schedulePreviewCombinationMask(combinationModeMask);
+      }
+    }).catch(() => {
+      // Native bridge unavailable during teardown.
+    });
   }
 
   function slotButtonClasses(active, assigned = true, copySource = false, copyTarget = false) {
@@ -2037,6 +2058,7 @@
     timingHumanizePercent = next.timingHumanizePercent;
     swingSubdivisionIndex = next.swingSubdivisionIndex;
     combinationModeMask = (next.combinationModeMask ?? 0) & combinationModeMaskBits;
+    syncPreviewCombinationMask(combinationModeMask);
     scaleRoot = clampScaleRoot(next.scaleRoot ?? defaultScaleRoot);
     scaleModeIndex = clampScaleModeIndex(next.scaleModeIndex ?? defaultScaleModeIndex);
     setNoteBandpassState(
@@ -2095,6 +2117,7 @@
     stepCycle = cloneMatrix(state.phraseStepCycle ?? stepCycle);
     stepCycleOffset = cloneMatrix(state.phraseStepCycleOffset ?? stepCycleOffset);
     combinationModeMask = Number.parseInt(String(state.combinationModeMask ?? 0), 10) & combinationModeMaskBits;
+    syncPreviewCombinationMask(combinationModeMask);
     scaleRoot = clampScaleRoot(state.scaleRoot ?? defaultScaleRoot);
     scaleModeIndex = clampScaleModeIndex(state.scaleModeIndex ?? defaultScaleModeIndex);
     setNoteBandpassState(
@@ -5210,6 +5233,7 @@
     const value = Number.parseInt(String(raw ?? 0), 10);
 
     combinationModeMask = Number.isNaN(value) ? 0 : value & combinationModeMaskBits;
+    syncPreviewCombinationMask(combinationModeMask);
   }
 
   function loadPatternScaleFromInitialisation() {
@@ -6564,7 +6588,7 @@
         stepProbability={stepProbability}
         stepCycle={stepCycle}
         stepCycleOffset={stepCycleOffset}
-        {combinationModeMask}
+        {previewCombinationModeMask}
         {scaleRoot}
         {scaleModeIndex}
         noteBandpassLowMidi={noteBandpassLowMidi}
