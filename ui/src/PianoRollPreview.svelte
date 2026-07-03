@@ -163,6 +163,8 @@ import { scaledPx } from "./uiScale.svelte.js";
     }),
   );
   let hocketModeActive = $derived(combinationModeEnabled(combinationModeMask, 6));
+  let crossModModeActive = $derived(combinationModeEnabled(combinationModeMask, 0));
+  const crossModHocketPreviewMaxQuarters = 64;
   let loopSpanQuarters = $derived(Math.max(loopBraceSnapQuarters, displayEnd - displayStart));
   let loopOutputView = $derived(loopEnabled && displayEnd > displayStart);
   let outputViewStart = $derived(loopOutputView ? displayStart : 0);
@@ -180,7 +182,7 @@ import { scaledPx } from "./uiScale.svelte.js";
       ? loopSpanQuarters
       : hocketModeActive && autoContentLengthQuarters > 0
         ? Math.min(
-            DEFAULT_PREVIEW_LENGTH_QUARTERS,
+            crossModModeActive ? crossModHocketPreviewMaxQuarters : DEFAULT_PREVIEW_LENGTH_QUARTERS,
             Math.max(
               autoContentLengthQuarters,
               hocketPreviewMinimumQuarters,
@@ -288,13 +290,15 @@ import { scaledPx } from "./uiScale.svelte.js";
         }),
   );
 
-  let fullScheduled = $derived(
-    loopOutputView
-      ? loopOutputSchedule
-      : buildPhraseSchedule(phraseScheduleRenderParams),
+  let pitchRange = $derived(
+    fittedPitchRangeForSchedule(
+      loopOutputView
+        ? loopOutputSchedule
+        : hocketModeActive
+          ? scheduled
+          : buildPhraseSchedule(phraseScheduleRenderParams),
+    ),
   );
-
-  let pitchRange = $derived(fittedPitchRangeForSchedule(fullScheduled));
   let pitchSpan = $derived(pitchRange.maxMidi - pitchRange.minMidi + 1);
   let rowHeightPx = $derived(
     verticalViewportHeightPx > 0
@@ -802,6 +806,8 @@ import { scaledPx } from "./uiScale.svelte.js";
       : displayPlaybackBeat;
 
     for (const note of scheduled) {
+      if (note.end < absolutePlaybackBeat - 1 || note.start > absolutePlaybackBeat + 1) continue;
+
       const noteIsActive = isScheduledNoteActiveAtPlaybackBeat(note, absolutePlaybackBeat, {
         loopEnabled,
         patternLengthQuarters: patternRepeatQuarters,

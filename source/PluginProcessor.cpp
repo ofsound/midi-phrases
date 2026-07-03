@@ -1864,9 +1864,6 @@ void PluginProcessor::setCombinationModeEnabled (const int modeIndex, const bool
     command.patternSlot = getViewPatternSlot();
     command.intValue = next;
     publishCommandToAudio (command);
-
-    for (auto& flush : phraseRowFlushNoteOff)
-        flush.store (1);
 }
 
 bool PluginProcessor::isCombinationModeEnabled (const int modeIndex) const
@@ -4697,31 +4694,39 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         return false;
     };
 
-    if (combinationModeEnabled (modeMask, combinationModeCrossModulation) && activeRowCount > 1)
-    {
-        for (size_t index = 0; index < eventCount; ++index)
-        {
-            auto& event = combinedEvents[index];
-            const auto position = activeRowPosition (event.row);
-            const auto pitchRow = activeRows[static_cast<size_t> ((position + 1) % activeRowCount)];
-            const auto velocityRow = activeRows[static_cast<size_t> ((position + 2) % activeRowCount)];
-            const auto durationRow = activeRows[static_cast<size_t> ((position + 3) % activeRowCount)];
-            const auto& pitchSteps = state.rows[static_cast<size_t> (pitchRow)];
-            const auto& velocitySteps = state.rows[static_cast<size_t> (velocityRow)];
-            const auto& durationSteps = state.rows[static_cast<size_t> (durationRow)];
-            const auto pitchStep = event.step % juce::jmax (1, pitchSteps.stepCount);
-            const auto velocityStep = event.step % juce::jmax (1, velocitySteps.stepCount);
-            const auto durationStep = event.step % juce::jmax (1, durationSteps.stepCount);
-            event.note = echoNoteFromModStep (event.note,
-                                              firstNoteForRow (pitchRow),
-                                              pitchSteps.notes[static_cast<size_t> (pitchStep)],
-                                              scaleRoot,
-                                              scaleModeIndex);
-            event.velocity = juce::jlimit (
-                1,
-                127,
-                velocitySteps.velocity[static_cast<size_t> (velocityStep)]);
+    const auto deferCrossModToHocket =
+        combinationModeEnabled (modeMask, combinationModeCrossModulation)
+        && hocketModeEnabled
+        && ! combinationModeEnabled (modeMask, combinationModeCanon)
+        && ! combinationModeEnabled (modeMask, combinationModeRetroInversion);
 
+    const auto applyCrossModEvent = [&] (const CombinedNoteEvent& source) -> CombinedNoteEvent {
+        if (! combinationModeEnabled (modeMask, combinationModeCrossModulation) || activeRowCount <= 1)
+            return source;
+
+        auto event = source;
+        const auto position = activeRowPosition (event.row);
+        const auto pitchRow = activeRows[static_cast<size_t> ((position + 1) % activeRowCount)];
+        const auto velocityRow = activeRows[static_cast<size_t> ((position + 2) % activeRowCount)];
+        const auto& pitchSteps = state.rows[static_cast<size_t> (pitchRow)];
+        const auto& velocitySteps = state.rows[static_cast<size_t> (velocityRow)];
+        const auto pitchStep = event.step % juce::jmax (1, pitchSteps.stepCount);
+        const auto velocityStep = event.step % juce::jmax (1, velocitySteps.stepCount);
+        event.note = echoNoteFromModStep (event.note,
+                                          firstNoteForRow (pitchRow),
+                                          pitchSteps.notes[static_cast<size_t> (pitchStep)],
+                                          scaleRoot,
+                                          scaleModeIndex);
+        event.velocity = juce::jlimit (
+            1,
+            127,
+            velocitySteps.velocity[static_cast<size_t> (velocityStep)]);
+
+        if (! hocketModeEnabled)
+        {
+            const auto durationRow = activeRows[static_cast<size_t> ((position + 3) % activeRowCount)];
+            const auto& durationSteps = state.rows[static_cast<size_t> (durationRow)];
+            const auto durationStep = event.step % juce::jmax (1, durationSteps.stepCount);
             const auto durationGate =
                 durationSteps.stepLengthQuarters[static_cast<size_t> (durationStep)]
                 * durationSteps.durationFraction[static_cast<size_t> (durationStep)];
@@ -4729,6 +4734,15 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             if (durationGate > epsilon)
                 event.gateQuarters = durationGate;
         }
+
+        return event;
+    };
+
+    if (combinationModeEnabled (modeMask, combinationModeCrossModulation) && activeRowCount > 1
+        && ! deferCrossModToHocket)
+    {
+        for (size_t index = 0; index < eventCount; ++index)
+            combinedEvents[index] = applyCrossModEvent (combinedEvents[index]);
     }
 
     if (combinationModeEnabled (modeMask, combinationModeCanon) && activeRowCount > 1)
@@ -4921,6 +4935,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             }
 
             auto write = static_cast<size_t> (0);
+            auto eventScanStart = static_cast<size_t> (0);
 
             if (sliceLoopFirst <= sliceLoopLast)
             {
@@ -4946,10 +4961,28 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                     auto candidateCount = static_cast<size_t> (0);
                     auto totalWeight = 0;
 
-                    for (size_t index = 0; index < eventCount; ++index)
+                    while (eventScanStart < eventCount)
+                    {
+                        const auto& scanEvent = combinedEvents[eventScanStart];
+                        const auto scanEnd = scanEvent.ppq + scanEvent.gateQuarters;
+
+                        if (scanEnd > sliceStart + epsilon)
+                            break;
+
+                        ++eventScanStart;
+                    }
+
+                    for (size_t index = eventScanStart; index < eventCount; ++index)
                     {
                         const auto& event = combinedEvents[index];
                         const auto eventEnd = event.ppq + event.gateQuarters;
+
+                        if (event.ppq >= sliceEnd - epsilon)
+                            break;
+
+                        if (eventEnd <= sliceStart + epsilon)
+                            continue;
+
                         const auto start = juce::jmax (event.ppq, sliceStart);
                         const auto end = juce::jmin (eventEnd, sliceEnd, hocketLengthQuarters);
                         const auto overlap = end - start;
@@ -4961,10 +4994,12 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                         const auto& sourceSteps = state.rows[static_cast<size_t> (event.row)];
                         const auto sourceStepIndex =
                             static_cast<size_t> (event.step % juce::jmax (1, sourceSteps.stepCount));
+                        const auto transformedEvent =
+                            deferCrossModToHocket ? applyCrossModEvent (event) : event;
                         const auto pickVelocity =
                             sourceSteps.velocity[sourceStepIndex] > 0
                                 ? sourceSteps.velocity[sourceStepIndex]
-                                : event.velocity;
+                                : transformedEvent.velocity;
 
                         if (candidateCount >= candidateIndices.size())
                             break;
@@ -4979,6 +5014,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                     if (candidateCount == 1)
                     {
                         const auto& source = combinedEvents[candidateIndices[0]];
+                        const auto transformedSource =
+                            deferCrossModToHocket ? applyCrossModEvent (source) : source;
                         const auto sourceEnd = source.ppq + source.gateQuarters;
                         const auto start = juce::jmax (source.ppq, sliceStart);
                         const auto end = juce::jmin (sourceEnd, sliceEnd, hocketLengthQuarters);
@@ -4987,7 +5024,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                         if (gate <= epsilon)
                             continue;
 
-                        auto copy = source;
+                        auto copy = transformedSource;
                         copy.ppq = start;
                         copy.gateQuarters = gate;
                         copy.row = targetRow;
@@ -5001,10 +5038,16 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                     std::sort (candidateIndices.begin(),
                                candidateIndices.begin() + static_cast<std::ptrdiff_t> (candidateCount),
                                [&] (const size_t a, const size_t b) {
-                                   const auto& eventA = combinedEvents[a];
-                                   const auto& eventB = combinedEvents[b];
-                                   const auto startA = juce::jmax (eventA.ppq, sliceStart);
-                                   const auto startB = juce::jmax (eventB.ppq, sliceStart);
+                                   const auto eventA =
+                                       deferCrossModToHocket
+                                           ? applyCrossModEvent (combinedEvents[a])
+                                           : combinedEvents[a];
+                                   const auto eventB =
+                                       deferCrossModToHocket
+                                           ? applyCrossModEvent (combinedEvents[b])
+                                           : combinedEvents[b];
+                                   const auto startA = juce::jmax (combinedEvents[a].ppq, sliceStart);
+                                   const auto startB = juce::jmax (combinedEvents[b].ppq, sliceStart);
 
                                    if (std::abs (startA - startB) > epsilon)
                                        return startA < startB;
@@ -5012,10 +5055,10 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                                    if (eventA.note != eventB.note)
                                        return eventA.note < eventB.note;
 
-                                   if (eventA.row != eventB.row)
-                                       return eventA.row < eventB.row;
+                                   if (combinedEvents[a].row != combinedEvents[b].row)
+                                       return combinedEvents[a].row < combinedEvents[b].row;
 
-                                   return eventA.step < eventB.step;
+                                   return combinedEvents[a].step < combinedEvents[b].step;
                                });
 
                     auto pick = static_cast<int> (
@@ -5028,15 +5071,18 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                     {
                         const auto index = candidateIndices[candidateIndex];
                         const auto& event = combinedEvents[index];
+                        const auto transformedEvent =
+                            deferCrossModToHocket ? applyCrossModEvent (event) : event;
                         const auto& sourceSteps = state.rows[static_cast<size_t> (event.row)];
                         const auto sourceStepIndex =
                             static_cast<size_t> (event.step % juce::jmax (1, sourceSteps.stepCount));
-                        const auto pickVelocity =
+                        const auto pickVelocity = juce::jmax (
+                            1,
                             sourceSteps.velocity[sourceStepIndex] > 0
                                 ? sourceSteps.velocity[sourceStepIndex]
-                                : event.velocity;
+                                : transformedEvent.velocity);
 
-                        pick -= juce::jmax (1, pickVelocity);
+                        pick -= pickVelocity;
 
                         if (pick < 0)
                         {
@@ -5050,6 +5096,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                         continue;
 
                     const auto& source = combinedEvents[selected];
+                    const auto transformedSource =
+                        deferCrossModToHocket ? applyCrossModEvent (source) : source;
                     const auto sourceEnd = source.ppq + source.gateQuarters;
                     const auto start = juce::jmax (source.ppq, sliceStart);
                     const auto end = juce::jmin (sourceEnd, sliceEnd, hocketLengthQuarters);
@@ -5058,7 +5106,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                     if (gate <= epsilon)
                         continue;
 
-                    auto copy = source;
+                    auto copy = transformedSource;
                     copy.ppq = start;
                     copy.gateQuarters = gate;
                     copy.row = targetRow;

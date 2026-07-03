@@ -366,6 +366,66 @@ describe("combination mode pulse-aware timing", () => {
     expect(hocketed).toEqual(base);
   });
 
+  it("builds Cross-Mod + Hocket long previews without scanning slices outside the emit window", () => {
+    const params = fourRowOffsetHocketParams({
+      combinationModeMask: (1 << 0) | (1 << 6),
+      lengthQuarters: 300,
+    });
+    const startedAt = performance.now();
+    const schedule = buildPhraseScheduleBeforeBandpass(params);
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(schedule.length).toBeGreaterThan(0);
+    expect(elapsedMs).toBeLessThan(500);
+
+    const windowed = buildPhraseScheduleWindowBeforeBandpass({
+      ...params,
+      windowStartQuarters: 32,
+      windowEndQuarters: 64,
+      windowLookbackQuarters: 0,
+    });
+
+    expect(comparableNotes(windowed)).toEqual(
+      comparableNotes(clippedToWindow(schedule, 32, 64)),
+    );
+  });
+
+  it("keeps source gates for Hocket when Cross-Mod also borrows duration", () => {
+    const baseParams = {
+      notes: [[60], [67], [72], []],
+      rowMuted: [false, false, false, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      stepDurationFraction: [[0.5], [1], [1], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+      ],
+      stepVelocity: [[100], [100], [100], []],
+      stepMuted: [[false], [false], [false], []],
+      stepSkipped: [[false], [false], [false], []],
+      pulseIndex: 1,
+      lengthQuarters: 2,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    };
+    const hocketOnly = buildPhraseScheduleBeforeBandpass({
+      ...baseParams,
+      combinationModeMask: 1 << 6,
+    });
+    const crossModHocket = buildPhraseScheduleBeforeBandpass({
+      ...baseParams,
+      combinationModeMask: (1 << 0) | (1 << 6),
+    });
+
+    expect(hocketOnly.length).toBeGreaterThan(0);
+    expect(crossModHocket.length).toBe(hocketOnly.length);
+    expect(crossModHocket.map((note) => [note.start, note.end - note.start])).toEqual(
+      hocketOnly.map((note) => [note.start, note.end - note.start]),
+    );
+  });
+
   it("continues deterministic Hocket choices after the first phrase repeat", () => {
     const schedule = buildPhraseScheduleBeforeBandpass(fourRowOffsetHocketParams());
     const firstCycle = schedule

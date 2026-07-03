@@ -1647,6 +1647,27 @@ TEST_CASE ("Hocket mode matches preview schedule for four offset rows", "[instan
     }
 }
 
+TEST_CASE ("Cross-Mod with Hocket stays monophonic and bounded in audio output", "[instance]")
+{
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+    constexpr int blockCount = 128;
+
+    PluginProcessor testPlugin;
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    configureFourRowOffsetHocketPattern (testPlugin);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeCrossModulation, true);
+
+    const auto outputEvents =
+        collectNoteOnEvents (testPlugin, sampleRate, blockSize, blockCount);
+
+    REQUIRE (outputEvents.size() > 0);
+    CHECK (outputEvents.size() < 512);
+
+    for (size_t index = 1; index < outputEvents.size(); ++index)
+        CHECK (outputEvents[index].first >= outputEvents[index - 1].first);
+}
+
 TEST_CASE ("Hocket and Echo combination outputs match preview thinning", "[instance]")
 {
     constexpr double sampleRate = 1000.0;

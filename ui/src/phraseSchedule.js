@@ -1047,6 +1047,7 @@ function addRetroInversionFollowers(events, activeRows, notes, rowMidiChannel, s
  *   emitStartQuarters?: number,
  *   emitEndQuarters?: number,
  *   hocketLengthQuarters?: number,
+ *   crossModTransform?: (event: ScheduledNote) => ScheduledNote,
  * }} [options]
  * @returns {ScheduledNote[]}
  */
@@ -1061,6 +1062,11 @@ function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQua
   const emitEnd = options.emitEndQuarters ?? lengthQuarters;
   const hocketLength = options.hocketLengthQuarters ?? lengthQuarters;
   const minimumSliceOverlap = sliceQuarters * HOCKET_MINIMUM_SLICE_OVERLAP_FRACTION;
+  const scheduleFirstSlice = Math.floor((emitStart + EPSILON) / sliceQuarters);
+  const scheduleLastSlice = Math.ceil((emitEnd - EPSILON) / sliceQuarters) - 1;
+
+  if (scheduleFirstSlice > scheduleLastSlice) return [];
+
   /** @type {Map<number, ScheduledNote[]>} */
   const candidatesBySlice = new Map();
 
@@ -1069,8 +1075,16 @@ function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQua
 
     if (eventEnd <= event.start + EPSILON) continue;
 
-    const firstSlice = Math.floor((event.start + EPSILON) / sliceQuarters);
-    const lastSlice = Math.ceil((eventEnd - EPSILON) / sliceQuarters) - 1;
+    const firstSlice = Math.max(
+      scheduleFirstSlice,
+      Math.floor((event.start + EPSILON) / sliceQuarters),
+    );
+    const lastSlice = Math.min(
+      scheduleLastSlice,
+      Math.ceil((eventEnd - EPSILON) / sliceQuarters) - 1,
+    );
+
+    if (firstSlice > lastSlice) continue;
 
     for (let slice = firstSlice; slice <= lastSlice; slice += 1) {
       const sliceStart = slice * sliceQuarters;
@@ -1103,44 +1117,34 @@ function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQua
     }
   }
 
-  let minSlice = Number.POSITIVE_INFINITY;
-  let maxSlice = Number.NEGATIVE_INFINITY;
-
-  for (const slice of candidatesBySlice.keys()) {
-    minSlice = Math.min(minSlice, slice);
-    maxSlice = Math.max(maxSlice, slice);
-  }
-
-  const scheduleFirstSlice = Math.floor((emitStart + EPSILON) / sliceQuarters);
-  const scheduleLastSlice = Math.ceil((emitEnd - EPSILON) / sliceQuarters) - 1;
-
-  if (!Number.isFinite(minSlice) || minSlice > maxSlice) {
-    minSlice = scheduleFirstSlice;
-    maxSlice = scheduleLastSlice;
-  } else {
-    minSlice = Math.min(minSlice, scheduleFirstSlice);
-    maxSlice = Math.max(maxSlice, scheduleLastSlice);
-  }
-
-  if (minSlice > maxSlice) return [];
-
   const candidateWeight = (event) => {
+    const transformed = options.crossModTransform ? options.crossModTransform(event) : event;
     const sourceStepVelocity = stepVelocity[event.row]?.[event.step % Math.max(1, stepVelocity[event.row]?.length ?? 1)];
 
-    return Math.max(1, sourceStepVelocity > 0 ? sourceStepVelocity : event.velocity);
+    return Math.max(1, sourceStepVelocity > 0 ? sourceStepVelocity : transformed.velocity);
+  };
+
+  const outputFromSource = (source, start, gate, sliceTargetRow) => {
+    const transformed = options.crossModTransform ? options.crossModTransform(source) : source;
+
+    return {
+      ...transformed,
+      start,
+      end: start + gate,
+      row: sliceTargetRow,
+      channel: midiChannelForRow(rowMidiChannel, sliceTargetRow),
+    };
   };
 
   /** @type {ScheduledNote[]} */
   const hocketed = [];
 
-  for (let slice = minSlice; slice <= maxSlice; slice += 1) {
+  for (let slice = scheduleFirstSlice; slice <= scheduleLastSlice; slice += 1) {
     if (hocketed.length >= MAX_COMBINED_PREVIEW_NOTES) break;
 
     const sliceStart = slice * sliceQuarters;
     const sliceEnd = sliceStart + sliceQuarters;
 
-    if (sliceStart < emitStart - EPSILON) continue;
-    if (sliceStart >= emitEnd - EPSILON) continue;
     if (sliceStart >= hocketLength - EPSILON) continue;
 
     const candidates = candidatesBySlice.get(slice);
@@ -1158,18 +1162,20 @@ function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQua
 
       if (gate <= EPSILON) continue;
 
-      hocketed.push({
-        ...source,
-        start,
-        end: start + gate,
-        row: sliceTargetRow,
-        channel: midiChannelForRow(rowMidiChannel, sliceTargetRow),
-      });
+      hocketed.push(outputFromSource(source, start, gate, sliceTargetRow));
       continue;
     }
 
     candidates.sort(
-      (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
+      (a, b) => {
+        const eventA = options.crossModTransform ? options.crossModTransform(a) : a;
+        const eventB = options.crossModTransform ? options.crossModTransform(b) : b;
+
+        return a.start - b.start
+          || eventA.midi - eventB.midi
+          || a.row - b.row
+          || a.step - b.step;
+      },
     );
 
     const totalWeight = candidates.reduce((total, event) => total + candidateWeight(event), 0);
@@ -1196,13 +1202,7 @@ function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQua
 
     if (gate <= EPSILON) continue;
 
-    hocketed.push({
-      ...selected,
-      start,
-      end: start + gate,
-      row: sliceTargetRow,
-      channel: midiChannelForRow(rowMidiChannel, sliceTargetRow),
-    });
+    hocketed.push(outputFromSource(selected, start, gate, sliceTargetRow));
   }
 
   return hocketed.sort(
@@ -1280,26 +1280,43 @@ function applyCombinationModes({
 
   if (activeRows.length === 0) return [];
 
-  if (combinationModeEnabled(combinationModeMask, 0) && activeRows.length > 1) {
-    events = events.map((event) => {
-      const activeIndex = activeRowPosition(activeRows, event.row);
-      const pitchRow = activeRows[(activeIndex + 1) % activeRows.length];
-      const velocityRow = activeRows[(activeIndex + 2) % activeRows.length];
-      const durationRow = activeRows[(activeIndex + 3) % activeRows.length];
-      const pitchStep = event.step % Math.max(1, notes[pitchRow]?.length ?? 1);
-      const velocityStep = event.step % Math.max(1, stepVelocity[velocityRow]?.length ?? 1);
-      const durationStep = event.step % Math.max(1, stepDurationFraction[durationRow]?.length ?? 1);
-      const pitchBase = notes[pitchRow]?.[0] ?? 60;
-      const layout = rowStepLayout(stepTimingMultiplier[durationRow] ?? [], pulseIndex, stepSkipped[durationRow] ?? []);
-      const duration = (layout.stepLengthQuarters[durationStep] ?? event.end - event.start) * (stepDurationFraction[durationRow]?.[durationStep] ?? 1);
+  const hocketModeEnabled = combinationModeEnabled(combinationModeMask, 6);
+  const deferCrossModToHocket =
+    combinationModeEnabled(combinationModeMask, 0)
+    && hocketModeEnabled
+    && !combinationModeEnabled(combinationModeMask, 7)
+    && !combinationModeEnabled(combinationModeMask, 8);
 
-      return {
-        ...event,
-        midi: echoNoteFromModStep(event.midi, pitchBase, notes[pitchRow]?.[pitchStep] ?? pitchBase, scaleRoot, scaleModeIndex),
-        velocity: Math.min(127, Math.max(1, stepVelocity[velocityRow]?.[velocityStep] ?? event.velocity)),
-        end: event.start + (duration > EPSILON ? duration : event.end - event.start),
-      };
-    });
+  /** @param {ScheduledNote} event */
+  const applyCrossModEvent = (event) => {
+    const activeIndex = activeRowPosition(activeRows, event.row);
+    const pitchRow = activeRows[(activeIndex + 1) % activeRows.length];
+    const velocityRow = activeRows[(activeIndex + 2) % activeRows.length];
+    const durationRow = activeRows[(activeIndex + 3) % activeRows.length];
+    const pitchStep = event.step % Math.max(1, notes[pitchRow]?.length ?? 1);
+    const velocityStep = event.step % Math.max(1, stepVelocity[velocityRow]?.length ?? 1);
+    const durationStep = event.step % Math.max(1, stepDurationFraction[durationRow]?.length ?? 1);
+    const pitchBase = notes[pitchRow]?.[0] ?? 60;
+    const layout = rowStepLayout(stepTimingMultiplier[durationRow] ?? [], pulseIndex, stepSkipped[durationRow] ?? []);
+    const duration = (layout.stepLengthQuarters[durationStep] ?? event.end - event.start) * (stepDurationFraction[durationRow]?.[durationStep] ?? 1);
+    const remapped = {
+      ...event,
+      midi: echoNoteFromModStep(event.midi, pitchBase, notes[pitchRow]?.[pitchStep] ?? pitchBase, scaleRoot, scaleModeIndex),
+      velocity: Math.min(127, Math.max(1, stepVelocity[velocityRow]?.[velocityStep] ?? event.velocity)),
+    };
+
+    if (hocketModeEnabled) {
+      return remapped;
+    }
+
+    return {
+      ...remapped,
+      end: event.start + (duration > EPSILON ? duration : event.end - event.start),
+    };
+  };
+
+  if (combinationModeEnabled(combinationModeMask, 0) && activeRows.length > 1 && !deferCrossModToHocket) {
+    events = events.map((event) => applyCrossModEvent(event));
   }
 
   if (combinationModeEnabled(combinationModeMask, 7) && activeRows.length > 1) {
@@ -1344,6 +1361,7 @@ function applyCombinationModes({
         emitStartQuarters,
         emitEndQuarters,
         hocketLengthQuarters,
+        crossModTransform: deferCrossModToHocket ? applyCrossModEvent : undefined,
       },
     );
   }
