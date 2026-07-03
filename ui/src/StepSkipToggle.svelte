@@ -17,6 +17,7 @@
    * @property {string} [ariaLabel]
    * @property {string} [buttonClass]
    * @property {string} [iconClass]
+   * @property {string | undefined} [iconStyle]
    * @property {string | undefined} [style]
    * @property {(value: boolean) => void | Promise<void>} [onValueChange]
    */
@@ -29,6 +30,7 @@
     ariaLabel = "Skip step in sequence",
     buttonClass = "",
     iconClass = "pointer-events-none h-3 w-3",
+    iconStyle = undefined,
     style = undefined,
     onValueChange = () => {}
   } = $props();
@@ -58,5 +60,5 @@
   onpointerdown={(event) => event.stopPropagation()}
   onclick={toggle}
 >
-  <StepSkipIcon class={iconClass} />
+  <StepSkipIcon class={iconClass} style={iconStyle} />
 </button>

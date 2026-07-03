@@ -11,6 +11,12 @@ import {
   quarterGridColumnsForMultiplierIndex,
   stepCellPaddingPx,
   stepCellQuarterGridWidthPx,
+  stepBoundaryEndResizePx,
+  stepBoundaryLeadingShellEdgeLeftPx,
+  stepBoundaryTrailingShellEdgeLeftPx,
+  stepBoundaryStartResizePx,
+  stepInsertZoneWidthPx,
+  stepTrailingBoundaryShellEdgeInsetPx,
   stepDisplayWidthPx,
   timingMultiplierIndexForValue,
   timingMultiplierIndicesInRange,
@@ -194,5 +200,17 @@ describe("compactPhraseGridLayout", () => {
     const layout = compactPhraseGridLayout([[3], [3]], [rowTimingOffsetIndexForQuarters(-0.75), defaultRowTimingOffsetIndex]);
     expect(layout.rowStartColumns).toEqual([0, 3]);
     expect(layout.totalColumns).toBe(7);
+  });
+});
+
+describe("boundary edge handles", () => {
+  it("anchors both accent handles on shell edges with equal inset from the boundary", () => {
+    const boundaryCenter = (
+      stepBoundaryEndResizePx() + stepInsertZoneWidthPx() + stepBoundaryStartResizePx()
+    ) / 2;
+
+    expect(stepBoundaryTrailingShellEdgeLeftPx()).toBeCloseTo(boundaryCenter - stepCellPaddingPx());
+    expect(stepBoundaryLeadingShellEdgeLeftPx()).toBeCloseTo(boundaryCenter + stepCellPaddingPx());
+    expect(stepTrailingBoundaryShellEdgeInsetPx()).toBe(stepBoundaryEndResizePx());
   });
 });

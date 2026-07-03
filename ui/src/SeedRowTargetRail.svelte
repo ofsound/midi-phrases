@@ -39,8 +39,7 @@
 </script>
 
 <div class="seed-row-target-rail {className}">
-  <p class="seed-row-target-label">Seed Rows</p>
-  <div class="seed-row-target-strip" role="group" aria-label="Rows to seed">
+  <div class="seed-row-target-strip" role="group" aria-label="Seed rows">
     {#each [0, 1, 2, 3] as row (row)}
       {@const targeted = rowTargets[row] ?? false}
       {@const accent = rowAccentFor(row, rowColorsEnabled)}
@@ -82,17 +81,7 @@
 
 <style>
   .seed-row-target-rail {
-    display: grid;
-    gap: 0.35rem;
-  }
-
-  .seed-row-target-label {
-    margin: 0;
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    line-height: 1;
-    color: var(--color-text);
+    display: block;
   }
 
   .seed-row-target-strip {

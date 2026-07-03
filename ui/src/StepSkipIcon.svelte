@@ -1,13 +1,14 @@
 <script>
   /** Right-pointing arrow: thin shaft joined to center of triangular head. */
-  /** @type {{ class?: string }} */
-  let { class: className = "h-3 w-3" } = $props();
+  /** @type {{ class?: string, style?: string }} */
+  let { class: className = "h-3 w-3", style = undefined } = $props();
 </script>
 
 <svg
   xmlns="http://www.w3.org/2000/svg"
   viewBox="0 0 24 24"
   class={className}
+  style={style}
   aria-hidden="true"
 >
   <g transform="translate(12 12) scale(0.68) translate(-12 -12)">

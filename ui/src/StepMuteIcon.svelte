@@ -2,12 +2,13 @@
   import muteIconSrc from "./assets/mute-icon.png";
 
   /** Speaker with X — step footer mute (from assets/mute-icon.png). */
-  /** @type {{ class?: string }} */
-  let { class: className = "h-3 w-3" } = $props();
+  /** @type {{ class?: string, style?: string }} */
+  let { class: className = "h-3 w-3", style = undefined } = $props();
 </script>
 
 <span
   class="step-mute-icon inline-block shrink-0 bg-current {className}"
+  style={style}
   style:--step-mute-icon="url({muteIconSrc})"
   aria-hidden="true"
 ></span>

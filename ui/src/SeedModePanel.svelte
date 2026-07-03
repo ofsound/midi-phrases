@@ -1,5 +1,6 @@
 <script>
   import AccentRangeSlider from "./AccentRangeSlider.svelte";
+  import RowRandomizeOrderIcon from "./RowRandomizeOrderIcon.svelte";
   import SeedRowTargetRail from "./SeedRowTargetRail.svelte";
   import { inspectorTextButtonClasses } from "./inspectorSidebar.js";
   import {
@@ -85,9 +86,9 @@
 
 </script>
 
-<aside class="seed-mode-panel grid w-[25rem] max-w-[42vw] shrink-0 content-start gap-2 self-stretch border-r border-border-subtle bg-transparent pt-4 pb-1 pr-4 pl-0 sm:pr-5">
+<aside class="seed-mode-panel grid w-[25rem] max-w-[42vw] shrink-0 content-start gap-2 self-stretch border-r border-border-subtle bg-transparent pt-2 pb-4 pr-4 pl-0 sm:pr-5">
   <div class="grid gap-2">
-    <label class="seed-param-control border-b border-border-subtle pb-2">
+    <label class="seed-param-control">
       <span class="seed-param-label">Global Overlap</span>
       <div class="seed-param-row">
         <AccentRangeSlider
@@ -103,6 +104,12 @@
         <span class="seed-param-value" aria-hidden="true">{rhythmStep}</span>
       </div>
     </label>
+
+    <div
+      class="-mr-4 border-t border-border-subtle sm:-mr-5"
+      role="presentation"
+      aria-hidden="true"
+    ></div>
 
     <SeedRowTargetRail
       class="min-w-0 pb-1"
@@ -300,19 +307,23 @@
           type="button"
           data-cursor="pointer"
           disabled={busy}
-          class={inspectorTextButtonClasses({ disabled: busy })}
+          class="{inspectorTextButtonClasses({ disabled: busy })} gap-1.5"
           onclick={onNextSeed}
         >
-          New Notes
+          <RowRandomizeOrderIcon class="pointer-events-none h-3.5 w-3.5 shrink-0" />
+          Steps
         </button>
         <button
           type="button"
           data-cursor="pointer"
           disabled={busy}
-          class={inspectorTextButtonClasses({ disabled: busy })}
+          aria-label="Randomize all seed settings"
+          title="Randomize all seed settings"
+          class="{inspectorTextButtonClasses({ disabled: busy })} gap-1.5"
           onclick={onShuffle}
         >
-          Randomize
+          <RowRandomizeOrderIcon class="pointer-events-none h-3.5 w-3.5 shrink-0" />
+          All
         </button>
       </div>
     </div>

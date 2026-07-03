@@ -1,7 +1,7 @@
 <script>
   /** Cog/gear icon for flipping step settings. */
-  /** @type {{ class?: string }} */
-  let { class: className = "h-4 w-4" } = $props();
+  /** @type {{ class?: string, style?: string }} */
+  let { class: className = "h-4 w-4", style = undefined } = $props();
 </script>
 
 <svg
@@ -9,6 +9,7 @@
   viewBox="0 0 24 24"
   fill="none"
   class={className}
+  style={style}
   aria-hidden="true"
 >
   <path

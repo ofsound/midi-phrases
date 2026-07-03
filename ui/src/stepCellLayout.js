@@ -60,6 +60,24 @@ export function stepBoundaryResizeZoneWidthPx() {
   return stepBoundaryEndResizePx() + stepInsertZoneWidthPx() + stepBoundaryStartResizePx();
 }
 
+/**
+ * Distance from a centered boundary resize zone's left edge to the trailing step shell.
+ * Accent handles center here so half sits under the cell and half peeks into the gap.
+ */
+export function stepBoundaryTrailingShellEdgeLeftPx() {
+  return stepBoundaryResizeZoneWidthPx() / 2 - stepCellPaddingPx();
+}
+
+/** Leading shell edge of the following step within the same resize zone. */
+export function stepBoundaryLeadingShellEdgeLeftPx() {
+  return stepBoundaryResizeZoneWidthPx() / 2 + stepCellPaddingPx();
+}
+
+/** Trailing resize zone: shell edge inset from the zone's left edge. */
+export function stepTrailingBoundaryShellEdgeInsetPx() {
+  return stepBoundaryEndResizePx();
+}
+
 /** Left edge for a boundary resize zone centered on a quarter-grid boundary. */
 export function boundaryResizeZoneLeftPxAtGridBoundaryPx(boundaryPx) {
   return boundaryPx - stepBoundaryResizeZoneWidthPx() / 2;

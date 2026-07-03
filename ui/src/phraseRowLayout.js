@@ -36,8 +36,8 @@ export function phraseRowScrollPaddingRightPx() {
   return phraseRowScrollPaddingVerticalPx() / 2;
 }
 
-/** Matches App row gap spacers (`h-2`). */
-export const basePhraseRowInterRowGapPx = 8;
+/** Matches App row gap spacers (`h-2.5`). Sized for seed-panel band parity. */
+export const basePhraseRowInterRowGapPx = 10;
 
 export function phraseRowInterRowGapPx() {
   return scaledPx(basePhraseRowInterRowGapPx);
@@ -50,11 +50,38 @@ export function phraseGridOuterPaddingPx() {
   return scaledPx(basePhraseGridOuterPaddingPx);
 }
 
+/** SeedModePanel aside `pt-2` + `pb-4`. */
+export const baseSeedModePanelVerticalPaddingPx = 24;
+
+/** SeedModePanel inner grid `gap-2`. */
+export const baseSeedModePanelGridGapPx = 8;
+
+/** SeedModePanel slider rows (AccentRangeSlider track shell). */
+export const baseSeedModePanelSliderRowPx = 33.32;
+
+/** SeedModePanel target-rail buttons (`h-2.25rem`) plus trailing `pb-1`. */
+export const baseSeedModePanelTargetRailPx = 40;
+
+/** SeedModePanel symmetry action row (`h-9`). */
+export const baseSeedModePanelSymmetryRowPx = 36;
+
+/** Full-width divider below Global Overlap. */
+export const baseSeedModePanelDividerPx = 1;
+
+/** AccentRangeSlider rows in the seed panel, including Global Overlap. */
+export const seedModePanelSliderRowCount = 9;
+
+/** Inner grid children in SeedModePanel (overlap through symmetry). */
+export const seedModePanelGridItemCount = 12;
+
+/** Phrase rows in the main grid. */
+export const phraseGridRowCount = 4;
+
 /**
  * Minimum front-face step cell height (header h-5, body, footer h-5, border-2).
- * Keeps zero-step rows the same band height as rows with steps.
+ * Sized so the four-row phrase band matches {@link seedModePanelMinHeightPx}.
  */
-export const basePhraseStepCellMinHeightPx = 88;
+export const basePhraseStepCellMinHeightPx = 96;
 
 export function phraseStepCellMinHeightPx() {
   return scaledPx(basePhraseStepCellMinHeightPx);
@@ -67,6 +94,26 @@ export function stepFooterHeightPx() {
   return scaledPx(baseStepFooterHeightPx);
 }
 
+/** Step footer skip / mute / gear icon baseline (`h-3` / `w-3`). */
+export const baseStepFooterIconPx = 12;
+
+/** Size bump for taller phrase rows. */
+export const stepFooterIconSizeFactor = 1.33;
+
+export function stepFooterIconSizePx() {
+  return scaledPx(baseStepFooterIconPx * stepFooterIconSizeFactor);
+}
+
+/**
+ * Skip / mute icons render their artwork at 68% inside the box; size up the box so
+ * visible artwork matches {@link stepFooterIconSizePx} (gear).
+ */
+export const stepFooterToggleIconGraphicScale = 0.68;
+
+export function stepFooterToggleIconSizePx() {
+  return stepFooterIconSizePx() / stepFooterToggleIconGraphicScale;
+}
+
 /** Drop-guide line height inside the step row band (room for glow without clipping). */
 export const basePhraseStepDropIndicatorHeightPx = 64;
 
@@ -77,6 +124,32 @@ export function phraseStepDropIndicatorHeightPx() {
 /** PhraseRow scroll container min-height including vertical padding. */
 export function phraseRowMinHeightPx() {
   return phraseStepCellMinHeightPx() + phraseRowScrollPaddingVerticalPx();
+}
+
+/** Total vertical band for the four phrase rows, gaps, and marquee padding. */
+export function phraseGridBandHeightPx() {
+  const rowCount = phraseGridRowCount;
+  const gapCount = Math.max(0, rowCount - 1);
+
+  return (
+    phraseGridOuterPaddingPx() * 2
+    + rowCount * phraseRowMinHeightPx()
+    + gapCount * phraseRowInterRowGapPx()
+  );
+}
+
+/** Intrinsic height of the seed-mode sidebar; keep in sync with SeedModePanel.svelte. */
+export function seedModePanelMinHeightPx() {
+  const gapCount = Math.max(0, seedModePanelGridItemCount - 1);
+
+  return scaledPx(
+    baseSeedModePanelVerticalPaddingPx
+    + gapCount * baseSeedModePanelGridGapPx
+    + seedModePanelSliderRowCount * baseSeedModePanelSliderRowPx
+    + baseSeedModePanelDividerPx
+    + baseSeedModePanelTargetRailPx
+    + baseSeedModePanelSymmetryRowPx,
+  );
 }
 
 /** Gap between row header on/off and offset knob (`gap-2.5`). */

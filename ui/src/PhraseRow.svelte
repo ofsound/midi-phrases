@@ -61,6 +61,8 @@
     phraseRowMinHeightPx,
     phraseStepCellMinHeightPx,
     phraseStepDropIndicatorHeightPx,
+    stepFooterIconSizePx,
+    stepFooterToggleIconSizePx,
   } from "./phraseRowLayout.js";
   import {
     defaultRowTimingOffsetIndex,
@@ -76,8 +78,11 @@
     rowStepLayoutsPx,
     rowTimingOffsetShiftPx,
     stepBoundaryEndResizePx,
+    stepBoundaryLeadingShellEdgeLeftPx,
     stepBoundaryResizeZoneWidthPx,
     stepBoundaryStartResizePx,
+    stepBoundaryTrailingShellEdgeLeftPx,
+    stepTrailingBoundaryShellEdgeInsetPx,
     stepCellPaddingPx,
     stepDisplayWidthPx,
     stepCellGridSpanPx,
@@ -2238,6 +2243,7 @@
 {/snippet}
 
 {#snippet multiplierResizeHandle(step)}
+  {@const boundaryEdgeHandleClass = `boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 ${accent.textAccent}`}
   <div
     class="trailing-multiplier-resize-zone pointer-events-none absolute inset-y-0 z-[60] {isMultiplierResizeBoundaryActive(step)
       ? 'multiplier-resize-zone-active'
@@ -2274,8 +2280,8 @@
       ondblclick={(event) => handleBoundaryDoubleClick(event, step + 1)}
     ></button>
     <span
-      class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
-      style:left="{stepBoundaryEndResizePx()}px"
+      class="{boundaryEdgeHandleClass} -translate-x-1/2"
+      style:left="{stepTrailingBoundaryShellEdgeInsetPx()}px"
       aria-hidden="true"
     ></span>
   </div>
@@ -2289,7 +2295,9 @@
   {@const multiplierIndex = stepTimingMultiplier[step] ?? defaultStepTimingMultiplierIndex}
   {@const isQuarterStep = multiplierIndex === 0}
   {@const footerButtonClass = `flex h-full shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none focus-visible:outline-none ${accent.ringFocusWithWidth}`}
-  {@const footerStepIconClass = "pointer-events-none size-[calc(0.875rem*1.33)]"}
+  {@const footerStepIconClass = "pointer-events-none shrink-0"}
+  {@const footerStepIconStyle = `width: ${stepFooterIconSizePx()}px; height: ${stepFooterIconSizePx()}px;`}
+  {@const footerStepToggleIconStyle = `width: ${stepFooterToggleIconSizePx()}px; height: ${stepFooterToggleIconSizePx()}px;`}
   {@const footerSlotStyle = `width: ${stepFooterActionSlotWidthPx()}px`}
   <div
     class="relative z-[80] flex h-5 w-full shrink-0 {isQuarterStep
@@ -2304,6 +2312,7 @@
         value={stepIsSkipped}
         buttonClass={`${footerButtonClass} min-w-0 flex-1 basis-0`}
         iconClass={footerStepIconClass}
+        iconStyle={footerStepToggleIconStyle}
         ariaLabel="Skip step in sequence"
         onValueChange={(value) => onStepSkipChange(row, step, value)}
       />
@@ -2313,6 +2322,7 @@
         value={stepIsMuted}
         buttonClass={`${footerButtonClass} min-w-0 flex-1 basis-0`}
         iconClass={footerStepIconClass}
+        iconStyle={footerStepToggleIconStyle}
         ariaLabel="Mute step"
         onValueChange={(value) => onStepMuteChange(row, step, value)}
       />
@@ -2332,7 +2342,7 @@
         onmousedown={(event) => event.stopPropagation()}
         onclick={() => onInspectStep(row, step, stepIds[step])}
       >
-        <StepGearIcon class="pointer-events-none h-3 w-3" />
+        <StepGearIcon class={footerStepIconClass} style={footerStepIconStyle} />
       </button>
     {:else}
       <div class="flex shrink-0 divide-x divide-border-subtle">
@@ -2342,6 +2352,7 @@
           value={stepIsSkipped}
           buttonClass={footerButtonClass}
           iconClass={footerStepIconClass}
+          iconStyle={footerStepToggleIconStyle}
           ariaLabel="Skip step in sequence"
           onValueChange={(value) => onStepSkipChange(row, step, value)}
           style={footerSlotStyle}
@@ -2352,6 +2363,7 @@
           value={stepIsMuted}
           buttonClass={footerButtonClass}
           iconClass={footerStepIconClass}
+          iconStyle={footerStepToggleIconStyle}
           ariaLabel="Mute step"
           onValueChange={(value) => onStepMuteChange(row, step, value)}
           style={footerSlotStyle}
@@ -2374,7 +2386,7 @@
         onmousedown={(event) => event.stopPropagation()}
         onclick={() => onInspectStep(row, step, stepIds[step])}
       >
-        <StepGearIcon class="pointer-events-none h-3 w-3" />
+        <StepGearIcon class={footerStepIconClass} style={footerStepIconStyle} />
       </button>
     {/if}
   </div>
@@ -2554,6 +2566,7 @@
 {/snippet}
 
 {#snippet gridInsertSlot(boundaryPx, insertStep, mode)}
+  {@const boundaryEdgeHandleClass = `boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 ${accent.textAccent}`}
   <div
     data-insert-slot
     class="boundary-resize-zone pointer-events-none absolute inset-y-0 z-[60] {mode === 'between' && insertStep > 0 && isMultiplierResizeBoundaryActive(insertStep - 1)
@@ -2596,13 +2609,13 @@
         ondblclick={(event) => handleBoundaryDoubleClick(event, insertStep)}
       ></button>
       <span
-        class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
-        style:left="{stepBoundaryEndResizePx()}px"
+        class="{boundaryEdgeHandleClass} -translate-x-1/2"
+        style:left="{stepBoundaryTrailingShellEdgeLeftPx()}px"
         aria-hidden="true"
       ></span>
       <span
-        class="boundary-edge-handle pointer-events-none absolute top-1/2 z-10 h-7 w-1 translate-x-1/2 -translate-y-1/2 rounded-full border border-current bg-current opacity-0 shadow-sm transition-opacity duration-100 {accent.textAccent}"
-        style:right="{stepBoundaryStartResizePx()}px"
+        class="{boundaryEdgeHandleClass} -translate-x-1/2"
+        style:left="{stepBoundaryLeadingShellEdgeLeftPx()}px"
         aria-hidden="true"
       ></span>
     {:else if mode === "leading" && insertStep === 0}

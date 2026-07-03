@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  phraseGridBandHeightPx,
   phraseGridOriginLeftOffsetPx,
   phraseRowEndAddStepOverlayLeftPx,
   phraseRowsContentFitScale,
@@ -9,6 +10,7 @@ import {
   phraseRowEndStepTailPaddingPx,
   phraseRowLeadingControlsWidthPx,
   phraseRowScrollPaddingRightPx,
+  seedModePanelMinHeightPx,
 } from "./phraseRowLayout.js";
 import {
   defaultRowTimingOffsetIndex,
@@ -28,6 +30,12 @@ function phraseGridFieldWidthForContent(contentWidthPx) {
     + contentWidthPx
   );
 }
+
+describe("phrase grid band height", () => {
+  it("matches the seed panel so opening seed mode does not resize the top content band", () => {
+    expect(phraseGridBandHeightPx()).toBeGreaterThanOrEqual(seedModePanelMinHeightPx());
+  });
+});
 
 describe("phraseRowsContentFitScale", () => {
   it("does not shrink a long unshifted row because another row has a positive timing offset", () => {

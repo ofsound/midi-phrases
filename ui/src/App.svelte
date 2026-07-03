@@ -6186,10 +6186,10 @@
           onToggleAllRowTargets={toggleAllSeedModeRowTargets}
         />
       {/if}
-      <div data-phrase-grid-field class="relative flex min-w-0 flex-1 flex-col {seedModeActive ? 'py-4' : ''}" {@attach phraseGridFieldAttachment}>
+      <div data-phrase-grid-field class="relative flex min-w-0 flex-1 flex-col" {@attach phraseGridFieldAttachment}>
         <div
           data-phrase-grid-marquee-zone="top"
-          class="{seedModeActive ? 'h-2' : 'h-6'} shrink-0"
+          class="h-6 shrink-0"
           role="presentation"
           aria-hidden="true"
           onpointerdown={handleRowGapBulkSelectPointerDown}
@@ -6412,7 +6412,7 @@
           </div>
           {#if row < grid.length - 1}
             <div
-              class="h-2 shrink-0"
+              class="h-2.5 shrink-0"
               role="presentation"
               aria-hidden="true"
               onpointerdown={handleRowGapBulkSelectPointerDown}
@@ -6421,7 +6421,7 @@
         {/each}
         <div
           data-phrase-grid-marquee-zone="bottom"
-          class="{seedModeActive ? 'h-2' : 'h-6'} shrink-0"
+          class="h-6 shrink-0"
           role="presentation"
           aria-hidden="true"
           onpointerdown={handleRowGapBulkSelectPointerDown}
