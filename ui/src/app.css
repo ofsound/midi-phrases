@@ -778,9 +778,23 @@
     background: color-mix(in srgb, var(--row-header-accent, var(--color-text)) 7%, transparent);
   }
 
-  [data-row-header]:hover:not(:has(button:hover, [role="slider"]:hover))::before,
-  [data-row-header][data-mp-hover]:not(:has(button[data-mp-hover], [role="slider"][data-mp-hover]))::before {
+  /* Keep the hover wash stable while crossing header controls. In WKWebView,
+     toggling this layer through :has(button:hover) can re-rasterize fractional-scale SVGs. */
+  [data-row-header]:hover::before,
+  [data-row-header][data-mp-hover]::before {
     opacity: 1;
+  }
+
+  .row-power-toggle,
+  .row-power-toggle-icon {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform: translateZ(0);
+  }
+
+  .row-power-toggle-icon {
+    display: block;
+    flex: none;
   }
 
   .velocity-tilt-icon-dragging,

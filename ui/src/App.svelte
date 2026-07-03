@@ -6214,7 +6214,7 @@
                   aria-label={rowMuted[row] ? "Turn row on" : "Turn row off"}
                   aria-pressed={!rowMuted[row]}
                   data-cursor="pointer"
-                  class="pointer-events-auto relative z-20 flex h-9 w-9 shrink-0 self-start items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-focus-ring {rowMuted[row]
+                  class="row-power-toggle pointer-events-auto relative z-20 flex h-9 w-9 shrink-0 self-start items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-focus-ring {rowMuted[row]
                     ? rowPowerToggleOffClasses
                     : rowAccent.textAccent}"
                   onclick={(event) => seedModeActive
@@ -6222,7 +6222,7 @@
                     : toggleRowMute(row, event.shiftKey)}
                   title="Shift-click to solo row"
                 >
-                  <RowDisableIcon class="h-9 w-9" />
+                  <RowDisableIcon class="row-power-toggle-icon h-9 w-9" />
                 </button>
                 <div class="pointer-events-auto">
                   <BipolarKnob
