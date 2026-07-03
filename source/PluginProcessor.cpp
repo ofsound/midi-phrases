@@ -1488,8 +1488,6 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
 
         case SequencerCommand::Type::SetCombinationModeMask:
             state.combinationModeMask = clampCombinationModeMask (command.intValue);
-            resetLastEmittedTriggers();
-            combinationModeRescheduleRequested.store (1, std::memory_order_release);
             break;
 
         case SequencerCommand::Type::SetPatternScale:
@@ -1574,6 +1572,7 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
     };
 
     if (command.type == SequencerCommand::Type::ReplacePattern
+        || command.type == SequencerCommand::Type::SetCombinationModeMask
         || command.type == SequencerCommand::Type::SetPatternNoteBandpass)
     {
         flushAllRows();
@@ -1865,6 +1864,9 @@ void PluginProcessor::setCombinationModeEnabled (const int modeIndex, const bool
     command.patternSlot = getViewPatternSlot();
     command.intValue = next;
     publishCommandToAudio (command);
+
+    for (auto& flush : phraseRowFlushNoteOff)
+        flush.store (1);
 }
 
 bool PluginProcessor::isCombinationModeEnabled (const int modeIndex) const
@@ -5952,12 +5954,6 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     handleIncomingControlNotes (midiMessages);
     drainSequencerCommands();
     applyMuteOutputSilence (midiMessages);
-
-    if (combinationModeRescheduleRequested.exchange (0, std::memory_order_acq_rel) != 0)
-    {
-        flushActiveGeneratedNotes (0, midiMessages);
-        resetPendingCombinedNoteOffs();
-    }
 
     const auto stopPlayback = [&] {
         if (wasPlaying)
