@@ -289,6 +289,9 @@
 
   let playbackPollTimerId = 0;
   let playbackPollInFlight = false;
+  /** Poll slot/recording native state every N playback frames (~4 Hz at 16 ms). */
+  let playbackSlowPollCounter = 0;
+  const playbackSlowPollInterval = 15;
   let slotSelectionInFlight = 0;
   let previousGateSnapshot = defaultPhraseGrid().map((row) => row.map(() => false));
   let activeGateHoldUntil = defaultPhraseGrid().map((row) => row.map(() => 0));
@@ -4963,8 +4966,13 @@
 
     updateActiveGatesForBeat(playbackBeat);
 
-    await pollCurrentSlotState();
-    await pollRowRecordingNotes();
+    playbackSlowPollCounter += 1;
+
+    if (playbackSlowPollCounter >= playbackSlowPollInterval) {
+      playbackSlowPollCounter = 0;
+      await pollCurrentSlotState();
+      await pollRowRecordingNotes();
+    }
   }
 
   function schedulePlaybackPoll() {
@@ -4989,6 +4997,8 @@
       window.clearInterval(playbackPollTimerId);
       playbackPollTimerId = 0;
     }
+
+    playbackSlowPollCounter = 0;
   }
 
   function queuePlaybackUiRefresh() {

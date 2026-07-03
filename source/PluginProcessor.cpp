@@ -4283,15 +4283,30 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
     auto collectionPpqStart = emitPpqStart;
     auto collectionPpqEnd = emitPpqEnd;
     auto hocketLengthQuarters = emitPpqEnd;
-    auto maxActiveRowCycleQuarters = 0.0;
+    auto maxActiveRowGateQuarters = 0.0;
 
     for (int rowIndex = 0; rowIndex < activeRowCount; ++rowIndex)
     {
         const auto row = activeRows[static_cast<size_t> (rowIndex)];
-        maxActiveRowCycleQuarters = juce::jmax (
-            maxActiveRowCycleQuarters,
-            state.rows[static_cast<size_t> (row)].cycleLengthQuarters);
+        const auto& rowSteps = state.rows[static_cast<size_t> (row)];
+
+        for (int step = 0; step < rowSteps.stepCount; ++step)
+        {
+            const auto stepIndex = static_cast<size_t> (step);
+
+            if (rowSteps.stepSkipped[stepIndex] != 0 || rowSteps.stepMuted[stepIndex] != 0
+                || rowSteps.velocity[stepIndex] <= 0)
+                continue;
+
+            maxActiveRowGateQuarters =
+                juce::jmax (maxActiveRowGateQuarters,
+                            rowSteps.stepLengthQuarters[stepIndex]
+                                * rowSteps.durationFraction[stepIndex]);
+        }
     }
+
+    const auto scheduleLookbackQuarters =
+        juce::jmax (combinationGesturePulse * 2.0, maxActiveRowGateQuarters);
 
     const auto patternRepeat = patternRepeatLengthQuarters();
     const auto weaveHashPpq = [&] (const double ppq) {
@@ -4310,7 +4325,9 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
     if (hocketModeEnabled)
     {
         const auto& loop = audioLoopBrace();
-        collectionPpqStart = loop.enabled != 0 ? loop.startQuarters : 0.0;
+        const auto lowerBound = loop.enabled != 0 ? loop.startQuarters : 0.0;
+        collectionPpqStart =
+            juce::jmax (lowerBound, emitPpqStart - scheduleLookbackQuarters);
 
         if (loop.enabled != 0)
         {
@@ -4331,19 +4348,15 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
     else if (weaveModeEnabled)
     {
         const auto& loop = audioLoopBrace();
-        const auto lookbackQuarters =
-            juce::jmax (combinationGesturePulse * 2.0, maxActiveRowCycleQuarters);
         const auto lowerBound = loop.enabled != 0 ? loop.startQuarters : 0.0;
-        collectionPpqStart = juce::jmax (lowerBound, emitPpqStart - lookbackQuarters);
+        collectionPpqStart = juce::jmax (lowerBound, emitPpqStart - scheduleLookbackQuarters);
         collectionPpqEnd = emitPpqEnd;
     }
     else if (heldNoteDeOverlapLookbackEnabled)
     {
         const auto& loop = audioLoopBrace();
-        const auto lookbackQuarters =
-            juce::jmax (combinationGesturePulse * 2.0, maxActiveRowCycleQuarters);
         const auto lowerBound = loop.enabled != 0 ? loop.startQuarters : 0.0;
-        collectionPpqStart = juce::jmax (lowerBound, emitPpqStart - lookbackQuarters);
+        collectionPpqStart = juce::jmax (lowerBound, emitPpqStart - scheduleLookbackQuarters);
         collectionPpqEnd = emitPpqEnd;
     }
 
@@ -4896,27 +4909,9 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
         if (sliceQuarters > epsilon)
         {
-            auto minSlice = std::numeric_limits<int>::max();
-            auto maxSlice = std::numeric_limits<int>::min();
-
-            for (size_t index = 0; index < eventCount; ++index)
-            {
-                const auto& event = combinedEvents[index];
-                const auto eventEnd = event.ppq + event.gateQuarters;
-
-                if (eventEnd <= event.ppq + epsilon)
-                    continue;
-
-                const auto firstSlice = static_cast<int> (std::floor ((event.ppq + epsilon) / sliceQuarters));
-                const auto lastSlice = static_cast<int> (std::ceil ((eventEnd - epsilon) / sliceQuarters)) - 1;
-
-                minSlice = juce::jmin (minSlice, firstSlice);
-                maxSlice = juce::jmax (maxSlice, lastSlice);
-            }
-
-            auto scheduleFirstSlice =
+            auto sliceLoopFirst =
                 static_cast<int> (std::floor ((emitPpqStart + epsilon) / sliceQuarters));
-            const auto scheduleLastSlice =
+            const auto sliceLoopLast =
                 static_cast<int> (std::ceil ((emitPpqEnd - epsilon) / sliceQuarters)) - 1;
 
             if (combinationFollowerLead > epsilon)
@@ -4924,25 +4919,14 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                 const auto extendedFirstSlice =
                     static_cast<int> (std::floor ((emitPpqStart - combinationFollowerLead + epsilon)
                                                   / sliceQuarters));
-                scheduleFirstSlice = juce::jmin (scheduleFirstSlice, extendedFirstSlice);
-            }
-
-            if (minSlice > maxSlice)
-            {
-                minSlice = scheduleFirstSlice;
-                maxSlice = scheduleLastSlice;
-            }
-            else
-            {
-                minSlice = juce::jmin (minSlice, scheduleFirstSlice);
-                maxSlice = juce::jmax (maxSlice, scheduleLastSlice);
+                sliceLoopFirst = juce::jmin (sliceLoopFirst, extendedFirstSlice);
             }
 
             auto write = static_cast<size_t> (0);
 
-            if (minSlice <= maxSlice)
+            if (sliceLoopFirst <= sliceLoopLast)
             {
-                for (int slice = minSlice; slice <= maxSlice && write < combinedWorkingEvents.size(); ++slice)
+                for (int slice = sliceLoopFirst; slice <= sliceLoopLast && write < combinedWorkingEvents.size(); ++slice)
                 {
                     const auto sliceStart = static_cast<double> (slice) * sliceQuarters;
                     const auto sliceEnd = sliceStart + sliceQuarters;
