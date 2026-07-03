@@ -56,7 +56,6 @@
     rowTimingOffsetIndicesWithSingleValue,
   } from "./stepCellLayout.js";
   import { sanitizeOrderedIds } from "./dndUtils.js";
-  import { doubleClick } from "./doubleClickAction.js";
   import {
     blockCrossRowInsertionIndex,
     blockDuplicateInsertionIndex,
@@ -1724,7 +1723,7 @@
   }
 
   /** @param {PointerEvent} event */
-  function shouldIgnoreRowHeaderDoubleClick(event) {
+  function shouldIgnoreRowHeaderClick(event) {
     const target = event.target;
 
     if (!(target instanceof Element)) return true;
@@ -1736,16 +1735,13 @@
     );
   }
 
-  /** @param {number} row */
-  function rowHeaderDoubleClickOptions(row) {
-    return {
-      shouldIgnore: shouldIgnoreRowHeaderDoubleClick,
-      onDoubleClick: (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        selectAllStepsInRow(row);
-      },
-    };
+  /** @param {PointerEvent} event @param {number} row */
+  function handleRowHeaderPointerUp(event, row) {
+    if (event.button !== 0 || shouldIgnoreRowHeaderClick(event)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    selectAllStepsInRow(row);
   }
 
   function syncBulkControlsFromSelection() {
@@ -6153,10 +6149,11 @@
               ? 'opacity-50'
               : ''}"
           >
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               data-row-header={row}
-              use:doubleClick={rowHeaderDoubleClickOptions(row)}
-              title="Double-click to select all steps in this row"
+              onpointerup={(event) => handleRowHeaderPointerUp(event, row)}
+              title="Click to select all steps in this row"
               class="relative flex shrink-0 self-stretch items-center border-r border-border-subtle bg-surface/55 pl-6 pr-6 {seedModeActive
               ? 'ml-0'
               : '-ml-6'} {row <
