@@ -615,6 +615,8 @@ private:
     void requestAudioLoopBraceEnable (int patternSlot);
     void clearPendingAudioLoopBraceEnable();
     void applyAudioLoopBraceEnable (double reanchorTransportPpq);
+    void requestSchedulePhaseReset();
+    void applySchedulePhaseReset (double reanchorTransportPpq);
     void resolvePendingAudioLoopBraceEnableForStoppedPlayback();
     bool isAudioLoopSlotApplied (int loopSlot) const;
     double loopDownbeatTransportForSlot (int loopSlot, double transportPpq) const;
@@ -759,6 +761,7 @@ private:
     std::atomic<int> patternOutputArmed { 1 };
     std::atomic<int> muteFlushRequested { 0 };
     std::atomic<int> pendingAudioPatternSlot { -1 };
+    std::atomic<int> pendingSchedulePhaseReset { 0 };
     std::atomic<int> currentLoopSlot { -1 };
     std::atomic<int> audioActiveLoopSlot { -1 };
     std::atomic<int> pendingAudioLoopSlot { -1 };

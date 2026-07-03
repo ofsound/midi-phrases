@@ -5259,6 +5259,113 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPlayHead (nullptr);
     }
 
+    SECTION ("combination mode enable restarts schedule phase from beat zero")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setCurrentPatternSlot (0);
+        ensurePhraseRowStepCount (testPlugin, 0, 4);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (0, 1, 0);
+        testPlugin.setPhraseStepVelocity (0, 2, 0);
+        testPlugin.setPhraseStepVelocity (0, 3, 0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (16.0);
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setPpqPosition (17.0);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getPlaybackBeat() == Catch::Approx (0.1).margin (0.05));
+
+        auto emittedBaseNote = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 60)
+                emittedBaseNote = true;
+        }
+
+        CHECK (emittedBaseNote);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("combination mode disable restarts schedule phase from beat zero")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+        ensurePhraseRowStepCount (testPlugin, 0, 4);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (0, 1, 0);
+        testPlugin.setPhraseStepVelocity (0, 2, 0);
+        testPlugin.setPhraseStepVelocity (0, 3, 0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (16.0);
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setPpqPosition (17.0);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, false);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getPlaybackBeat() == Catch::Approx (0.1).margin (0.05));
+
+        auto emittedBaseNote = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn() && message.getNoteNumber() == 60)
+                emittedBaseNote = true;
+        }
+
+        CHECK (emittedBaseNote);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("MIDI pattern trigger first beat keeps full gate after pulse switch")
     {
         testPlugin.prepareToPlay (1000.0, 100);
