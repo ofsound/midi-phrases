@@ -112,15 +112,15 @@ order:
 1. Cross-Mod
 2. Canon
 3. Retro-Inv
-4. Hocket
-5. Tendril
+4. Tendril
+5. Hocket
 6. Echo
 7. Weave
 
 The fixed order is important because some modes transform attributes, Canon and
-Retro-Inv add structural followers, Hocket gates events by carrier-row time
-windows before generative followers run, Tendril appends small phraselets, Echo
-can expand one event into many events, and Weave can thin same-time collisions.
+Retro-Inv add structural followers, Tendril appends small phraselets, Hocket
+gates the expanded pool by carrier-row time windows, Echo can expand one event
+into many events, and Weave can thin same-time collisions.
 A stable order keeps combinations repeatable and makes pattern state
 deterministic.
 

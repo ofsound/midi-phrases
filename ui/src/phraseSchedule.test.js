@@ -185,20 +185,20 @@ function generatedStarts(schedule, midi) {
 }
 
 describe("combination mode pulse-aware timing", () => {
-  it("places Tendril before Echo and Weave in the mode rail", () => {
+  it("places Tendril before Hocket, Echo, and Weave in the mode rail", () => {
     expect(combinationModes.map((mode) => mode.name)).toEqual([
       "Cross-Mod",
       "Canon",
       "Retro-Inv",
-      "Hocket",
       "Tendril",
+      "Hocket",
       "Echo",
       "Weave",
     ]);
     expect(combinationModes[1]).toMatchObject({index: 7, bit: 128});
     expect(combinationModes[2]).toMatchObject({index: 8, bit: 256});
-    expect(combinationModes[3]).toMatchObject({index: 6, bit: 64});
-    expect(combinationModes[4]).toMatchObject({index: 1, bit: 2});
+    expect(combinationModes[3]).toMatchObject({index: 1, bit: 2});
+    expect(combinationModes[4]).toMatchObject({index: 6, bit: 64});
     expect(combinationModes[6]).toMatchObject({index: 4, bit: 16});
   });
 
