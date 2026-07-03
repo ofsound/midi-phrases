@@ -323,8 +323,8 @@ export function computeRhythmRowTimingOffsets(
   return archetypeIndices.map((archetypeIndex, row) => {
     const cycleLength = Math.max(0.25, cycleLengthQuartersByRow[row] ?? 1);
     const phaseFraction = rhythmArchetypePhaseFractions[archetypeIndex] ?? 0;
-    const jitter = (random() * 2 - 1) * 0.125;
-    const desiredQuarters = phaseFraction * cycleLength * spread + jitter;
+    const jitter = phaseFraction <= 0 ? 0 : (random() * 2 - 1) * 0.125;
+    const desiredQuarters = Math.max(0, phaseFraction * cycleLength * spread + jitter);
     const clamped = clamp(
       desiredQuarters,
       rowTimingOffsetMinQuarters,
@@ -1081,7 +1081,42 @@ export function mergeSeededPhraseRows(existing, generated, rowTargets, options =
       : (existing.rowTimingOffset?.[row] ?? defaultRowTimingOffsetIndex);
   }
 
+  if (applyRhythmToAllRows) {
+    merged.rowTimingOffset = rowTimingOffsetsWithActiveAnchor(merged.rowTimingOffset, merged.notes);
+  }
+
   return merged;
+}
+
+/**
+ * Keep global rhythm changes anchored to the visible phrase content. The seeded
+ * zero-phase archetype can land on an empty/non-target row after a selective
+ * merge, so normalize the earliest non-empty row back to offset 0.
+ *
+ * @param {number[]} rowTimingOffset
+ * @param {number[][]} notes
+ * @returns {number[]}
+ */
+function rowTimingOffsetsWithActiveAnchor(rowTimingOffset, notes) {
+  const activeRows = notes
+    .map((rowNotes, row) => ((rowNotes?.length ?? 0) > 0 ? row : -1))
+    .filter((row) => row >= 0);
+
+  if (activeRows.length === 0) {
+    return [...rowTimingOffset];
+  }
+
+  const minActiveOffset = Math.min(...activeRows.map((row) => (
+    timingOffsetValues[rowTimingOffset[row]] ?? 0
+  )));
+
+  if (minActiveOffset === 0) {
+    return [...rowTimingOffset];
+  }
+
+  return rowTimingOffset.map((offsetIndex) => (
+    rowTimingOffsetIndexForQuarters((timingOffsetValues[offsetIndex] ?? 0) - minActiveOffset)
+  ));
 }
 
 /** @param {boolean[]} rowTargets */

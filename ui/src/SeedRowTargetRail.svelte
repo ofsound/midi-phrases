@@ -31,12 +31,6 @@
     return `var(--color-${token}-strong)`;
   }
 
-  /** @param {import('./rowAccentTheme.js').RowAccent} accent */
-  function rowAccentSoftColorVar(accent) {
-    const token = accent.bgAccent.replace(/^bg-/, "");
-    return `var(--color-${token}-soft, var(--color-${token}))`;
-  }
-
   /** @param {MouseEvent} event @param {number} row */
   function handleRowTargetClick(event, row) {
     onRowTargetToggle(row, { shiftKey: event.shiftKey });
@@ -61,7 +55,6 @@
         class="seed-row-target-btn seed-row-target-row"
         style:--row-accent={rowAccentColorVar(accent)}
         style:--row-accent-strong={rowAccentStrongColorVar(accent)}
-        style:--row-accent-soft={rowAccentSoftColorVar(accent)}
         onclick={(event) => handleRowTargetClick(event, row)}
       >
         {row + 1}
@@ -127,21 +120,22 @@
   }
 
   .seed-row-target-row {
-    border: 1.5px solid color-mix(in srgb, var(--row-accent) 78%, transparent);
-    background: color-mix(in srgb, var(--row-accent) 28%, var(--color-field));
-    color: var(--row-accent-strong);
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--row-accent-soft) 24%, transparent),
-      inset 0 -1px 2px color-mix(in srgb, var(--color-app) 36%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-border-subtle) 78%, transparent);
+    background: color-mix(in srgb, var(--color-surface-subtle) 38%, transparent);
+    color: color-mix(in srgb, var(--color-text) 72%, transparent);
+    box-shadow: inset 0 1px 1.5px color-mix(in srgb, var(--color-text) 10%, transparent);
   }
 
   .seed-row-target-row:not([aria-pressed="true"]):hover:not(:disabled) {
-    background: color-mix(in srgb, var(--row-accent) 42%, var(--color-field));
-    border-color: color-mix(in srgb, var(--row-accent-strong) 88%, transparent);
-    color: var(--row-accent-strong);
+    background: color-mix(in srgb, var(--color-control-ghost-hover) 48%, transparent);
+    color: var(--color-text);
   }
 
-  .seed-row-target-row:focus-visible {
+  .seed-row-target-row:focus-visible:not([aria-pressed="true"]) {
+    box-shadow: var(--shadow-accent-focus);
+  }
+
+  .seed-row-target-row[aria-pressed="true"]:focus-visible {
     box-shadow:
       var(--shadow-accent-focus),
       0 0 0.35rem color-mix(in srgb, var(--row-accent) 34%, transparent);

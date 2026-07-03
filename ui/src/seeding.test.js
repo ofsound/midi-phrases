@@ -24,7 +24,7 @@ import {
 } from "./seeding.js";
 import { isMidiInScale } from "./scaleUtils.js";
 import { defaultStepProbabilityValue } from "./percentLimits.js";
-import { timingOffsetValues } from "./stepCellLayout.js";
+import { defaultRowTimingOffsetIndex, timingOffsetValues } from "./stepCellLayout.js";
 
 /** @param {number[]} values */
 function average(values) {
@@ -530,6 +530,19 @@ describe("generateSeededPhraseRows", () => {
     expect(longOffsets[2]).toBeGreaterThan(shortOffsets[2]);
   });
 
+  it("keeps one generated rhythm row anchored at zero offset", () => {
+    for (let rhythmStep = seedingRhythmStepMin; rhythmStep <= seedingRhythmStepMax; rhythmStep += 1) {
+      const offsets = computeRhythmRowTimingOffsets(
+        rhythmStep,
+        [1, 2, 3, 0],
+        [4, 4, 4, 4],
+        91,
+      );
+
+      expect(offsets).toContain(defaultRowTimingOffsetIndex);
+    }
+  });
+
   it("uses different offsets when rows have different phrase lengths", () => {
     const rowSettings = createDefaultSeedModeRowSettings();
 
@@ -739,6 +752,33 @@ describe("mergeSeededPhraseRows", () => {
     expect(merged.stepVelocity[1]).toEqual(generated.stepVelocity[1]);
     expect(merged.stepVelocity[2]).toEqual(existing.stepVelocity[2]);
     expect(merged.stepVelocity[3]).toEqual(existing.stepVelocity[3]);
+  });
+
+  it("anchors global rhythm offsets to a non-empty row after selective merges", () => {
+    const existing = generateSeededPhraseRows({ ...baseOptions, seed: 1, rhythmStep: seedingRhythmStepMin });
+    const generated = generateSeededPhraseRows({ ...baseOptions, seed: 2, rhythmStep: seedingRhythmStepMax });
+
+    existing.notes[2] = [];
+    existing.notes[3] = [];
+    generated.rowTimingOffset = [
+      defaultRowTimingOffsetIndex + 3,
+      defaultRowTimingOffsetIndex + 5,
+      defaultRowTimingOffsetIndex,
+      defaultRowTimingOffsetIndex + 6,
+    ];
+
+    const merged = mergeSeededPhraseRows(
+      existing,
+      generated,
+      [false, false, false, false],
+      { applyRhythmToAllRows: true },
+    );
+
+    expect(merged.notes[0]).toHaveLength(4);
+    expect(merged.notes[1]).toHaveLength(4);
+    expect(merged.notes[2]).toHaveLength(0);
+    expect(merged.rowTimingOffset[0]).toBe(defaultRowTimingOffsetIndex);
+    expect(merged.rowTimingOffset[1]).toBe(defaultRowTimingOffsetIndex + 2);
   });
 });
 
