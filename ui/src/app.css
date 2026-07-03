@@ -767,6 +767,22 @@
     background: linear-gradient(180deg, color-mix(in srgb, var(--color-text) 14%, transparent), transparent 34%), linear-gradient(180deg, var(--color-control-ghost-hover) 0%, var(--color-surface-muted) 100%);
   }
 
+  [data-row-header]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 150ms;
+    background: color-mix(in srgb, var(--row-header-accent, var(--color-text)) 7%, transparent);
+  }
+
+  [data-row-header]:hover:not(:has(button:hover, [role="slider"]:hover))::before,
+  [data-row-header][data-mp-hover]:not(:has(button[data-mp-hover], [role="slider"][data-mp-hover]))::before {
+    opacity: 1;
+  }
+
   .velocity-tilt-icon-dragging,
   .velocity-tilt-icon:focus-visible {
     box-shadow:

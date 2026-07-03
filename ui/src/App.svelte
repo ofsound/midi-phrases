@@ -6156,6 +6156,7 @@
             <div
               data-row-header={row}
               use:doubleClick={rowHeaderDoubleClickOptions(row)}
+              title="Double-click to select all steps in this row"
               class="relative flex shrink-0 self-stretch items-center border-r border-border-subtle bg-surface/55 pl-6 pr-6 {seedModeActive
               ? 'ml-0'
               : '-ml-6'} {row <
@@ -6164,7 +6165,7 @@
                 : ''} {activeRowPianoRollEditor?.row === row ? 'bg-surface/80' : ''}"
               style:--row-header-accent={rowAccentColorVar(rowAccent)}
             >
-              <div class="pointer-events-none relative z-10 flex -translate-y-[12px] items-center gap-2.5 px-1">
+              <div class="pointer-events-none relative z-10 -ml-2 flex -translate-y-[12px] items-center gap-2.5 px-1">
                 {#if rowMuted[row]}
                   <div class={rowMutedOverlayClasses} aria-hidden="true"></div>
                 {/if}
@@ -6173,7 +6174,7 @@
                   aria-label={rowMuted[row] ? "Turn row on" : "Turn row off"}
                   aria-pressed={!rowMuted[row]}
                   data-cursor="pointer"
-                  class="pointer-events-auto relative z-20 -ml-1 flex h-9 w-9 shrink-0 self-start items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-focus-ring {rowMuted[row]
+                  class="pointer-events-auto relative z-20 flex h-9 w-9 shrink-0 self-start items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-focus-ring {rowMuted[row]
                     ? rowPowerToggleOffClasses
                     : rowAccent.textAccent}"
                   onclick={(event) => seedModeActive
