@@ -124,7 +124,7 @@
 <div
   data-step-velocity
   data-cursor="vertical-drag"
-  class="inline-flex touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {muted
+  class="inline-flex touch-none select-none items-center rounded-sm px-1 py-0.5 -mx-1 -my-0.5 outline-none {accent.ringFocusWithWidth} {muted
     ? 'text-text-muted'
     : dragging
       ? accent.textAccentLight

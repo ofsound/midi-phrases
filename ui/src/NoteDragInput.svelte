@@ -177,7 +177,7 @@
 <div
   data-step-note
   data-cursor="vertical-drag"
-  class="inline-flex min-w-0 touch-none select-none items-center rounded-sm outline-none {accent.ringFocusWithWidth} {minimal
+  class="inline-flex min-w-0 touch-none select-none items-center rounded-sm px-1 py-0.5 -mx-1 -my-0.5 outline-none {accent.ringFocusWithWidth} {minimal
     ? muted
       ? 'text-text-muted'
       : 'text-white'

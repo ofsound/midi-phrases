@@ -2969,7 +2969,7 @@
               ondblclick={(event) => layout.step >= 0 && openFullStepInspector(event, layout.step)}
             >
               {#if !collapsed}
-                <div class="pointer-events-auto h-full overflow-visible">
+                <div class="pointer-events-auto relative z-[62] h-full overflow-visible">
                   {@render stepCell(layout.step, true)}
                 </div>
               {/if}

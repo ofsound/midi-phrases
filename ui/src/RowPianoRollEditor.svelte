@@ -1063,7 +1063,7 @@
                 data-bulk-step-cell
                 data-step-row={row}
                 data-step-id={note.stepId}
-                class="absolute z-20 transition-[opacity,box-shadow] duration-150 {isShapeDrawMode
+                class="absolute z-[26] transition-[opacity,box-shadow] duration-150 {isShapeDrawMode
                   ? 'pointer-events-none'
                   : ''} {playbackActive ? rowAccent.playbackGlow : ''}"
                 role="group"
