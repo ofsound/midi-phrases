@@ -1,8 +1,8 @@
 <script>
   /**
-   * Combination-mode glyphs (Cross-Mod, Canon, Retro-Inv, Hocket, Bloom, Counter, Echo, Round Robin, Weave).
+   * Combination-mode glyphs (Cross-Mod, Canon, Retro-Inv, Hocket, Tendril, Echo, Weave).
    *
-   * @typedef {'crossMod' | 'canon' | 'retroInv' | 'hocket' | 'bloom' | 'counter' | 'echo' | 'roundRobin' | 'weave'} CombinationModeIconKind
+   * @typedef {'crossMod' | 'canon' | 'retroInv' | 'hocket' | 'tendril' | 'echo' | 'weave'} CombinationModeIconKind
    * @typedef {Object} Props
    * @property {CombinationModeIconKind} kind
    * @property {string} [class]
@@ -129,51 +129,27 @@
     <circle cx="20" cy="6" r="1.45" fill="currentColor" />
     <circle cx="20" cy="12" r="1.45" fill="currentColor" />
     <circle cx="20" cy="18" r="1.45" fill="currentColor" />
-  {:else if kind === "bloom"}
-    <!-- Source onset with trailing scale-neighbor ornaments. -->
-    <circle cx="4" cy="12" r="1.6" fill="currentColor" />
+  {:else if kind === "tendril"}
+    <!-- A source curls toward a neighboring row, then resolves as a small phraselet. -->
+    <circle cx="4" cy="12" r="1.55" fill="currentColor" />
     <path
-      d="M5.6 12 H12"
+      d="M5.55 12 C8.2 11.9 9.25 8.4 11.75 8.7 C14.1 8.95 14.15 13.25 16.55 13.45 C18.05 13.58 18.9 12.25 20 10.75"
       stroke="currentColor"
       stroke-width="1.45"
       stroke-linecap="round"
       stroke-linejoin="round"
     />
     <path
-      d="M12 12 C14.5 10.5 16.5 9.25 18.65 8.75"
-      stroke="currentColor"
-      stroke-width="1.45"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-    <path
-      d="M12 12 C14.5 13.5 16.5 14.75 18.65 15.25"
-      stroke="currentColor"
-      stroke-width="1.45"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-    <circle cx="20" cy="8.75" r="1.35" fill="currentColor" />
-    <circle cx="20" cy="15.25" r="1.35" fill="currentColor" />
-  {:else if kind === "counter"}
-    <!-- Call on the beat, offbeat response after. -->
-    <path
-      d="M3 11 H21"
+      d="M8.2 15.6 C10.1 17.55 13.35 17.35 15.2 15.25"
       stroke="currentColor"
       stroke-width="1.2"
       stroke-linecap="round"
-      opacity="0.45"
-    />
-    <circle cx="4" cy="11" r="1.6" fill="currentColor" />
-    <path
-      d="M5.6 11 C10 11 14 13.5 18.4 16"
-      stroke="currentColor"
-      stroke-width="1.45"
-      stroke-linecap="round"
       stroke-linejoin="round"
+      opacity="0.5"
     />
-    <circle cx="20" cy="16" r="1.6" fill="currentColor" />
-    <path d="M20 11 V13.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.45" />
+    <circle cx="11.75" cy="8.7" r="1.25" fill="currentColor" opacity="0.72" />
+    <circle cx="16.55" cy="13.45" r="1.35" fill="currentColor" />
+    <circle cx="20" cy="10.75" r="1.25" fill="currentColor" opacity="0.58" />
   {:else if kind === "echo"}
     <!-- One carrier event multiplied into staggered, fading repeats. -->
     <path
@@ -187,41 +163,6 @@
     <path d="M9.5 12 V18" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" opacity="0.72" />
     <path d="M13.5 10.75 V18" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" opacity="0.5" />
     <path d="M17.5 9.5 V18" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" opacity="0.32" />
-  {:else if kind === "roundRobin"}
-    <!-- Phrases advance one row at a time with a short weighted overlap. -->
-    <path
-      d="M4 7 H8.5 C10.4 7 11.6 9 13.5 9 H20"
-      stroke="currentColor"
-      stroke-width="1.45"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-    <path
-      d="M4 13 H10.5 C12.4 13 13.6 15 15.5 15 H20"
-      stroke="currentColor"
-      stroke-width="1.45"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      opacity="0.72"
-    />
-    <circle cx="4" cy="7" r="1.45" fill="currentColor" />
-    <circle cx="4" cy="13" r="1.45" fill="currentColor" opacity="0.72" />
-    <circle cx="20" cy="9" r="1.45" fill="currentColor" />
-    <circle cx="20" cy="15" r="1.45" fill="currentColor" opacity="0.72" />
-    <path
-      d="M10.5 18.25 C12.5 20 15.8 20 17.75 18.25"
-      stroke="currentColor"
-      stroke-width="1.2"
-      stroke-linecap="round"
-      opacity="0.45"
-    />
-    <path
-      d="M17.75 18.25 H15.45 M17.75 18.25 V20.55"
-      stroke="currentColor"
-      stroke-width="1.2"
-      stroke-linecap="round"
-      opacity="0.45"
-    />
   {:else}
     <!-- Competing same-time events woven into one weighted winner. -->
     <circle cx="4" cy="4.5" r="1.6" fill="currentColor" />

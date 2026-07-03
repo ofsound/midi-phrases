@@ -186,10 +186,10 @@ void configureFourRowOffsetHocketPattern (PluginProcessor& testPlugin)
     }
 }
 
-std::vector<std::pair<int, int>> collectHocketNoteOnEvents (PluginProcessor& testPlugin,
-                                                            const double sampleRate,
-                                                            const int blockSize,
-                                                            const int blockCount)
+std::vector<std::pair<int, int>> collectNoteOnEvents (PluginProcessor& testPlugin,
+                                                      const double sampleRate,
+                                                      const int blockSize,
+                                                      const int blockCount)
 {
     juce::AudioBuffer<float> buffer (2, blockSize);
     juce::MidiBuffer midi;
@@ -411,7 +411,7 @@ TEST_CASE ("Cross-Mod mode follows pattern scale", "[instance]")
     testPlugin.setPlayHead (nullptr);
 }
 
-TEST_CASE ("Bloom mode adds scale-neighbor ornaments", "[instance]")
+TEST_CASE ("Tendril mode adds anchored curls and row answers", "[instance]")
 {
     PluginProcessor testPlugin;
 
@@ -448,14 +448,62 @@ TEST_CASE ("Bloom mode adds scale-neighbor ornaments", "[instance]")
     }
 
     testPlugin.setPatternScale (0, 1); // C major
-    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeBloom, true);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeTendril, true);
 
     const auto noteOnCounts = collectNoteOnsOverQuarters (testPlugin, sampleRate, blockSize, 2.0);
 
     CHECK (noteOnCounts[60] > 0); // source C4 stays
-    CHECK (noteOnCounts[59] > 0); // lower scale-neighbor bloom
-    CHECK (noteOnCounts[59] == 1); // short-pulse bloom stays sparse within the half-note gesture
-    CHECK (noteOnCounts[62] > 0); // upper scale-neighbor bloom / row source
+    CHECK (noteOnCounts[59] > 0); // lower scale-neighbor curl from row motion
+    CHECK (noteOnCounts[59] == 1); // gesture anchoring keeps dense quarter pulses sparse
+    CHECK (noteOnCounts[65] > 0); // answer from row 1's D -> G contour
+}
+
+TEST_CASE ("Tendril mode keeps generated note-ons on rhythmic gesture slots", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 500;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (3);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 2);
+
+    testPlugin.setPhraseNote (0, 0, 60); // C4
+    testPlugin.setPhraseNote (1, 0, 64); // E4
+    testPlugin.setPhraseNote (1, 1, 67); // G4
+
+    for (int row = 0; row < 2; ++row)
+    {
+        const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+        for (int step = 0; step < stepCount; ++step)
+        {
+            testPlugin.setPhraseStepTimingMultiplier (
+                row,
+                step,
+                PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (row, step, 100);
+        }
+    }
+
+    testPlugin.setPhraseStepMuted (1, 0, true);
+    testPlugin.setPatternScale (0, 1); // C major
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeTendril, true);
+
+    const auto events = collectNoteOnEvents (testPlugin, sampleRate, blockSize, 5);
+
+    CHECK (std::find (events.begin(), events.end(), std::pair<int, int> { 1000, 59 }) != events.end());
+    CHECK (std::find (events.begin(), events.end(), std::pair<int, int> { 2000, 64 }) != events.end());
+    CHECK (std::find (events.begin(), events.end(), std::pair<int, int> { 3000, 62 }) != events.end());
 }
 
 TEST_CASE ("Combination modes merge duplicate same-channel unison attacks", "[instance]")
@@ -832,122 +880,17 @@ TEST_CASE ("Combination modes merge overlapping unisons across channels", "[inst
     testPlugin.setPlayHead (nullptr);
 }
 
-TEST_CASE ("Counter mode adds offbeat response notes", "[instance]")
+TEST_CASE ("Retired combination bit is ignored by combination masks", "[instance]")
 {
     PluginProcessor testPlugin;
 
-    constexpr double sampleRate = 44100.0;
-    constexpr int blockSize = 512;
+    testPlugin.setCombinationModeEnabled (2, true);
+    CHECK (testPlugin.getCombinationModeMask() == 0);
+    CHECK_FALSE (testPlugin.isCombinationModeEnabled (2));
 
-    testPlugin.prepareToPlay (sampleRate, blockSize);
-    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
-    testPlugin.setCurrentPatternSlot (0);
-    testPlugin.setPhraseRowMuted (0, false);
-    testPlugin.setPhraseRowMuted (1, false);
-    testPlugin.setPhraseRowMuted (2, true);
-    testPlugin.setPhraseRowMuted (3, true);
-
-    ensurePhraseRowStepCount (testPlugin, 0, 1);
-    ensurePhraseRowStepCount (testPlugin, 1, 2);
-
-    testPlugin.setPhraseNote (0, 0, 60); // C4
-    testPlugin.setPhraseNote (1, 0, 62); // D4
-    testPlugin.setPhraseNote (1, 1, 67); // G4
-
-    for (int row = 0; row < 2; ++row)
-    {
-        const auto stepCount = testPlugin.getPhraseRowStepCount (row);
-
-        for (int step = 0; step < stepCount; ++step)
-        {
-            testPlugin.setPhraseStepTimingMultiplier (row,
-                                                        step,
-                                                        PluginProcessor::defaultStepTimingMultiplierIndex);
-            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
-            testPlugin.setPhraseStepVelocity (row, step, 100);
-        }
-    }
-
-    testPlugin.setPatternScale (0, 1); // C major
-    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeCounter, true);
-
-    const auto noteOnCounts = collectNoteOnsOverQuarters (testPlugin, sampleRate, blockSize, 2.0);
-
-    CHECK (noteOnCounts[60] > 0); // source C4 stays
-    CHECK (noteOnCounts[65] > 0); // F4 answer from row 1's D -> G contour
-}
-
-TEST_CASE ("Round Robin mode gates rows with overlap note choice", "[instance]")
-{
-    PluginProcessor testPlugin;
-
-    constexpr double sampleRate = 1000.0;
-    constexpr int blockSize = 2048;
-
-    testPlugin.prepareToPlay (sampleRate, blockSize);
-    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
-    testPlugin.setCurrentPatternSlot (0);
-    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeRoundRobin, true);
-    testPlugin.setPhraseRowMuted (0, false);
-    testPlugin.setPhraseRowMuted (1, false);
-    testPlugin.setPhraseRowMuted (2, true);
-    testPlugin.setPhraseRowMuted (3, true);
-
-    ensurePhraseRowStepCount (testPlugin, 0, 1);
-    ensurePhraseRowStepCount (testPlugin, 1, 1);
-
-    testPlugin.setPhraseNote (0, 0, 60);
-    testPlugin.setPhraseNote (1, 0, 67);
-    testPlugin.setPhraseRowTimingOffset (0, 10); // +0.5 quarters, including transition overlap at 1.5
-    testPlugin.setPhraseRowTimingOffset (1, 10);
-
-    for (int row = 0; row < 2; ++row)
-    {
-        testPlugin.setPhraseStepTimingMultiplier (row,
-                                                    0,
-                                                    PluginProcessor::defaultStepTimingMultiplierIndex);
-        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
-        testPlugin.setPhraseStepVelocity (row, 0, 100);
-    }
-
-    juce::AudioBuffer<float> buffer (2, blockSize);
-    juce::MidiBuffer midi;
-
-    struct PlayHeadMock : juce::AudioPlayHead
-    {
-        juce::AudioPlayHead::PositionInfo info;
-
-        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
-        {
-            return info;
-        }
-    } playHead;
-
-    playHead.info.setBpm (120.0);
-    playHead.info.setIsPlaying (true);
-    playHead.info.setPpqPosition (0.0);
-    testPlugin.setPlayHead (&playHead);
-
-    testPlugin.processBlock (buffer, midi);
-
-    std::array<int, 128> noteOnCounts {};
-    auto totalNoteOns = 0;
-
-    for (const auto metadata : midi)
-    {
-        const auto message = metadata.getMessage();
-
-        if (message.isNoteOn())
-        {
-            ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
-            ++totalNoteOns;
-        }
-    }
-
-    CHECK (noteOnCounts[60] > 0);
-    CHECK (noteOnCounts[67] > 0);
-    CHECK (totalNoteOns == 4);
-    testPlugin.setPlayHead (nullptr);
+    testPlugin.setCombinationModeEnabled (5, true);
+    CHECK (testPlugin.getCombinationModeMask() == 0);
+    CHECK_FALSE (testPlugin.isCombinationModeEnabled (5));
 }
 
 TEST_CASE ("Weave mode trims emitted notes to the next selected attack", "[instance]")
@@ -1175,7 +1118,7 @@ TEST_CASE ("Weave mode keeps selected notes stable across phrase repeats", "[ins
         testPlugin.setPhraseStepVelocity (row, 0, 100);
     }
 
-    const auto outputEvents = collectHocketNoteOnEvents (
+    const auto outputEvents = collectNoteOnEvents (
         testPlugin,
         sampleRate,
         blockSize,
@@ -1539,13 +1482,13 @@ TEST_CASE ("Hocket mode matches output across block sizes", "[instance]")
     smallBlockPlugin.prepareToPlay (sampleRate, smallBlockSize);
     configureFourRowOffsetHocketPattern (smallBlockPlugin);
     const auto smallBlockEvents =
-        collectHocketNoteOnEvents (smallBlockPlugin, sampleRate, smallBlockSize, blockCount);
+        collectNoteOnEvents (smallBlockPlugin, sampleRate, smallBlockSize, blockCount);
 
     PluginProcessor largeBlockPlugin;
     largeBlockPlugin.prepareToPlay (sampleRate, largeBlockSize);
     configureFourRowOffsetHocketPattern (largeBlockPlugin);
     const auto largeBlockEvents =
-        collectHocketNoteOnEvents (largeBlockPlugin, sampleRate, largeBlockSize, 4);
+        collectNoteOnEvents (largeBlockPlugin, sampleRate, largeBlockSize, 4);
 
     REQUIRE (smallBlockEvents.size() > 0);
     REQUIRE (largeBlockEvents.size() > 0);
@@ -1571,7 +1514,7 @@ TEST_CASE ("Hocket mode matches preview schedule for four offset rows", "[instan
     configureFourRowOffsetHocketPattern (testPlugin);
 
     const auto outputEvents =
-        collectHocketNoteOnEvents (testPlugin, sampleRate, blockSize, blockCount);
+        collectNoteOnEvents (testPlugin, sampleRate, blockSize, blockCount);
 
     std::vector<std::pair<int, int>> filteredEvents;
     filteredEvents.reserve (outputEvents.size());
@@ -1741,10 +1684,6 @@ TEST_CASE ("Hocket and Echo combination outputs match preview thinning", "[insta
         return static_cast<int> (noteOns.size());
     };
 
-    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, false);
-    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, false);
-    const auto plainCount = countNoteOns (collectNoteOnList());
-
     testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, true);
     testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, false);
     const auto hocketNoteOns = collectNoteOnList();
@@ -1760,15 +1699,6 @@ TEST_CASE ("Hocket and Echo combination outputs match preview thinning", "[insta
                                                    | (1 << PluginProcessor::combinationModeMultiplyEcho)));
     const auto hocketEchoNoteOns = collectNoteOnList();
     const auto hocketEchoCount = countNoteOns (hocketEchoNoteOns);
-
-    WARN ("plain=" << plainCount << " hocket=" << hocketCount << " echo=" << echoCount
-                   << " hocket+echo=" << hocketEchoCount);
-
-    for (const auto& [ppq, note] : hocketNoteOns)
-        WARN ("hocket NOTEON ppq=" << ppq << " midi=" << note);
-
-    for (const auto& [ppq, note] : hocketEchoNoteOns)
-        WARN ("hocket+echo NOTEON ppq=" << ppq << " midi=" << note);
 
     CHECK (hocketCount > 0);
     CHECK (echoCount > 0);
@@ -1871,16 +1801,11 @@ TEST_CASE ("Loop hocket user pattern emits one A#2 per loop pass", "[instance]")
 
     auto aSharp2Count = 0;
 
-    for (const auto& [ppq, note] : noteOns)
+    for (const auto& noteOn : noteOns)
     {
-        if (note == 46)
+        if (noteOn.second == 46)
             ++aSharp2Count;
-
-        WARN ("NOTEON ppq=" << ppq << " midi=" << note);
     }
-
-    WARN ("total note-ons in loop: " << noteOns.size());
-    WARN ("A#2 count: " << aSharp2Count);
 
     CHECK (aSharp2Count == 1);
     testPlugin.setPlayHead (nullptr);
@@ -1921,7 +1846,7 @@ TEST_CASE ("Hocket mode drops tiny slice overlaps", "[instance]")
     testPlugin.setPhraseStepVelocity (1, 0, 0);
 
     const auto outputEvents =
-        collectHocketNoteOnEvents (testPlugin, sampleRate, blockSize, blockCount);
+        collectNoteOnEvents (testPlugin, sampleRate, blockSize, blockCount);
 
     CHECK (outputEvents.empty());
 }
@@ -1937,13 +1862,13 @@ TEST_CASE ("Hocket mode matches output across DAW-sized blocks", "[instance]")
     smallBlockPlugin.prepareToPlay (sampleRate, smallBlockSize);
     configureFourRowOffsetHocketPattern (smallBlockPlugin);
     const auto smallBlockEvents =
-        collectHocketNoteOnEvents (smallBlockPlugin, sampleRate, smallBlockSize, blockCount);
+        collectNoteOnEvents (smallBlockPlugin, sampleRate, smallBlockSize, blockCount);
 
     PluginProcessor largeBlockPlugin;
     largeBlockPlugin.prepareToPlay (sampleRate, largeBlockSize);
     configureFourRowOffsetHocketPattern (largeBlockPlugin);
     const auto largeBlockEvents =
-        collectHocketNoteOnEvents (largeBlockPlugin, sampleRate, largeBlockSize, 16);
+        collectNoteOnEvents (largeBlockPlugin, sampleRate, largeBlockSize, 16);
 
     REQUIRE (smallBlockEvents.size() > 0);
     REQUIRE (largeBlockEvents.size() > 0);
@@ -3957,7 +3882,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         ensurePhraseRowStepCount (testPlugin, 0, 2);
         testPlugin.setPhraseNote (0, 0, 72);
         testPlugin.setPatternScale (9, 2);
-        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeBloom, true);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeTendril, true);
         testPlugin.setLoopBraceStartQuarters (2.0);
         testPlugin.setLoopBraceEndQuarters (6.0);
         testPlugin.saveCurrentBraceToLoopSlot (3);

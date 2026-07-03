@@ -1,6 +1,6 @@
 # Combination Modes Technical Notes
 
-This document describes the implemented behavior of the six header combination
+This document describes the implemented behavior of the active header combination
 modes in MIDI Phrases. It focuses on how phrase rows are converted into
 normalized MIDI events, how each mode transforms those events, and what MIDI
 output is produced.
@@ -18,14 +18,16 @@ the C++ processor.
 
 ## Mode Identity
 
-The six modes are stored as a bit mask on each pattern slot.
+The modes are stored as a bit mask on each pattern slot. Bits `1 << 2` and
+`1 << 5` are retired and are masked out when state is loaded.
 
 | Bit      | Header | Name        | Processor constant               |
 | -------- | ------ | ----------- | -------------------------------- |
 | `1 << 0` | `X`    | Cross-Mod   | `combinationModeCrossModulation` |
-| `1 << 5` | `R`    | Round Robin | `combinationModeRoundRobin`      |
-| `1 << 1` | `B`    | Bloom       | `combinationModeBloom`           |
-| `1 << 2` | `C`    | Counter     | `combinationModeCounter`         |
+| `1 << 7` | `Ca`   | Canon       | `combinationModeCanon`           |
+| `1 << 8` | `Ri`   | Retro-Inv   | `combinationModeRetroInversion`  |
+| `1 << 6` | `H`    | Hocket      | `combinationModeHocket`          |
+| `1 << 1` | `T`    | Tendril     | `combinationModeTendril`         |
 | `1 << 3` | `E`    | Echo        | `combinationModeMultiplyEcho`    |
 | `1 << 4` | `W`    | Weave       | `combinationModeWeave`           |
 
@@ -108,17 +110,19 @@ Modes can be enabled in any combination, but they always execute in this fixed
 order:
 
 1. Cross-Mod
-2. Round Robin
-3. Bloom
-4. Counter
-5. Echo
-6. Weave
+2. Canon
+3. Retro-Inv
+4. Hocket
+5. Tendril
+6. Echo
+7. Weave
 
-The fixed order is important because some modes transform attributes, Round Robin
-gates events by carrier-row time windows before additive modes run, some modes
-append new events, Echo can expand one event into many events, and Weave can thin
-same-time collisions. A stable order keeps combinations repeatable and makes
-pattern state deterministic.
+The fixed order is important because some modes transform attributes, Canon and
+Retro-Inv add structural followers, Hocket gates events by carrier-row time
+windows before generative followers run, Tendril appends small phraselets, Echo
+can expand one event into many events, and Weave can thin same-time collisions.
+A stable order keeps combinations repeatable and makes pattern state
+deterministic.
 
 ## Cross-Mod Mode
 
@@ -198,35 +202,12 @@ Output effect:
 - Velocity and gate length can come from different rows.
 - With fewer than two active rows, Cross-Mod is a no-op.
 
-## Round Robin Mode
+## Tendril Mode
 
-Round Robin gates carrier events into rotating time windows across active rows.
-It runs after Cross-Mod and before Bloom, Counter, and Echo so additive modes
-only operate on events allowed in the current lane.
-
-The gesture pulse is the larger of the current pulse and the combination gesture
-floor (`2` quarters). Each segment is that pulse length. Active rows rotate in
-index order:
-
-- **Exclusive segment** (first `75%`): only events from the current carrier row
-  pass through.
-- **Overlap segment** (last `25%`): events from the current and next carrier row
-  are eligible; if both fire at the same PPQ, one winner is chosen with the same
-  velocity-weighted deterministic hash used by Weave.
-
-Output effect:
-
-- Temporal alternation between phrase rows before ornaments, counters, and
-  echoes are generated.
-- Cross-Mod may still borrow pitch, velocity, and duration contours from other
-  rows while those rows are rhythmically silent.
-- With fewer than two active rows, Round Robin is a no-op.
-
-## Bloom Mode
-
-Bloom appends scale-neighbor ornaments after source events. It reads the next
-active row as a motion source and uses that row's previous-to-current step motion
-to choose the ornament direction.
+Tendril appends a small scale-aware phraselet after gesture-anchor source events.
+The first generated note curls by a neighbor scale degree, the next generated
+note answers from the next active row's contour, and long strongly-moving sources
+may add a quiet resolution.
 
 For each source event:
 
@@ -234,48 +215,38 @@ For each source event:
 modRow = activeRows[(sourceActiveRowPosition + 1) % activeRowCount]
 modStep = source.step % modRow.stepCount
 movement = scaleDegreeDelta(modRow.notes[previousModStep], modRow.notes[modStep], scaleRoot, scaleModeIndex)
-direction = movement < 0 ? -1 : 1
+if movement == 0:
+    movement = scaleDegreeDelta(modRow.notes[modStep], modRow.notes[nextModStep], scaleRoot, scaleModeIndex)
+direction = movement < 0 ? -1 : movement > 0 ? 1 : deterministic alternate
 ```
 
-Bloom only opens on gesture anchors. The gesture pulse is the larger of the
+Tendril only opens on gesture anchors. The gesture pulse is the larger of the
 current pulse and the combination gesture floor, so short-pulse patterns do not
-spray ornaments on every subdivision.
+spray generated notes on every subdivision.
 
-The first ornament starts one quarter of the gesture pulse after the source. If
-the source event is long enough and the modulator moves by at least two scale
-degrees, Bloom adds a return ornament halfway through the gesture pulse.
+Tendril uses a rhythmic grid of one quarter of the gesture pulse. The curl starts
+on the first grid slot (`25%` of the gesture pulse) and transposes the source by
+one scale degree in the motion direction. The answer starts on the second grid
+slot (`50%`), reading the next playable step from the next active row. If that
+start collides with an existing event it nudges later by one full Tendril grid
+step, so collision handling remains on-grid. The answer uses the modulator row's
+MIDI channel, so multi-channel phrase rows can pass the response to a different
+instrument.
 
-Output effect:
-
-- Adds scale-aware neighbor tones around source events.
-- Keeps source timing and MIDI channel.
-- Uses reduced ornament velocities (`65%` for the first ornament, `50%` for the
-  return ornament).
-- With fewer than two active rows, Bloom is a no-op.
-
-## Counter Mode
-
-Counter appends an offbeat response note after each source event. It reads the
-next active row and uses the following step as the response source:
-
-```text
-modRow = activeRows[(sourceActiveRowPosition + 1) % activeRowCount]
-modStep = (source.step + 1) % modRow.stepCount
-```
-
-Skipped, muted, or zero-velocity modulator steps do not create responses.
-
-The response starts halfway through the combination gesture pulse. If that start
-time collides with an existing event, Counter nudges it later by one eighth of
-the gesture pulse; if it still collides, the response is skipped.
+For long sources whose modulator moves by at least two scale degrees, Tendril may
+add a quiet resolution on the third grid slot (`75%`). With at least three active
+rows, the resolution borrows contour and MIDI channel from the following row;
+with only two active rows, it falls back to a scale-degree return from the source.
 
 Output effect:
 
-- Adds offbeat call-and-response notes.
-- Uses the next row's scale-degree motion for response pitch.
-- Uses a short response gate: the smaller of half the source gate and `37.5%` of
-  the gesture pulse.
-- With fewer than two active rows, Counter is a no-op.
+- Adds sparse, generative phraselets rather than simple repeats.
+- Keeps the source event intact.
+- Uses the source row/channel for curls and borrowed row/channel for answers or
+  resolutions.
+- Uses reduced velocities and short gates so Tendril reads as connective tissue,
+  not a full duplicate phrase.
+- With fewer than two active rows, Tendril is a no-op.
 
 ## Echo Mode
 
@@ -406,35 +377,36 @@ Output effect:
 ## Combining Modes
 
 Because all modes consume and return the same normalized event structure, any
-combination of the six mode bits can run together.
+combination of the active mode bits can run together.
 
 Examples:
 
-### Cross-Mod + Bloom
+### Cross-Mod + Tendril
 
 1. Cross-Mod transforms pitch, velocity, and duration of carrier events.
-2. Bloom appends scale-neighbor ornaments around the transformed events.
+2. Tendril curls from the transformed events and answers through the next row's
+   contour.
 
-Result: cross-routed phrase material with ornamental motion.
+Result: cross-routed phrase material with connective, scale-aware responses.
 
-### Cross-Mod + Round Robin + Echo
+### Hocket + Tendril + Echo
 
-1. Cross-Mod transforms carrier pitch, velocity, and duration.
-2. Round Robin gates carriers into alternating row time windows.
-3. Echo multiplies only the surviving lane-local carriers through the next active
-   row.
+1. Hocket gates active rows into pulse slices.
+2. Tendril appends sparse curls and answers from the surviving handoffs.
+3. Echo multiplies only those rhythmically-selected carriers through the next
+   active row.
 
-Result: echoed material per phrase turn rather than a fully simultaneous
-multi-row convolution.
+Result: echoed material that still reads as a rhythmic handoff rather than a
+fully simultaneous multi-row convolution.
 
-### Counter + Echo + Weave
+### Tendril + Echo + Weave
 
-1. Counter appends offbeat responses.
-2. Echo expands the source and response events.
+1. Tendril appends sparse curls, answers, and optional resolutions.
+2. Echo expands the source and Tendril events.
 3. Weave thins any generated same-time collisions to one winner.
 
-Result: call-and-response material expanded into echoes while avoiding dense
-same-time stacks.
+Result: generative phraselets expanded into echoes while avoiding dense same-time
+stacks.
 
 ## MIDI Output Rules
 
@@ -481,7 +453,7 @@ data, step cards, or recording input. Default range is C1–C7 per pattern.
 The UI preview follows the same mode order:
 
 ```text
-Cross-Mod -> Round Robin -> Bloom -> Counter -> Echo -> Weave -> Octavizer -> Shimmer -> Note Bandpass
+Cross-Mod -> Canon -> Retro-Inv -> Hocket -> Tendril -> Echo -> Weave -> Octavizer -> Shimmer -> Note Bandpass
 ```
 
 The preview intentionally differs in a few implementation details:
@@ -493,5 +465,5 @@ The preview intentionally differs in a few implementation details:
 - It does not emit MIDI or manage pending note-offs.
 
 The important musical outputs of the mode chain - how pitch is transformed, how
-Round Robin gates rows in time, how Bloom and Counter append events, how Echo
-expands events, and how Weave chooses collision winners - are mirrored.
+Hocket gates rows in time, how Tendril appends phraselets, how Echo expands
+events, and how Weave chooses collision winners - are mirrored.

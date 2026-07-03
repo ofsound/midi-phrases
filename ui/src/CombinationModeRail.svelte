@@ -10,7 +10,7 @@
   import { defaultShimmerFeedbackPercent, defaultShimmerMixPercent } from "./shimmer.js";
 
   /**
-   * Full-width hardware-style rail for Cross-Mod / Bloom / Counter / Echo / Weave modes.
+   * Full-width hardware-style rail for combination modes.
    *
    * @typedef {Object} Props
    * @property {number} mask

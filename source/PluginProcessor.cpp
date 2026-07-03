@@ -10,7 +10,6 @@ namespace
 {
 constexpr double pulseQuartersTable[] = { 0.5, 1.0, 2.0, 4.0 };
 constexpr double combinationGesturePulseQuartersFloor = 2.0;
-constexpr double roundRobinOverlapFraction = 0.25;
 constexpr double hocketMinimumSliceOverlapFraction = 0.5;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
@@ -177,9 +176,9 @@ float nextRandomUnit (std::uint32_t& state)
     return static_cast<float> (nextRandomUnitDouble (state));
 }
 
-bool isBloomGestureAnchor (const double ppq,
-                           const double gateQuarters,
-                           const double gesturePulseQuarters)
+bool isCombinationGestureAnchor (const double ppq,
+                                 const double gateQuarters,
+                                 const double gesturePulseQuarters)
 {
     constexpr auto epsilon = 1.0e-9;
 
@@ -212,12 +211,13 @@ int combinationModeBit (const int modeIndex)
     if (modeIndex < 0 || modeIndex >= PluginProcessor::combinationModeCount)
         return 0;
 
-    return 1 << modeIndex;
+    const auto bit = 1 << modeIndex;
+    return (PluginProcessor::combinationModeValidMask & bit) != 0 ? bit : 0;
 }
 
 int clampCombinationModeMask (const int mask)
 {
-    return mask & ((1 << PluginProcessor::combinationModeCount) - 1);
+    return mask & PluginProcessor::combinationModeValidMask;
 }
 
 int clampScaleRoot (const int root)
@@ -591,16 +591,6 @@ double snapLoopBraceQuarters (const double quarters)
 {
     return std::round (quarters / PluginProcessor::loopBraceSnapQuarters)
            * PluginProcessor::loopBraceSnapQuarters;
-}
-
-double snapQuartersToGrid (const double quarters, const double gridQuarters)
-{
-    constexpr auto epsilon = 1.0e-9;
-
-    if (gridQuarters <= epsilon)
-        return quarters;
-
-    return std::round (quarters / gridQuarters) * gridQuarters;
 }
 
 double clampLoopBraceStart (const double startQuarters, const double endQuarters)
@@ -4676,35 +4666,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         return false;
     };
 
-    struct RoundRobinWindow
-    {
-        int currentRow = 0;
-        int nextRow = 0;
-        bool overlap = false;
-    };
-
-    const auto roundRobinWindowForPpq = [&] (const double ppq) {
-        const auto segmentLength = juce::jmax (epsilon, combinationGesturePulse);
-        const auto segmentIndex =
-            static_cast<int> (std::floor ((ppq + epsilon) / segmentLength));
-        const auto currentIndex =
-            ((segmentIndex % activeRowCount) + activeRowCount) % activeRowCount;
-        const auto phase = positiveMod (ppq, segmentLength);
-        const auto currentRow = activeRows[static_cast<size_t> (currentIndex)];
-        const auto overlapLength = segmentLength * roundRobinOverlapFraction;
-        const auto inOverlap =
-            overlapLength > epsilon && phase >= segmentLength - overlapLength - epsilon;
-
-        if (! inOverlap)
-            return RoundRobinWindow { currentRow, currentRow, false };
-
-        return RoundRobinWindow {
-            currentRow,
-            activeRows[static_cast<size_t> ((currentIndex + 1) % activeRowCount)],
-            true
-        };
-    };
-
     if (combinationModeEnabled (modeMask, combinationModeCrossModulation) && activeRowCount > 1)
     {
         for (size_t index = 0; index < eventCount; ++index)
@@ -4748,7 +4709,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
         auto write = originalCount;
         const auto canonDelay = combinationGesturePulse / static_cast<double> (activeRowCount);
-        const auto canonSnapGrid = combinationGesturePulse * 0.5;
 
         for (size_t read = 0; read < originalCount && write < combinedWorkingEvents.size(); ++read)
         {
@@ -4765,7 +4725,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             const auto targetBase = firstNoteForRow (targetRow);
 
             auto copy = source;
-            copy.ppq = snapQuartersToGrid (source.ppq + canonDelay, canonSnapGrid);
+            copy.ppq = source.ppq + canonDelay;
             copy.note = transposeMidiByScaleDegrees (
                 targetBase,
                 scaleDegreeDelta (sourceBase, source.note, scaleRoot, scaleModeIndex),
@@ -4878,17 +4838,13 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             auto lead = 0.0;
 
             if (combinationModeEnabled (modeMask, combinationModeMultiplyEcho)
-                || combinationModeEnabled (modeMask, combinationModeCounter)
-                || combinationModeEnabled (modeMask, combinationModeBloom))
+                || combinationModeEnabled (modeMask, combinationModeTendril))
             {
                 lead = juce::jmax (lead, maxModRowStepStartQuarters());
             }
 
-            if (combinationModeEnabled (modeMask, combinationModeCounter))
-                lead = juce::jmax (lead, combinationGesturePulse * 0.625);
-
-            if (combinationModeEnabled (modeMask, combinationModeBloom))
-                lead = juce::jmax (lead, combinationGesturePulse * 0.5);
+            if (combinationModeEnabled (modeMask, combinationModeTendril))
+                lead = juce::jmax (lead, combinationGesturePulse * 0.75);
 
             if (activePattern.shimmerEnabled != 0)
             {
@@ -5091,103 +5047,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         }
     }
 
-    if (combinationModeEnabled (modeMask, combinationModeRoundRobin) && activeRowCount > 1)
-    {
-        auto write = static_cast<size_t> (0);
-
-        for (size_t read = 0; read < eventCount;)
-        {
-            auto groupEnd = read + 1;
-
-            while (groupEnd < eventCount
-                   && std::abs (combinedEvents[groupEnd].ppq - combinedEvents[read].ppq) <= epsilon)
-            {
-                ++groupEnd;
-            }
-
-            const auto window = roundRobinWindowForPpq (combinedEvents[read].ppq);
-
-            if (! window.overlap)
-            {
-                for (size_t index = read; index < groupEnd && write < combinedWorkingEvents.size(); ++index)
-                {
-                    if (combinedEvents[index].row == window.currentRow)
-                        combinedWorkingEvents[write++] = combinedEvents[index];
-                }
-
-                read = groupEnd;
-                continue;
-            }
-
-            auto eligibleCount = 0;
-            auto totalWeight = 0;
-            auto firstEligible = read;
-
-            for (size_t index = read; index < groupEnd; ++index)
-            {
-                if (combinedEvents[index].row != window.currentRow
-                    && combinedEvents[index].row != window.nextRow)
-                {
-                    continue;
-                }
-
-                if (eligibleCount == 0)
-                    firstEligible = index;
-
-                ++eligibleCount;
-                totalWeight += juce::jmax (1, combinedEvents[index].velocity);
-            }
-
-            if (eligibleCount == 1)
-            {
-                if (write < combinedWorkingEvents.size())
-                    combinedWorkingEvents[write++] = combinedEvents[firstEligible];
-
-                read = groupEnd;
-                continue;
-            }
-
-            if (eligibleCount > 1)
-            {
-                auto pick = static_cast<int> (
-                    deterministicEventHash (combinedEvents[firstEligible].row,
-                                            combinedEvents[firstEligible].step,
-                                            combinedEvents[firstEligible].ppq)
-                    % static_cast<std::uint32_t> (juce::jmax (1, totalWeight)));
-
-                for (size_t index = read; index < groupEnd; ++index)
-                {
-                    if (combinedEvents[index].row != window.currentRow
-                        && combinedEvents[index].row != window.nextRow)
-                    {
-                        continue;
-                    }
-
-                    pick -= juce::jmax (1, combinedEvents[index].velocity);
-
-                    if (pick < 0)
-                    {
-                        if (write < combinedWorkingEvents.size())
-                            combinedWorkingEvents[write++] = combinedEvents[index];
-
-                        break;
-                    }
-                }
-            }
-
-            read = groupEnd;
-        }
-
-        eventCount = write;
-        copyFilteredEvents (eventCount);
-
-        if (eventCount == 0)
-            return;
-
-        sortCombinedEvents();
-    }
-
-    if (combinationModeEnabled (modeMask, combinationModeBloom) && activeRowCount > 1)
+    if (combinationModeEnabled (modeMask, combinationModeTendril) && activeRowCount > 1)
     {
         auto write = static_cast<size_t> (0);
 
@@ -5196,6 +5056,13 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             const auto& source = combinedEvents[read];
             combinedWorkingEvents[write++] = source;
 
+            const auto sourceDuration = source.gateQuarters;
+
+            if (! isCombinationGestureAnchor (source.ppq,
+                                              sourceDuration,
+                                              combinationGesturePulse))
+                continue;
+
             const auto position = activeRowPosition (source.row);
             const auto modRow = activeRows[static_cast<size_t> ((position + 1) % activeRowCount)];
             const auto& modSteps = state.rows[static_cast<size_t> (modRow)];
@@ -5203,128 +5070,205 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             if (modSteps.stepCount <= 0)
                 continue;
 
+            const auto hash = deterministicEventHash (source.row, source.step, source.ppq);
             const auto modStep = source.step % juce::jmax (1, modSteps.stepCount);
             const auto previousModStep = (modStep + modSteps.stepCount - 1) % modSteps.stepCount;
-            const auto movement = scaleDegreeDelta (
+            const auto nextModStep = (modStep + 1) % modSteps.stepCount;
+            auto movement = scaleDegreeDelta (
                 modSteps.notes[static_cast<size_t> (previousModStep)],
                 modSteps.notes[static_cast<size_t> (modStep)],
                 scaleRoot,
                 scaleModeIndex);
-            const auto direction = movement < 0 ? -1 : 1;
-            const auto sourceSupportsReturnBloom =
-                source.gateQuarters >= combinationGesturePulse - epsilon;
 
-            if (! isBloomGestureAnchor (source.ppq,
-                                        source.gateQuarters,
-                                        combinationGesturePulse))
+            if (movement == 0)
+            {
+                movement = scaleDegreeDelta (
+                    modSteps.notes[static_cast<size_t> (modStep)],
+                    modSteps.notes[static_cast<size_t> (nextModStep)],
+                    scaleRoot,
+                    scaleModeIndex);
+            }
+
+            const auto direction = movement < 0 ? -1 : (movement > 0 ? 1 : ((hash & 1u) != 0u ? 1 : -1));
+            const auto tendrilGrid = combinationGesturePulse * 0.25;
+            const auto curlDelay = tendrilGrid;
+            const auto answerBaseDelay = tendrilGrid * 2.0;
+            const auto resolutionDelay = tendrilGrid * 3.0;
+            const auto curlGate =
+                juce::jmin (sourceDuration * 0.3, tendrilGrid * 0.75);
+            const auto answerGate =
+                juce::jmin (sourceDuration * 0.45, tendrilGrid * 0.875);
+            const auto resolutionGate =
+                juce::jmin (sourceDuration * 0.25, tendrilGrid * 0.75);
+
+            if (curlGate <= epsilon && answerGate <= epsilon)
                 continue;
 
-            const auto ornamentGate =
-                juce::jmin (source.gateQuarters * 0.375, combinationGesturePulse * 0.25);
+            const auto stepCanSpeak = [&] (const int row, const int step) {
+                const auto& rowSteps = state.rows[static_cast<size_t> (row)];
 
-            if (ornamentGate <= epsilon)
-                continue;
+                if (rowSteps.stepCount <= 0)
+                    return false;
 
-            const auto firstDelay = combinationGesturePulse * 0.25;
-            const auto secondDelay = combinationGesturePulse * 0.5;
+                const auto stepIndex = static_cast<size_t> (step % rowSteps.stepCount);
+                return rowSteps.stepSkipped[stepIndex] == 0
+                       && rowSteps.stepMuted[stepIndex] == 0
+                       && rowSteps.velocity[stepIndex] > 0;
+            };
 
-            const auto appendBloom = [&] (const int degreeDelta,
-                                          const double delay,
-                                          const double velocityScale) {
+            const auto choosePlayableStep = [&] (const int row, const int preferredStep) {
+                const auto& rowSteps = state.rows[static_cast<size_t> (row)];
+
+                if (rowSteps.stepCount <= 0)
+                    return -1;
+
+                for (int offset = 0; offset < rowSteps.stepCount; ++offset)
+                {
+                    const auto step = (preferredStep + offset) % rowSteps.stepCount;
+
+                    if (stepCanSpeak (row, step))
+                        return step;
+                }
+
+                return -1;
+            };
+
+            const auto appendTendril = [&] (const int row,
+                                            const int step,
+                                            const int note,
+                                            const double delay,
+                                            const double gate,
+                                            const int velocity) {
                 if (write >= combinedWorkingEvents.size())
+                    return;
+
+                if (gate <= epsilon)
                     return;
 
                 auto copy = source;
                 copy.ppq = source.ppq + delay;
-
-                copy.note = transposeMidiByScaleDegrees (source.note,
-                                                         degreeDelta,
-                                                         scaleRoot,
-                                                         scaleModeIndex);
-
-                if (copy.note == source.note)
-                    return;
-
-                copy.gateQuarters = ornamentGate;
-                copy.velocity = juce::jlimit (
-                    1,
-                    127,
-                    static_cast<int> (std::lround (static_cast<double> (source.velocity) * velocityScale)));
+                copy.gateQuarters = gate;
+                copy.row = row;
+                copy.step = step;
+                copy.channel = state.midiChannel[static_cast<size_t> (row)];
+                copy.note = note;
+                copy.velocity = juce::jlimit (1, 127, velocity);
+                copy.extendedByHeldOverlap = false;
+                copy.carrierOnlyForCombinationFollowers = false;
                 combinedWorkingEvents[write++] = copy;
             };
 
-            appendBloom (direction, firstDelay, 0.65);
+            const auto curlNote = transposeMidiByScaleDegrees (source.note,
+                                                               direction,
+                                                               scaleRoot,
+                                                               scaleModeIndex);
 
-            if (sourceSupportsReturnBloom && std::abs (movement) >= 2)
-                appendBloom (-direction, secondDelay, 0.5);
-        }
-
-        eventCount = write;
-        copyFilteredEvents (eventCount);
-
-        if (eventCount == 0)
-            return;
-
-        sortCombinedEvents();
-    }
-
-    if (combinationModeEnabled (modeMask, combinationModeCounter) && activeRowCount > 1)
-    {
-        auto write = static_cast<size_t> (0);
-
-        for (size_t read = 0; read < eventCount && write < combinedWorkingEvents.size(); ++read)
-        {
-            const auto& source = combinedEvents[read];
-            combinedWorkingEvents[write++] = source;
-
-            const auto position = activeRowPosition (source.row);
-            const auto modRow = activeRows[static_cast<size_t> ((position + 1) % activeRowCount)];
-            const auto& modSteps = state.rows[static_cast<size_t> (modRow)];
-
-            if (modSteps.stepCount <= 0)
-                continue;
-
-            const auto modStep = (source.step + 1) % modSteps.stepCount;
-            const auto modIndex = static_cast<size_t> (modStep);
-
-            if (modSteps.stepSkipped[modIndex] != 0
-                || modSteps.stepMuted[modIndex] != 0
-                || modSteps.velocity[modIndex] <= 0)
-                continue;
-
-            auto counterDelay = combinationGesturePulse * 0.5;
-            auto counterStart = source.ppq + counterDelay;
-
-            if (eventStartCollides (counterStart))
+            if (curlNote != source.note)
             {
-                counterDelay += combinationGesturePulse * 0.125;
-                counterStart = source.ppq + counterDelay;
-
-                if (eventStartCollides (counterStart))
-                    continue;
+                appendTendril (source.row,
+                               source.step,
+                               curlNote,
+                               curlDelay,
+                               curlGate,
+                               static_cast<int> (std::lround (
+                                   static_cast<double> (source.velocity) * 0.58)));
             }
 
-            const auto counterGate =
-                juce::jmin (source.gateQuarters * 0.5, combinationGesturePulse * 0.375);
+            const auto answerStep = choosePlayableStep (modRow, nextModStep);
 
-            if (counterGate <= epsilon)
-                continue;
+            if (answerStep >= 0 && answerGate > epsilon)
+            {
+                const auto answerIndex = static_cast<size_t> (answerStep);
+                auto answerDelay = answerBaseDelay;
+                auto answerStart = source.ppq + answerDelay;
 
-            auto copy = source;
-            copy.ppq = counterStart;
-            copy.gateQuarters = counterGate;
-            copy.note = echoNoteFromModStep (source.note,
-                                             firstNoteForRow (modRow),
-                                             modSteps.notes[modIndex],
-                                             scaleRoot,
-                                             scaleModeIndex);
-            copy.velocity = juce::jlimit (
-                1,
-                127,
-                static_cast<int> (std::lround (
-                    static_cast<double> (source.velocity + modSteps.velocity[modIndex]) * 0.31)));
-            copy.step = modStep;
-            combinedWorkingEvents[write++] = copy;
+                if (eventStartCollides (answerStart))
+                {
+                    answerDelay += tendrilGrid;
+                    answerStart = source.ppq + answerDelay;
+
+                    if (eventStartCollides (answerStart))
+                        answerDelay += tendrilGrid;
+                }
+
+                auto answerNote = echoNoteFromModStep (source.note,
+                                                       firstNoteForRow (modRow),
+                                                       modSteps.notes[answerIndex],
+                                                       scaleRoot,
+                                                       scaleModeIndex);
+
+                if (answerNote == source.note)
+                    answerNote = transposeMidiByScaleDegrees (answerNote,
+                                                              direction,
+                                                              scaleRoot,
+                                                              scaleModeIndex);
+
+                if (answerNote != source.note)
+                {
+                    appendTendril (modRow,
+                                   answerStep,
+                                   answerNote,
+                                   answerDelay,
+                                   answerGate,
+                                   static_cast<int> (std::lround (
+                                       static_cast<double> (source.velocity) * 0.42
+                                       + static_cast<double> (modSteps.velocity[answerIndex]) * 0.36)));
+                }
+            }
+
+            if (sourceDuration >= combinationGesturePulse * 0.75 - epsilon
+                && std::abs (movement) >= 2
+                && resolutionGate > epsilon)
+            {
+                auto resolutionRow = source.row;
+                auto resolutionStep = source.step;
+                auto resolutionNote = transposeMidiByScaleDegrees (source.note,
+                                                                   -direction,
+                                                                   scaleRoot,
+                                                                   scaleModeIndex);
+                auto resolutionVelocity = static_cast<int> (std::lround (
+                    static_cast<double> (source.velocity) * 0.42));
+
+                if (activeRowCount > 2)
+                {
+                    const auto resolutionCandidateRow =
+                        activeRows[static_cast<size_t> ((position + 2) % activeRowCount)];
+                    const auto& resolutionSteps = state.rows[static_cast<size_t> (resolutionCandidateRow)];
+                    const auto preferredResolutionStep =
+                        (source.step + static_cast<int> ((hash >> 3u) & 3u)) % juce::jmax (1, resolutionSteps.stepCount);
+                    const auto candidateStep = choosePlayableStep (resolutionCandidateRow,
+                                                                   preferredResolutionStep);
+
+                    if (candidateStep >= 0)
+                    {
+                        const auto candidateIndex = static_cast<size_t> (candidateStep);
+                        resolutionRow = resolutionCandidateRow;
+                        resolutionStep = candidateStep;
+                        resolutionNote = echoNoteFromModStep (source.note,
+                                                              firstNoteForRow (resolutionCandidateRow),
+                                                              resolutionSteps.notes[candidateIndex],
+                                                              scaleRoot,
+                                                              scaleModeIndex);
+                        resolutionNote = transposeMidiByScaleDegrees (resolutionNote,
+                                                                      -direction,
+                                                                      scaleRoot,
+                                                                      scaleModeIndex);
+                        resolutionVelocity = static_cast<int> (std::lround (
+                            static_cast<double> (source.velocity) * 0.26
+                            + static_cast<double> (resolutionSteps.velocity[candidateIndex]) * 0.28));
+                    }
+                }
+
+                if (resolutionNote != source.note)
+                {
+                    appendTendril (resolutionRow,
+                                   resolutionStep,
+                                   resolutionNote,
+                                   resolutionDelay,
+                                   resolutionGate,
+                                   resolutionVelocity);
+                }
+            }
         }
 
         eventCount = write;

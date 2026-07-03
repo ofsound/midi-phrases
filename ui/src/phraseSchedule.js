@@ -21,20 +21,17 @@ export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
 const EPSILON = 1e-9;
 const MAX_COMBINED_PREVIEW_NOTES = 4096;
 const COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR = 2;
-const ROUND_ROBIN_OVERLAP_FRACTION = 0.25;
 const HOCKET_MINIMUM_SLICE_OVERLAP_FRACTION = 0.5;
 const UNISON_OVERLAP_WINDOW_QUARTERS = 1 / 96;
 const DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS = 64;
-export const combinationModeMaskBits = 0x1ff;
+export const combinationModeMaskBits = 0x1db;
 /** Display order matches processing order. Weave keeps its legacy bit and runs last. */
 export const combinationModes = [
   {index: 0, bit: 1, icon: "crossMod", name: "Cross-Mod"},
   {index: 7, bit: 128, icon: "canon", name: "Canon"},
   {index: 8, bit: 256, icon: "retroInv", name: "Retro-Inv"},
   {index: 6, bit: 64, icon: "hocket", name: "Hocket"},
-  {index: 5, bit: 32, icon: "roundRobin", name: "Round Robin"},
-  {index: 1, bit: 2, icon: "bloom", name: "Bloom"},
-  {index: 2, bit: 4, icon: "counter", name: "Counter"},
+  {index: 1, bit: 2, icon: "tendril", name: "Tendril"},
   {index: 3, bit: 8, icon: "echo", name: "Echo"},
   {index: 4, bit: 16, icon: "weave", name: "Weave"},
 ];
@@ -85,7 +82,7 @@ function deterministicEventHash(row, step, ppq) {
  * @param {number} duration
  * @param {number} gesturePulse
  */
-function isBloomGestureAnchor(ppq, duration, gesturePulse) {
+function isCombinationGestureAnchor(ppq, duration, gesturePulse) {
   if (gesturePulse <= EPSILON) return true;
 
   let phase = ppq - Math.floor((ppq + EPSILON) / gesturePulse) * gesturePulse;
@@ -898,12 +895,6 @@ function activeRowPosition(activeRows, row) {
   return Math.max(0, activeRows.indexOf(row));
 }
 
-/** @param {number} quarters @param {number} gridQuarters */
-function snapQuartersToGrid(quarters, gridQuarters) {
-  if (gridQuarters <= EPSILON) return quarters;
-  return Math.round(quarters / gridQuarters) * gridQuarters;
-}
-
 /**
  * @param {ScheduledNote[]} events
  * @param {number[]} activeRows
@@ -911,11 +902,11 @@ function snapQuartersToGrid(quarters, gridQuarters) {
  * @param {number[]} rowMidiChannel
  * @param {number} scaleRoot
  * @param {number} scaleModeIndex
- * @param {number} gesturePulse
+ * @param {number} delayQuarters
  * @param {number} lengthQuarters
  * @returns {ScheduledNote[]}
  */
-function addCanonFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot, scaleModeIndex, gesturePulse, lengthQuarters) {
+function addCanonFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot, scaleModeIndex, delayQuarters, lengthQuarters) {
   if (activeRows.length <= 1 || events.length === 0) return events;
 
   const original = events.map((event) => ({...event}));
@@ -935,9 +926,7 @@ function addCanonFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot,
     const sourceBase = notes[sourceRow]?.[0] ?? event.midi;
     const targetBase = targetNotes[0] ?? event.midi;
     const degreeDelta = scaleDegreeDelta(sourceBase, event.midi, scaleRoot, scaleModeIndex);
-    const canonDelay = gesturePulse / activeRows.length;
-    const canonSnapGrid = gesturePulse / 2;
-    const start = snapQuartersToGrid(event.start + canonDelay, canonSnapGrid);
+    const start = event.start + delayQuarters;
 
     if (start >= lengthQuarters - EPSILON) continue;
 
@@ -1195,31 +1184,6 @@ function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQua
 }
 
 /**
- * @param {number} ppq
- * @param {number[]} activeRows
- * @param {number} gesturePulse
- */
-function roundRobinWindowForPpq(ppq, activeRows, gesturePulse) {
-  const segmentLength = Math.max(EPSILON, gesturePulse);
-  const segmentIndex = Math.floor((ppq + EPSILON) / segmentLength);
-  const currentIndex = positiveMod(segmentIndex, activeRows.length);
-  const phase = positiveMod(ppq, segmentLength);
-  const currentRow = activeRows[currentIndex];
-  const overlapLength = segmentLength * ROUND_ROBIN_OVERLAP_FRACTION;
-  const inOverlap = overlapLength > EPSILON && phase >= segmentLength - overlapLength - EPSILON;
-
-  if (!inOverlap) {
-    return {overlap: false, currentRow, nextRow: currentRow};
-  }
-
-  return {
-    overlap: true,
-    currentRow,
-    nextRow: activeRows[(currentIndex + 1) % activeRows.length],
-  };
-}
-
-/**
  * @param {object} params
  * @param {ScheduledNote[]} params.scheduled
  * @param {number[][]} params.notes
@@ -1320,7 +1284,7 @@ function applyCombinationModes({
       rowMidiChannel,
       scaleRoot,
       scaleModeIndex,
-      combinationGesturePulse,
+      combinationGesturePulse / activeRows.length,
       lengthQuarters,
     );
   }
@@ -1359,161 +1323,178 @@ function applyCombinationModes({
 
   if (events.length === 0) return [];
 
-  if (combinationModeEnabled(combinationModeMask, 5) && activeRows.length > 1) {
-    /** @type {ScheduledNote[]} */
-    const roundRobin = [];
-    const pulseQuarters = pulseQuartersForIndex(pulseIndex);
-    const combinationGesturePulse = Math.max(pulseQuarters, COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR);
-
-    for (const group of groupByStart(events)) {
-      const window = roundRobinWindowForPpq(group[0].start, activeRows, combinationGesturePulse);
-      const eligible = group.filter((event) => {
-        if (event.row === window.currentRow) return true;
-
-        return window.overlap && event.row === window.nextRow;
-      });
-
-      if (eligible.length === 0) continue;
-
-      if (!window.overlap || eligible.length === 1) {
-        roundRobin.push(...eligible);
-        continue;
-      }
-
-      const totalWeight = eligible.reduce((total, event) => total + Math.max(1, event.velocity), 0);
-      let pick = deterministicEventHash(eligible[0].row, eligible[0].step, eligible[0].start) % Math.max(1, totalWeight);
-
-      for (const event of eligible) {
-        pick -= Math.max(1, event.velocity);
-
-        if (pick < 0) {
-          roundRobin.push(event);
-          break;
-        }
-      }
-    }
-
-    events = roundRobin;
-  }
-
-  if (events.length === 0) return [];
-
   if (combinationModeEnabled(combinationModeMask, 1) && activeRows.length > 1) {
     /** @type {ScheduledNote[]} */
-    const bloomed = [];
+    const tendriled = [];
     const pulseQuarters = pulseQuartersForIndex(pulseIndex);
     const combinationGesturePulse = Math.max(pulseQuarters, COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR);
 
     for (const event of events) {
-      if (bloomed.length >= MAX_COMBINED_PREVIEW_NOTES) break;
+      if (tendriled.length >= MAX_COMBINED_PREVIEW_NOTES) break;
 
-      bloomed.push(event);
+      tendriled.push(event);
 
       const activeIndex = Math.max(0, activeRows.indexOf(event.row));
       const modRow = activeRows[(activeIndex + 1) % activeRows.length];
       const modNotes = notes[modRow] ?? [];
+      const duration = event.end - event.start;
 
       if (modNotes.length <= 0) continue;
+      if (!isCombinationGestureAnchor(event.start, duration, combinationGesturePulse)) continue;
 
+      const hash = deterministicEventHash(event.row, event.step, event.start);
       const modStep = event.step % Math.max(1, modNotes.length);
       const previousModStep = (modStep + modNotes.length - 1) % modNotes.length;
-      const movement = scaleDegreeDelta(modNotes[previousModStep], modNotes[modStep], scaleRoot, scaleModeIndex);
-      const direction = movement < 0 ? -1 : 1;
-      const duration = event.end - event.start;
-      const sourceSupportsReturnBloom = duration >= combinationGesturePulse - EPSILON;
+      const nextModStep = (modStep + 1) % modNotes.length;
+      let movement = scaleDegreeDelta(modNotes[previousModStep], modNotes[modStep], scaleRoot, scaleModeIndex);
 
-      if (!isBloomGestureAnchor(event.start, duration, combinationGesturePulse)) continue;
+      if (movement === 0) {
+        movement = scaleDegreeDelta(modNotes[modStep], modNotes[nextModStep], scaleRoot, scaleModeIndex);
+      }
 
-      const ornamentGate = Math.min(duration * 0.375, combinationGesturePulse * 0.25);
+      const direction = movement < 0 ? -1 : movement > 0 ? 1 : (hash & 1) !== 0 ? 1 : -1;
+      const tendrilGrid = combinationGesturePulse * 0.25;
+      const curlDelay = tendrilGrid;
+      const answerBaseDelay = tendrilGrid * 2;
+      const resolutionDelay = tendrilGrid * 3;
+      const curlGate = Math.min(duration * 0.3, tendrilGrid * 0.75);
+      const answerGate = Math.min(duration * 0.45, tendrilGrid * 0.875);
+      const resolutionGate = Math.min(duration * 0.25, tendrilGrid * 0.75);
 
-      if (ornamentGate <= EPSILON) continue;
+      if (curlGate <= EPSILON && answerGate <= EPSILON) continue;
 
-      const firstDelay = combinationGesturePulse * 0.25;
-      const secondDelay = combinationGesturePulse * 0.5;
+      const stepCanSpeak = (row, step) => {
+        const count = notes[row]?.length ?? 0;
+        if (count <= 0) return false;
+        const index = step % count;
+        return !stepSkipped[row]?.[index] && !stepMuted[row]?.[index] && (stepVelocity[row]?.[index] ?? 0) > 0;
+      };
 
-      const appendBloom = (degreeDelta, delay, velocityScale) => {
-        if (bloomed.length >= MAX_COMBINED_PREVIEW_NOTES) return;
+      const choosePlayableStep = (row, preferredStep) => {
+        const count = notes[row]?.length ?? 0;
+        if (count <= 0) return -1;
 
+        for (let offset = 0; offset < count; offset += 1) {
+          const step = (preferredStep + offset) % count;
+
+          if (stepCanSpeak(row, step)) return step;
+        }
+
+        return -1;
+      };
+
+      const appendTendril = (row, step, midi, delay, gate, velocity) => {
+        if (tendriled.length >= MAX_COMBINED_PREVIEW_NOTES) return;
+        if (gate <= EPSILON) return;
         const start = event.start + delay;
 
         if (start >= lengthQuarters - EPSILON) return;
 
-        const midi = transposeMidiByScaleDegrees(event.midi, degreeDelta, scaleRoot, scaleModeIndex);
-
-        if (midi === event.midi) return;
-
-        bloomed.push({
+        tendriled.push({
           ...event,
+          row,
+          step,
+          channel: midiChannelForRow(rowMidiChannel, row),
           start,
-          end: start + ornamentGate,
+          end: start + gate,
           midi,
-          velocity: Math.min(127, Math.max(1, Math.round(event.velocity * velocityScale))),
+          velocity: Math.min(127, Math.max(1, Math.round(velocity))),
         });
       };
 
-      appendBloom(direction, firstDelay, 0.65);
+      const curlMidi = transposeMidiByScaleDegrees(event.midi, direction, scaleRoot, scaleModeIndex);
 
-      if (sourceSupportsReturnBloom && Math.abs(movement) >= 2) {
-        appendBloom(-direction, secondDelay, 0.5);
+      if (curlMidi !== event.midi) {
+        appendTendril(
+          event.row,
+          event.step,
+          curlMidi,
+          curlDelay,
+          curlGate,
+          event.velocity * 0.58,
+        );
+      }
+
+      const answerStep = choosePlayableStep(modRow, nextModStep);
+
+      if (answerStep >= 0 && answerGate > EPSILON) {
+        let answerDelay = answerBaseDelay;
+        let start = event.start + answerDelay;
+
+        if (eventStartCollides(events, start)) {
+          answerDelay += tendrilGrid;
+          start = event.start + answerDelay;
+
+          if (eventStartCollides(events, start)) {
+            answerDelay += tendrilGrid;
+          }
+        }
+
+        let answerMidi = echoNoteFromModStep(
+          event.midi,
+          modNotes[0] ?? 60,
+          modNotes[answerStep] ?? modNotes[0] ?? 60,
+          scaleRoot,
+          scaleModeIndex,
+        );
+
+        if (answerMidi === event.midi) {
+          answerMidi = transposeMidiByScaleDegrees(answerMidi, direction, scaleRoot, scaleModeIndex);
+        }
+
+        if (answerMidi !== event.midi) {
+          appendTendril(
+            modRow,
+            answerStep,
+            answerMidi,
+            answerDelay,
+            answerGate,
+            event.velocity * 0.42 + (stepVelocity[modRow]?.[answerStep] ?? event.velocity) * 0.36,
+          );
+        }
+      }
+
+      if (duration >= combinationGesturePulse * 0.75 - EPSILON && Math.abs(movement) >= 2 && resolutionGate > EPSILON) {
+        let resolutionRow = event.row;
+        let resolutionStep = event.step;
+        let resolutionMidi = transposeMidiByScaleDegrees(event.midi, -direction, scaleRoot, scaleModeIndex);
+        let resolutionVelocity = event.velocity * 0.42;
+
+        if (activeRows.length > 2) {
+          const resolutionCandidateRow = activeRows[(activeIndex + 2) % activeRows.length];
+          const resolutionNotes = notes[resolutionCandidateRow] ?? [];
+          const preferredResolutionStep = (event.step + ((hash >> 3) & 3)) % Math.max(1, resolutionNotes.length);
+          const candidateStep = choosePlayableStep(resolutionCandidateRow, preferredResolutionStep);
+
+          if (candidateStep >= 0) {
+            resolutionRow = resolutionCandidateRow;
+            resolutionStep = candidateStep;
+            resolutionMidi = echoNoteFromModStep(
+              event.midi,
+              resolutionNotes[0] ?? 60,
+              resolutionNotes[candidateStep] ?? resolutionNotes[0] ?? 60,
+              scaleRoot,
+              scaleModeIndex,
+            );
+            resolutionMidi = transposeMidiByScaleDegrees(resolutionMidi, -direction, scaleRoot, scaleModeIndex);
+            resolutionVelocity = event.velocity * 0.26 + (stepVelocity[resolutionCandidateRow]?.[candidateStep] ?? event.velocity) * 0.28;
+          }
+        }
+
+        if (resolutionMidi !== event.midi) {
+          appendTendril(
+            resolutionRow,
+            resolutionStep,
+            resolutionMidi,
+            resolutionDelay,
+            resolutionGate,
+            resolutionVelocity,
+          );
+        }
       }
     }
 
-    events = bloomed.sort(
-      (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
-    );
-  }
-
-  if (events.length === 0) return [];
-
-  if (combinationModeEnabled(combinationModeMask, 2) && activeRows.length > 1) {
-    /** @type {ScheduledNote[]} */
-    const countered = [];
-    const pulseQuarters = pulseQuartersForIndex(pulseIndex);
-    const combinationGesturePulse = Math.max(pulseQuarters, COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR);
-
-    for (const event of events) {
-      if (countered.length >= MAX_COMBINED_PREVIEW_NOTES) break;
-
-      countered.push(event);
-
-      const activeIndex = Math.max(0, activeRows.indexOf(event.row));
-      const modRow = activeRows[(activeIndex + 1) % activeRows.length];
-      const modNotes = notes[modRow] ?? [];
-
-      if (modNotes.length <= 0) continue;
-
-      const modStep = (event.step + 1) % modNotes.length;
-
-      if (stepSkipped[modRow]?.[modStep] || stepMuted[modRow]?.[modStep]) continue;
-      if ((stepVelocity[modRow]?.[modStep] ?? 0) <= 0) continue;
-
-      let counterDelay = combinationGesturePulse * 0.5;
-      let start = event.start + counterDelay;
-
-      if (eventStartCollides(events, start)) {
-        counterDelay += combinationGesturePulse * 0.125;
-        start = event.start + counterDelay;
-
-        if (eventStartCollides(events, start)) continue;
-      }
-
-      if (start >= lengthQuarters - EPSILON) continue;
-
-      const duration = Math.min((event.end - event.start) * 0.5, combinationGesturePulse * 0.375);
-
-      if (duration <= EPSILON) continue;
-
-      countered.push({
-        ...event,
-        start,
-        end: start + duration,
-        midi: echoNoteFromModStep(event.midi, modNotes[0] ?? 60, modNotes[modStep] ?? modNotes[0] ?? 60, scaleRoot, scaleModeIndex),
-        velocity: Math.min(127, Math.max(1, Math.round((event.velocity + (stepVelocity[modRow]?.[modStep] ?? event.velocity)) * 0.31))),
-        step: modStep,
-      });
-    }
-
-    events = countered.sort(
+    events = tendriled.sort(
       (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
     );
   }
