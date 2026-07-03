@@ -13,6 +13,12 @@ import {
   suppressHeldNoteRetriggers,
 } from "./phraseSchedule.js";
 import { defaultRowTimingOffsetIndex, defaultStepTimingMultiplierIndex, rowTimingOffsetIndexForQuarters } from "./stepCellLayout.js";
+import {
+  combinedModeExpansionCap,
+  defaultShimmerFeedbackPercent,
+  defaultShimmerMixPercent,
+  maxShimmerTapsPerSource,
+} from "./shimmer.js";
 
 describe("stepTriggerCountAtBeat", () => {
   const timing = [defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex];
@@ -763,6 +769,52 @@ describe("combination mode pulse-aware timing", () => {
     });
 
     expect(schedule.some((note) => note.midi === 76 && note.start > 0)).toBe(true);
+  });
+
+  it("keeps shimmer taps when Echo expands the schedule", () => {
+    const schedule = buildPhraseSchedule({
+      notes: [[60], [61], [], []],
+      rowMuted: [false, false, true, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      rowMidiChannel: [1, 2, 3, 4],
+      stepDurationFraction: [[1], [1, 1], [], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex],
+        [],
+        [],
+      ],
+      stepVelocity: [[100], [100, 100], [], []],
+      stepMuted: [[false], [false, false], [], []],
+      stepSkipped: [[false], [false, false], [], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 3,
+      lengthQuarters: 8,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+      shimmerEnabled: true,
+      shimmerDelayMultiplierIndex: defaultStepTimingMultiplierIndex,
+      shimmerFeedbackPercent: 80,
+      shimmerMixPercent: 100,
+    });
+
+    expect(schedule.some((note) => note.midi === 72 && note.start > 0)).toBe(true);
+  });
+});
+
+describe("shimmer expansion headroom", () => {
+  it("reserves capacity for shimmer taps before combination expansion", () => {
+    expect(maxShimmerTapsPerSource(80, 100)).toBeGreaterThan(0);
+    expect(combinedModeExpansionCap(1024, {enabled: true, feedbackPercent: 80, mixPercent: 100}))
+      .toBeLessThan(1024);
+    expect(combinedModeExpansionCap(1024, {enabled: false})).toBe(1024);
+    expect(
+      combinedModeExpansionCap(4096, {
+        enabled: true,
+        feedbackPercent: defaultShimmerFeedbackPercent,
+        mixPercent: defaultShimmerMixPercent,
+      }),
+    ).toBe(Math.floor(4096 / (1 + maxShimmerTapsPerSource(defaultShimmerFeedbackPercent, defaultShimmerMixPercent))));
   });
 });
 

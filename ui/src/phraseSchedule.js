@@ -3,7 +3,7 @@ import {defaultPulseIndex, pulseQuartersForIndex} from "./pulseLayout.js";
 import {applyNoteBandpass, defaultNoteBandpassHighMidi, defaultNoteBandpassLowMidi} from "./noteBandpass.js";
 import {applyOctavizer, defaultOctavizerRelativeVelocity} from "./octavizer.js";
 import {defaultStepProbabilityValue, maxPercentValue, maxStepProbabilityValue} from "./percentLimits.js";
-import {applyShimmer, defaultShimmerDelayMultiplierIndex, defaultShimmerFeedbackPercent, defaultShimmerMixPercent} from "./shimmer.js";
+import {applyShimmer, combinedModeExpansionCap, defaultShimmerDelayMultiplierIndex, defaultShimmerFeedbackPercent, defaultShimmerMixPercent} from "./shimmer.js";
 import {applyVelocityTilt, defaultVelocityTiltAmount, defaultVelocityTiltPivotMidi} from "./velocityTilt.js";
 import {applyGlobalTranspose, defaultGlobalTransposeSemitones} from "./globalTranspose.js";
 import {
@@ -688,6 +688,9 @@ function buildPhraseScheduleCore({
     loopOutputStartQuarters,
     loopOutputEndQuarters,
     scheduleStartQuarters: ppqStart,
+    shimmerEnabled,
+    shimmerFeedbackPercent,
+    shimmerMixPercent,
   });
 
   const woven = applyWeaveGateTrimming(
@@ -933,14 +936,14 @@ function activeRowPosition(activeRows, row) {
  * @param {number} lengthQuarters
  * @returns {ScheduledNote[]}
  */
-function addCanonFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot, scaleModeIndex, delayQuarters, lengthQuarters) {
+function addCanonFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot, scaleModeIndex, delayQuarters, lengthQuarters, expansionCap) {
   if (activeRows.length <= 1 || events.length === 0) return events;
 
   const original = events.map((event) => ({...event}));
   const combined = [...original];
 
   for (const event of original) {
-    if (combined.length >= MAX_COMBINED_PREVIEW_NOTES) break;
+    if (combined.length >= expansionCap) break;
 
     const sourceRow = event.row;
     const position = activeRowPosition(activeRows, sourceRow);
@@ -983,16 +986,17 @@ function addCanonFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot,
  * @param {number} scaleModeIndex
  * @param {number} delayQuarters
  * @param {number} lengthQuarters
+ * @param {number} expansionCap
  * @returns {ScheduledNote[]}
  */
-function addRetroInversionFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot, scaleModeIndex, delayQuarters, lengthQuarters) {
+function addRetroInversionFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot, scaleModeIndex, delayQuarters, lengthQuarters, expansionCap) {
   if (activeRows.length <= 1 || events.length === 0) return events;
 
   const original = events.map((event) => ({...event}));
   const combined = [...original];
 
   for (const event of original) {
-    if (combined.length >= MAX_COMBINED_PREVIEW_NOTES) break;
+    if (combined.length >= expansionCap) break;
 
     const sourceRow = event.row;
     const sourceNotes = notes[sourceRow] ?? [];
@@ -1226,6 +1230,9 @@ function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQua
  * @param {number} params.lengthQuarters
  * @param {number} params.scaleRoot
  * @param {number} params.scaleModeIndex
+ * @param {boolean} [params.shimmerEnabled]
+ * @param {number} [params.shimmerFeedbackPercent]
+ * @param {number} [params.shimmerMixPercent]
  * @returns {ScheduledNote[]}
  */
 function applyCombinationModes({
@@ -1246,6 +1253,9 @@ function applyCombinationModes({
   loopOutputStartQuarters,
   loopOutputEndQuarters,
   scheduleStartQuarters = 0,
+  shimmerEnabled = false,
+  shimmerFeedbackPercent = defaultShimmerFeedbackPercent,
+  shimmerMixPercent = defaultShimmerMixPercent,
 }) {
   if ((combinationModeMask & combinationModeMaskBits) === 0 || scheduled.length === 0) return scheduled;
 
@@ -1279,6 +1289,12 @@ function applyCombinationModes({
     .map(({row}) => row);
 
   if (activeRows.length === 0) return [];
+
+  const modeExpansionCap = combinedModeExpansionCap(MAX_COMBINED_PREVIEW_NOTES, {
+    enabled: shimmerEnabled,
+    feedbackPercent: shimmerFeedbackPercent,
+    mixPercent: shimmerMixPercent,
+  });
 
   const hocketModeEnabled = combinationModeEnabled(combinationModeMask, 6);
   const deferCrossModToHocket =
@@ -1330,6 +1346,7 @@ function applyCombinationModes({
       scaleModeIndex,
       combinationGesturePulse / activeRows.length,
       lengthQuarters,
+      modeExpansionCap,
     );
   }
 
@@ -1346,6 +1363,7 @@ function applyCombinationModes({
       scaleModeIndex,
       combinationGesturePulse * 0.25,
       lengthQuarters,
+      modeExpansionCap,
     );
   }
 
@@ -1358,7 +1376,7 @@ function applyCombinationModes({
     const combinationGesturePulse = Math.max(pulseQuarters, COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR);
 
     for (const event of events) {
-      if (tendriled.length >= MAX_COMBINED_PREVIEW_NOTES) break;
+      if (tendriled.length >= modeExpansionCap) break;
 
       tendriled.push(event);
 
@@ -1412,7 +1430,7 @@ function applyCombinationModes({
       };
 
       const appendTendril = (row, step, midi, delay, gate, velocity) => {
-        if (tendriled.length >= MAX_COMBINED_PREVIEW_NOTES) return;
+        if (tendriled.length >= modeExpansionCap) return;
         if (gate <= EPSILON) return;
         const start = event.start + delay;
 
@@ -1557,6 +1575,8 @@ function applyCombinationModes({
     const multiplied = [];
 
     for (const event of events) {
+      if (multiplied.length >= modeExpansionCap) break;
+
       const activeIndex = Math.max(0, activeRows.indexOf(event.row));
       const modRow = activeRows[(activeIndex + 1) % activeRows.length];
       const modNotes = notes[modRow] ?? [];
@@ -1564,7 +1584,7 @@ function applyCombinationModes({
       const modLayout = rowStepLayout(stepTimingMultiplier[modRow] ?? [], pulseIndex, stepSkipped[modRow] ?? []);
 
       for (let modStep = 0; modStep < modNotes.length; modStep += 1) {
-        if (multiplied.length >= MAX_COMBINED_PREVIEW_NOTES) break;
+        if (multiplied.length >= modeExpansionCap) break;
         if (stepSkipped[modRow]?.[modStep] || stepMuted[modRow]?.[modStep]) continue;
         if ((stepVelocity[modRow]?.[modStep] ?? 0) <= 0) continue;
 

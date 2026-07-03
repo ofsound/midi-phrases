@@ -486,6 +486,39 @@ int shimmerTapVelocity (const int sourceVelocity,
         static_cast<double> (sourceVelocity) * std::pow (feedback, tap) * mix));
 }
 
+int maxShimmerTapsPerSource (const int feedbackPercent,
+                             const int mixPercent,
+                             const int peakSourceVelocity = 100)
+{
+    auto taps = 0;
+
+    for (int tap = 1; tap < 32; ++tap)
+    {
+        if (shimmerTapVelocity (peakSourceVelocity, tap, feedbackPercent, mixPercent) <= 0)
+            break;
+
+        taps = tap;
+    }
+
+    return taps;
+}
+
+size_t combinedModeExpansionCap (const size_t totalCapacity,
+                                 const bool shimmerEnabled,
+                                 const int feedbackPercent,
+                                 const int mixPercent)
+{
+    if (! shimmerEnabled || totalCapacity == 0)
+        return totalCapacity;
+
+    const auto maxTaps = maxShimmerTapsPerSource (feedbackPercent, mixPercent);
+
+    if (maxTaps <= 0)
+        return totalCapacity;
+
+    return totalCapacity / (1 + static_cast<size_t> (maxTaps));
+}
+
 std::uint32_t deterministicEventHash (const int row, const int step, const double ppq)
 {
     auto value = static_cast<std::uint32_t> (row + 1) * 0x9E3779B9u
@@ -1172,7 +1205,19 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             && command.type != SequencerCommand::Type::SetLoopBraceStart
             && command.type != SequencerCommand::Type::SetLoopBraceEnd
             && command.type != SequencerCommand::Type::SetCombinationModeMask
-            && command.type != SequencerCommand::Type::SetPatternScale)
+            && command.type != SequencerCommand::Type::SetPatternScale
+            && command.type != SequencerCommand::Type::SetPatternNoteBandpass
+            && command.type != SequencerCommand::Type::SetPatternVelocityTiltPivotMidi
+            && command.type != SequencerCommand::Type::SetPatternVelocityTiltAmount
+            && command.type != SequencerCommand::Type::SetPatternGlobalTransposeSemitones
+            && command.type != SequencerCommand::Type::SetPatternOctavizerDown8vaEnabled
+            && command.type != SequencerCommand::Type::SetPatternOctavizerUp8vaEnabled
+            && command.type != SequencerCommand::Type::SetPatternOctavizerDown8vaRelativeVelocity
+            && command.type != SequencerCommand::Type::SetPatternOctavizerUp8vaRelativeVelocity
+            && command.type != SequencerCommand::Type::SetPatternShimmerEnabled
+            && command.type != SequencerCommand::Type::SetPatternShimmerDelayMultiplierIndex
+            && command.type != SequencerCommand::Type::SetPatternShimmerFeedbackPercent
+            && command.type != SequencerCommand::Type::SetPatternShimmerMixPercent)
             return;
     }
 
@@ -2089,6 +2134,7 @@ void PluginProcessor::setPatternShimmerEnabled (const bool enabled)
     SequencerCommand command;
     command.type = SequencerCommand::Type::SetPatternShimmerEnabled;
     command.patternSlot = patternSlot;
+    command.row = -1;
     command.intValue = enabled ? 1 : 0;
     publishCommandToAudio (command);
 }
@@ -2104,6 +2150,7 @@ void PluginProcessor::setPatternShimmerDelayMultiplierIndex (const int multiplie
     SequencerCommand command;
     command.type = SequencerCommand::Type::SetPatternShimmerDelayMultiplierIndex;
     command.patternSlot = patternSlot;
+    command.row = -1;
     command.intValue = clamped;
     publishCommandToAudio (command);
 }
@@ -2119,6 +2166,7 @@ void PluginProcessor::setPatternShimmerFeedbackPercent (const int feedbackPercen
     SequencerCommand command;
     command.type = SequencerCommand::Type::SetPatternShimmerFeedbackPercent;
     command.patternSlot = patternSlot;
+    command.row = -1;
     command.intValue = clamped;
     publishCommandToAudio (command);
 }
@@ -2134,6 +2182,7 @@ void PluginProcessor::setPatternShimmerMixPercent (const int mixPercent)
     SequencerCommand command;
     command.type = SequencerCommand::Type::SetPatternShimmerMixPercent;
     command.patternSlot = patternSlot;
+    command.row = -1;
     command.intValue = clamped;
     publishCommandToAudio (command);
 }
@@ -4745,6 +4794,11 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             combinedEvents[index] = applyCrossModEvent (combinedEvents[index]);
     }
 
+    const auto modeExpansionCap = combinedModeExpansionCap (combinedEventCapacity,
+                                                            activePattern.shimmerEnabled != 0,
+                                                            activePattern.shimmerFeedbackPercent,
+                                                            activePattern.shimmerMixPercent);
+
     if (combinationModeEnabled (modeMask, combinationModeCanon) && activeRowCount > 1)
     {
         const auto originalCount = eventCount;
@@ -4755,7 +4809,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         auto write = originalCount;
         const auto canonDelay = combinationGesturePulse / static_cast<double> (activeRowCount);
 
-        for (size_t read = 0; read < originalCount && write < combinedWorkingEvents.size(); ++read)
+        for (size_t read = 0; read < originalCount && write < modeExpansionCap; ++read)
         {
             const auto& source = combinedEvents[read];
             const auto position = activeRowPosition (source.row);
@@ -4801,7 +4855,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         auto write = originalCount;
         const auto mirrorDelay = combinationGesturePulse * 0.25;
 
-        for (size_t read = 0; read < originalCount && write < combinedWorkingEvents.size(); ++read)
+        for (size_t read = 0; read < originalCount && write < modeExpansionCap; ++read)
         {
             const auto& source = combinedEvents[read];
             const auto& sourceSteps = state.rows[static_cast<size_t> (source.row)];
@@ -4855,7 +4909,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
     {
         auto write = static_cast<size_t> (0);
 
-        for (size_t read = 0; read < eventCount && write < combinedWorkingEvents.size(); ++read)
+        for (size_t read = 0; read < eventCount && write < modeExpansionCap; ++read)
         {
             const auto& source = combinedEvents[read];
             combinedWorkingEvents[write++] = source;
@@ -4943,7 +4997,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                                             const double delay,
                                             const double gate,
                                             const int velocity) {
-                if (write >= combinedWorkingEvents.size())
+                if (write >= modeExpansionCap)
                     return;
 
                 if (gate <= epsilon)
@@ -5129,21 +5183,13 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
                 if (shimmerDelayQuarters > 1.0e-9)
                 {
-                    auto maxTapDelay = 0.0;
+                    const auto maxTaps = maxShimmerTapsPerSource (
+                        activePattern.shimmerFeedbackPercent,
+                        activePattern.shimmerMixPercent);
+                    const auto maxTapDelay = static_cast<double> (maxTaps) * shimmerDelayQuarters;
 
-                    for (int tap = 1; tap < 32; ++tap)
-                    {
-                        if (shimmerTapVelocity (100,
-                                                tap,
-                                                activePattern.shimmerFeedbackPercent,
-                                                activePattern.shimmerMixPercent)
-                            <= 0)
-                            break;
-
-                        maxTapDelay = static_cast<double> (tap) * shimmerDelayQuarters;
-                    }
-
-                    lead = juce::jmax (lead, maxTapDelay);
+                    if (maxTapDelay > epsilon)
+                        lead = juce::jmax (lead, maxTapDelay);
                 }
             }
 
@@ -5361,7 +5407,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
     {
         auto write = static_cast<size_t> (0);
 
-        for (size_t read = 0; read < eventCount && write < combinedWorkingEvents.size(); ++read)
+        for (size_t read = 0; read < eventCount && write < modeExpansionCap; ++read)
         {
             const auto& carrier = combinedEvents[read];
             const auto position = activeRowPosition (carrier.row);
@@ -5371,7 +5417,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                                          ? modSteps.notes[0]
                                          : emptyRowDefaultNote;
 
-            for (int modStep = 0; modStep < modSteps.stepCount && write < combinedWorkingEvents.size(); ++modStep)
+            for (int modStep = 0; modStep < modSteps.stepCount && write < modeExpansionCap; ++modStep)
             {
                 const auto modIndex = static_cast<size_t> (modStep);
 
@@ -5383,7 +5429,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                 auto next = carrier;
                 next.ppq = carrier.ppq + modSteps.stepStartQuarters[modIndex];
 
-                if (next.ppq < schedulePpqStart - epsilon)
+                if (next.ppq < collectionPpqStart - epsilon)
                     continue;
 
                 const auto modGate =

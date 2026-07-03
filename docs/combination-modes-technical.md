@@ -285,8 +285,11 @@ The event is kept only if it lands inside the current scheduled range:
 schedulePpqStart <= output.ppq < schedulePpqEnd
 ```
 
-There is no wrap inside Echo. Events outside the current segment are truncated by
-the scheduler range.
+There is no wrap inside Echo. Events outside the current emit segment are
+truncated by the scheduler range. Echo products are still built from the same
+collection lookback window as carrier events so Shimmer can derive delayed taps
+from lookback carriers (audio uses `collectionPpqStart`, not `schedulePpqStart`,
+for the Echo inclusion filter).
 
 ### Pitch Rule
 
@@ -327,10 +330,12 @@ output.gateQuarters = min(carrier.gateQuarters, modGate)
 
 Echo can grow quickly: one carrier event multiplied by `N` modulator steps yields
 up to `N` output events. The audio scheduler writes into a fixed `1024` event
-array. Once that array is full, additional Echo output for the current scheduled
-range is dropped.
+array. When Shimmer is enabled, combination expanders (Canon, Retro-Inv, Tendril,
+Echo) cap output at `combinedEventCapacity / (1 + maxShimmerTapsPerSource)` so
+Shimmer can still append delayed octave-up taps to every surviving note. Without
+that reservation, a full buffer leaves no room for Shimmer taps.
 
-The preview has a separate visual cap of `4096` notes.
+The preview mirrors the same cap against its `4096` note limit.
 
 Output effect:
 

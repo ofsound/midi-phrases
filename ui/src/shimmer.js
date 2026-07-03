@@ -46,6 +46,51 @@ export function shimmerTapVelocity(sourceVelocity, tap, feedbackPercent, mixPerc
 }
 
 /**
+ * Maximum shimmer taps any source can produce (velocity-based, using peak source velocity).
+ *
+ * @param {number} feedbackPercent
+ * @param {number} mixPercent
+ * @param {number} [peakSourceVelocity]
+ */
+export function maxShimmerTapsPerSource(
+  feedbackPercent,
+  mixPercent,
+  peakSourceVelocity = 100,
+) {
+  let taps = 0;
+
+  for (let tap = 1; tap < 32; tap += 1) {
+    if (shimmerTapVelocity(peakSourceVelocity, tap, feedbackPercent, mixPercent) <= 0) break;
+
+    taps = tap;
+  }
+
+  return taps;
+}
+
+/**
+ * Cap combination-mode expansion so shimmer can still append taps afterward.
+ *
+ * @param {number} totalCapacity
+ * @param {object} shimmer
+ * @param {boolean} [shimmer.enabled]
+ * @param {number} [shimmer.feedbackPercent]
+ * @param {number} [shimmer.mixPercent]
+ */
+export function combinedModeExpansionCap(
+  totalCapacity,
+  {enabled = false, feedbackPercent = defaultShimmerFeedbackPercent, mixPercent = defaultShimmerMixPercent} = {},
+) {
+  if (!enabled || totalCapacity <= 0) return totalCapacity;
+
+  const maxTaps = maxShimmerTapsPerSource(feedbackPercent, mixPercent);
+
+  if (maxTaps <= 0) return totalCapacity;
+
+  return Math.floor(totalCapacity / (1 + maxTaps));
+}
+
+/**
  * Add delayed octave-up shimmer taps for every incoming note.
  *
  * @param {ScheduledNote[]} events

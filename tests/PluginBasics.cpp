@@ -2764,6 +2764,205 @@ TEST_CASE ("Pattern shimmer adds delayed octave-up taps", "[instance]")
     testPlugin.setPlayHead (nullptr);
 }
 
+TEST_CASE ("Echo mode keeps shimmer taps when expansion is capped", "[instance]")
+{
+    auto configureDenseEchoPattern = [] (PluginProcessor& testPlugin) {
+        constexpr double sampleRate = 44100.0;
+        constexpr int blockSize = 512;
+
+        testPlugin.prepareToPlay (sampleRate, blockSize);
+        testPlugin.setPulseIndex (1);
+        testPlugin.setVelocityHumanizePercent (0);
+        testPlugin.setTimingHumanizePercent (0);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setPatternScale (0, 1);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+        testPlugin.setPhraseRowMuted (0, false);
+        testPlugin.setPhraseRowMuted (1, false);
+        testPlugin.setPhraseRowMuted (2, true);
+        testPlugin.setPhraseRowMuted (3, true);
+
+        ensurePhraseRowStepCount (testPlugin, 0, 32);
+        ensurePhraseRowStepCount (testPlugin, 1, 32);
+
+        for (int row = 0; row < 2; ++row)
+        {
+            const auto stepCount = testPlugin.getPhraseRowStepCount (row);
+
+            for (int step = 0; step < stepCount; ++step)
+            {
+                // Uniform pitch so Echo only retimes carriers; shimmer taps stay distinct at +12.
+                testPlugin.setPhraseNote (row, step, 60);
+                testPlugin.setPhraseStepTimingMultiplier (row,
+                                                            step,
+                                                            PluginProcessor::defaultStepTimingMultiplierIndex);
+                testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+                testPlugin.setPhraseStepVelocity (row, step, 100);
+            }
+        }
+    };
+
+    auto collectNoteOnCounts = [] (PluginProcessor& testPlugin, const bool shimmerEnabled) {
+        testPlugin.setPatternShimmerEnabled (shimmerEnabled);
+        testPlugin.setPatternShimmerDelayMultiplierIndex (
+            PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPatternShimmerFeedbackPercent (80);
+        testPlugin.setPatternShimmerMixPercent (PluginProcessor::maxPercentValue);
+        testPlugin.setPulseIndex (1);
+
+        constexpr double sampleRate = 44100.0;
+        constexpr int blockSize = 512;
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (120.0);
+        testPlugin.setPlayHead (&playHead);
+
+        std::array<int, 128> noteOnCounts {};
+
+        for (int block = 0; block < 1400; ++block)
+        {
+            midi.clear();
+            playHead.info.setIsPlaying (true);
+            playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                          * (120.0 / 60.0) / sampleRate);
+            testPlugin.processBlock (buffer, midi);
+
+            for (const auto metadata : midi)
+            {
+                const auto message = metadata.getMessage();
+
+                if (message.isNoteOn())
+                    ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+            }
+
+            if (playHead.info.getPpqPosition() >= 16.0)
+                break;
+        }
+
+        testPlugin.setPlayHead (nullptr);
+        return noteOnCounts;
+    };
+
+    PluginProcessor withShimmerPlugin;
+    configureDenseEchoPattern (withShimmerPlugin);
+    const auto withShimmer = collectNoteOnCounts (withShimmerPlugin, true);
+
+    PluginProcessor withoutShimmerPlugin;
+    configureDenseEchoPattern (withoutShimmerPlugin);
+    const auto withoutShimmer = collectNoteOnCounts (withoutShimmerPlugin, false);
+
+    auto sumNoteOns = [] (const std::array<int, 128>& counts) {
+        auto total = 0;
+
+        for (const auto count : counts)
+            total += count;
+
+        return total;
+    };
+
+    const auto totalWithoutShimmer = sumNoteOns (withoutShimmer);
+
+    auto shimmerOnlyNoteOns = 0;
+
+    for (int note = 0; note < 128; ++note)
+        shimmerOnlyNoteOns += juce::jmax (0, withShimmer[static_cast<size_t> (note)]
+                                              - withoutShimmer[static_cast<size_t> (note)]);
+
+    CHECK (totalWithoutShimmer > 0);
+    CHECK (shimmerOnlyNoteOns > 0);
+}
+
+TEST_CASE ("Two-row shimmer adds delayed taps without Echo", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (1);
+    testPlugin.setVelocityHumanizePercent (0);
+    testPlugin.setTimingHumanizePercent (0);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, true);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 64);
+    testPlugin.setPhraseStepTimingMultiplier (0,
+                                                0,
+                                                PluginProcessor::defaultStepTimingMultiplierIndex);
+    testPlugin.setPhraseStepTimingMultiplier (1,
+                                                0,
+                                                PluginProcessor::defaultStepTimingMultiplierIndex);
+    testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+    testPlugin.setPhraseStepDurationFraction (1, 0, 1.0);
+    testPlugin.setPhraseStepVelocity (0, 0, 100);
+    testPlugin.setPhraseStepVelocity (1, 0, 100);
+
+    testPlugin.setPatternShimmerEnabled (true);
+    testPlugin.setPatternShimmerDelayMultiplierIndex (
+        PluginProcessor::defaultStepTimingMultiplierIndex);
+    testPlugin.setPatternShimmerFeedbackPercent (80);
+    testPlugin.setPatternShimmerMixPercent (PluginProcessor::maxPercentValue);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    testPlugin.setPlayHead (&playHead);
+
+    std::array<int, 128> noteOnCounts {};
+
+    for (int block = 0; block < 700; ++block)
+    {
+        midi.clear();
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (static_cast<double> (block * blockSize)
+                                      * (120.0 / 60.0) / sampleRate);
+        testPlugin.processBlock (buffer, midi);
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn())
+                ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
+        }
+
+        if (playHead.info.getPpqPosition() >= 8.0)
+            break;
+    }
+
+    CHECK (noteOnCounts[72] > 0);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Weave mode keeps octavizer copies after thinning multi-row collisions", "[instance]")
 {
     PluginProcessor testPlugin;
