@@ -2286,19 +2286,15 @@
   {@const stepIsSkipped = stepSkipped[step]}
   {@const isInspected = stepInspectorHighlightedId === stepIds[step]}
   {@const hasAdvancedParameterChanges = stepHasAdvancedParameterChanges(step)}
-  {@const footerDimmed = muted || stepIsSkipped}
   {@const multiplierIndex = stepTimingMultiplier[step] ?? defaultStepTimingMultiplierIndex}
   {@const isQuarterStep = multiplierIndex === 0}
-  {@const footerShellClass = footerDimmed
-    ? "border-t border-border-subtle/90 bg-surface/70"
-    : "border-t border-border-subtle bg-surface-muted/60"}
   {@const footerButtonClass = `flex h-full shrink-0 items-center justify-center border-0 bg-transparent p-0 outline-none focus-visible:outline-none ${accent.ringFocusWithWidth}`}
-  {@const footerStepIconClass = "pointer-events-none h-3.5 w-3.5"}
+  {@const footerStepIconClass = "pointer-events-none size-[calc(0.875rem*1.33)]"}
   {@const footerSlotStyle = `width: ${stepFooterActionSlotWidthPx()}px`}
   <div
     class="relative z-[80] flex h-5 w-full shrink-0 {isQuarterStep
       ? 'divide-x divide-border-subtle'
-      : 'justify-between'} {footerShellClass}"
+      : 'justify-between'}"
     data-no-long-press
   >
     {#if isQuarterStep}

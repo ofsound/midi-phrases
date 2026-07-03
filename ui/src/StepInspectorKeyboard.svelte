@@ -113,10 +113,6 @@
         Note
         <strong class="ml-1 font-mono text-xs font-bold tracking-normal {accent.textAccentStrong}">{currentNoteName}</strong>
       </span>
-      <span class="min-w-0 flex-1 truncate text-right">
-        Scale
-        <strong class="ml-1 text-xs font-semibold normal-case tracking-normal {accent.textAccentStrong}">{currentScaleName}</strong>
-      </span>
       <button
         type="button"
         data-cursor="pointer"
