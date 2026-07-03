@@ -6,6 +6,7 @@
   import StepMuteIcon from "./StepMuteIcon.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
   import StepSkipIcon from "./StepSkipIcon.svelte";
+  import { inspectorInactiveControlClasses } from "./inspectorSidebar.js";
   import { minSignedRelativePercentValue, maxSignedRelativePercentValue } from "./percentLimits.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import {
@@ -97,9 +98,9 @@
     return `flex ${sizeClass} items-center justify-center rounded-md border p-0 transition-[background-color,border-color,color,box-shadow] outline-none focus:ring-1 focus:ring-focus-ring ${
       enabled
         ? active
-          ? "mp-control-gradient border-border-strong text-text shadow-sm"
-          : "mp-control-gradient border-border text-text-secondary hover:border-border-strong hover:text-text"
-        : "mp-control-gradient-muted border-border-subtle text-text-faint"
+          ? `${accent.bgAccentStrong} ${accent.borderFocus} border text-white ${accent.playbackGlow}`
+          : inspectorInactiveControlClasses()
+        : inspectorInactiveControlClasses({ disabled: true })
     }`;
   }
 
@@ -145,7 +146,7 @@
           : "flex items-center gap-1",
   );
   let labelClass = $derived(
-    `text-xs font-semibold leading-none text-text-muted${inlineLabels ? " shrink-0" : ""}`,
+    `text-xs font-semibold leading-none text-text${inlineLabels ? " shrink-0" : ""}`,
   );
   /** @param {string} text */
   function labelText(text) {

@@ -1013,19 +1013,18 @@
 
   .seed-mode-panel .seed-param-control {
     display: grid;
-    grid-template-columns: minmax(5.35rem, 0.34fr) minmax(0, 1fr);
+    grid-template-columns: minmax(6.25rem, 0.34fr) minmax(0, 1fr);
     align-items: center;
     gap: 0.6rem;
   }
 
   .seed-mode-panel .seed-param-label {
     min-width: 0;
-    color: var(--color-text-muted);
-    font-size: 0.5625rem;
+    color: var(--color-text);
+    font-size: 0.75rem;
     font-weight: 600;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.01em;
     line-height: 1;
-    text-transform: uppercase;
     white-space: nowrap;
   }
 

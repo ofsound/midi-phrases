@@ -150,10 +150,10 @@
         : "relative min-w-0 rounded-md border border-border bg-surface/60 p-1",
   );
   let gridClass = $derived(compact ? "grid grid-cols-8 gap-0.5" : "grid grid-cols-8 gap-1");
-  let cellClass = $derived(compact ? "cycle-cell relative z-[1] h-5 rounded-sm border" : "cycle-cell relative z-[1] h-8 rounded-sm border");
+  let cellClass = $derived(compact ? "cycle-cell relative z-[1] h-6 rounded-sm border" : "cycle-cell relative z-[1] h-8 rounded-sm border");
   let handleClass = $derived(
     compact
-      ? "cycle-handle pointer-events-auto z-10 flex h-5 w-2.5 translate-x-1/2 touch-none select-none items-center justify-center rounded-sm border border-border bg-surface text-text-muted shadow-sm outline-none hover:border-border-strong hover:text-text"
+      ? "cycle-handle pointer-events-auto z-10 flex h-6 w-3 translate-x-1/2 touch-none select-none items-center justify-center rounded-sm border border-border bg-surface text-text-muted shadow-sm outline-none hover:border-border-strong hover:text-text"
       : "cycle-handle pointer-events-auto z-10 flex h-8 w-3.5 translate-x-1/2 touch-none select-none items-center justify-center rounded-sm border border-border bg-surface text-text-muted shadow-sm outline-none hover:border-border-strong hover:text-text",
   );
   let overlayInsetClass = $derived(compact ? "pointer-events-none absolute inset-0.5 grid grid-cols-8 gap-0.5" : "pointer-events-none absolute inset-1 grid grid-cols-8 gap-1");
@@ -232,8 +232,8 @@
           title="Drag horizontally to set cycle length"
         >
           <span class="flex gap-0.5" aria-hidden="true">
-            <span class="block {compact ? 'h-2 w-px' : 'h-2.5 w-px'} bg-current"></span>
-            <span class="block {compact ? 'h-2 w-px' : 'h-2.5 w-px'} bg-current"></span>
+            <span class="block {compact ? 'h-2.5 w-px' : 'h-2.5 w-px'} bg-current"></span>
+            <span class="block {compact ? 'h-2.5 w-px' : 'h-2.5 w-px'} bg-current"></span>
           </span>
         </div>
       </div>

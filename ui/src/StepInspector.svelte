@@ -14,6 +14,7 @@
   } from "./stepCellLayout.js";
   import { inspectorToggleClasses } from "./inspectorSidebar.js";
   import { defaultStepProbabilityValue, maxPercentValue, maxStepProbabilityValue } from "./percentLimits.js";
+  import { midiToNoteName } from "./midiNoteNames.js";
 
   /**
    * @typedef {Object} Props
@@ -82,6 +83,7 @@
   } = $props();
 
   let stepKey = $derived(`${row}:${step}`);
+  let currentNoteName = $derived(midiToNoteName(note));
   let durationPercent = $derived(Math.round(Math.min(1, Math.max(0, durationFraction)) * 100));
   let multiplierDisplay = $derived(
     formatTimingMultiplierLabel(timingMultiplierAtIndex(timingMultiplierIndex)),
@@ -100,8 +102,8 @@
           class={inspectorToggleClasses(accent, skipped)}
           onclick={() => onSkippedChange(!skipped)}
         >
-          <StepSkipIcon class="pointer-events-none h-4 w-4 shrink-0" />
-          <span class="truncate text-[9px] font-semibold uppercase tracking-wide">Skip</span>
+          <StepSkipIcon class="pointer-events-none size-[calc(0.75rem/0.68)] shrink-0" />
+          <span class="truncate text-xs font-semibold leading-none tracking-normal">Skip</span>
         </button>
         <button
           type="button"
@@ -112,8 +114,8 @@
           class={inspectorToggleClasses(accent, muted)}
           onclick={() => onMutedChange(!muted)}
         >
-          <StepMuteIcon class="pointer-events-none h-4 w-4 shrink-0" />
-          <span class="truncate text-[9px] font-semibold uppercase tracking-wide">Mute</span>
+          <StepMuteIcon class="pointer-events-none size-[calc(0.75rem/0.68)] shrink-0" />
+          <span class="truncate text-xs font-semibold leading-none tracking-normal">Mute</span>
         </button>
     </div>
 
@@ -122,7 +124,7 @@
       style={rowAccentScopeStyle(accent)}
     >
       <label class="grid gap-1">
-        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Multiplier</span>
+        <span class="text-xs font-semibold leading-none tracking-normal text-text">Multiplier</span>
         <div class="seed-param-row">
           <AccentRangeSlider
             value={timingMultiplierIndex}
@@ -137,7 +139,7 @@
       </label>
 
       <label class="grid gap-1">
-        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Duration</span>
+        <span class="text-xs font-semibold leading-none tracking-normal text-text">Duration</span>
         <div class="seed-param-row">
           <AccentRangeSlider
             value={durationPercent}
@@ -152,7 +154,7 @@
       </label>
 
       <label class="grid gap-1">
-        <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Velocity</span>
+        <span class="text-xs font-semibold leading-none tracking-normal text-text">Velocity</span>
         <div class="seed-param-row">
           <AccentRangeSlider
             value={velocity}
@@ -173,7 +175,7 @@
         data-cursor="pointer"
         aria-label="Remove step"
         title="Remove step"
-        class="flex w-full items-center justify-center gap-1.5 rounded-md border border-border mp-control-gradient px-2 text-[9px] font-semibold uppercase tracking-wide text-text-secondary transition-[background-color,border-color,color] outline-none hover:border-danger hover:text-danger focus-visible:ring-1 focus-visible:ring-focus-ring"
+        class="flex w-full items-center justify-center gap-1.5 rounded-md border border-border mp-control-gradient px-2 text-xs font-semibold leading-none tracking-normal text-text-secondary transition-[background-color,border-color,color] outline-none hover:border-danger hover:text-danger focus-visible:ring-1 focus-visible:ring-focus-ring"
         onclick={onRemove}
       >
         <RemoveXIcon class="pointer-events-none h-3 w-3 shrink-0" />
@@ -183,18 +185,28 @@
   </aside>
 
   <div class="inspector-main grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(4rem,28%)_minmax(0,1fr)] content-start gap-y-2 overflow-hidden pb-2">
-    <div class="relative flex min-h-0 min-w-0 items-center justify-center bg-surface/15 px-3 py-2">
+    <div class="relative flex min-h-0 min-w-0 items-end justify-center overflow-visible bg-surface/15 px-3 py-2">
       <p
-        class="absolute bottom-2 left-14 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted"
+        class="absolute bottom-2 left-14 text-left text-[10px] font-semibold tracking-normal text-text-muted"
         class:invisible={bulkEditStepCount <= 1}
         aria-live="polite"
         aria-hidden={bulkEditStepCount <= 1}
       >
         {bulkEditStepCount} steps inspected
       </p>
-      <div class="grid w-full max-w-[46rem] min-w-0 grid-cols-2 items-end gap-x-20">
-        <div class="flex min-h-0 min-w-0 flex-col justify-center gap-1">
-          <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Cycle</span>
+      <div class="flex w-full min-w-0 items-end justify-center">
+        <div class="flex min-w-0 max-w-full w-[calc((100%+46rem)/2)] items-end">
+          <div class="flex min-w-0 flex-1 items-end justify-center pl-1">
+            <span
+              class="pointer-events-none shrink-0 font-mono text-4xl font-bold leading-none tabular-nums {accent.textAccentStrong}"
+              aria-label="Step note"
+            >
+              {currentNoteName}
+            </span>
+          </div>
+          <div class="grid w-[46rem] max-w-full shrink-0 grid-cols-2 grid-rows-[auto_auto] items-end gap-x-20 gap-y-1">
+          <span class="self-end text-xs font-semibold leading-none tracking-normal text-text">Cycle</span>
+          <span class="self-end text-xs font-semibold leading-none tracking-normal text-text">Probability</span>
           <CyclePatternEditor
             {accent}
             compact
@@ -208,29 +220,24 @@
             onPatternPreview={onCyclePatternPreview}
             onPatternCommit={onCyclePatternCommit}
           />
-        </div>
-
-        <div class="flex min-h-0 min-w-0 w-full flex-col justify-center" style={rowAccentScopeStyle(accent)}>
-          <label class="grid gap-1">
-            <span class="text-[9px] font-medium uppercase tracking-wide text-text-muted">Probability</span>
-            <div class="seed-param-row">
-              <AccentRangeSlider
-                value={probability}
-                min={0}
-                max={maxStepProbabilityValue}
-                ariaLabel="Step probability"
-                onGestureStart={onProbabilityGestureStart}
-                onValuePreview={onProbabilityPreview}
-                onValueCommit={onProbabilityCommit}
-              />
-              <span class="seed-param-value" aria-hidden="true">{Math.round(probability)}%</span>
-            </div>
-          </label>
+          <div class="seed-param-row" style={rowAccentScopeStyle(accent)}>
+            <AccentRangeSlider
+              value={probability}
+              min={0}
+              max={maxStepProbabilityValue}
+              ariaLabel="Step probability"
+              onGestureStart={onProbabilityGestureStart}
+              onValuePreview={onProbabilityPreview}
+              onValueCommit={onProbabilityCommit}
+            />
+            <span class="seed-param-value" aria-hidden="true">{Math.round(probability)}%</span>
+          </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="flex min-h-0 min-w-0 overflow-hidden">
+    <div class="flex min-h-0 min-w-0 overflow-hidden px-3">
       <StepInspectorKeyboard
         {note}
         {stepKey}

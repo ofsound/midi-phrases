@@ -11,6 +11,7 @@
     stepInspectorOctaveOffsetForNote,
   } from "./pianoKeyboardLayout.js";
   import { isChromaticScaleMode, isMidiInScale, scaleName } from "./scaleUtils.js";
+  import { inspectorOctaveButtonClasses } from "./inspectorSidebar.js";
 
   /**
    * @typedef {Object} Props
@@ -57,6 +58,7 @@
   let chromatic = $derived(isChromaticScaleMode(scaleModeIndex));
   let currentNoteName = $derived(midiToNoteName(note));
   let currentScaleName = $derived(scaleName(scaleRoot, scaleModeIndex));
+  let octaveButtonClass = $derived(inspectorOctaveButtonClasses(accent));
 
   /** @param {number} midi */
   function isKeyInteractive(midi) {
@@ -96,27 +98,23 @@
   }
 </script>
 
-<div class="flex h-full min-h-0 min-w-0 flex-1 px-1">
-  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-    <div class="flex h-7 shrink-0 items-center gap-2 bg-surface/30 px-1 text-[9px] font-medium uppercase tracking-wider text-text-muted">
+<div class="flex h-full min-h-0 min-w-0 flex-1">
+  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-2">
+    <div class="flex h-11 shrink-0 items-center justify-between gap-2">
       <button
         type="button"
         data-cursor="pointer"
-        class="flex h-6 w-7 shrink-0 items-center justify-center rounded-sm bg-surface/50 text-sm font-semibold text-text transition-colors hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
+        class={octaveButtonClass}
         aria-label="Shift keyboard down one octave"
         title="Octave down"
         onclick={shiftOctaveDown}
       >
         −
       </button>
-      <span class="min-w-0 flex-1 truncate">
-        Note
-        <strong class="ml-1 font-mono text-xs font-bold tracking-normal {accent.textAccentStrong}">{currentNoteName}</strong>
-      </span>
       <button
         type="button"
         data-cursor="pointer"
-        class="flex h-6 w-7 shrink-0 items-center justify-center rounded-sm bg-surface/50 text-sm font-semibold text-text transition-colors hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
+        class={octaveButtonClass}
         aria-label="Shift keyboard up one octave"
         title="Octave up"
         onclick={shiftOctaveUp}

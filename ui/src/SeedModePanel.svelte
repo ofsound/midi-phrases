@@ -1,6 +1,7 @@
 <script>
   import AccentRangeSlider from "./AccentRangeSlider.svelte";
   import SeedRowTargetRail from "./SeedRowTargetRail.svelte";
+  import { inspectorTextButtonClasses } from "./inspectorSidebar.js";
   import {
     applySeedingRowSettingsUpdate,
     defaultSeedModeState,
@@ -299,16 +300,16 @@
           type="button"
           data-cursor="pointer"
           disabled={busy}
-          class="h-8 border border-border bg-surface px-3 text-xs font-semibold uppercase tracking-[0.16em] text-text outline-none transition-colors hover:border-accent/70 focus:ring-1 focus:ring-focus-ring disabled:opacity-40"
+          class={inspectorTextButtonClasses({ disabled: busy })}
           onclick={onNextSeed}
         >
-          New notes
+          New Notes
         </button>
         <button
           type="button"
           data-cursor="pointer"
           disabled={busy}
-          class="h-8 border border-border bg-surface px-3 text-xs font-semibold uppercase tracking-[0.16em] text-text outline-none transition-colors hover:border-accent/70 focus:ring-1 focus:ring-focus-ring disabled:opacity-40"
+          class={inspectorTextButtonClasses({ disabled: busy })}
           onclick={onShuffle}
         >
           Randomize

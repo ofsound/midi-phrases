@@ -1,4 +1,5 @@
 <script>
+  import { inspectorInactiveControlClasses } from "./inspectorSidebar.js";
   import { rowAccentColorVar, rowAccentFor } from "./rowAccentTheme.js";
 
   /**
@@ -38,7 +39,7 @@
 </script>
 
 <div class="seed-row-target-rail {className}">
-  <p class="seed-row-target-label">Seed rows</p>
+  <p class="seed-row-target-label">Seed Rows</p>
   <div class="seed-row-target-strip" role="group" aria-label="Rows to seed">
     {#each [0, 1, 2, 3] as row (row)}
       {@const targeted = rowTargets[row] ?? false}
@@ -52,7 +53,9 @@
         title={targeted
           ? `Row ${row + 1} will receive seeded values. Shift-click to combine rows.`
           : `Select row ${row + 1} for seeding. Shift-click to combine rows.`}
-        class="seed-row-target-btn seed-row-target-row"
+        class="seed-row-target-btn seed-row-target-row {targeted
+          ? 'seed-row-target-row--active'
+          : inspectorInactiveControlClasses({ disabled: busy })}"
         style:--row-accent={rowAccentColorVar(accent)}
         style:--row-accent-strong={rowAccentStrongColorVar(accent)}
         onclick={(event) => handleRowTargetClick(event, row)}
@@ -67,7 +70,9 @@
       aria-label={allRowsTargeted ? "Disable seeding for all rows" : "Enable seeding for all rows"}
       aria-pressed={allRowsTargeted}
       title={allRowsTargeted ? "Disable seeding for all rows" : "Enable seeding for all rows"}
-      class="seed-row-target-btn seed-row-target-all"
+      class="seed-row-target-btn seed-row-target-all {allRowsTargeted
+        ? 'seed-row-target-all--active'
+        : inspectorInactiveControlClasses({ disabled: busy })}"
       onclick={onToggleAllRowTargets}
     >
       All
@@ -83,32 +88,33 @@
 
   .seed-row-target-label {
     margin: 0;
-    font-size: 9px;
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    color: var(--color-text);
   }
 
   .seed-row-target-strip {
-    --target-height: 1.875rem;
     display: flex;
     align-items: stretch;
-    gap: 0.3rem;
+    gap: 0.375rem;
   }
 
   .seed-row-target-btn {
     flex: 1 1 0;
     min-width: 0;
-    height: var(--target-height);
+    height: 2.25rem;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    border-radius: 2px;
+    border-radius: 0.375rem;
+    border-width: 1px;
+    border-style: solid;
     font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
-    font-size: 0.8125rem;
-    font-weight: 700;
+    font-size: 0.75rem;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
     line-height: 1;
     outline: none;
@@ -119,34 +125,21 @@
       color 120ms ease;
   }
 
-  .seed-row-target-row {
-    border: 1px solid color-mix(in srgb, var(--color-border-subtle) 78%, transparent);
-    background: color-mix(in srgb, var(--color-surface-subtle) 38%, transparent);
-    color: color-mix(in srgb, var(--color-text) 72%, transparent);
-    box-shadow: inset 0 1px 1.5px color-mix(in srgb, var(--color-text) 10%, transparent);
-  }
-
-  .seed-row-target-row:not([aria-pressed="true"]):hover:not(:disabled) {
-    background: color-mix(in srgb, var(--color-control-ghost-hover) 48%, transparent);
-    color: var(--color-text);
-  }
-
-  .seed-row-target-row:focus-visible:not([aria-pressed="true"]) {
+  .seed-row-target-btn:focus-visible:not(.seed-row-target-row--active):not(.seed-row-target-all--active) {
     box-shadow: var(--shadow-accent-focus);
   }
 
-  .seed-row-target-row[aria-pressed="true"]:focus-visible {
+  .seed-row-target-btn:disabled {
+    cursor: default;
+  }
+
+  .seed-row-target-row--active:focus-visible {
     box-shadow:
       var(--shadow-accent-focus),
       0 0 0.35rem color-mix(in srgb, var(--row-accent) 34%, transparent);
   }
 
-  .seed-row-target-row:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
-  .seed-row-target-row[aria-pressed="true"] {
+  .seed-row-target-row--active {
     border-color: color-mix(in srgb, var(--row-accent-strong) 94%, #fff);
     background: linear-gradient(
       180deg,
@@ -163,31 +156,10 @@
 
   .seed-row-target-all {
     flex: 1.15 1 0;
-    border: 1px solid color-mix(in srgb, var(--color-border-subtle) 78%, transparent);
-    background: color-mix(in srgb, var(--color-surface-subtle) 38%, transparent);
-    color: color-mix(in srgb, var(--color-text) 72%, transparent);
-    font-size: 0.625rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    box-shadow: inset 0 1px 1.5px color-mix(in srgb, var(--color-text) 10%, transparent);
+    letter-spacing: 0.01em;
   }
 
-  .seed-row-target-all:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--color-control-ghost-hover) 48%, transparent);
-    color: var(--color-text);
-  }
-
-  .seed-row-target-all:focus-visible {
-    box-shadow: var(--shadow-accent-focus);
-  }
-
-  .seed-row-target-all:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
-  .seed-row-target-all[aria-pressed="true"] {
+  .seed-row-target-all--active {
     border-color: color-mix(in srgb, var(--color-accent) 86%, #fff);
     background: linear-gradient(
       180deg,

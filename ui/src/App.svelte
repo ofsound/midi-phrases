@@ -5921,7 +5921,7 @@
 
     <div class="flex shrink-0 items-center gap-1">
             <div class="flex flex-col items-start gap-1">
-              <span class="text-xs font-semibold leading-none text-text-muted">Pulse</span>
+              <span class="text-xs font-semibold leading-none text-text">Pulse</span>
               <PulseDragInput
                 accent={interfaceAccent}
                 value={pulseIndex}
@@ -5929,7 +5929,7 @@
               />
             </div>
             <div class="flex flex-col items-start gap-1">
-              <span class="text-xs font-semibold leading-none text-text-muted">Swing</span>
+              <span class="text-xs font-semibold leading-none text-text">Swing</span>
               <StepNumberDragInput
                 boxed
                 compact
@@ -5946,7 +5946,7 @@
               />
             </div>
             <div class="flex flex-col items-start gap-1">
-              <span class="text-xs font-semibold leading-none text-text-muted">Sub</span>
+              <span class="text-xs font-semibold leading-none text-text">Sub</span>
               <DiscreteDragSelect
                 compact
                 accent={interfaceAccent}
@@ -5958,7 +5958,7 @@
               />
             </div>
             <div class="flex flex-col items-start gap-1">
-              <span class="text-xs font-semibold leading-none text-text-muted">Vel %</span>
+              <span class="text-xs font-semibold leading-none text-text">Vel %</span>
               <StepNumberDragInput
                 boxed
                 compact
@@ -5975,7 +5975,7 @@
               />
             </div>
             <div class="flex flex-col items-start gap-1">
-              <span class="text-xs font-semibold leading-none text-text-muted">Time %</span>
+              <span class="text-xs font-semibold leading-none text-text">Time %</span>
               <StepNumberDragInput
                 boxed
                 compact
@@ -6080,7 +6080,7 @@
       <div class="flex shrink-0 items-center gap-1">
       <div class="flex flex-col gap-1">
         <div class="flex items-center gap-1">
-          <span class="w-[3.75rem] shrink-0 text-right text-xs font-semibold leading-none text-text-muted"
+          <span class="w-[3.75rem] shrink-0 text-right text-xs font-semibold leading-none text-text"
             >Patterns:</span
           >
           <div class="flex items-center gap-0.5">
@@ -6122,7 +6122,7 @@
           </div>
         </div>
         <div class="flex items-center gap-1">
-          <span class="w-[3.75rem] shrink-0 text-right text-xs font-semibold leading-none text-text-muted"
+          <span class="w-[3.75rem] shrink-0 text-right text-xs font-semibold leading-none text-text"
             >Loops:</span
           >
           <div class="flex items-center gap-1">
