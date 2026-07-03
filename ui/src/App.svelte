@@ -1641,6 +1641,13 @@
       return;
     }
 
+    const key = stepSelectionKey(row, stepId);
+
+    if (selectedStepKeysForGrid.size <= 1 && !selectedStepKeysForGrid.has(key)) {
+      setSelectedStepKeys(new Set([key]));
+      syncBulkControlsFromSelection();
+    }
+
     inspectedStep = { row, stepId };
   }
 
