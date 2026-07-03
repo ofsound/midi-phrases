@@ -373,8 +373,7 @@
   let seedModeRowSettings = $state(createDefaultSeedModeRowSettings());
   let seedModeRowTargets = $state([...defaultSeedModeState.rowTargets]);
   /** @type {ReturnType<typeof createHistorySnapshot> | null} */
-  let seedModeHistoryBefore = null;
-  let seedModeDirty = false;
+  let seedModeGestureBefore = null;
   let seedModeApplyVersion = 0;
   let pulseIndex = $state(defaultPulseIndex);
   let swingPercent = $state(0);
@@ -396,6 +395,10 @@
   let projectOperationError = $state("");
   let undoStack = $state([]);
   let redoStack = $state([]);
+  let nextUndoHistoryLabel = $derived(undoStack[undoStack.length - 1]?.label ?? "");
+  let nextRedoHistoryLabel = $derived(redoStack[redoStack.length - 1]?.label ?? "");
+  let undoHistoryLabel = $derived(nextUndoHistoryLabel ? `Undo ${nextUndoHistoryLabel}` : "Undo");
+  let redoHistoryLabel = $derived(nextRedoHistoryLabel ? `Redo ${nextRedoHistoryLabel}` : "Redo");
   const selectedStepKeys = new SvelteSet();
   /** @type {string[][]} */
   let selectableStepKeySet = $derived(new Set(allSelectableStepKeys()));
@@ -1286,8 +1289,10 @@
 
   async function setPatternScale(nextRoot, nextModeIndex) {
     if (seedModeActive) {
-      await applyPatternScale(nextRoot, nextModeIndex);
-      await applySeedModeState();
+      await commitHistory("Change scale mode", async () => {
+        await applyPatternScale(nextRoot, nextModeIndex);
+        await applySeedModeState();
+      });
       return;
     }
 
@@ -1683,10 +1688,11 @@
     cancelMarqueeSelection();
 
     seedModeActive = true;
+    const nextTargets = seedModeRowTargets.map((_, index) => index === row);
 
-    void applySeedModeState({
+    void commitSeedModeState(seedModeTargetLabel(nextTargets), {
       ...currentSeedModeState(),
-      rowTargets: seedModeRowTargets.map((_, index) => index === row),
+      rowTargets: nextTargets,
     });
   }
 
@@ -1981,10 +1987,29 @@
       loopBraceEnabled,
       loopBraceStart,
       loopBraceEnd,
+      seedModeRhythmStep,
+      seedModeRowSettings: seedModeRowSettings.map((settings) => ({ ...settings })),
+      seedModeRowTargets: [...seedModeRowTargets],
+    };
+  }
+
+  function cloneSeedModeSnapshotState(snapshot) {
+    const normalized = normalizeSeedModeState({
+      rhythmStep: snapshot.seedModeRhythmStep ?? defaultSeedModeState.rhythmStep,
+      rowSettings: snapshot.seedModeRowSettings ?? defaultSeedModeState.rowSettings,
+      rowTargets: snapshot.seedModeRowTargets ?? defaultSeedModeState.rowTargets,
+    });
+
+    return {
+      seedModeRhythmStep: normalized.rhythmStep,
+      seedModeRowSettings: normalized.rowSettings.map((settings) => ({ ...settings })),
+      seedModeRowTargets: [...normalized.rowTargets],
     };
   }
 
   function cloneSnapshot(snapshot) {
+    const seedModeState = cloneSeedModeSnapshotState(snapshot);
+
     return {
       ...snapshot,
       grid: cloneMatrix(snapshot.grid),
@@ -2001,6 +2026,7 @@
       stepCycle: cloneMatrix(snapshot.stepCycle),
       stepCycleOffset: cloneMatrix(snapshot.stepCycleOffset),
       stepIds: cloneMatrix(snapshot.stepIds),
+      ...seedModeState,
     };
   }
 
@@ -2064,6 +2090,9 @@
     loopBraceEnabled = next.loopBraceEnabled;
     loopBraceStart = next.loopBraceStart;
     loopBraceEnd = next.loopBraceEnd;
+    seedModeRhythmStep = next.seedModeRhythmStep;
+    seedModeRowSettings = next.seedModeRowSettings;
+    seedModeRowTargets = next.seedModeRowTargets;
   }
 
   function assignPatternState(state, updateSlotSelection = true) {
@@ -2152,8 +2181,7 @@
     bulkTransposeSemitones = 0;
     assignSeedModeStateFromPattern(state);
     seedModeActive = false;
-    seedModeHistoryBefore = null;
-    seedModeDirty = false;
+    seedModeGestureBefore = null;
     undoStack = [];
     redoStack = [];
   }
@@ -2306,6 +2334,7 @@
     }
 
     await pushLoopBraceEnabled(snapshot.loopBraceEnabled);
+    await pushSeedModeStateToNative();
   }
 
   async function applyHistorySnapshot(snapshot) {
@@ -2315,10 +2344,7 @@
   }
 
   async function undo() {
-    if (seedModeActive) {
-      finalizeSeedModeHistory();
-      seedModeActive = false;
-    }
+    seedModeGestureBefore = null;
 
     const entry = undoStack[undoStack.length - 1];
 
@@ -2330,10 +2356,7 @@
   }
 
   async function redo() {
-    if (seedModeActive) {
-      finalizeSeedModeHistory();
-      seedModeActive = false;
-    }
+    seedModeGestureBefore = null;
 
     const entry = redoStack[redoStack.length - 1];
 
@@ -2903,26 +2926,6 @@
     await syncGeneratedPhraseRowsToNative(applyVersion);
   }
 
-  function beginSeedModeHistory() {
-    if (seedModeHistoryBefore !== null) return;
-
-    seedModeHistoryBefore = createHistorySnapshot();
-    seedModeDirty = false;
-  }
-
-  function finalizeSeedModeHistory() {
-    if (seedModeHistoryBefore === null) return;
-
-    const before = seedModeHistoryBefore;
-    seedModeHistoryBefore = null;
-
-    if (seedModeDirty) {
-      pushHistoryEntry("Seed pattern", before, createHistorySnapshot());
-    }
-
-    seedModeDirty = false;
-  }
-
   function assignSeedModeStateFromPattern(state) {
     if (!state || typeof state !== "object" || Array.isArray(state)) return;
 
@@ -2978,13 +2981,34 @@
     });
   }
 
+  function seedModeTargetLabel(rowTargets = seedModeRowTargets) {
+    const targetedRows = rowTargets
+      .map((targeted, row) => (targeted ? row : -1))
+      .filter((row) => row >= 0);
+
+    if (targetedRows.length === 1) {
+      return `Seed row ${targetedRows[0] + 1}`;
+    }
+
+    if (targetedRows.length === 0) {
+      return "Change seed targets";
+    }
+
+    return "Seed rows";
+  }
+
+  function beginSeedModeGesture() {
+    if (seedModeGestureBefore !== null) return;
+
+    seedModeGestureBefore = createHistorySnapshot();
+  }
+
   async function applySeedModeState(
     nextState = currentSeedModeState(),
     { syncNative = true, applyRhythmToAllRows = false } = {},
   ) {
     if (projectOperationBusy) return;
 
-    beginSeedModeHistory();
     const normalized = normalizeSeedModeState(nextState);
     const shouldApplyRhythmToAllRows =
       applyRhythmToAllRows || normalized.rhythmStep !== seedModeRhythmStep;
@@ -2994,10 +3018,12 @@
     seedModeRowTargets = normalized.rowTargets;
 
     if (!hasSeedingRowTargets(seedModeRowTargets) && !shouldApplyRhythmToAllRows) {
+      if (syncNative) {
+        await pushSeedModeStateToNative();
+      }
+
       return;
     }
-
-    seedModeDirty = true;
 
     const applyVersion = ++seedModeApplyVersion;
     const existing = phraseRowsFromGridState({
@@ -3033,6 +3059,18 @@
     }
   }
 
+  async function commitSeedModeState(
+    label,
+    nextState = currentSeedModeState(),
+    options = {},
+  ) {
+    const before = seedModeGestureBefore ?? createHistorySnapshot();
+    seedModeGestureBefore = null;
+
+    await applySeedModeState(nextState, options);
+    pushHistoryEntry(label, before, createHistorySnapshot());
+  }
+
   async function enterSeedMode() {
     if (projectOperationBusy || seedModeActive) return;
 
@@ -3042,23 +3080,25 @@
 
     dismissPhraseEditingFocus();
     seedModeActive = true;
-    beginSeedModeHistory();
-    await applySeedModeState();
+    await commitSeedModeState(seedModeTargetLabel());
   }
 
   async function exitSeedMode() {
     if (!seedModeActive) return;
 
-    if (seedModeDirty) {
-      try {
-        await syncGeneratedPhraseRowsToNative();
-        await pushSeedModeStateToNative();
-      } catch {
-        projectOperationError = "The pattern could not be seeded.";
-      }
+    if (seedModeGestureBefore !== null) {
+      const before = seedModeGestureBefore;
+      seedModeGestureBefore = null;
+      pushHistoryEntry(seedModeTargetLabel(), before, createHistorySnapshot());
     }
 
-    finalizeSeedModeHistory();
+    try {
+      await syncGeneratedPhraseRowsToNative();
+      await pushSeedModeStateToNative();
+    } catch {
+      projectOperationError = "The pattern could not be seeded.";
+    }
+
     seedModeActive = false;
   }
 
@@ -3072,6 +3112,8 @@
   }
 
   function previewSeedModeRhythmStep(rhythmStep) {
+    beginSeedModeGesture();
+
     void applySeedModeState({
       ...currentSeedModeState(),
       rhythmStep,
@@ -3079,13 +3121,15 @@
   }
 
   function commitSeedModeRhythmStep(rhythmStep) {
-    void applySeedModeState({
+    void commitSeedModeState("Change seed rhythm", {
       ...currentSeedModeState(),
       rhythmStep,
     }, { syncNative: true, applyRhythmToAllRows: true });
   }
 
   function previewSeedModeRowSettings(rowSettings) {
+    beginSeedModeGesture();
+
     void applySeedModeState({
       ...currentSeedModeState(),
       rowSettings,
@@ -3093,7 +3137,7 @@
   }
 
   function commitSeedModeRowSettings(rowSettings) {
-    void applySeedModeState({
+    void commitSeedModeState(seedModeTargetLabel(), {
       ...currentSeedModeState(),
       rowSettings,
     }, { syncNative: true });
@@ -3102,7 +3146,7 @@
   function nextSeedModeSeed() {
     const newSeed = randomSeedingSeed();
 
-    void applySeedModeState({
+    void commitSeedModeState("New seed notes", {
       ...currentSeedModeState(),
       rowSettings: refreshSeedingSeedsForRows(seedModeRowSettings, seedModeRowTargets, newSeed),
     });
@@ -3111,7 +3155,7 @@
   function shuffleSeedModeSettings() {
     const newSeed = randomSeedingSeed();
 
-    void applySeedModeState({
+    void commitSeedModeState("Randomize seed", {
       ...currentSeedModeState(),
       rhythmStep: Math.floor(Math.random() * (seedingRhythmStepMax + 1)),
       rowSettings: refreshSeedingSeedsForRows(
@@ -3138,7 +3182,7 @@
 
   /** @param {import("./seeding.js").SeedingReshuffleableAspect} aspect */
   function reshuffleSeedModeAspect(aspect) {
-    void applySeedModeState({
+    void commitSeedModeState("Re-shuffle seed", {
       ...currentSeedModeState(),
       rowSettings: applySeedingRowSettingsUpdate(
         seedModeRowSettings,
@@ -3172,7 +3216,7 @@
       next[row] = true;
     }
 
-    void applySeedModeState({
+    void commitSeedModeState(seedModeTargetLabel(next), {
       ...currentSeedModeState(),
       rowTargets: next,
     }, { syncNative: true });
@@ -3183,7 +3227,7 @@
 
     const shouldDisableAll = seedModeRowTargets.every(Boolean);
 
-    void applySeedModeState({
+    void commitSeedModeState(shouldDisableAll ? "Disable seed rows" : "Seed all rows", {
       ...currentSeedModeState(),
       rowTargets: shouldDisableAll ? [false, false, false, false] : [true, true, true, true],
     }, { syncNative: true });
@@ -3192,30 +3236,29 @@
   async function toggleSeedModeRowMute(row, soloRequested = false) {
     if (projectOperationBusy) return;
 
-    beginSeedModeHistory();
-    seedModeDirty = true;
+    await commitHistory(soloRequested ? "Solo row" : "Toggle row mute", async () => {
+      if (soloRequested) {
+        if (soloRow === row && rowSoloRestoreMuted) {
+          const restoreMuted = [...rowSoloRestoreMuted];
+          soloRow = -1;
+          rowSoloRestoreMuted = null;
+          await applyRowMutedState(restoreMuted);
+          return;
+        }
 
-    if (soloRequested) {
-      if (soloRow === row && rowSoloRestoreMuted) {
-        const restoreMuted = [...rowSoloRestoreMuted];
-        soloRow = -1;
-        rowSoloRestoreMuted = null;
-        await applyRowMutedState(restoreMuted);
+        if (!rowSoloRestoreMuted) {
+          rowSoloRestoreMuted = [...rowMuted];
+        }
+
+        soloRow = row;
+        await applyRowMutedState(rowMuted.map((_, index) => index !== row));
         return;
       }
 
-      if (!rowSoloRestoreMuted) {
-        rowSoloRestoreMuted = [...rowMuted];
-      }
-
-      soloRow = row;
-      await applyRowMutedState(rowMuted.map((_, index) => index !== row));
-      return;
-    }
-
-    const nextMuted = [...rowMuted];
-    nextMuted[row] = !nextMuted[row];
-    await applyRowMutedState(nextMuted);
+      const nextMuted = [...rowMuted];
+      nextMuted[row] = !nextMuted[row];
+      await applyRowMutedState(nextMuted);
+    });
   }
 
   function cycleProject(direction) {
@@ -5817,8 +5860,8 @@
         <div class="flex shrink-0 gap-1">
           <button
             type="button"
-            aria-label="Undo"
-            title="Undo"
+            aria-label={undoHistoryLabel}
+            title={undoHistoryLabel}
             disabled={undoStack.length === 0}
             data-cursor="pointer"
             class={historyButtonClasses(undoStack.length > 0)}
@@ -5840,8 +5883,8 @@
           </button>
           <button
             type="button"
-            aria-label="Redo"
-            title="Redo"
+            aria-label={redoHistoryLabel}
+            title={redoHistoryLabel}
             disabled={redoStack.length === 0}
             data-cursor="pointer"
             class={historyButtonClasses(redoStack.length > 0)}
@@ -6120,7 +6163,7 @@
           modeIndex={scaleModeIndex}
           rowColorsEnabled={rowColorsEnabled}
           busy={projectOperationBusy}
-          onGestureStart={beginSeedModeHistory}
+          onGestureStart={beginSeedModeGesture}
           onRhythmPreview={previewSeedModeRhythmStep}
           onRhythmCommit={commitSeedModeRhythmStep}
           onRowSettingsPreview={previewSeedModeRowSettings}
