@@ -593,6 +593,16 @@ double snapLoopBraceQuarters (const double quarters)
            * PluginProcessor::loopBraceSnapQuarters;
 }
 
+double snapQuartersToGrid (const double quarters, const double gridQuarters)
+{
+    constexpr auto epsilon = 1.0e-9;
+
+    if (gridQuarters <= epsilon)
+        return quarters;
+
+    return std::round (quarters / gridQuarters) * gridQuarters;
+}
+
 double clampLoopBraceStart (const double startQuarters, const double endQuarters)
 {
     return juce::jmax (0.0,
@@ -4738,6 +4748,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
         auto write = originalCount;
         const auto canonDelay = combinationGesturePulse / static_cast<double> (activeRowCount);
+        const auto canonSnapGrid = combinationGesturePulse * 0.5;
 
         for (size_t read = 0; read < originalCount && write < combinedWorkingEvents.size(); ++read)
         {
@@ -4754,7 +4765,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             const auto targetBase = firstNoteForRow (targetRow);
 
             auto copy = source;
-            copy.ppq = source.ppq + canonDelay;
+            copy.ppq = snapQuartersToGrid (source.ppq + canonDelay, canonSnapGrid);
             copy.note = transposeMidiByScaleDegrees (
                 targetBase,
                 scaleDegreeDelta (sourceBase, source.note, scaleRoot, scaleModeIndex),

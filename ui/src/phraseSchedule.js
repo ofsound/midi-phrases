@@ -898,6 +898,12 @@ function activeRowPosition(activeRows, row) {
   return Math.max(0, activeRows.indexOf(row));
 }
 
+/** @param {number} quarters @param {number} gridQuarters */
+function snapQuartersToGrid(quarters, gridQuarters) {
+  if (gridQuarters <= EPSILON) return quarters;
+  return Math.round(quarters / gridQuarters) * gridQuarters;
+}
+
 /**
  * @param {ScheduledNote[]} events
  * @param {number[]} activeRows
@@ -905,11 +911,11 @@ function activeRowPosition(activeRows, row) {
  * @param {number[]} rowMidiChannel
  * @param {number} scaleRoot
  * @param {number} scaleModeIndex
- * @param {number} delayQuarters
+ * @param {number} gesturePulse
  * @param {number} lengthQuarters
  * @returns {ScheduledNote[]}
  */
-function addCanonFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot, scaleModeIndex, delayQuarters, lengthQuarters) {
+function addCanonFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot, scaleModeIndex, gesturePulse, lengthQuarters) {
   if (activeRows.length <= 1 || events.length === 0) return events;
 
   const original = events.map((event) => ({...event}));
@@ -929,7 +935,9 @@ function addCanonFollowers(events, activeRows, notes, rowMidiChannel, scaleRoot,
     const sourceBase = notes[sourceRow]?.[0] ?? event.midi;
     const targetBase = targetNotes[0] ?? event.midi;
     const degreeDelta = scaleDegreeDelta(sourceBase, event.midi, scaleRoot, scaleModeIndex);
-    const start = event.start + delayQuarters;
+    const canonDelay = gesturePulse / activeRows.length;
+    const canonSnapGrid = gesturePulse / 2;
+    const start = snapQuartersToGrid(event.start + canonDelay, canonSnapGrid);
 
     if (start >= lengthQuarters - EPSILON) continue;
 
@@ -1312,7 +1320,7 @@ function applyCombinationModes({
       rowMidiChannel,
       scaleRoot,
       scaleModeIndex,
-      combinationGesturePulse / activeRows.length,
+      combinationGesturePulse,
       lengthQuarters,
     );
   }

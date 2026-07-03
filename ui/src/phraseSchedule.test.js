@@ -226,6 +226,38 @@ describe("combination mode pulse-aware timing", () => {
     ]));
   });
 
+  it("snaps Canon follower starts to the nearest half-pulse grid", () => {
+    const schedule = buildPhraseScheduleBeforeBandpass({
+      notes: [[60], [67], [72], []],
+      rowMuted: [false, false, false, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      stepDurationFraction: [[1], [1], [1], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+      ],
+      stepVelocity: [[100], [100], [100], []],
+      stepMuted: [[false], [false], [false], []],
+      stepSkipped: [[false], [false], [false], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 7,
+      lengthQuarters: 3,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+
+    const snapGrid = 1;
+    const canonFollowers = schedule.filter((event) => event.velocity === 78);
+
+    expect(canonFollowers).toEqual(expect.arrayContaining([
+      expect.objectContaining({start: 1, row: 1}),
+    ]));
+    expect(canonFollowers.some((event) => Math.abs(event.start - 2 / 3) < 1e-6)).toBe(false);
+    expect(canonFollowers.every((event) => Math.abs(event.start / snapGrid - Math.round(event.start / snapGrid)) < 1e-6)).toBe(true);
+  });
+
   it("adds reversed scale-degree inversion followers for Retro-Inv", () => {
     const schedule = buildPhraseScheduleBeforeBandpass({
       notes: [[60, 64, 67], [72], [], []],
