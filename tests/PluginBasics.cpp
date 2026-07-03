@@ -1174,7 +1174,85 @@ TEST_CASE ("Weave mode keeps selected notes stable across phrase repeats", "[ins
     CHECK (outputEvents[0].first == 0);
     CHECK (outputEvents[1].first == 1000);
     CHECK (outputEvents[0].second == outputEvents[1].second);
-    CHECK (outputEvents[0].second == 64);
+    CHECK (outputEvents[0].second == 60);
+}
+
+TEST_CASE ("Echo with weave picks lowest pitch at collisions", "[instance]")
+{
+    PluginProcessor echoPlugin;
+    PluginProcessor echoWeavePlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 512;
+    constexpr int blockCount = 40;
+
+    const auto configurePattern = [] (PluginProcessor& plugin) {
+        plugin.prepareToPlay (sampleRate, blockSize);
+        plugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+        plugin.setCurrentPatternSlot (0);
+        plugin.setVelocityHumanizePercent (0);
+        plugin.setTimingHumanizePercent (0);
+        plugin.setPhraseRowMuted (0, false);
+        plugin.setPhraseRowMuted (1, false);
+        plugin.setPhraseRowMuted (2, true);
+        plugin.setPhraseRowMuted (3, true);
+
+        ensurePhraseRowStepCount (plugin, 0, 3);
+        ensurePhraseRowStepCount (plugin, 1, 4);
+
+        plugin.setPhraseNote (0, 0, 38);
+        plugin.setPhraseNote (0, 1, 41);
+        plugin.setPhraseNote (0, 2, 48);
+        plugin.setPhraseNote (1, 0, 53);
+        plugin.setPhraseNote (1, 1, 53);
+        plugin.setPhraseNote (1, 2, 55);
+        plugin.setPhraseNote (1, 3, 50);
+
+        for (int row = 0; row < 2; ++row)
+        {
+            const auto stepCount = plugin.getPhraseRowStepCount (row);
+
+            for (int step = 0; step < stepCount; ++step)
+            {
+                plugin.setPhraseStepTimingMultiplier (
+                    row, step, PluginProcessor::defaultStepTimingMultiplierIndex);
+                plugin.setPhraseStepDurationFraction (row, step, 1.0);
+                plugin.setPhraseStepVelocity (row, step, 100);
+                plugin.setPhraseStepProbability (row, step, 100);
+            }
+        }
+
+        plugin.setPhraseStepTimingMultiplier (1, 2, 1);
+        plugin.setPhraseStepTimingMultiplier (1, 3, 2);
+    };
+
+    configurePattern (echoPlugin);
+    configurePattern (echoWeavePlugin);
+
+    echoPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+    echoWeavePlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+    echoWeavePlugin.setCombinationModeEnabled (PluginProcessor::combinationModeWeave, true);
+
+    const auto echoEvents = collectNoteOnEvents (echoPlugin, sampleRate, blockSize, blockCount);
+    const auto echoWeaveEvents =
+        collectNoteOnEvents (echoWeavePlugin, sampleRate, blockSize, blockCount);
+
+    const auto countNotesAtOrAbove = [] (const std::vector<std::pair<int, int>>& events,
+                                         const int threshold) {
+        auto count = 0;
+
+        for (const auto& event : events)
+        {
+            if (event.second >= threshold)
+                ++count;
+        }
+
+        return count;
+    };
+
+    CHECK (echoWeaveEvents.size() < echoEvents.size());
+    CHECK (countNotesAtOrAbove (echoWeaveEvents, 50) < countNotesAtOrAbove (echoEvents, 50));
+    CHECK (countNotesAtOrAbove (echoWeaveEvents, 38) > 0);
 }
 
 TEST_CASE ("Hocket mode slices overlapping rows into interlocking handoffs", "[instance]")
@@ -3069,10 +3147,12 @@ TEST_CASE ("Weave mode keeps octavizer copies after thinning multi-row collision
             ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
     }
 
-    CHECK (noteOnCounts[52] == 1);
-    CHECK (noteOnCounts[64] == 1);
-    CHECK (noteOnCounts[60] == 0);
-    CHECK (noteOnCounts[76] == 1);
+    CHECK (noteOnCounts[48] == 1);
+    CHECK (noteOnCounts[60] == 1);
+    CHECK (noteOnCounts[72] == 1);
+    CHECK (noteOnCounts[64] == 0);
+    CHECK (noteOnCounts[52] == 0);
+    CHECK (noteOnCounts[76] == 0);
     testPlugin.setPlayHead (nullptr);
 }
 
@@ -3146,8 +3226,8 @@ TEST_CASE ("Weave mode keeps shimmer taps after thinning multi-row collisions", 
             break;
     }
 
-    CHECK (noteOnCounts[64] > 0);
-    CHECK (noteOnCounts[76] > 0);
+    CHECK (noteOnCounts[60] > 0);
+    CHECK (noteOnCounts[72] > 0);
     testPlugin.setPlayHead (nullptr);
 }
 
@@ -3529,10 +3609,10 @@ TEST_CASE ("Plugin instance", "[instance]")
                 ++noteOnCounts[static_cast<size_t> (message.getNoteNumber())];
         }
 
-        CHECK (noteOnCounts[66] == 1);
-        CHECK (noteOnCounts[60] == 0);
+        CHECK (noteOnCounts[60] == 1);
         CHECK (noteOnCounts[62] == 0);
         CHECK (noteOnCounts[64] == 0);
+        CHECK (noteOnCounts[66] == 0);
         testPlugin.setPlayHead (nullptr);
     }
 

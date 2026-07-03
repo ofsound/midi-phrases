@@ -4386,18 +4386,6 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         juce::jmax (combinationGesturePulse * 2.0, maxActiveRowGateQuarters);
 
     const auto patternRepeat = patternRepeatLengthQuarters();
-    const auto weaveHashPpq = [&] (const double ppq) {
-        const auto& loop = audioLoopBrace();
-        const auto loopLength = loop.endQuarters - loop.startQuarters;
-
-        if (loop.enabled != 0 && loopLength > epsilon)
-            return loop.startQuarters + positiveMod (ppq - loop.startQuarters, loopLength);
-
-        if (patternRepeat > epsilon)
-            return positiveMod (ppq, patternRepeat);
-
-        return ppq;
-    };
 
     if (hocketModeEnabled)
     {
@@ -5475,39 +5463,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
                 ++groupEnd;
             }
 
-            if (groupEnd - read == 1)
-            {
-                if (write < combinedWorkingEvents.size())
-                    combinedWorkingEvents[write++] = combinedEvents[read];
-            }
-            else
-            {
-                auto totalWeight = 0;
-
-                for (size_t index = read; index < groupEnd; ++index)
-                    totalWeight += juce::jmax (1, combinedEvents[index].velocity);
-
-                auto pick = static_cast<int> (
-                    deterministicEventHash (combinedEvents[read].row,
-                                            combinedEvents[read].step,
-                                            weaveHashPpq (combinedEvents[read].ppq))
-                    % static_cast<std::uint32_t> (juce::jmax (1, totalWeight)));
-                auto selected = read;
-
-                for (size_t index = read; index < groupEnd; ++index)
-                {
-                    pick -= juce::jmax (1, combinedEvents[index].velocity);
-
-                    if (pick < 0)
-                    {
-                        selected = index;
-                        break;
-                    }
-                }
-
-                if (write < combinedWorkingEvents.size())
-                    combinedWorkingEvents[write++] = combinedEvents[selected];
-            }
+            if (write < combinedWorkingEvents.size())
+                combinedWorkingEvents[write++] = combinedEvents[read];
 
             read = groupEnd;
         }

@@ -395,27 +395,13 @@ does not alter single-event groups.
 Events are grouped by PPQ start. For each group:
 
 - If the group contains one event, keep it.
-- If the group contains multiple events, choose one event using deterministic
-  velocity-weighted selection.
+- If the group contains multiple events, keep the first event after sorting by
+  PPQ, then note number, then row, then step. That is the lowest pitch, with
+  row and step as tiebreaks.
 
-The weight for each candidate is:
-
-```text
-weight = max(1, event.velocity)
-```
-
-The picker uses a deterministic hash of the first grouped event:
-
-```text
-hash(row, step, ppq) % totalWeight
-```
-
-It then walks the group cumulatively until the weighted bucket is found.
-
-This means Weave is probabilistic in feel but deterministic in playback. The
-same phrase data at the same PPQ produces the same winner. It is not the same as
-the existing per-step probability control, which can vary in the C++ playback
-random stream.
+This keeps Weave deterministic: the same phrase data at the same PPQ always
+produces the same winner. With Echo enabled, this avoids higher-row echo
+products winning arbitrary same-time collisions over lower-pitch echoes.
 
 Output effect:
 

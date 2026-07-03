@@ -295,6 +295,17 @@ function clipScheduleToWindow(events, windowStart, windowEnd) {
 }
 
 /**
+ * Pick one winner from same-start collision group. Events must be sorted by
+ * start, then midi, row, step — lowest pitch wins, then lowest row, then step.
+ *
+ * @param {ScheduledNote[]} group
+ * @returns {ScheduledNote}
+ */
+export function pickWeaveCollisionWinner(group) {
+  return {...group[0]};
+}
+
+/**
  * Trim woven carrier gates to the next attack. Collision picking stays in applyCombinationModes.
  *
  * @param {ScheduledNote[]} events
@@ -330,33 +341,17 @@ export function applyWeaveGateTrimming(events, enabled = true) {
  * Collision pick plus gate trim — mirrors the full pre-rail Weave stage for tests.
  *
  * @param {ScheduledNote[]} events
- * @param {boolean} enabled
- * @param {number} repeatLengthQuarters
+ * @param {boolean} [enabled]
  * @returns {ScheduledNote[]}
  */
-export function applyWeaveMonophony(events, enabled = true, repeatLengthQuarters = 0) {
+export function applyWeaveMonophony(events, enabled = true) {
   if (!enabled || events.length <= 1) return events;
-
-  const hashPpq = (ppq) => (
-    repeatLengthQuarters > EPSILON ? positiveMod(ppq, repeatLengthQuarters) : ppq
-  );
 
   const selected = groupByStart([...events].sort(
     (a, b) => a.start - b.start || a.midi - b.midi || a.row - b.row || a.step - b.step,
-  )).map((group) => {
-    if (group.length === 1) return {...group[0]};
-
-    const totalWeight = group.reduce((total, event) => total + Math.max(1, event.velocity), 0);
-    let pick = deterministicEventHash(group[0].row, group[0].step, hashPpq(group[0].start)) % Math.max(1, totalWeight);
-
-    for (const event of group) {
-      pick -= Math.max(1, event.velocity);
-
-      if (pick < 0) return {...event};
-    }
-
-    return {...group[group.length - 1]};
-  });
+  )).map((group) => (
+    group.length === 1 ? {...group[0]} : pickWeaveCollisionWinner(group)
+  ));
 
   return applyWeaveGateTrimming(selected, true);
 }
@@ -1273,21 +1268,6 @@ function applyCombinationModes({
   const emitStartQuarters = loopOutputActive ? loopOutputStartQuarters : scheduleStartQuarters;
   const emitEndQuarters = lengthQuarters;
   const hocketLengthQuarters = loopOutputActive ? loopOutputEndQuarters : lengthQuarters;
-  const weaveRepeatLengthQuarters = patternRepeatLengthQuarters({
-    stepTimingMultiplier,
-    rowMuted,
-    stepSkipped,
-    pulseIndex,
-  });
-  const weaveHashPpq = (ppq) => {
-    if (loopOutputActive) {
-      const loopLength = loopOutputEndQuarters - loopOutputStartQuarters;
-
-      return loopOutputStartQuarters + positiveMod(ppq - loopOutputStartQuarters, loopLength);
-    }
-
-    return weaveRepeatLengthQuarters > EPSILON ? positiveMod(ppq, weaveRepeatLengthQuarters) : ppq;
-  };
   const activeRows = notes
     .map((rowNotes, row) => {
       const layout = rowStepLayout(stepTimingMultiplier[row] ?? [], pulseIndex, stepSkipped[row] ?? []);
@@ -1627,20 +1607,9 @@ function applyCombinationModes({
   );
 
   if (combinationModeEnabled(combinationModeMask, 4)) {
-    events = groupByStart(events).map((group) => {
-      if (group.length === 1) return group[0];
-
-      const totalWeight = group.reduce((total, event) => total + Math.max(1, event.velocity), 0);
-      let pick = deterministicEventHash(group[0].row, group[0].step, weaveHashPpq(group[0].start)) % Math.max(1, totalWeight);
-
-      for (const event of group) {
-        pick -= Math.max(1, event.velocity);
-
-        if (pick < 0) return event;
-      }
-
-      return group[group.length - 1];
-    });
+    events = groupByStart(events).map((group) => (
+      group.length === 1 ? group[0] : pickWeaveCollisionWinner(group)
+    ));
   }
 
   return events.sort(

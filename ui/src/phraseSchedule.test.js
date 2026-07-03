@@ -710,6 +710,7 @@ describe("combination mode pulse-aware timing", () => {
     ]);
 
     expect(woven).toHaveLength(2);
+    expect(woven[0]).toMatchObject({start: 0, midi: 60});
     expect(woven[0].end).toBe(0.5);
     expect(woven[1]).toMatchObject({start: 0.5, midi: 67});
   });
@@ -738,8 +739,8 @@ describe("combination mode pulse-aware timing", () => {
     });
 
     expect(schedule.map((note) => [note.start, note.midi])).toEqual([
-      [0, 64],
-      [1, 64],
+      [0, 60],
+      [1, 60],
     ]);
   });
 
@@ -770,7 +771,7 @@ describe("combination mode pulse-aware timing", () => {
 
     const sameStart = schedule.filter((note) => note.start === 0);
 
-    expect(sameStart.map((note) => note.midi).sort((a, b) => a - b)).toEqual([52, 64, 76]);
+    expect(sameStart.map((note) => note.midi).sort((a, b) => a - b)).toEqual([48, 60, 72]);
   });
 
   it("keeps shimmer taps after Weave thins multi-row collisions", () => {
@@ -800,7 +801,7 @@ describe("combination mode pulse-aware timing", () => {
       shimmerMixPercent: 100,
     });
 
-    expect(schedule.some((note) => note.midi === 76 && note.start > 0)).toBe(true);
+    expect(schedule.some((note) => note.midi === 72 && note.start > 0)).toBe(true);
   });
 
   it("keeps shimmer taps when Echo expands the schedule", () => {
@@ -1167,6 +1168,83 @@ describe("hocket and echo combination parity", () => {
     expect(echoOnly.length).toBeGreaterThan(hocketOnly.length);
     expect(hocketEcho.length).toBeGreaterThan(hocketOnly.length);
     expect(hocketEcho).not.toEqual(hocketOnly);
+  });
+});
+
+describe("echo and weave combination", () => {
+  const echoWeaveParams = () => ({
+    notes: [[38, 41, 48], [53, 53, 55, 50], [], []],
+    rowMuted: [false, false, true, true],
+    rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+    rowMidiChannel: [1, 2, 3, 4],
+    stepDurationFraction: [
+      [1, 1, 1],
+      [1, 1, 1, 1],
+      [],
+      [],
+    ],
+    stepTimingMultiplier: [
+      [defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex],
+      [defaultStepTimingMultiplierIndex, defaultStepTimingMultiplierIndex, 1, 2],
+      [],
+      [],
+    ],
+    stepVelocity: [
+      [100, 100, 100],
+      [100, 100, 100, 100],
+      [],
+      [],
+    ],
+    stepMuted: [
+      [false, false, false],
+      [false, false, false, false],
+      [],
+      [],
+    ],
+    stepSkipped: [
+      [false, false, false],
+      [false, false, false, false],
+      [],
+      [],
+    ],
+    pulseIndex: 1,
+    scaleRoot: 0,
+    scaleModeIndex: 1,
+    lengthQuarters: 4,
+  });
+
+  it("picks the lowest echo pitch at weave collision times", () => {
+    const params = echoWeaveParams();
+    const echoOnly = buildPhraseSchedule({...params, combinationModeMask: 1 << 3});
+    const echoWeave = buildPhraseSchedule({...params, combinationModeMask: (1 << 3) | (1 << 4)});
+
+    /** @param {typeof echoOnly} events */
+    const minMidiByStart = (events) => {
+      /** @type {Map<string, number>} */
+      const map = new Map();
+
+      for (const event of events) {
+        const key = event.start.toFixed(6);
+        const current = map.get(key);
+
+        map.set(key, current == null ? event.midi : Math.min(current, event.midi));
+      }
+
+      return map;
+    };
+
+    const echoMinByStart = minMidiByStart(echoOnly);
+
+    for (const note of echoWeave) {
+      const key = note.start.toFixed(6);
+      const minMidi = echoMinByStart.get(key);
+
+      if (minMidi != null) {
+        expect(note.midi).toBe(minMidi);
+      }
+    }
+
+    expect(echoWeave.length).toBeLessThan(echoOnly.length);
   });
 });
 
