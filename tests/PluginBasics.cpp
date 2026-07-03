@@ -1254,6 +1254,85 @@ TEST_CASE ("Hocket mode slices overlapping rows into interlocking handoffs", "[i
     testPlugin.setPlayHead (nullptr);
 }
 
+TEST_CASE ("Hocket mode keeps three overlapping rows on the gesture grid", "[instance]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 2048;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, true);
+    testPlugin.setPhraseRowMuted (0, false);
+    testPlugin.setPhraseRowMuted (1, false);
+    testPlugin.setPhraseRowMuted (2, false);
+    testPlugin.setPhraseRowMuted (3, true);
+
+    ensurePhraseRowStepCount (testPlugin, 0, 1);
+    ensurePhraseRowStepCount (testPlugin, 1, 1);
+    ensurePhraseRowStepCount (testPlugin, 2, 1);
+
+    testPlugin.setPhraseNote (0, 0, 60);
+    testPlugin.setPhraseNote (1, 0, 67);
+    testPlugin.setPhraseNote (2, 0, 72);
+
+    for (int row = 0; row < 3; ++row)
+    {
+        testPlugin.setPhraseStepTimingMultiplier (row,
+                                                    0,
+                                                    PluginProcessor::defaultStepTimingMultiplierIndex);
+        testPlugin.setPhraseStepDurationFraction (row, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (row, 0, 100);
+    }
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (120.0);
+    playHead.info.setIsPlaying (true);
+    playHead.info.setPpqPosition (0.0);
+    testPlugin.setPlayHead (&playHead);
+
+    testPlugin.processBlock (buffer, midi);
+
+    std::array<int, blockSize> noteOnsBySample {};
+    auto totalNoteOns = 0;
+
+    for (const auto metadata : midi)
+    {
+        const auto message = metadata.getMessage();
+
+        if (message.isNoteOn())
+        {
+            ++noteOnsBySample[static_cast<size_t> (metadata.samplePosition)];
+            ++totalNoteOns;
+        }
+    }
+
+    CHECK (noteOnsBySample[0] == 1);
+    CHECK (noteOnsBySample[250] == 1);
+    CHECK (noteOnsBySample[500] == 1);
+    CHECK (noteOnsBySample[750] == 1);
+
+    for (const auto count : noteOnsBySample)
+        CHECK (count <= 1);
+
+    CHECK (totalNoteOns >= 4);
+    testPlugin.setPlayHead (nullptr);
+}
+
 TEST_CASE ("Tendril then Hocket thins expanded clusters to one note per slice", "[instance]")
 {
     auto configureTwoRowOverlapPattern = [] (PluginProcessor& testPlugin) {
@@ -1668,71 +1747,39 @@ TEST_CASE ("Hocket mode matches preview schedule for four offset rows", "[instan
             filteredEvents.push_back (event);
     }
 
-    const std::array<std::pair<int, int>, 64> expectedEvents { {
-        { 0, 53 },
-        { 250, 53 },
-        { 500, 57 },
-        { 750, 57 },
-        { 1000, 55 },
-        { 1250, 55 },
-        { 1500, 62 },
-        { 1750, 48 },
-        { 2000, 48 },
-        { 2250, 62 },
-        { 2500, 58 },
-        { 2750, 58 },
-        { 3000, 53 },
-        { 3250, 53 },
-        { 3500, 57 },
-        { 3750, 50 },
-        { 4000, 50 },
-        { 4250, 57 },
-        { 4500, 50 },
-        { 4750, 53 },
+    const std::array<std::pair<int, int>, 32> expectedEvents { {
+        { 250, 57 },
+        { 500, 53 },
+        { 1000, 50 },
+        { 1500, 53 },
+        { 2000, 55 },
+        { 2500, 57 },
+        { 3000, 48 },
+        { 3500, 48 },
+        { 4000, 57 },
+        { 4500, 53 },
         { 5000, 55 },
-        { 5250, 58 },
         { 5500, 48 },
-        { 5750, 62 },
-        { 6000, 62 },
-        { 6250, 48 },
-        { 6500, 57 },
-        { 6750, 57 },
-        { 7000, 57 },
-        { 7250, 50 },
-        { 7500, 55 },
-        { 7750, 55 },
-        { 8000, 53 },
-        { 8250, 58 },
+        { 6000, 58 },
+        { 6500, 48 },
+        { 7000, 55 },
+        { 7750, 48 },
+        { 8000, 57 },
         { 8500, 48 },
-        { 8750, 48 },
-        { 9000, 55 },
-        { 9250, 57 },
-        { 9500, 48 },
-        { 9750, 53 },
-        { 10000, 55 },
-        { 10250, 62 },
-        { 10500, 50 },
-        { 10750, 57 },
+        { 9000, 53 },
+        { 9500, 62 },
+        { 10000, 62 },
+        { 10750, 48 },
         { 11000, 48 },
-        { 11250, 58 },
-        { 11500, 55 },
-        { 11750, 57 },
-        { 12000, 58 },
-        { 12250, 48 },
-        { 12500, 55 },
-        { 12750, 50 },
+        { 11500, 58 },
+        { 12000, 48 },
+        { 12500, 57 },
         { 13000, 55 },
-        { 13250, 55 },
-        { 13500, 55 },
-        { 13750, 53 },
-        { 14000, 55 },
-        { 14250, 55 },
-        { 14500, 55 },
-        { 14750, 58 },
-        { 15000, 48 },
-        { 15250, 57 },
+        { 13750, 48 },
+        { 14000, 48 },
+        { 14500, 58 },
+        { 15000, 58 },
         { 15500, 57 },
-        { 15750, 53 },
     } };
 
     REQUIRE (filteredEvents.size() == expectedEvents.size());
@@ -1872,7 +1919,7 @@ TEST_CASE ("Hocket and Echo combination outputs match preview thinning", "[insta
     testPlugin.setPlayHead (nullptr);
 }
 
-TEST_CASE ("Loop hocket user pattern emits one A#2 per loop pass", "[instance]")
+TEST_CASE ("Loop hocket user pattern emits one C3 per loop pass", "[instance]")
 {
     constexpr double sampleRate = 1000.0;
     constexpr int blockSize = 256;
@@ -1963,15 +2010,15 @@ TEST_CASE ("Loop hocket user pattern emits one A#2 per loop pass", "[instance]")
             break;
     }
 
-    auto aSharp2Count = 0;
+    auto c3Count = 0;
 
     for (const auto& noteOn : noteOns)
     {
-        if (noteOn.second == 46)
-            ++aSharp2Count;
+        if (noteOn.second == 48)
+            ++c3Count;
     }
 
-    CHECK (aSharp2Count == 1);
+    CHECK (c3Count == 1);
     testPlugin.setPlayHead (nullptr);
 }
 

@@ -251,6 +251,48 @@ Output effect:
   not a full duplicate phrase.
 - With fewer than two active rows, Tendril is a no-op.
 
+## Hocket Mode
+
+Hocket thins overlapping active rows into a monophonic handoff. It does not add
+events; it re-times survivors onto a fixed beat-aligned slice grid and picks one
+winner per slice.
+
+The gesture pulse is the larger of the current pulse and the combination gesture
+floor (`2` quarters), matching Canon and Tendril:
+
+```text
+combinationGesturePulse = max(pulse, 2)
+sliceQuarters = combinationGesturePulse * 0.25
+```
+
+Each slice is one quarter of the gesture pulse. At quarter-note pulse this lands
+on half-beat (eighth-note) boundaries. Row count controls which row owns each
+slice, not how wide the slices are:
+
+```text
+sliceTargetRow = activeRows[slice % activeRowCount]
+```
+
+For each slice, every overlapping source event becomes a candidate. Candidates
+need at least `50%` overlap with the slice or they are dropped. When multiple
+candidates compete, the picker uses deterministic velocity-weighted selection
+from the slice target row, slice index, and slice start time.
+
+Output gates are capped at `85%` of the slice width. The emitted note-on time is
+the later of the slice start and the winning source start, so row timing offsets
+can place attacks slightly inside a slice.
+
+Cross-Mod duration borrowing is deferred until Hocket selection when Canon and
+Retro-Inv are off, so Hocket keeps source gate lengths while still applying
+Cross-Mod pitch and velocity at output time.
+
+Output effect:
+
+- One note per slice across all active rows.
+- Handoffs cycle through active rows on the same grid Tendril uses for curls and
+  answers.
+- With fewer than two active rows, Hocket is a no-op.
+
 ## Echo Mode
 
 Echo is the implemented Multiply/convolution mode. It expands each carrier event
@@ -400,7 +442,7 @@ Result: cross-routed phrase material with connective, scale-aware responses.
 ### Hocket + Tendril + Echo
 
 1. Tendril appends sparse curls, answers, and optional resolutions on row carriers.
-2. Hocket gates the expanded pool into pulse slices (one winner per slice).
+2. Hocket gates the expanded pool into gesture-grid slices (one winner per slice).
 3. Echo multiplies only those rhythmically-selected survivors through the next
    active row.
 

@@ -312,6 +312,38 @@ describe("combination mode pulse-aware timing", () => {
     }
   });
 
+  it("hockets three overlapping rows on the combination gesture grid", () => {
+    const schedule = buildPhraseScheduleBeforeBandpass({
+      notes: [[60], [67], [72], []],
+      rowMuted: [false, false, false, true],
+      rowTimingOffset: [defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex, defaultRowTimingOffsetIndex],
+      stepDurationFraction: [[1], [1], [1], []],
+      stepTimingMultiplier: [
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [defaultStepTimingMultiplierIndex],
+        [],
+      ],
+      stepVelocity: [[100], [100], [100], []],
+      stepMuted: [[false], [false], [false], []],
+      stepSkipped: [[false], [false], [false], []],
+      pulseIndex: 1,
+      combinationModeMask: 1 << 6,
+      lengthQuarters: 2,
+      scaleRoot: 0,
+      scaleModeIndex: 1,
+    });
+
+    expect(schedule.map((note) => note.start)).toEqual([0, 0.5, 1, 1.5]);
+    expect(schedule.map((note) => note.row)).toEqual([0, 1, 2, 0]);
+    expect(schedule.every((note) => Math.abs(note.start * 2 - Math.round(note.start * 2)) < 1e-9)).toBe(true);
+    expect(schedule.every((note) => note.end - note.start <= 0.425 + 1e-9)).toBe(true);
+
+    for (const start of [0, 0.5, 1, 1.5]) {
+      expect(schedule.filter((note) => note.start === start)).toHaveLength(1);
+    }
+  });
+
   it("drops tiny Hocket slice overlaps instead of rendering blips", () => {
     const schedule = buildPhraseScheduleBeforeBandpass({
       notes: [[60], [67], [], []],
@@ -945,7 +977,7 @@ describe("windowed phrase schedule preview", () => {
 
     expect(loopOutput.every((note) => note.start >= loopStart && note.start < loopEnd)).toBe(true);
     expect(comparableNotes(loopOutput)).not.toEqual(comparableNotes(naiveClip));
-    expect(loopOutput[0]).toMatchObject({ start: loopStart, midi: 55, step: 2 });
+    expect(loopOutput[0]).toMatchObject({ start: loopStart + 0.25, midi: 58, step: 2 });
   });
 
   it("matches loop-output Hocket windows to the loop-output schedule", () => {
@@ -1160,21 +1192,17 @@ describe("loop hocket emission parity", () => {
       lengthQuarters: loopEnd,
     });
 
-    expect(schedule).toHaveLength(12);
-    expect(schedule.filter((note) => note.midi === 46)).toHaveLength(1);
+    expect(schedule).toHaveLength(8);
+    expect(schedule.filter((note) => note.midi === 48)).toHaveLength(1);
     expect(schedule.map((note) => [Number(note.start.toFixed(3)), note.midi])).toEqual([
       [4, 48],
-      [4.5, 55],
-      [4.667, 48],
+      [4.5, 43],
       [5, 43],
-      [5.333, 48],
-      [5.667, 46],
+      [5.5, 51],
       [6, 51],
       [6.5, 53],
-      [6.667, 53],
-      [7, 53],
-      [7.333, 43],
-      [7.667, 43],
+      [7.25, 43],
+      [7.5, 43],
     ]);
   });
 

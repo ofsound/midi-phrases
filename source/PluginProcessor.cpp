@@ -5144,7 +5144,7 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
 
     if (combinationModeEnabled (modeMask, combinationModeHocket) && activeRowCount > 1)
     {
-        const auto sliceQuarters = pulse / static_cast<double> (activeRowCount);
+        const auto sliceQuarters = combinationGesturePulse * 0.25;
         const auto minimumHocketSliceOverlap =
             sliceQuarters * hocketMinimumSliceOverlapFraction;
         const auto maxModRowStepStartQuarters = [&] {

@@ -22,6 +22,15 @@ const EPSILON = 1e-9;
 const MAX_COMBINED_PREVIEW_NOTES = 4096;
 const COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR = 2;
 const HOCKET_MINIMUM_SLICE_OVERLAP_FRACTION = 0.5;
+
+/**
+ * Beat-aligned combination grid step shared by Hocket slices and Tendril phraselets.
+ * @param {number} pulseQuarters
+ * @returns {number}
+ */
+function combinationGestureGridQuarters(pulseQuarters) {
+  return Math.max(pulseQuarters, COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR) * 0.25;
+}
 const UNISON_OVERLAP_WINDOW_QUARTERS = 1 / 96;
 const DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS = 64;
 export const combinationModeMaskBits = 0x1db;
@@ -1058,7 +1067,7 @@ function addRetroInversionFollowers(events, activeRows, notes, rowMidiChannel, s
 function hocketEvents(events, activeRows, rowMidiChannel, stepVelocity, pulseQuarters, lengthQuarters, options = {}) {
   if (activeRows.length <= 1 || events.length === 0) return events;
 
-  const sliceQuarters = pulseQuarters / activeRows.length;
+  const sliceQuarters = combinationGestureGridQuarters(pulseQuarters);
 
   if (sliceQuarters <= EPSILON) return events;
 
