@@ -182,6 +182,21 @@
     overflow: hidden;
   }
 
+  .piano-keyboard-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+    user-select: none;
+  }
+
+  .piano-keyboard-scroll-surface {
+    touch-action: none;
+  }
+
   .mp-control-gradient:not(:disabled):hover,
   .mp-control-gradient[data-mp-hover] {
     /* Keep header controls on the same compositing layer while hovered. Applying

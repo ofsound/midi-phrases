@@ -1,16 +1,25 @@
 <script>
   import { SvelteSet } from "svelte/reactivity";
   import { midiToNoteName } from "./midiNoteNames.js";
-  import PianoKeyboardAspectFrame from "./PianoKeyboardAspectFrame.svelte";
+  import PianoKeyboardScrollViewport from "./PianoKeyboardScrollViewport.svelte";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
   import { pianoBlackKeyClass, pianoBlackKeySeamMaskClass, pianoWhiteKeyClass } from "./pianoKeyboardTheme.js";
   import {
     buildRecordPianoKeys,
-    clampRecordPianoOctaveOffset,
     recordPianoMidiRange,
     recordPianoRangeLabel,
   } from "./pianoKeyboardLayout.js";
+  import {
+    highestVisibleMidiFromScrollLeft,
+    lowestVisibleMidiFromScrollLeft,
+    pianoKeyboardFullMidiRange,
+    scrollLeftForLowestMidi,
+  } from "./pianoKeyboardScroll.js";
   import { isChromaticScaleMode, isKeyCenterPitchClass, isMidiInScale } from "./scaleUtils.js";
+
+  /**
+   * @typedef {import('./pianoKeyboardScroll.js').PianoKeyboardScrollViewportHandle} PianoKeyboardScrollViewportHandle
+   */
 
   /**
    * @typedef {Object} Props
@@ -36,15 +45,67 @@
     "pointer-events-none mb-1 h-2 w-2 shrink-0 rounded-full bg-accent shadow-[0_0_6px_color-mix(in_srgb,var(--color-accent)_80%,transparent)]";
 
   /** Default view: three octave-up steps from the bottom (starts ~C1, not C-2). */
-  let octaveOffset = $state(3);
+  const defaultRecordOctaveOffset = 3;
+
+  /** @type {PianoKeyboardScrollViewportHandle | null} */
+  let viewportHandle = null;
+
+  let didInitialScroll = false;
+  let scrollState = $state({ scrollLeftPx: 0, viewportWidthPx: 0, keyWidthPx: 0 });
+  let initialScrollLeftPx = $state(0);
 
   /** @type {Set<number>} */
   const pointerHeldKeys = new SvelteSet();
 
-  let range = $derived(recordPianoMidiRange(octaveOffset));
-  let layout = $derived(buildRecordPianoKeys(range.lowest, range.highest));
-  let rangeLabel = $derived(recordPianoRangeLabel(range.lowest, range.highest));
+  let fullRange = pianoKeyboardFullMidiRange();
+  let layout = $derived(buildRecordPianoKeys(fullRange.lowest, fullRange.highest));
+  let rangeLabel = $derived.by(() => {
+    if (scrollState.keyWidthPx <= 0) {
+      const range = recordPianoMidiRange(defaultRecordOctaveOffset);
+
+      return recordPianoRangeLabel(range.lowest, range.highest);
+    }
+
+    const lowest = lowestVisibleMidiFromScrollLeft(
+      scrollState.scrollLeftPx,
+      layout.whites,
+      scrollState.keyWidthPx,
+    );
+    const highest = highestVisibleMidiFromScrollLeft(
+      scrollState.scrollLeftPx,
+      scrollState.viewportWidthPx,
+      layout.whites,
+      scrollState.keyWidthPx,
+    );
+
+    return recordPianoRangeLabel(lowest, highest);
+  });
   let chromatic = $derived(isChromaticScaleMode(scaleModeIndex));
+
+  /** @param {PianoKeyboardScrollViewportHandle} handle */
+  function registerViewport(handle) {
+    viewportHandle = handle;
+
+    if (!didInitialScroll) {
+      didInitialScroll = true;
+      scrollToDefaultRange(handle);
+    }
+  }
+
+  /** @param {PianoKeyboardScrollViewportHandle} handle */
+  function scrollToDefaultRange(handle) {
+    const range = recordPianoMidiRange(defaultRecordOctaveOffset);
+    const keyWidthPx = handle.getKeyWidthPx();
+
+    if (keyWidthPx <= 0) return;
+
+    handle.scrollToLeft(scrollLeftForLowestMidi(range.lowest, layout.whites, keyWidthPx));
+  }
+
+  /** @param {number} scrollLeftPx @param {number} viewportWidthPx @param {number} keyWidthPx */
+  function handleScrollChange(scrollLeftPx, viewportWidthPx, keyWidthPx) {
+    scrollState = { scrollLeftPx, viewportWidthPx, keyWidthPx };
+  }
 
   /** @param {number} midi */
   function isKeyUsable(midi) {
@@ -71,11 +132,11 @@
   }
 
   function shiftOctaveDown() {
-    octaveOffset = clampRecordPianoOctaveOffset(octaveOffset - 1);
+    viewportHandle?.scrollByOctave(-1);
   }
 
   function shiftOctaveUp() {
-    octaveOffset = clampRecordPianoOctaveOffset(octaveOffset + 1);
+    viewportHandle?.scrollByOctave(1);
   }
 
   /** @param {PointerEvent} event @param {number} midi */
@@ -90,6 +151,13 @@
     event.currentTarget.releasePointerCapture(event.pointerId);
     releaseKey(midi);
   }
+
+  $effect(() => {
+    if (didInitialScroll) return;
+
+    const range = recordPianoMidiRange(defaultRecordOctaveOffset);
+    initialScrollLeftPx = scrollLeftForLowestMidi(range.lowest, layout.whites, 23);
+  });
 </script>
 
 <section class="flex min-h-0 w-full flex-1 flex-col">
@@ -127,101 +195,110 @@
   <div
     class="flex h-0 min-h-[12rem] flex-1 flex-col overflow-hidden rounded-xl border border-border-subtle bg-app/80"
   >
-    <PianoKeyboardAspectFrame whiteCount={layout.whiteCount} class="min-h-0 flex-1">
-      <div class="relative h-full w-full">
-        <div class="relative z-0 flex h-full w-full">
-        {#each layout.whites as { midi } (midi)}
-          {@const usable = isKeyUsable(midi)}
-          <button
-            type="button"
-            data-cursor={usable ? "pointer" : "default"}
-            class="relative z-0 flex h-full min-w-0 flex-1 flex-col items-center justify-end transition-[filter,background-color] duration-75 last:border-r-0 {usable
-              ? 'hover:brightness-[0.98] active:brightness-95'
-              : 'pointer-events-none'} {isKeyHeld(midi)
-              ? accent.pianoNoteActive
-              : pianoWhiteKeyClass}"
-            aria-label={midiToNoteName(midi)}
-            aria-disabled={!usable}
-            onpointerdown={usable ? (event) => onWhitePointerDown(event, midi) : undefined}
-            onpointerup={usable ? (event) => onWhitePointerUp(event, midi) : undefined}
-            onpointercancel={usable ? (event) => onWhitePointerUp(event, midi) : undefined}
-          >
-            {#if usable && !isKeyHeld(midi)}
-              <span class={scaleToneMarkerClass}></span>
-            {/if}
-            {#if isKeyCenterPitchClass(midi, scaleRoot)}
-              <span
-                class="pointer-events-none mb-1 text-[11px] font-bold leading-none text-text-inverse tabular-nums"
+    <PianoKeyboardScrollViewport
+      whiteCount={layout.whiteCount}
+      {initialScrollLeftPx}
+      onScrollChange={handleScrollChange}
+      onViewportReady={registerViewport}
+      class="h-full"
+    >
+      {#snippet children({ keyWidthPx })}
+        <div class="relative h-full w-full touch-none select-none">
+          <div class="relative z-0 flex h-full w-full">
+            {#each layout.whites as { midi } (midi)}
+              {@const usable = isKeyUsable(midi)}
+              <button
+                type="button"
+                data-cursor={usable ? "pointer" : "default"}
+                class="relative z-0 flex h-full shrink-0 flex-col items-center justify-end transition-[filter,background-color] duration-75 {usable
+                  ? 'hover:brightness-[0.98] active:brightness-95'
+                  : 'pointer-events-none'} {isKeyHeld(midi)
+                  ? accent.pianoNoteActive
+                  : pianoWhiteKeyClass}"
+                style:width="{keyWidthPx}px"
+                aria-label={midiToNoteName(midi)}
+                aria-disabled={!usable}
+                onpointerdown={usable ? (event) => onWhitePointerDown(event, midi) : undefined}
+                onpointerup={usable ? (event) => onWhitePointerUp(event, midi) : undefined}
+                onpointercancel={usable ? (event) => onWhitePointerUp(event, midi) : undefined}
               >
-                {midiToNoteName(midi)}
-              </span>
-            {/if}
-          </button>
-        {/each}
-      </div>
+                {#if usable && !isKeyHeld(midi)}
+                  <span class={scaleToneMarkerClass}></span>
+                {/if}
+                {#if isKeyCenterPitchClass(midi, scaleRoot)}
+                  <span
+                    class="pointer-events-none mb-1 text-[11px] font-bold leading-none text-text-inverse tabular-nums"
+                  >
+                    {midiToNoteName(midi)}
+                  </span>
+                {/if}
+              </button>
+            {/each}
+          </div>
 
-      <div class="pointer-events-none absolute inset-0">
-        {#each layout.blacks as { midi, centerPercent } (`seam-${midi}`)}
-          <div
-            class="{pianoBlackKeySeamMaskClass}"
-            style:left="calc({centerPercent}% - 1px)"
-            style:width="2px"
-            style:height="100%"
-            aria-hidden="true"
-          ></div>
-        {/each}
-      </div>
+          <div class="pointer-events-none absolute inset-0">
+            {#each layout.blacks as { midi, centerPercent } (`seam-${midi}`)}
+              <div
+                class="{pianoBlackKeySeamMaskClass}"
+                style:left="calc({centerPercent}% - 1px)"
+                style:width="2px"
+                style:height="100%"
+                aria-hidden="true"
+              ></div>
+            {/each}
+          </div>
 
-      <div class="pointer-events-none absolute inset-0 z-10">
-        {#each layout.blacks as { midi, centerPercent, widthPercent } (midi)}
-          {@const usable = isKeyUsable(midi)}
-          <button
-            type="button"
-            data-cursor={usable ? "pointer" : "default"}
-            class="{usable
-              ? 'pointer-events-auto hover:brightness-110 active:brightness-125'
-              : 'pointer-events-none'} absolute top-0 z-10 flex h-[58%] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1 {isKeyHeld(midi)
-              ? accent.pianoNoteActive
-              : pianoBlackKeyClass}"
-            style:left="{centerPercent}%"
-            style:width="{widthPercent}%"
-            aria-label={midiToNoteName(midi)}
-            aria-disabled={!usable}
-            onpointerdown={usable
-              ? (event) => {
-                  event.preventDefault();
-                  event.currentTarget.setPointerCapture(event.pointerId);
-                  pressKey(midi);
-                }
-              : undefined}
-            onpointerup={usable
-              ? (event) => {
-                  event.currentTarget.releasePointerCapture(event.pointerId);
-                  releaseKey(midi);
-                }
-              : undefined}
-            onpointercancel={usable
-              ? (event) => {
-                  event.currentTarget.releasePointerCapture(event.pointerId);
-                  releaseKey(midi);
-                }
-              : undefined}
-          >
-            {#if usable && !isKeyHeld(midi)}
-              <span class={scaleToneMarkerClass}></span>
-            {/if}
-            {#if isKeyCenterPitchClass(midi, scaleRoot)}
-              <span
-                class="pointer-events-none mb-1 text-[10px] font-bold leading-none text-text-secondary tabular-nums"
+          <div class="pointer-events-none absolute inset-0 z-10">
+            {#each layout.blacks as { midi, centerPercent, widthPercent } (midi)}
+              {@const usable = isKeyUsable(midi)}
+              <button
+                type="button"
+                data-cursor={usable ? "pointer" : "default"}
+                class="{usable
+                  ? 'pointer-events-auto hover:brightness-110 active:brightness-125'
+                  : 'pointer-events-none'} absolute top-0 z-10 flex h-[58%] -translate-x-1/2 flex-col items-center justify-end rounded-b-md pb-1 {isKeyHeld(midi)
+                  ? accent.pianoNoteActive
+                  : pianoBlackKeyClass}"
+                style:left="{centerPercent}%"
+                style:width="{widthPercent}%"
+                aria-label={midiToNoteName(midi)}
+                aria-disabled={!usable}
+                onpointerdown={usable
+                  ? (event) => {
+                      event.preventDefault();
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      pressKey(midi);
+                    }
+                  : undefined}
+                onpointerup={usable
+                  ? (event) => {
+                      event.currentTarget.releasePointerCapture(event.pointerId);
+                      releaseKey(midi);
+                    }
+                  : undefined}
+                onpointercancel={usable
+                  ? (event) => {
+                      event.currentTarget.releasePointerCapture(event.pointerId);
+                      releaseKey(midi);
+                    }
+                  : undefined}
               >
-                {midiToNoteName(midi)}
-              </span>
-            {/if}
-          </button>
-        {/each}
-      </div>
-      </div>
-    </PianoKeyboardAspectFrame>
+                {#if usable && !isKeyHeld(midi)}
+                  <span class={scaleToneMarkerClass}></span>
+                {/if}
+                {#if isKeyCenterPitchClass(midi, scaleRoot)}
+                  <span
+                    class="pointer-events-none mb-1 text-[10px] font-bold leading-none text-text-secondary tabular-nums"
+                  >
+                    {midiToNoteName(midi)}
+                  </span>
+                {/if}
+              </button>
+            {/each}
+          </div>
+        </div>
+      {/snippet}
+    </PianoKeyboardScrollViewport>
   </div>
 
   <p class="mt-2 shrink-0 text-center text-[11px] text-text-faint">
