@@ -1,5 +1,4 @@
 <script>
-  import { onDestroy } from "svelte";
   import { absorbPointerDragFocus, releasePointerDragFocus } from "./pointerDragFocus.js";
   import { emeraldRowAccent } from "./rowAccentTheme.js";
 
@@ -19,7 +18,7 @@
    * @property {boolean} [compact] - Tight boxed width for compact header controls with short values.
    * @property {number} [valueStep] - Drag/keyboard increment (default 1).
    * @property {number} [boxChars] - Minimum character width for boxed layout (largest formatted value).
-   * @property {boolean} [deferCommit] - Keep a local drag value during the gesture; throttled preview while dragging; commit on release.
+   * @property {boolean} [deferCommit] - Keep a local drag value during the gesture; preview on every move; commit on release.
    * @property {() => void} [onGestureStart] - Called at drag start when {@link deferCommit} is true.
    * @property {(value: number) => void | Promise<void>} [onValueCommit] - Final commit on release.
    * @property {(value: number) => void | Promise<void>} [onValueChange]
@@ -52,16 +51,11 @@
     "mp-param-box mp-control-gradient flex h-8 items-center justify-center rounded-md border text-sm font-semibold tabular-nums transition-[border-color,box-shadow,filter] duration-75";
 
   const pixelsPerStep = 4;
-  const previewThrottleMs = 100;
 
   let dragging = $state(false);
   let dragStartY = 0;
   let dragStartValue = 0;
   let dragValue = $state(0);
-  let previewTimerId = 0;
-  let lastPreviewAt = 0;
-  /** @type {number | null} */
-  let pendingPreviewValue = null;
 
   let displayedValue = $derived(dragging ? dragValue : value);
   let effectiveBoxChars = $derived(boxChars ?? (compact ? 3 : 4));
@@ -93,44 +87,6 @@
     return clampValue(dragStartValue + steps * valueStep);
   }
 
-  function cancelPreviewThrottle() {
-    if (!previewTimerId) return;
-
-    clearTimeout(previewTimerId);
-    previewTimerId = 0;
-  }
-
-  /** @param {number} next */
-  function flushPreview(next) {
-    cancelPreviewThrottle();
-    pendingPreviewValue = null;
-    lastPreviewAt = Date.now();
-    onValuePreview?.(next);
-  }
-
-  /** @param {number} next */
-  function scheduleThrottledPreview(next) {
-    if (!onValuePreview) return;
-
-    pendingPreviewValue = next;
-
-    const elapsed = Date.now() - lastPreviewAt;
-
-    if (elapsed >= previewThrottleMs) {
-      flushPreview(next);
-      return;
-    }
-
-    if (previewTimerId) return;
-
-    previewTimerId = window.setTimeout(() => {
-      previewTimerId = 0;
-      const pending = pendingPreviewValue;
-
-      if (pending !== null) flushPreview(pending);
-    }, previewThrottleMs - elapsed);
-  }
-
   /** @param {number} next */
   function commitDeferredValue(next) {
     onGestureStart?.();
@@ -157,8 +113,6 @@
     dragStartY = event.clientY;
     dragStartValue = value;
     dragValue = value;
-    pendingPreviewValue = null;
-    lastPreviewAt = 0;
 
     if (deferCommit) {
       onGestureStart?.();
@@ -176,7 +130,7 @@
     dragValue = next;
 
     if (deferCommit && onValueCommit) {
-      scheduleThrottledPreview(next);
+      onValuePreview?.(next);
       return;
     }
 
@@ -189,8 +143,6 @@
 
     dragging = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
-    cancelPreviewThrottle();
-    pendingPreviewValue = null;
 
     if (deferCommit && onValueCommit) {
       onValueCommit(dragValue);
@@ -208,9 +160,6 @@
     if (value !== resetValue) applyValue(resetValue);
   }
 
-  onDestroy(() => {
-    cancelPreviewThrottle();
-  });
 </script>
 
 <div

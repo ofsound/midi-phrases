@@ -36,7 +36,9 @@
    * @property {boolean} [skipped]
    * @property {(midi: number) => void | Promise<void>} [onNoteChange]
    * @property {(value: number) => void | Promise<void>} [onVelocityChange]
-   * @property {(value: number) => void | Promise<void>} [onDurationChange]
+   * @property {() => void} [onDurationGestureStart]
+   * @property {(value: number) => void | Promise<void>} [onDurationPreview]
+   * @property {(value: number) => void | Promise<void>} [onDurationCommit]
    * @property {(value: number) => void | Promise<void>} [onTimingMultiplierChange]
    * @property {() => void} [onProbabilityGestureStart]
    * @property {(value: number) => void | Promise<void>} [onProbabilityPreview]
@@ -69,7 +71,9 @@
     skipped = false,
     onNoteChange = () => {},
     onVelocityChange = () => {},
-    onDurationChange = () => {},
+    onDurationGestureStart = () => {},
+    onDurationPreview = () => {},
+    onDurationCommit = () => {},
     onTimingMultiplierChange = () => {},
     onProbabilityGestureStart = () => {},
     onProbabilityPreview = () => {},
@@ -146,8 +150,9 @@
             min={0}
             max={maxPercentValue}
             ariaLabel="Step duration"
-            onValuePreview={onDurationChange}
-            onValueCommit={onDurationChange}
+            onGestureStart={onDurationGestureStart}
+            onValuePreview={onDurationPreview}
+            onValueCommit={onDurationCommit}
           />
           <span class="seed-param-value" aria-hidden="true">{durationPercent}</span>
         </div>

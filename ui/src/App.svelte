@@ -297,6 +297,11 @@
   let previousGateSnapshot = defaultPhraseGrid().map((row) => row.map(() => false));
   let activeGateHoldUntil = defaultPhraseGrid().map((row) => row.map(() => 0));
   let bulkPreviewSyncPromise = Promise.resolve();
+  const bulkPreviewSyncThrottleMs = 100;
+  /** @type {Map<string, { row: number, step: number, pushStep: (row: number, step: number) => Promise<void> }>} */
+  let bulkPreviewPendingSyncs = new Map();
+  let bulkPreviewSyncTimerId = 0;
+  let bulkPreviewLastSyncAt = 0;
 
   /** Row index armed for MIDI capture, or null. */
   let recordingRow = $state(null);
@@ -4294,20 +4299,51 @@
     }
   }
 
+  function flushBulkPreviewSyncNow() {
+    if (bulkPreviewSyncTimerId) {
+      clearTimeout(bulkPreviewSyncTimerId);
+      bulkPreviewSyncTimerId = 0;
+    }
+
+    const pending = [...bulkPreviewPendingSyncs.values()];
+
+    if (pending.length === 0) return;
+
+    bulkPreviewPendingSyncs.clear();
+    bulkPreviewLastSyncAt = Date.now();
+
+    bulkPreviewSyncPromise = bulkPreviewSyncPromise
+      .catch(() => {})
+      .then(async () => {
+        for (const { row, step, pushStep } of pending) {
+          await pushStep(row, step);
+        }
+      });
+  }
+
   /**
    * @param {{ row: number, step: number }[]} locations
    * @param {(row: number, step: number) => Promise<void>} pushStep
    */
   function queueBulkPreviewSync(locations, pushStep) {
-    const snapshot = locations.map(({ row, step }) => ({ row, step }));
-
-    bulkPreviewSyncPromise = bulkPreviewSyncPromise
-      .catch(() => {})
-      .then(async () => {
-        for (const { row, step } of snapshot) {
-          await pushStep(row, step);
-        }
+    for (const location of locations) {
+      bulkPreviewPendingSyncs.set(`${location.row}:${location.step}`, {
+        row: location.row,
+        step: location.step,
+        pushStep,
       });
+    }
+
+    if (bulkPreviewSyncTimerId) return;
+
+    const elapsed = Date.now() - bulkPreviewLastSyncAt;
+    const delay =
+      elapsed >= bulkPreviewSyncThrottleMs ? 0 : bulkPreviewSyncThrottleMs - elapsed;
+
+    bulkPreviewSyncTimerId = window.setTimeout(() => {
+      bulkPreviewSyncTimerId = 0;
+      flushBulkPreviewSyncNow();
+    }, delay);
   }
 
   function beginBulkEditGesture() {
@@ -4327,9 +4363,11 @@
   async function commitBulkEditGesture(label, syncFn) {
     const before = bulkEditGestureBefore;
     resetBulkEditGesture();
+    flushBulkPreviewSyncNow();
 
     if (!before) return;
 
+    await bulkPreviewSyncPromise.catch(() => {});
     await syncFn();
     const after = createHistorySnapshot();
     pushHistoryEntry(label, before, after);
@@ -6560,8 +6598,15 @@
           commitPhraseNoteValue(activeStepInspector.row, activeStepInspector.step, midi)}
         onVelocityChange={(value) =>
           setStepVelocity(activeStepInspector.row, activeStepInspector.step, value)}
-        onDurationChange={(percent) =>
-          selectStepDurationFraction(
+        onDurationGestureStart={beginBulkEditGesture}
+        onDurationPreview={(percent) =>
+          previewPhraseStepDuration(
+            activeStepInspector.row,
+            activeStepInspector.step,
+            percent / 100,
+          )}
+        onDurationCommit={(percent) =>
+          commitPhraseStepDuration(
             activeStepInspector.row,
             activeStepInspector.step,
             percent / 100,

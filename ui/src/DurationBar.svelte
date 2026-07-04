@@ -212,7 +212,7 @@
       <div
         class="duration-fill mp-duration-fill-gradient absolute inset-y-0 left-0 {muted ? 'bg-surface-subtle' : accent.bgAccent} {dragging
           ? ''
-          : 'transition-[width,opacity] duration-75'}"
+          : 'transition-opacity duration-75'}"
         style:width="{displayFillPercent}%"
         style:opacity={fillOpacity}
       ></div>
