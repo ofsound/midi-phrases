@@ -1,6 +1,7 @@
 <script>
   import AccentRangeSlider from "./AccentRangeSlider.svelte";
   import CyclePatternEditor from "./CyclePatternEditor.svelte";
+  import NoteDragInput from "./NoteDragInput.svelte";
   import StepInspectorKeyboard from "./StepInspectorKeyboard.svelte";
   import RemoveXIcon from "./RemoveXIcon.svelte";
   import StepMuteIcon from "./StepMuteIcon.svelte";
@@ -14,7 +15,6 @@
   } from "./stepCellLayout.js";
   import { inspectorToggleClasses } from "./inspectorSidebar.js";
   import { defaultStepProbabilityValue, maxPercentValue, maxStepProbabilityValue } from "./percentLimits.js";
-  import { midiToNoteName } from "./midiNoteNames.js";
 
   /**
    * @typedef {Object} Props
@@ -34,6 +34,11 @@
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {boolean} [muted]
    * @property {boolean} [skipped]
+   * @property {number} [defaultStepNote]
+   * @property {(value: number, delta: number) => number} [stepNoteValue]
+   * @property {() => void} [onNoteGestureStart]
+   * @property {(midi: number) => void} [onNotePreview]
+   * @property {(midi: number) => void | Promise<void>} [onNoteCommit]
    * @property {(midi: number) => void | Promise<void>} [onNoteChange]
    * @property {(value: number) => void | Promise<void>} [onVelocityChange]
    * @property {() => void} [onDurationGestureStart]
@@ -69,6 +74,11 @@
     accent = emeraldRowAccent,
     muted = false,
     skipped = false,
+    defaultStepNote = 60,
+    stepNoteValue = (value, delta) => value + delta,
+    onNoteGestureStart = () => {},
+    onNotePreview = () => {},
+    onNoteCommit = () => {},
     onNoteChange = () => {},
     onVelocityChange = () => {},
     onDurationGestureStart = () => {},
@@ -87,7 +97,11 @@
   } = $props();
 
   let stepKey = $derived(`${row}:${step}`);
-  let currentNoteName = $derived(midiToNoteName(note));
+  let noteDisplayClass = $derived(
+    muted
+      ? "font-mono text-4xl font-bold text-text-muted"
+      : `font-mono text-4xl font-bold ${accent.textAccentStrong}`,
+  );
   let durationPercent = $derived(Math.round(Math.min(1, Math.max(0, durationFraction)) * 100));
   let multiplierDisplay = $derived(
     formatTimingMultiplierLabel(timingMultiplierAtIndex(timingMultiplierIndex)),
@@ -202,12 +216,20 @@
       <div class="flex w-full min-w-0 items-end justify-center">
         <div class="flex min-w-0 max-w-full w-[calc((100%+46rem)/2)] items-end">
           <div class="flex min-w-0 flex-1 items-end justify-center pl-1">
-            <span
-              class="pointer-events-none shrink-0 font-mono text-4xl font-bold leading-none tabular-nums {accent.textAccentStrong}"
-              aria-label="Step note"
-            >
-              {currentNoteName}
-            </span>
+            <NoteDragInput
+              {accent}
+              {muted}
+              value={note}
+              resetValue={defaultStepNote}
+              ariaLabel="Step note"
+              stepValue={stepNoteValue}
+              deferCommit={true}
+              displayClass={noteDisplayClass}
+              containerClass="px-2 py-1"
+              onGestureStart={onNoteGestureStart}
+              onValuePreview={onNotePreview}
+              onValueCommit={onNoteCommit}
+            />
           </div>
           <div class="grid w-[46rem] max-w-full shrink-0 grid-cols-2 grid-rows-[auto_auto] items-end gap-x-20 gap-y-1">
           <span class="self-end text-xs font-semibold leading-none tracking-normal text-text">Cycle</span>

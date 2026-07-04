@@ -14,6 +14,8 @@
    * @property {(value: number, delta: number) => number} [stepValue]
    * @property {boolean} [deferCommit] - Preview while dragging; commit on release.
    * @property {boolean} [minimal] - High-contrast note-only presentation for compact cells.
+   * @property {string} [displayClass] - Optional typography classes for the note label.
+   * @property {string} [containerClass] - Optional extra classes for the drag container.
    * @property {() => void} [onGestureStart] - Called at drag start when {@link deferCommit} is true.
    * @property {(value: number) => void} [onValuePreview] - Lightweight preview while dragging.
    * @property {(value: number) => void | Promise<void>} [onValueCommit] - Final commit on release.
@@ -30,6 +32,8 @@
     stepValue = (current, delta) => current + delta,
     deferCommit = false,
     minimal = false,
+    displayClass = "",
+    containerClass = "",
     onGestureStart = undefined,
     onValuePreview = undefined,
     onValueCommit = undefined,
@@ -47,6 +51,14 @@
   let pendingPreviewValue = null;
 
   let displayName = $derived(midiToNoteName(value));
+  let usesCustomDisplay = $derived(displayClass.length > 0);
+  let labelClass = $derived(
+    usesCustomDisplay
+      ? `${displayClass} ${dragging ? accent.textAccentLight : ""}`
+      : minimal
+        ? "text-lg font-black"
+        : "text-sm font-bold",
+  );
 
   function clampMidi(note) {
     return Math.min(127, Math.max(0, Math.round(note)));
@@ -177,15 +189,19 @@
 <div
   data-step-note
   data-cursor="vertical-drag"
-  class="inline-flex min-w-0 touch-none select-none items-center rounded-sm px-1 py-0.5 -mx-1 -my-0.5 outline-none {accent.ringFocusWithWidth} {minimal
+  class="inline-flex min-w-0 touch-none select-none items-center rounded-sm px-1 py-0.5 -mx-1 -my-0.5 outline-none {containerClass} {accent.ringFocusWithWidth} {usesCustomDisplay
     ? muted
-      ? 'text-text-muted'
-      : 'text-white'
-    : muted
-      ? 'text-text-muted'
-      : dragging
-        ? accent.textAccentLight
-        : 'text-text'}"
+      ? "text-text-muted"
+      : ""
+    : minimal
+      ? muted
+        ? "text-text-muted"
+        : "text-white"
+      : muted
+        ? "text-text-muted"
+        : dragging
+          ? accent.textAccentLight
+          : "text-text"}"
   role="slider"
   aria-label={ariaLabel}
   aria-valuemin={0}
@@ -211,9 +227,7 @@
     }
   }}
 >
-  <span class="truncate font-sans leading-none tabular-nums {minimal
-    ? 'text-lg font-black'
-    : 'text-sm font-bold'}"
+  <span class="truncate leading-none tabular-nums {usesCustomDisplay ? "" : "font-sans"} {labelClass}"
     >{displayName}</span
   >
 </div>

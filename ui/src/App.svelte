@@ -6643,6 +6643,14 @@
         {scaleRoot}
         {scaleModeIndex}
         accent={rowAccentFor(activeStepInspector.row, rowColorsEnabled)}
+        defaultStepNote={defaultNewStepNote}
+        stepNoteValue={stepNoteByCurrentScale}
+        onNoteGestureStart={() =>
+          beginPhraseStepBulkGesture(activeStepInspector.row, activeStepInspector.step)}
+        onNotePreview={(midi) =>
+          previewPhraseNoteValue(activeStepInspector.row, activeStepInspector.step, midi)}
+        onNoteCommit={(midi) =>
+          commitPhraseNoteValue(activeStepInspector.row, activeStepInspector.step, midi)}
         onNoteChange={(midi) =>
           commitPhraseNoteValue(activeStepInspector.row, activeStepInspector.step, midi)}
         onVelocityChange={(value) =>
