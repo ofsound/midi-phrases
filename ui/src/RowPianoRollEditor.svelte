@@ -322,6 +322,39 @@
     return selectedStepIds.length > 1 && selectedStepIdSet.has(stepId);
   }
 
+  /** @param {typeof stepNotes[number]} note */
+  function dragTooltipPreviewMidi(note) {
+    if (drag?.mode !== "move") return note.midi;
+
+    if (drag.step === note.step && drag.previewMidi !== undefined) {
+      return drag.previewMidi;
+    }
+
+    return note.midi;
+  }
+
+  /**
+   * @param {typeof stepNotes[number]} note
+   * @param {string} label
+   */
+  function shouldShowDragTooltip(note, label) {
+    if (drag?.multiPitchDrag) return true;
+
+    return pianoRollNoteDragTooltipVisible(rowHeightPx, note.durationWidthPx, label);
+  }
+
+  let dragTooltipNotes = $derived.by(() => {
+    if (drag?.mode !== "move" || !drag.didDrag) return [];
+
+    if (drag.multiPitchDrag) {
+      return stepNotes.filter((note) => selectedStepIdSet.has(note.stepId));
+    }
+
+    const draggedNote = stepNotes[drag.step];
+
+    return draggedNote ? [draggedNote] : [];
+  });
+
   /** @param {number} velocity */
   function velocityBarHeightPx(velocity) {
     const clamped = Math.min(127, Math.max(0, Math.round(velocity)));
@@ -459,6 +492,8 @@
       return;
     }
 
+    const multiPitchDrag = isMultiPitchDrag(note.stepId);
+
     void onInspectStep(row, note.step, note.stepId);
 
     event.preventDefault();
@@ -490,7 +525,7 @@
       pitchDragRowHeightPx: rowHeightPx,
       lockedPitchRange: { ...visiblePitchRange },
       didDrag: false,
-      multiPitchDrag: isMultiPitchDrag(note.stepId),
+      multiPitchDrag,
     };
 
     onStepBulkGestureStart(row, note.step);
@@ -1163,18 +1198,20 @@
             {/if}
 
             {#if drag?.mode === "move" && drag.didDrag}
-              {@const draggedNote = stepNotes[drag.step]}
-              {@const dragTooltipLabel = midiToNoteName(drag.previewMidi ?? draggedNote?.midi ?? 60)}
-              {#if draggedNote && pianoRollNoteDragTooltipVisible(rowHeightPx, draggedNote.durationWidthPx, dragTooltipLabel)}
-                <div
-                  class="note-drag-tooltip pointer-events-none absolute z-50 rounded-md border border-border-strong bg-surface-raised px-2.5 py-1 text-base font-bold tabular-nums text-text shadow-lg"
-                  style:left="{draggedNote.leftPx + draggedNote.durationWidthPx / 2}px"
-                  style:top="{pitchTopPx(drag.previewMidi ?? draggedNote.midi) + 1}px"
-                  aria-hidden="true"
-                >
-                  {dragTooltipLabel}
-                </div>
-              {/if}
+              {#each dragTooltipNotes as note (note.stepId)}
+                {@const previewMidi = dragTooltipPreviewMidi(note)}
+                {@const dragTooltipLabel = midiToNoteName(previewMidi)}
+                {#if shouldShowDragTooltip(note, dragTooltipLabel)}
+                  <div
+                    class="note-drag-tooltip pointer-events-none absolute z-50 rounded-md border border-border-strong bg-surface-raised px-2.5 py-1 text-base font-bold tabular-nums text-text shadow-lg"
+                    style:left="{note.leftPx + note.durationWidthPx / 2}px"
+                    style:top="{pitchTopPx(previewMidi) + 1}px"
+                    aria-hidden="true"
+                  >
+                    {dragTooltipLabel}
+                  </div>
+                {/if}
+              {/each}
             {/if}
           </div>
         </div>

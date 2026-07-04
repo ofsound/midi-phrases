@@ -1684,8 +1684,12 @@
 
   /** @param {number} row @param {number} step @param {string} stepId */
   function prepareStepSelection(row, step, stepId) {
-    setSelectedStepKeys(new Set([stepSelectionKey(row, stepId)]));
-    syncBulkControlsFromSelection();
+    const key = stepSelectionKey(row, stepId);
+
+    if (selectedStepKeysForGrid.size <= 1 && !selectedStepKeysForGrid.has(key)) {
+      setSelectedStepKeys(new Set([key]));
+      syncBulkControlsFromSelection();
+    }
   }
 
   /** @param {number} row @param {number} step @param {string} stepId @param {{ selectStep?: boolean }} [options] */
