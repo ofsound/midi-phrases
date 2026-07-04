@@ -878,7 +878,7 @@ import { scaledPx } from "./uiScale.svelte.js";
   </div>
 
   <div
-    class="flex h-0 min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-subtle bg-app/80"
+    class="flex h-0 min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-subtle bg-workspace"
   >
     <div class="flex shrink-0">
       <div

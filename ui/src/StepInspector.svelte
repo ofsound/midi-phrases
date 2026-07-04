@@ -108,7 +108,7 @@
   );
 </script>
 
-<section class="step-inspector flex min-h-0 w-full flex-1 overflow-hidden bg-app/90">
+<section class="step-inspector flex min-h-0 w-full flex-1 overflow-hidden bg-workspace">
   <aside class="inspector-sidebar flex w-[13rem] shrink-0 flex-col gap-2 py-2 pr-3 pl-0">
     <div class="inspector-toggles flex w-full gap-1.5">
         <button

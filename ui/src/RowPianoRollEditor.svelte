@@ -853,7 +853,7 @@
 
 </script>
 
-<section class="step-inspector step-inspector--piano-roll flex min-h-0 w-full flex-1 overflow-hidden bg-app/90">
+<section class="step-inspector step-inspector--piano-roll flex min-h-0 w-full flex-1 overflow-hidden bg-workspace">
   <aside class="inspector-sidebar flex h-full min-h-0 w-[13rem] shrink-0 flex-col gap-2 pt-0 pr-3 pb-2 pl-0">
     <div class="inspector-bulk-controls flex min-h-0 w-full flex-1 flex-col">
       <BulkStepEditControls
@@ -929,7 +929,7 @@
 
   <div class="flex min-h-0 min-w-0 overflow-hidden">
   <div
-    class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-app/80"
+    class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-workspace"
     role="group"
     aria-label="Monophonic piano roll"
     onpointerdown={onBulkSelectPointerDown}
