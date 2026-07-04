@@ -1,5 +1,5 @@
 import { defaultPulseIndex, pulseQuartersForIndex } from "./pulseLayout.js";
-import { rowStepLayout, rowTimingOffsetQuarters } from "./phraseSchedule.js";
+import { rowStepVisualLayout, rowTimingOffsetQuarters } from "./phraseSchedule.js";
 import {
   defaultRowTimingOffsetIndex,
   stepTimingMultiplierCount,
@@ -128,14 +128,13 @@ export function precedingStepExpansionForNoteDrag(
  */
 export function buildRowRollTimeline(
   stepTimingMultiplier,
-  stepSkipped = [],
+  _stepSkipped = [],
   pulseIndex = defaultPulseIndex,
   rowTimingOffset = defaultRowTimingOffsetIndex,
 ) {
-  const { stepStartQuarters, stepLengthQuarters, cycleLengthQuarters } = rowStepLayout(
+  const { stepStartQuarters, stepLengthQuarters, cycleLengthQuarters } = rowStepVisualLayout(
     stepTimingMultiplier,
     pulseIndex,
-    stepSkipped,
   );
   const rowOffsetQuarters = rowTimingOffsetQuarters(rowTimingOffset, pulseIndex);
 
@@ -149,12 +148,8 @@ export function buildRowRollTimeline(
   const lastSlot = slots[slots.length - 1];
   const contentEndQuarters = lastSlot
     ? lastSlot.startQuarters + lastSlot.lengthQuarters
-    : cycleLengthQuarters + rowOffsetQuarters;
-  const timelineLengthQuarters = Math.max(
-    cycleLengthQuarters + rowOffsetQuarters,
-    contentEndQuarters,
-    0,
-  );
+    : rowOffsetQuarters;
+  const timelineLengthQuarters = Math.max(contentEndQuarters, 0);
 
   return {
     slots,

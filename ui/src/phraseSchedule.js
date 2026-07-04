@@ -421,6 +421,18 @@ export function rowStepLayout(timingMultiplierIndices, pulseIndex = defaultPulse
 }
 
 /**
+ * Step positions for piano-roll display. Every step keeps its slot in sequence
+ * (skipped steps are not collapsed). Playback timing still uses
+ * {@link rowStepLayout} with `stepSkipped` so the playhead jumps past skips.
+ *
+ * @param {number[]} timingMultiplierIndices
+ * @param {number} [pulseIndex]
+ */
+export function rowStepVisualLayout(timingMultiplierIndices, pulseIndex = defaultPulseIndex) {
+  return rowStepLayout(timingMultiplierIndices, pulseIndex, []);
+}
+
+/**
  * Step trigger position within a cycle.
  *
  * @param {number[]} stepStartQuarters

@@ -36,6 +36,13 @@ describe("buildRowRollTimeline", () => {
     expect(expanded.slots[2].lengthQuarters).toBe(original.slots[2].lengthQuarters);
   });
 
+  it("keeps skipped steps in sequence instead of collapsing their slots", () => {
+    const { slots } = buildRowRollTimeline([3, 3, 3], [false, true, false], 1, defaultRowTimingOffsetIndex);
+
+    expect(slots.map((slot) => slot.startQuarters)).toEqual([0, 1, 2]);
+    expect(slots.map((slot) => slot.lengthQuarters)).toEqual([1, 1, 1]);
+  });
+
   it("snaps resize gestures in either direction and clamps the result", () => {
     expect(timingMultiplierIndexAfterRollResize(3, 13, 100, 1)).toBe(4);
     expect(timingMultiplierIndexAfterRollResize(3, -13, 100, 1)).toBe(2);
