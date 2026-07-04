@@ -1,6 +1,8 @@
 @theme {
   --color-app: var(--theme-app);
   --color-workspace: var(--theme-workspace);
+  --color-row-header: var(--theme-row-header);
+  --color-row-header-active: var(--theme-row-header-active);
   --color-shell: var(--theme-shell);
   --color-surface: var(--theme-surface);
   --color-surface-raised: var(--theme-surface-raised);
@@ -72,6 +74,8 @@
 :root[data-theme="dark"] {
   --theme-app: #09090b;
   --theme-workspace: var(--theme-app);
+  --theme-row-header: color-mix(in srgb, var(--theme-surface) 55%, var(--theme-app));
+  --theme-row-header-active: color-mix(in srgb, var(--theme-surface) 80%, var(--theme-app));
   --theme-shell: #0e0e10;
   --theme-surface: #18181b;
   --theme-surface-raised: #27272a;
@@ -158,7 +162,9 @@
   /* Instrument light — dark palette inverted: cool chrome, mint accent, same row hues. */
   --theme-app: #f7f8fa;
   --theme-workspace: #ffffff;
-  --theme-shell: #ced3dc;
+  --theme-row-header: #dfe6ef;
+  --theme-row-header-active: #d2dbe8;
+  --theme-shell: #e6e9ef;
   --theme-surface: #fafbfc;
   --theme-surface-raised: #fefefe;
   --theme-surface-muted: #f1f3f7;
@@ -243,6 +249,8 @@
 :root[data-theme="alt"] {
   --theme-app: #0b0d0e;
   --theme-workspace: var(--theme-app);
+  --theme-row-header: color-mix(in srgb, var(--theme-surface) 55%, var(--theme-app));
+  --theme-row-header-active: color-mix(in srgb, var(--theme-surface) 80%, var(--theme-app));
   --theme-shell: #121719;
   --theme-surface: #192124;
   --theme-surface-raised: #223036;

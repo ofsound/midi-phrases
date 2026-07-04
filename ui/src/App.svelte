@@ -6310,8 +6310,8 @@
   </div>
 
   <section class="flex min-h-0 flex-1 flex-col">
-    <div class="bg-workspace shrink-0 {seedModeActive ? '-mx-6' : 'w-full'}">
-      <div class="flex min-w-0 items-stretch {seedModeActive ? 'px-6' : ''}">
+    <div class="bg-workspace shrink-0 -mx-6 w-[calc(100%+3rem)] px-6">
+      <div class="flex min-w-0 items-stretch">
       {#if seedModeActive}
         <SeedModePanel
           rhythmStep={seedModeRhythmStep}
@@ -6355,12 +6355,14 @@
               data-row-header={row}
               onpointerup={(event) => handleRowHeaderPointerUp(event, row)}
               title="Click to select all steps in this row"
-              class="relative flex shrink-0 self-stretch items-center border-r border-border-subtle bg-surface/55 pl-6 pr-6 {seedModeActive
+              class="relative flex shrink-0 self-stretch items-center border-r border-border-subtle pl-6 pr-6 {activeRowPianoRollEditor?.row === row
+                ? 'bg-row-header-active'
+                : 'bg-row-header'} {seedModeActive
               ? 'ml-0'
               : '-ml-6'} {row <
               grid.length - 1
                 ? 'border-b'
-                : ''} {activeRowPianoRollEditor?.row === row ? 'bg-surface/80' : ''}"
+                : ''}"
               style:--row-header-accent={rowAccentColorVar(rowAccent)}
             >
               <div class="pointer-events-none relative z-10 -ml-2 flex -translate-y-[12px] items-center gap-2.5 px-1">
@@ -6624,7 +6626,7 @@
     />
     </div>
 
-    <div class="bg-workspace flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <div class="bg-workspace -mx-6 flex min-h-0 min-w-0 w-[calc(100%+3rem)] flex-1 flex-col overflow-hidden px-6">
     {#if activeStepInspector !== null}
       <StepInspector
         row={activeStepInspector.row}
