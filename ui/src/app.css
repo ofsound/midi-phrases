@@ -510,6 +510,27 @@
     box-shadow: var(--shadow-accent-focus);
   }
 
+  .combination-continue-checkbox-shell {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    margin-left: 0.35rem;
+    height: 1.9rem;
+  }
+
+  .combination-continue-checkbox {
+    width: 0.9rem;
+    height: 0.9rem;
+    margin: 0;
+    accent-color: var(--color-accent);
+    cursor: pointer;
+  }
+
+  .combination-continue-checkbox:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-accent-focus);
+  }
+
   .processing-rail-center {
     display: flex;
     grid-column: 4;

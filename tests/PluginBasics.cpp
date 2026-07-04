@@ -5484,6 +5484,91 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPlayHead (nullptr);
     }
 
+    SECTION ("combination mode enable preserves schedule phase when continue is enabled")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setCombinationChangePhaseContinue (true);
+        ensurePhraseRowStepCount (testPlugin, 0, 4);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (0, 1, 0);
+        testPlugin.setPhraseStepVelocity (0, 2, 0);
+        testPlugin.setPhraseStepVelocity (0, 3, 0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (15.9);
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setPpqPosition (16.0);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getPlaybackBeat() == Catch::Approx (0.2).margin (0.05));
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("combination mode disable preserves schedule phase when continue is enabled")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setCombinationChangePhaseContinue (true);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+        ensurePhraseRowStepCount (testPlugin, 0, 4);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setPhraseStepVelocity (0, 1, 0);
+        testPlugin.setPhraseStepVelocity (0, 2, 0);
+        testPlugin.setPhraseStepVelocity (0, 3, 0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (15.9);
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setPpqPosition (16.0);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, false);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getPlaybackBeat() == Catch::Approx (0.2).margin (0.05));
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("MIDI pattern trigger first beat keeps full gate after pulse switch")
     {
         testPlugin.prepareToPlay (1000.0, 100);

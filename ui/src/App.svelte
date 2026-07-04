@@ -360,6 +360,7 @@
   let loopSlotPattern = Array.from({ length: 8 }, () => 0);
   let combinationModeMask = $state(0);
   let combinationSyncDivisionIndex = $state(defaultCombinationSyncDivisionIndex);
+  let combinationChangePhaseContinue = $state(false);
   let scaleRoot = $state(defaultScaleRoot);
   let scaleModeIndex = $state(defaultScaleModeIndex);
   let noteBandpassLowMidi = $state(defaultNoteBandpassLowMidi);
@@ -1030,6 +1031,23 @@
           combinationSyncDivisionOptions.length - 1,
           Math.max(0, confirmed),
         );
+      }
+    });
+  }
+
+  async function applyCombinationChangePhaseContinue(enabled) {
+    await commitHistory("Change combination phase", async () => {
+      combinationChangePhaseContinue = enabled;
+
+      if (!nativeFunctionAvailable("setCombinationChangePhaseContinue")) return;
+
+      const result = await getNativeFunction("setCombinationChangePhaseContinue")(
+        combinationChangePhaseContinue ? 1 : 0,
+      );
+      const confirmed = Number.parseInt(String(result), 10);
+
+      if (!Number.isNaN(confirmed)) {
+        combinationChangePhaseContinue = confirmed !== 0;
       }
     });
   }
@@ -2012,6 +2030,7 @@
       swingSubdivisionIndex,
       combinationModeMask,
       combinationSyncDivisionIndex,
+      combinationChangePhaseContinue,
       scaleRoot,
       scaleModeIndex,
       noteBandpassLowMidi,
@@ -2104,6 +2123,7 @@
     combinationModeMask = (next.combinationModeMask ?? 0) & combinationModeMaskBits;
     combinationSyncDivisionIndex =
       next.combinationSyncDivisionIndex ?? defaultCombinationSyncDivisionIndex;
+    combinationChangePhaseContinue = Boolean(next.combinationChangePhaseContinue);
     scaleRoot = clampScaleRoot(next.scaleRoot ?? defaultScaleRoot);
     scaleModeIndex = clampScaleModeIndex(next.scaleModeIndex ?? defaultScaleModeIndex);
     setNoteBandpassState(
@@ -2321,6 +2341,12 @@
     if (nativeFunctionAvailable("setCombinationSyncDivisionIndex")) {
       await getNativeFunction("setCombinationSyncDivisionIndex")(
         snapshot.combinationSyncDivisionIndex ?? defaultCombinationSyncDivisionIndex,
+      );
+    }
+
+    if (nativeFunctionAvailable("setCombinationChangePhaseContinue")) {
+      await getNativeFunction("setCombinationChangePhaseContinue")(
+        snapshot.combinationChangePhaseContinue ? 1 : 0,
       );
     }
 
@@ -2877,6 +2903,9 @@
           10,
         ),
       ),
+    );
+    combinationChangePhaseContinue = Boolean(
+      Number.parseInt(String(state.combinationChangePhaseContinue ?? 0), 10),
     );
     swingPercent = Number.parseInt(String(state.swingPercent ?? 0), 10);
     velocityHumanizePercent = Number.parseInt(String(state.velocityHumanizePercent ?? 0), 10);
@@ -5365,6 +5394,19 @@
     }
   }
 
+  function loadCombinationChangePhaseContinueFromInitialisation() {
+    const init = unwrapJuceInit("combinationChangePhaseContinue");
+
+    if (init === null) return;
+
+    const raw = Array.isArray(init) ? init[0] : init;
+    const value = Number.parseInt(String(raw), 10);
+
+    if (!Number.isNaN(value)) {
+      combinationChangePhaseContinue = value !== 0;
+    }
+  }
+
   function loadPatternScaleFromInitialisation() {
     scaleRoot = clampScaleRoot(unwrapJuceInit("scaleRoot") ?? defaultScaleRoot);
     scaleModeIndex = clampScaleModeIndex(unwrapJuceInit("scaleModeIndex") ?? defaultScaleModeIndex);
@@ -5744,6 +5786,7 @@
     loadProjectMetadataFromInitialisation();
     loadCombinationModesFromInitialisation();
     loadCombinationSyncDivisionFromInitialisation();
+    loadCombinationChangePhaseContinueFromInitialisation();
     loadPatternScaleFromInitialisation();
     loadNoteBandpassFromInitialisation();
     loadVelocityTiltFromInitialisation();
@@ -6540,6 +6583,8 @@
       onToggle={toggleCombinationMode}
       {combinationSyncDivisionIndex}
       onCombinationSyncDivisionChange={applyCombinationSyncDivisionIndex}
+      combinationChangePhaseContinue={combinationChangePhaseContinue}
+      onCombinationChangePhaseContinueChange={applyCombinationChangePhaseContinue}
       noteBandpassLowMidi={noteBandpassLowMidi}
       noteBandpassHighMidi={noteBandpassHighMidi}
       onNoteBandpassChange={handleNoteBandpassChange}

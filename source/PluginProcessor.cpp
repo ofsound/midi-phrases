@@ -1741,6 +1741,16 @@ int PluginProcessor::getCombinationSyncDivisionIndex() const
     return combinationSyncDivisionIndex.load (std::memory_order_relaxed);
 }
 
+void PluginProcessor::setCombinationChangePhaseContinue (const bool enabled)
+{
+    combinationChangePhaseContinue.store (enabled ? 1 : 0, std::memory_order_relaxed);
+}
+
+bool PluginProcessor::isCombinationChangePhaseContinue() const
+{
+    return combinationChangePhaseContinue.load (std::memory_order_relaxed) != 0;
+}
+
 void PluginProcessor::setSwingPercent (const int percent)
 {
     swingPercent.store (clampPercent (percent), std::memory_order_relaxed);
@@ -3707,7 +3717,15 @@ void PluginProcessor::applyAudioCombinationModeMask (const double reanchorTransp
     if (slot != audioActivePatternSlot)
         return;
 
-    applySchedulePhaseReset (reanchorTransportPpq);
+    if (isCombinationChangePhaseContinue())
+        applyCombinationModeMaskContinuous();
+    else
+        applySchedulePhaseReset (reanchorTransportPpq);
+}
+
+void PluginProcessor::applyCombinationModeMaskContinuous()
+{
+    resetPendingNoteOns();
 }
 
 void PluginProcessor::requestSchedulePhaseReset()
@@ -6393,10 +6411,23 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                 if (pulseOperationDue && pendingPhaseReset)
                     applySchedulePhaseReset (transportCursor);
 
-                if (combinationOperationDue && pendingCombinationModeMask >= 0)
+                const auto hadPendingCombination =
+                    pendingCombinationModeMask >= 0 && combinationOperationDue;
+
+                if (hadPendingCombination)
                     applyAudioCombinationModeMask (transportCursor);
 
-                resetAtSegmentStart = true;
+                const auto otherPulseOpsDue =
+                    pulseOperationDue
+                    && (pendingPattern >= 0 || pendingLoop >= 0 || pendingLoopBraceEnable >= 0
+                        || pendingPhaseReset);
+
+                if (otherPulseOpsDue || ! hadPendingCombination
+                    || ! isCombinationChangePhaseContinue())
+                {
+                    resetAtSegmentStart = true;
+                }
+
                 continue;
             }
 
@@ -6446,6 +6477,8 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             const auto pulseOperationDue = pulseOperationPpq <= segmentEnd + epsilon;
             const auto combinationOperationDue =
                 combinationOperationPpq <= segmentEnd + epsilon;
+            const auto pendingPhaseResetAtSegmentEnd =
+                pendingSchedulePhaseReset.load (std::memory_order_acquire) != 0;
 
             const auto nextPattern =
                 pulseOperationDue
@@ -6466,11 +6499,13 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             if (pulseOperationDue && pendingLoopBraceEnable >= 0)
                 applyAudioLoopBraceEnable (segmentEnd);
 
-            if (pulseOperationDue
-                && pendingSchedulePhaseReset.load (std::memory_order_acquire) != 0)
+            if (pulseOperationDue && pendingPhaseResetAtSegmentEnd)
                 applySchedulePhaseReset (segmentEnd);
 
-            if (combinationOperationDue && pendingCombinationModeMaskAtSegmentEnd >= 0)
+            const auto hadPendingCombinationAtSegmentEnd =
+                pendingCombinationModeMaskAtSegmentEnd >= 0 && combinationOperationDue;
+
+            if (hadPendingCombinationAtSegmentEnd)
                 applyAudioCombinationModeMask (segmentEnd);
 
             transportCursor = segmentEnd;
@@ -6478,7 +6513,17 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             if (segmentEnd >= ppqEnd - epsilon)
                 break;
 
-            resetAtSegmentStart = true;
+            const auto otherPulseOpsDueAtSegmentEnd =
+                pulseOperationDue
+                && (nextPattern >= 0 || nextLoop >= 0 || pendingLoopBraceEnable >= 0
+                    || pendingPhaseResetAtSegmentEnd);
+
+            if (otherPulseOpsDueAtSegmentEnd || ! hadPendingCombinationAtSegmentEnd
+                || ! isCombinationChangePhaseContinue())
+            {
+                resetAtSegmentStart = true;
+            }
+
             continue;
         }
 
@@ -6556,6 +6601,9 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("pulseIndex", getPulseIndex(), nullptr);
     state.setProperty ("combinationSyncDivisionIndex",
                        getCombinationSyncDivisionIndex(),
+                       nullptr);
+    state.setProperty ("combinationChangePhaseContinue",
+                       isCombinationChangePhaseContinue() ? 1 : 0,
                        nullptr);
     state.setProperty ("swingPercent", getSwingPercent(), nullptr);
     state.setProperty ("velocityHumanizePercent", getVelocityHumanizePercent(), nullptr);
@@ -7117,6 +7165,8 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
     setCombinationSyncDivisionIndex (
         static_cast<int> (state.getProperty ("combinationSyncDivisionIndex",
                                              defaultCombinationSyncDivisionIndex)));
+    setCombinationChangePhaseContinue (
+        static_cast<int> (state.getProperty ("combinationChangePhaseContinue", 0)) != 0);
     setSwingPercent (static_cast<int> (state.getProperty ("swingPercent", defaultSwingPercent)));
     setVelocityHumanizePercent (
         static_cast<int> (state.getProperty ("velocityHumanizePercent", defaultVelocityHumanizePercent)));
@@ -7248,6 +7298,7 @@ void PluginProcessor::resetProject()
     pulseIndex.store (defaultPulseIndex, std::memory_order_relaxed);
     combinationSyncDivisionIndex.store (defaultCombinationSyncDivisionIndex,
                                         std::memory_order_relaxed);
+    combinationChangePhaseContinue.store (0, std::memory_order_relaxed);
     swingPercent.store (defaultSwingPercent, std::memory_order_relaxed);
     velocityHumanizePercent.store (defaultVelocityHumanizePercent, std::memory_order_relaxed);
     timingHumanizePercent.store (defaultTimingHumanizePercent, std::memory_order_relaxed);

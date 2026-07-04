@@ -370,6 +370,8 @@ juce::var createProjectStateVar (PluginProcessor& processor, const PluginEditor&
     object->setProperty ("pulseIndex", processor.getPulseIndex());
     object->setProperty ("combinationSyncDivisionIndex",
                          processor.getCombinationSyncDivisionIndex());
+    object->setProperty ("combinationChangePhaseContinue",
+                         processor.isCombinationChangePhaseContinue() ? 1 : 0);
     object->setProperty ("swingPercent", processor.getSwingPercent());
     object->setProperty ("velocityHumanizePercent", processor.getVelocityHumanizePercent());
     object->setProperty ("timingHumanizePercent", processor.getTimingHumanizePercent());
@@ -521,6 +523,9 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("pulseIndex", processor.getPulseIndex())
                        .withInitialisationData ("combinationSyncDivisionIndex",
                                                 processor.getCombinationSyncDivisionIndex())
+                       .withInitialisationData ("combinationChangePhaseContinue",
+                                                processor.isCombinationChangePhaseContinue() ? 1
+                                                                                             : 0)
                        .withInitialisationData ("swingPercent", processor.getSwingPercent())
                        .withInitialisationData ("velocityHumanizePercent",
                                                 processor.getVelocityHumanizePercent())
@@ -1260,6 +1265,15 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.setCombinationSyncDivisionIndex (varToInt (args[0]));
 
                                complete (processor.getCombinationSyncDivisionIndex());
+                           })
+                       .withNativeFunction (
+                           "setCombinationChangePhaseContinue",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setCombinationChangePhaseContinue (varToInt (args[0]) != 0);
+
+                               complete (processor.isCombinationChangePhaseContinue() ? 1 : 0);
                            })
                        .withNativeFunction (
                            "setSwingPercent",

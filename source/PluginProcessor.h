@@ -388,6 +388,9 @@ public:
     int getCombinationSyncDivisionIndex() const;
     static double combinationSyncDivisionMultiplierForIndex (int divisionIndex);
 
+    void setCombinationChangePhaseContinue (bool enabled);
+    bool isCombinationChangePhaseContinue() const;
+
     static constexpr int defaultSwingPercent = 0;
     static constexpr int defaultVelocityHumanizePercent = 0;
     static constexpr int defaultTimingHumanizePercent = 0;
@@ -625,6 +628,7 @@ private:
     void requestAudioCombinationModeMask (int patternSlot, int mask);
     void clearPendingAudioCombinationModeMask();
     void applyAudioCombinationModeMask (double reanchorTransportPpq);
+    void applyCombinationModeMaskContinuous();
     void requestSchedulePhaseReset();
     void applySchedulePhaseReset (double reanchorTransportPpq);
     void resolvePendingAudioLoopBraceEnableForStoppedPlayback();
@@ -780,6 +784,7 @@ private:
     int pendingAudioLoopBraceEnablePatternSlot = -1;
     std::atomic<int> pulseIndex { defaultPulseIndex };
     std::atomic<int> combinationSyncDivisionIndex { defaultCombinationSyncDivisionIndex };
+    std::atomic<int> combinationChangePhaseContinue { 0 };
     std::atomic<int> swingPercent { defaultSwingPercent };
     std::atomic<int> velocityHumanizePercent { defaultVelocityHumanizePercent };
     std::atomic<int> timingHumanizePercent { defaultTimingHumanizePercent };

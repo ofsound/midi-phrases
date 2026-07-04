@@ -21,6 +21,8 @@
    * @property {(modeIndex: number) => void | Promise<void>} onToggle
    * @property {number} combinationSyncDivisionIndex
    * @property {(divisionIndex: number) => void | Promise<void>} [onCombinationSyncDivisionChange]
+   * @property {boolean} combinationChangePhaseContinue
+   * @property {(enabled: boolean) => void | Promise<void>} [onCombinationChangePhaseContinueChange]
    * @property {number} noteBandpassLowMidi
    * @property {number} noteBandpassHighMidi
    * @property {(lowMidi: number, highMidi: number) => void} [onNoteBandpassChange]
@@ -65,6 +67,8 @@
     onToggle = () => {},
     combinationSyncDivisionIndex = defaultCombinationSyncDivisionIndex,
     onCombinationSyncDivisionChange = () => {},
+    combinationChangePhaseContinue = false,
+    onCombinationChangePhaseContinueChange = () => {},
     noteBandpassLowMidi = 36,
     noteBandpassHighMidi = 108,
     onNoteBandpassChange = () => {},
@@ -111,6 +115,11 @@
       onCombinationSyncDivisionChange(value);
     }
   }
+
+  /** @param {Event} event */
+  function changeCombinationChangePhaseContinue(event) {
+    onCombinationChangePhaseContinueChange(event.currentTarget.checked);
+  }
 </script>
 
 <div class="mp-honeycomb-rail relative z-20 mb-2">
@@ -141,6 +150,19 @@
                 <option value={option.index}>{option.label}</option>
               {/each}
             </select>
+          </label>
+          <label
+            class="combination-continue-checkbox-shell"
+            title="Continue timeline on combination mode change"
+          >
+            <input
+              type="checkbox"
+              class="combination-continue-checkbox"
+              aria-label="Continue timeline on combination mode change"
+              checked={combinationChangePhaseContinue}
+              onchange={changeCombinationChangePhaseContinue}
+            />
+            <span class="sr-only">Continue timeline on combination mode change</span>
           </label>
         {/if}
       {/each}
