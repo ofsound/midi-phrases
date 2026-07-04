@@ -476,7 +476,8 @@
     border: 1px solid color-mix(in srgb, var(--color-border-strong) 70%, transparent);
     border-radius: 2px;
     background:
-      linear-gradient(135deg, transparent 50%, color-mix(in srgb, var(--color-text) 74%, transparent) 50%) right 0.45rem center / 0.35rem 0.35rem no-repeat,
+      linear-gradient(to bottom left, transparent 50%, color-mix(in srgb, var(--color-text) 74%, transparent) 50%) right 0.45rem center / 0.35rem 0.35rem no-repeat,
+      linear-gradient(to bottom right, transparent 50%, color-mix(in srgb, var(--color-text) 74%, transparent) 50%) right 0.45rem center / 0.35rem 0.35rem no-repeat,
       color-mix(in srgb, var(--color-field) 88%, var(--color-app));
     color: var(--color-text);
     padding: 0 1rem 0 0.45rem;
