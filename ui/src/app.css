@@ -469,16 +469,27 @@
     margin-left: 0.45rem;
   }
 
+  .combination-sync-select-shell::after {
+    content: "";
+    position: absolute;
+    right: 0.45rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-left: 0.18rem solid transparent;
+    border-right: 0.18rem solid transparent;
+    border-top: 0.22rem solid color-mix(in srgb, var(--color-text) 74%, transparent);
+    pointer-events: none;
+  }
+
   .combination-sync-select {
     width: 3.35rem;
     height: 1.9rem;
     appearance: none;
     border: 1px solid color-mix(in srgb, var(--color-border-strong) 70%, transparent);
     border-radius: 2px;
-    background:
-      linear-gradient(to bottom left, transparent 50%, color-mix(in srgb, var(--color-text) 74%, transparent) 50%) right 0.45rem center / 0.35rem 0.35rem no-repeat,
-      linear-gradient(to bottom right, transparent 50%, color-mix(in srgb, var(--color-text) 74%, transparent) 50%) right 0.45rem center / 0.35rem 0.35rem no-repeat,
-      color-mix(in srgb, var(--color-field) 88%, var(--color-app));
+    background: color-mix(in srgb, var(--color-field) 88%, var(--color-app));
     color: var(--color-text);
     padding: 0 1rem 0 0.45rem;
     font-size: 0.72rem;
