@@ -381,6 +381,13 @@ public:
     int getPulseIndex() const;
     static double pulseQuartersForIndex (int pulseIndex);
 
+    static constexpr int combinationSyncDivisionCount = 5;
+    static constexpr int defaultCombinationSyncDivisionIndex = 2;
+
+    void setCombinationSyncDivisionIndex (int divisionIndex);
+    int getCombinationSyncDivisionIndex() const;
+    static double combinationSyncDivisionMultiplierForIndex (int divisionIndex);
+
     static constexpr int defaultSwingPercent = 0;
     static constexpr int defaultVelocityHumanizePercent = 0;
     static constexpr int defaultTimingHumanizePercent = 0;
@@ -615,6 +622,9 @@ private:
     void requestAudioLoopBraceEnable (int patternSlot);
     void clearPendingAudioLoopBraceEnable();
     void applyAudioLoopBraceEnable (double reanchorTransportPpq);
+    void requestAudioCombinationModeMask (int patternSlot, int mask);
+    void clearPendingAudioCombinationModeMask();
+    void applyAudioCombinationModeMask (double reanchorTransportPpq);
     void requestSchedulePhaseReset();
     void applySchedulePhaseReset (double reanchorTransportPpq);
     void resolvePendingAudioLoopBraceEnableForStoppedPlayback();
@@ -762,11 +772,14 @@ private:
     std::atomic<int> muteFlushRequested { 0 };
     std::atomic<int> pendingAudioPatternSlot { -1 };
     std::atomic<int> pendingSchedulePhaseReset { 0 };
+    std::atomic<int> pendingAudioCombinationModePatternSlot { -1 };
+    std::atomic<int> pendingAudioCombinationModeMask { 0 };
     std::atomic<int> currentLoopSlot { -1 };
     std::atomic<int> audioActiveLoopSlot { -1 };
     std::atomic<int> pendingAudioLoopSlot { -1 };
     int pendingAudioLoopBraceEnablePatternSlot = -1;
     std::atomic<int> pulseIndex { defaultPulseIndex };
+    std::atomic<int> combinationSyncDivisionIndex { defaultCombinationSyncDivisionIndex };
     std::atomic<int> swingPercent { defaultSwingPercent };
     std::atomic<int> velocityHumanizePercent { defaultVelocityHumanizePercent };
     std::atomic<int> timingHumanizePercent { defaultTimingHumanizePercent };

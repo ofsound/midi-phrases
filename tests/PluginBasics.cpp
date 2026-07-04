@@ -3499,6 +3499,27 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
     }
 
+    SECTION ("combination sync division")
+    {
+        CHECK (testPlugin.getCombinationSyncDivisionIndex()
+               == PluginProcessor::defaultCombinationSyncDivisionIndex);
+        CHECK (PluginProcessor::combinationSyncDivisionMultiplierForIndex (0) == Catch::Approx (4.0));
+        CHECK (PluginProcessor::combinationSyncDivisionMultiplierForIndex (1) == Catch::Approx (2.0));
+        CHECK (PluginProcessor::combinationSyncDivisionMultiplierForIndex (2) == Catch::Approx (1.0));
+        CHECK (PluginProcessor::combinationSyncDivisionMultiplierForIndex (3) == Catch::Approx (0.5));
+        CHECK (PluginProcessor::combinationSyncDivisionMultiplierForIndex (4) == Catch::Approx (0.25));
+
+        testPlugin.setCombinationSyncDivisionIndex (-1);
+        CHECK (testPlugin.getCombinationSyncDivisionIndex() == 0);
+
+        testPlugin.setCombinationSyncDivisionIndex (99);
+        CHECK (testPlugin.getCombinationSyncDivisionIndex()
+               == PluginProcessor::combinationSyncDivisionCount - 1);
+
+        testPlugin.setCombinationSyncDivisionIndex (
+            PluginProcessor::defaultCombinationSyncDivisionIndex);
+    }
+
     SECTION ("swing and humanize controls")
     {
         CHECK (testPlugin.getSwingPercent() == PluginProcessor::defaultSwingPercent);
@@ -5308,6 +5329,103 @@ TEST_CASE ("Plugin instance", "[instance]")
         }
 
         CHECK (emittedBaseNote);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("combination mode enable applies to MIDI output on sync division")
+    {
+        testPlugin.prepareToPlay (1000.0, 400);
+        testPlugin.setCurrentPatternSlot (0);
+        testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+        testPlugin.setCombinationSyncDivisionIndex (
+            PluginProcessor::defaultCombinationSyncDivisionIndex);
+        testPlugin.setPhraseRowMuted (0, false);
+        testPlugin.setPhraseRowMuted (1, false);
+        testPlugin.setPhraseRowMuted (2, true);
+        testPlugin.setPhraseRowMuted (3, true);
+        testPlugin.setPhraseRowTimingOffset (0, PluginProcessor::defaultRowTimingOffsetIndex + 2);
+        testPlugin.setPhraseRowTimingOffset (1, PluginProcessor::defaultRowTimingOffsetIndex + 2);
+
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+        ensurePhraseRowStepCount (testPlugin, 1, 2);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseNote (1, 0, 64);
+        testPlugin.setPhraseNote (1, 1, 71);
+        testPlugin.setPhraseStepTimingMultiplier (0, 0, 0);
+        testPlugin.setPhraseStepTimingMultiplier (1, 0, 0);
+        testPlugin.setPhraseStepTimingMultiplier (1, 1, 0);
+        testPlugin.setPhraseStepDurationFraction (0, 0, 1.0);
+        testPlugin.setPhraseStepDurationFraction (1, 0, 1.0);
+        testPlugin.setPhraseStepDurationFraction (1, 1, 1.0);
+        testPlugin.setPhraseStepVelocity (0, 0, 100);
+        testPlugin.setPhraseStepVelocity (1, 0, 100);
+        testPlugin.setPhraseStepVelocity (1, 1, 100);
+
+        juce::AudioBuffer<float> buffer (2, 400);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        testPlugin.setPlayHead (&playHead);
+
+        playHead.info.setPpqPosition (16.0);
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setPpqPosition (16.5);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);
+        testPlugin.processBlock (buffer, midi);
+
+        auto emittedPreBoundaryEcho = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn()
+                && message.getNoteNumber() == 67
+                && metadata.samplePosition > 0)
+            {
+                emittedPreBoundaryEcho = true;
+            }
+        }
+
+        CHECK_FALSE (emittedPreBoundaryEcho);
+
+        midi.clear();
+        playHead.info.setPpqPosition (17.0);
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        playHead.info.setPpqPosition (17.5);
+        testPlugin.processBlock (buffer, midi);
+
+        auto emittedPostBoundaryEcho = false;
+
+        for (const auto metadata : midi)
+        {
+            const auto message = metadata.getMessage();
+
+            if (message.isNoteOn()
+                && message.getNoteNumber() == 67
+                && metadata.samplePosition > 0)
+            {
+                emittedPostBoundaryEcho = true;
+            }
+        }
+
+        CHECK (emittedPostBoundaryEcho);
 
         testPlugin.setPlayHead (nullptr);
     }

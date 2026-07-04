@@ -368,6 +368,8 @@ juce::var createProjectStateVar (PluginProcessor& processor, const PluginEditor&
     object->setProperty ("patternOutputArmed", processor.isPatternOutputArmed() ? 1 : 0);
     object->setProperty ("currentLoopSlot", processor.getCurrentLoopSlot());
     object->setProperty ("pulseIndex", processor.getPulseIndex());
+    object->setProperty ("combinationSyncDivisionIndex",
+                         processor.getCombinationSyncDivisionIndex());
     object->setProperty ("swingPercent", processor.getSwingPercent());
     object->setProperty ("velocityHumanizePercent", processor.getVelocityHumanizePercent());
     object->setProperty ("timingHumanizePercent", processor.getTimingHumanizePercent());
@@ -517,6 +519,8 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("phraseStepCycle", phraseStepCycle)
                        .withInitialisationData ("phraseStepCycleOffset", phraseStepCycleOffset)
                        .withInitialisationData ("pulseIndex", processor.getPulseIndex())
+                       .withInitialisationData ("combinationSyncDivisionIndex",
+                                                processor.getCombinationSyncDivisionIndex())
                        .withInitialisationData ("swingPercent", processor.getSwingPercent())
                        .withInitialisationData ("velocityHumanizePercent",
                                                 processor.getVelocityHumanizePercent())
@@ -1247,6 +1251,15 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.setPulseIndex (varToInt (args[0]));
 
                                complete (processor.getPulseIndex());
+                           })
+                       .withNativeFunction (
+                           "setCombinationSyncDivisionIndex",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setCombinationSyncDivisionIndex (varToInt (args[0]));
+
+                               complete (processor.getCombinationSyncDivisionIndex());
                            })
                        .withNativeFunction (
                            "setSwingPercent",

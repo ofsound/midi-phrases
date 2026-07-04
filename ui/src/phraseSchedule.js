@@ -53,6 +53,18 @@ export const swingSubdivisionOptions = [
   {index: 2, label: "1"},
 ];
 
+export const defaultCombinationSyncDivisionIndex = 2;
+export const combinationSyncDivisionValues = [4, 2, 1, 0.5, 0.25];
+
+/** @type {{ index: number, label: string }[]} */
+export const combinationSyncDivisionOptions = [
+  {index: 0, label: "4x"},
+  {index: 1, label: "2x"},
+  {index: 2, label: "1"},
+  {index: 3, label: ".5"},
+  {index: 4, label: ".25"},
+];
+
 export {cycleGatePasses} from "./cyclePattern.js";
 
 /** @param {number} step @param {number} triggerCount @param {number} probability */

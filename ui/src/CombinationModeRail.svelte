@@ -6,7 +6,11 @@
   import ShimmerControl from "./ShimmerControl.svelte";
   import VelocityTiltControl from "./VelocityTiltControl.svelte";
   import GlobalTransposeControl from "./GlobalTransposeControl.svelte";
-  import { combinationModes } from "./phraseSchedule.js";
+  import {
+    combinationModes,
+    combinationSyncDivisionOptions,
+    defaultCombinationSyncDivisionIndex,
+  } from "./phraseSchedule.js";
   import { defaultShimmerFeedbackPercent, defaultShimmerMixPercent } from "./shimmer.js";
 
   /**
@@ -15,6 +19,8 @@
    * @typedef {Object} Props
    * @property {number} mask
    * @property {(modeIndex: number) => void | Promise<void>} onToggle
+   * @property {number} combinationSyncDivisionIndex
+   * @property {(divisionIndex: number) => void | Promise<void>} [onCombinationSyncDivisionChange]
    * @property {number} noteBandpassLowMidi
    * @property {number} noteBandpassHighMidi
    * @property {(lowMidi: number, highMidi: number) => void} [onNoteBandpassChange]
@@ -57,6 +63,8 @@
   let {
     mask = 0,
     onToggle = () => {},
+    combinationSyncDivisionIndex = defaultCombinationSyncDivisionIndex,
+    onCombinationSyncDivisionChange = () => {},
     noteBandpassLowMidi = 36,
     noteBandpassHighMidi = 108,
     onNoteBandpassChange = () => {},
@@ -94,6 +102,15 @@
     onShimmerMixPreview = () => {},
     onShimmerMixCommit = () => {},
   } = $props();
+
+  /** @param {Event} event */
+  function changeCombinationSyncDivision(event) {
+    const value = Number.parseInt(event.currentTarget.value, 10);
+
+    if (!Number.isNaN(value)) {
+      onCombinationSyncDivisionChange(value);
+    }
+  }
 </script>
 
 <div class="mp-honeycomb-rail relative z-20 mb-2">
@@ -111,6 +128,21 @@
         >
           <CombinationModeIcon kind={mode.icon} />
         </CombinationModeButton>
+        {#if mode.index === 4}
+          <label class="combination-sync-select-shell" title="Combination change quantize">
+            <span class="sr-only">Combination change quantize</span>
+            <select
+              class="combination-sync-select"
+              aria-label="Combination change quantize"
+              value={combinationSyncDivisionIndex}
+              onchange={changeCombinationSyncDivision}
+            >
+              {#each combinationSyncDivisionOptions as option (option.index)}
+                <option value={option.index}>{option.label}</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
       {/each}
     </div>
 

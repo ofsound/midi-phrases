@@ -105,6 +105,8 @@
   import {
     combinationModeMaskBits,
     combinationModes,
+    combinationSyncDivisionOptions,
+    defaultCombinationSyncDivisionIndex,
     isStepActiveAtBeat,
     stepTriggerCountAtBeat,
     swingSubdivisionOptions,
@@ -352,6 +354,7 @@
   let loopSlotAssigned = $state(Array.from({ length: 8 }, () => false));
   let loopSlotPattern = Array.from({ length: 8 }, () => 0);
   let combinationModeMask = $state(0);
+  let combinationSyncDivisionIndex = $state(defaultCombinationSyncDivisionIndex);
   let scaleRoot = $state(defaultScaleRoot);
   let scaleModeIndex = $state(defaultScaleModeIndex);
   let noteBandpassLowMidi = $state(defaultNoteBandpassLowMidi);
@@ -1001,6 +1004,29 @@
     if (!Number.isNaN(parsed)) {
       combinationModeMask = parsed & combinationModeMaskBits;
     }
+  }
+
+  async function applyCombinationSyncDivisionIndex(nextIndex) {
+    await commitHistory("Change combination sync", async () => {
+      combinationSyncDivisionIndex = Math.min(
+        combinationSyncDivisionOptions.length - 1,
+        Math.max(0, nextIndex),
+      );
+
+      if (!nativeFunctionAvailable("setCombinationSyncDivisionIndex")) return;
+
+      const result = await getNativeFunction("setCombinationSyncDivisionIndex")(
+        combinationSyncDivisionIndex,
+      );
+      const confirmed = Number.parseInt(String(result), 10);
+
+      if (!Number.isNaN(confirmed)) {
+        combinationSyncDivisionIndex = Math.min(
+          combinationSyncDivisionOptions.length - 1,
+          Math.max(0, confirmed),
+        );
+      }
+    });
   }
 
   function slotButtonClasses(active, assigned = true, copySource = false, copyTarget = false) {
@@ -1976,6 +2002,7 @@
       timingHumanizePercent,
       swingSubdivisionIndex,
       combinationModeMask,
+      combinationSyncDivisionIndex,
       scaleRoot,
       scaleModeIndex,
       noteBandpassLowMidi,
@@ -2066,6 +2093,8 @@
     timingHumanizePercent = next.timingHumanizePercent;
     swingSubdivisionIndex = next.swingSubdivisionIndex;
     combinationModeMask = (next.combinationModeMask ?? 0) & combinationModeMaskBits;
+    combinationSyncDivisionIndex =
+      next.combinationSyncDivisionIndex ?? defaultCombinationSyncDivisionIndex;
     scaleRoot = clampScaleRoot(next.scaleRoot ?? defaultScaleRoot);
     scaleModeIndex = clampScaleModeIndex(next.scaleModeIndex ?? defaultScaleModeIndex);
     setNoteBandpassState(
@@ -2278,6 +2307,12 @@
 
     if (nativeFunctionAvailable("setSwingSubdivisionIndex")) {
       await getNativeFunction("setSwingSubdivisionIndex")(snapshot.swingSubdivisionIndex);
+    }
+
+    if (nativeFunctionAvailable("setCombinationSyncDivisionIndex")) {
+      await getNativeFunction("setCombinationSyncDivisionIndex")(
+        snapshot.combinationSyncDivisionIndex ?? defaultCombinationSyncDivisionIndex,
+      );
     }
 
     if (nativeFunctionAvailable("setCombinationModeEnabled")) {
@@ -2824,6 +2859,16 @@
     viewPatternSlot = Number.parseInt(String(state.viewPatternSlot ?? 0), 10);
     activeLoopSlot = Number.parseInt(String(state.currentLoopSlot ?? -1), 10);
     pulseIndex = Number.parseInt(String(state.pulseIndex ?? defaultPulseIndex), 10);
+    combinationSyncDivisionIndex = Math.min(
+      combinationSyncDivisionOptions.length - 1,
+      Math.max(
+        0,
+        Number.parseInt(
+          String(state.combinationSyncDivisionIndex ?? defaultCombinationSyncDivisionIndex),
+          10,
+        ),
+      ),
+    );
     swingPercent = Number.parseInt(String(state.swingPercent ?? 0), 10);
     velocityHumanizePercent = Number.parseInt(String(state.velocityHumanizePercent ?? 0), 10);
     timingHumanizePercent = Number.parseInt(String(state.timingHumanizePercent ?? 0), 10);
@@ -5262,6 +5307,22 @@
     combinationModeMask = Number.isNaN(value) ? 0 : value & combinationModeMaskBits;
   }
 
+  function loadCombinationSyncDivisionFromInitialisation() {
+    const init = unwrapJuceInit("combinationSyncDivisionIndex");
+
+    if (init === null) return;
+
+    const raw = Array.isArray(init) ? init[0] : init;
+    const value = Number.parseInt(String(raw), 10);
+
+    if (!Number.isNaN(value)) {
+      combinationSyncDivisionIndex = Math.min(
+        combinationSyncDivisionOptions.length - 1,
+        Math.max(0, value),
+      );
+    }
+  }
+
   function loadPatternScaleFromInitialisation() {
     scaleRoot = clampScaleRoot(unwrapJuceInit("scaleRoot") ?? defaultScaleRoot);
     scaleModeIndex = clampScaleModeIndex(unwrapJuceInit("scaleModeIndex") ?? defaultScaleModeIndex);
@@ -5640,6 +5701,7 @@
     loadRowColorsFromInitialisation();
     loadProjectMetadataFromInitialisation();
     loadCombinationModesFromInitialisation();
+    loadCombinationSyncDivisionFromInitialisation();
     loadPatternScaleFromInitialisation();
     loadNoteBandpassFromInitialisation();
     loadVelocityTiltFromInitialisation();
@@ -6434,6 +6496,8 @@
     <CombinationModeRail
       mask={combinationModeMask}
       onToggle={toggleCombinationMode}
+      {combinationSyncDivisionIndex}
+      onCombinationSyncDivisionChange={applyCombinationSyncDivisionIndex}
       noteBandpassLowMidi={noteBandpassLowMidi}
       noteBandpassHighMidi={noteBandpassHighMidi}
       onNoteBandpassChange={handleNoteBandpassChange}
