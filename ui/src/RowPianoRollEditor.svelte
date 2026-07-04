@@ -1063,9 +1063,13 @@
                 data-bulk-step-cell
                 data-step-row={row}
                 data-step-id={note.stepId}
-                class="absolute z-[26] transition-[opacity,box-shadow] duration-150 {isShapeDrawMode
+                class="absolute z-[26] rounded-sm transition-[opacity,box-shadow] duration-150 {isShapeDrawMode
                   ? 'pointer-events-none'
-                  : ''} {playbackActive ? rowAccent.playbackGlow : ''}"
+                  : ''} {playbackActive
+                  ? rowAccent.playbackGlow
+                  : highlighted
+                    ? rowAccent.pianoRollSelectionGlow
+                    : ''}"
                 role="group"
                 aria-label={`Step ${note.step + 1}`}
                 title="Click to select · Shift-click to add or remove from selection · Double-click for advanced settings"
