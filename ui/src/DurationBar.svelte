@@ -176,7 +176,7 @@
     {@attach trackAttachment}
     data-step-duration
     data-cursor="pointer"
-    class="duration-track mp-duration-track-gradient relative h-3.5 touch-none select-none overflow-hidden outline-none {accent.ringFocusWithWidth} {muted
+    class="duration-track mp-duration-track-gradient relative h-[1.05rem] touch-none select-none overflow-hidden outline-none {accent.ringFocusWithWidth} {muted
       ? 'bg-surface-muted'
       : 'bg-surface-subtle'}"
     role="slider"

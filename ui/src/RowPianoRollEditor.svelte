@@ -1080,9 +1080,11 @@
                 }}
               >
                 <div
-                  class="pointer-events-none absolute inset-0 rounded-sm border-2 {playbackActive || highlighted
-                    ? rowAccent.borderActive
-                    : rowAccent.selectionBorder} {note.dimmed && !playbackActive && !highlighted
+                  class="pointer-events-none absolute inset-0 rounded-sm border-2 {highlighted
+                    ? rowAccent.borderFocus
+                    : playbackActive
+                      ? rowAccent.borderActive
+                      : rowAccent.selectionBorder} {note.dimmed && !playbackActive && !highlighted
                     ? 'opacity-50'
                     : 'opacity-95'}"
                   aria-hidden="true"
@@ -1096,10 +1098,11 @@
                   aria-label={`Move ${midiToNoteName(note.midi)} step ${note.step + 1}; click to select, Shift-click to add or remove from selection`}
                   aria-pressed={selected}
                   title="Click to select · Drag to move · Shift-click to add or remove from selection · Double-click for advanced settings"
-                  class="absolute top-0 left-0 flex h-full items-center rounded-sm border px-1 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {highlighted
-                    || playbackActive
+                  class="absolute top-0 left-0 flex h-full items-center rounded-sm border px-1 text-[10px] font-semibold leading-none text-text-inverse tabular-nums outline-none transition-[border-color,box-shadow,opacity] {rowAccent.ringFocusWithWidth || 'focus-visible:ring-1 focus-visible:ring-focus-ring'} {playbackActive
                     ? rowAccent.pianoNoteActive
-                    : rowAccent.pianoNoteIdle} {note.dimmed ? 'opacity-35' : ''}"
+                    : highlighted
+                      ? rowAccent.pianoNoteSelected
+                      : rowAccent.pianoNoteIdle} {note.dimmed ? 'opacity-35' : ''}"
                   style:width="{note.durationWidthPx}px"
                   style:opacity={note.dimmed ? undefined : noteFillOpacity}
                   onpointerdown={(event) => {

@@ -2449,11 +2449,11 @@
         {/if}
 
         <div
-          class="relative flex min-h-0 min-w-0 flex-1 flex-col gap-1 px-1 pt-0.5 pb-1 {stepDimmed
+          class="relative flex min-h-0 min-w-0 flex-1 flex-col gap-0.5 px-1 pt-0.5 pb-1 {stepDimmed
             ? 'opacity-80'
             : ''}"
         >
-          <div class="-mx-1 -mt-0.5">
+          <div class="-mx-1">
             <DurationBar
               {accent}
               muted={stepDimmed}
