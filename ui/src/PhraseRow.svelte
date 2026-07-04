@@ -2332,15 +2332,20 @@
         data-cursor="pointer"
         aria-label={isInspected ? "Close step inspector" : "Open step inspector"}
         aria-pressed={isInspected}
-        disabled={stepInspectorInteractionDisabled}
-        class="{footerButtonClass} min-w-0 flex-1 basis-0 disabled:pointer-events-none disabled:opacity-50 {hasAdvancedParameterChanges
+        aria-disabled={stepInspectorInteractionDisabled}
+        class="{footerButtonClass} min-w-0 flex-1 basis-0 {stepInspectorInteractionDisabled
+          ? 'pointer-events-none'
+          : ''} {hasAdvancedParameterChanges
           ? accent.textAccent
           : isInspected
             ? toggleIconActiveClasses
             : toggleIconRestClasses}"
         onpointerdown={(event) => event.stopPropagation()}
         onmousedown={(event) => event.stopPropagation()}
-        onclick={() => onInspectStep(row, step, stepIds[step])}
+        onclick={() => {
+          if (stepInspectorInteractionDisabled) return;
+          onInspectStep(row, step, stepIds[step]);
+        }}
       >
         <StepGearIcon class={footerStepIconClass} style={footerStepIconStyle} />
       </button>
@@ -2375,16 +2380,19 @@
         data-cursor="pointer"
         aria-label={isInspected ? "Close step inspector" : "Open step inspector"}
         aria-pressed={isInspected}
-        disabled={stepInspectorInteractionDisabled}
+        aria-disabled={stepInspectorInteractionDisabled}
         style={footerSlotStyle}
-        class="{footerButtonClass} disabled:pointer-events-none disabled:opacity-50 {hasAdvancedParameterChanges
+        class="{footerButtonClass} {stepInspectorInteractionDisabled ? 'pointer-events-none' : ''} {hasAdvancedParameterChanges
           ? accent.textAccent
           : isInspected
             ? toggleIconActiveClasses
             : toggleIconRestClasses}"
         onpointerdown={(event) => event.stopPropagation()}
         onmousedown={(event) => event.stopPropagation()}
-        onclick={() => onInspectStep(row, step, stepIds[step])}
+        onclick={() => {
+          if (stepInspectorInteractionDisabled) return;
+          onInspectStep(row, step, stepIds[step]);
+        }}
       >
         <StepGearIcon class={footerStepIconClass} style={footerStepIconStyle} />
       </button>
