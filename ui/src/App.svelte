@@ -1782,11 +1782,30 @@
     syncBulkControlsFromSelection();
   }
 
+  /** @type {{ row: number, timeStamp: number, clientX: number, clientY: number } | null} */
+  let lastRowHeaderClick = null;
+  const rowHeaderDoubleClickMs = 320;
+  const rowHeaderDoubleClickDistancePx = 8;
+
   /** @param {number} row */
   function selectAllStepsInRow(row) {
     const keys = (stepIds[row] ?? []).map((stepId) => stepSelectionKey(row, stepId));
     setSelectedStepKeys(new Set(keys));
     syncBulkControlsFromSelection();
+  }
+
+  /** @param {PointerEvent} event @param {number} row */
+  function isFastRowHeaderDoubleClick(event, row) {
+    if (lastRowHeaderClick === null || lastRowHeaderClick.row !== row) return false;
+
+    const elapsed = event.timeStamp - lastRowHeaderClick.timeStamp;
+    const deltaX = event.clientX - lastRowHeaderClick.clientX;
+    const deltaY = event.clientY - lastRowHeaderClick.clientY;
+    const distance = Math.hypot(deltaX, deltaY);
+
+    return elapsed >= 0 &&
+      elapsed <= rowHeaderDoubleClickMs &&
+      distance <= rowHeaderDoubleClickDistancePx;
   }
 
   /** @param {PointerEvent} event */
@@ -1808,6 +1827,19 @@
 
     event.preventDefault();
     event.stopPropagation();
+
+    if (isFastRowHeaderDoubleClick(event, row)) {
+      lastRowHeaderClick = null;
+      void clearPhraseRow(row);
+      return;
+    }
+
+    lastRowHeaderClick = {
+      row,
+      timeStamp: event.timeStamp,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    };
     selectAllStepsInRow(row);
   }
 
@@ -3910,6 +3942,43 @@
     for (let step = 0; step < grid[row].length; step += 1) {
       await pushNote(row, step);
     }
+  }
+
+  async function clearPhraseRow(row) {
+    if (row < 0 || row >= grid.length || grid[row].length === 0) return;
+
+    await commitHistory("Clear row", async () => {
+      if (activeStepInspector?.row === row) {
+        closeStepInspector();
+      }
+
+      if (activeRowPianoRollEditor?.row === row) {
+        closeRowPianoRollEditor();
+      }
+
+      const nextSelectedKeys = new SvelteSet(selectedStepKeys);
+
+      for (const stepId of stepIds[row] ?? []) {
+        nextSelectedKeys.delete(stepSelectionKey(row, stepId));
+      }
+
+      setSelectedStepKeys(nextSelectedKeys);
+      syncBulkControlsFromSelection();
+
+      grid[row] = [];
+      stepDurationFraction[row] = [];
+      stepTimingMultiplier[row] = [];
+      stepVelocity[row] = [];
+      stepMuted[row] = [];
+      stepSkipped[row] = [];
+      stepProbability[row] = [];
+      stepCycle[row] = [];
+      stepCycleOffset[row] = [];
+      activeGates[row] = [];
+      stepIds[row] = [];
+
+      await pushCurrentPhraseRow(row);
+    });
   }
 
   async function pushRowTimingOffset(row) {
@@ -6436,7 +6505,7 @@
             <div
               data-row-header={row}
               onpointerup={(event) => handleRowHeaderPointerUp(event, row)}
-              title="Click to select all steps in this row"
+              title="Click to select all steps in this row; double-click to clear row"
               class="relative flex shrink-0 self-stretch items-center border-r border-border-subtle pl-6 pr-6 {activeRowPianoRollEditor?.row === row
                 ? 'bg-row-header-active'
                 : 'bg-row-header'} {seedModeActive
