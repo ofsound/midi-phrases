@@ -216,6 +216,7 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
     juce::Array<juce::var> phraseRowMuted;
     juce::Array<juce::var> phraseRowTimingOffset;
     juce::Array<juce::var> phraseRowMidiChannel;
+    juce::Array<juce::var> recordCycleLengthPulses;
     juce::Array<juce::var> phraseStepDurationFraction;
     juce::Array<juce::var> phraseStepTimingMultiplier;
     juce::Array<juce::var> phraseStepVelocity;
@@ -259,6 +260,8 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
         phraseRowMuted.add (processor.isPatternPhraseRowMuted (patternSlot, row));
         phraseRowTimingOffset.add (processor.getPatternPhraseRowTimingOffset (patternSlot, row));
         phraseRowMidiChannel.add (processor.getPatternPhraseRowMidiChannel (patternSlot, row));
+        recordCycleLengthPulses.add (
+            processor.getPatternRecordCycleLengthPulses (patternSlot, row));
         phraseStepTimingMultiplier.add (stepTimingMultipliers);
         phraseStepDurationFraction.add (stepDurations);
         phraseStepVelocity.add (stepVelocities);
@@ -273,6 +276,7 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
     object->setProperty ("phraseRowMuted", phraseRowMuted);
     object->setProperty ("phraseRowTimingOffset", phraseRowTimingOffset);
     object->setProperty ("phraseRowMidiChannel", phraseRowMidiChannel);
+    object->setProperty ("recordCycleLengthPulses", recordCycleLengthPulses);
     object->setProperty ("phraseStepDurationFraction", phraseStepDurationFraction);
     object->setProperty ("phraseStepTimingMultiplier", phraseStepTimingMultiplier);
     object->setProperty ("phraseStepVelocity", phraseStepVelocity);
@@ -355,6 +359,12 @@ juce::var createPhraseRowStateVar (PluginProcessor& processor,
     auto object = std::make_unique<juce::DynamicObject>();
     object->setProperty ("captured", captured ? 1 : 0);
     object->setProperty ("row", row);
+    object->setProperty (
+        "recordCycleLengthPulses",
+        row >= 0 ? processor.getPatternRecordCycleLengthPulses (
+                       patternSlotForNativeDefault (processor),
+                       row)
+                 : PluginProcessor::defaultRecordCycleLengthPulses);
 
     juce::Array<juce::var> notes;
     juce::Array<juce::var> timingMultipliers;
@@ -1108,9 +1118,37 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
                                if (args.size() >= 1)
-                                   processor.setPhraseRowRecording (varToInt (args[0]));
+                               {
+                                   const auto cycleLength =
+                                       args.size() >= 2 ? varToInt (args[1]) : -1;
+                                   processor.setPhraseRowRecording (varToInt (args[0]),
+                                                                    cycleLength);
+                               }
 
                                complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "setPhraseRowRecordingCycleLength",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPhraseRowRecordingCycleLength (varToInt (args[0]));
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "getPhraseRowRecordingProgress",
+                           [&processor] (const juce::Array<juce::var>&,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               complete (processor.getPhraseRowRecordingProgress());
+                           })
+                       .withNativeFunction (
+                           "drainPhraseRowRecordingUpdates",
+                           [&processor] (const juce::Array<juce::var>&,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               auto row = processor.getPhraseRowRecording();
+                               const auto updated = processor.drainPhraseRowRecordingUpdates (row);
+                               complete (createPhraseRowStateVar (processor, row, updated));
                            })
                        .withNativeFunction (
                            "drainPhraseRowRecordedNotes",

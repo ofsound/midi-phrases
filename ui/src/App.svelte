@@ -35,6 +35,7 @@
   import PianoRollPreview from "./PianoRollPreview.svelte";
   import RowPianoRollEditor from "./RowPianoRollEditor.svelte";
   import CombinationModeRail from "./CombinationModeRail.svelte";
+  import RecordModePanel from "./RecordModePanel.svelte";
   import RecordPianoKeyboard from "./RecordPianoKeyboard.svelte";
   import StepInspector from "./StepInspector.svelte";
   import {
@@ -305,6 +306,9 @@
 
   /** Row index armed for MIDI capture, or null. */
   let recordingRow = $state(null);
+  /** Per-row loop length used by MIDI/keyboard record overdub. */
+  let recordCycleLengthPulses = $state([16, 16, 16, 16]);
+  let recordingProgress = $state(0);
   /** Step shown in the lower inspector panel, or null. */
   /** @type {{ row: number, stepId: string } | null} */
   let inspectedStep = $state(null);
@@ -2199,6 +2203,8 @@
     rowSoloRestoreMuted = null;
     rowTimingOffset = [...(state.phraseRowTimingOffset ?? rowTimingOffset)];
     rowMidiChannel = [...(state.phraseRowMidiChannel ?? rowMidiChannel)];
+    recordCycleLengthPulses = [...(state.recordCycleLengthPulses ?? recordCycleLengthPulses)]
+      .map((value) => Math.min(64, Math.max(1, Number.parseInt(String(value), 10) || 16)));
     stepDurationFraction = cloneMatrix(state.phraseStepDurationFraction ?? stepDurationFraction);
     stepTimingMultiplier = cloneMatrix(state.phraseStepTimingMultiplier ?? stepTimingMultiplier);
     stepVelocity = cloneMatrix(state.phraseStepVelocity ?? stepVelocity);
@@ -5146,15 +5152,13 @@
     recordingRow = row;
     recordingHistoryBefore = createHistorySnapshot();
     recordingCapturedNotes = false;
-    recordingAwaitingFirstNote = true;
+    recordingAwaitingFirstNote = false;
     recordingCaptureNativePromise = Promise.resolve();
-    applyCapturedRecordingRow(row, { notes: [] });
+    recordingProgress = 0;
 
     if (nativeFunctionAvailable("setPhraseRowRecording")) {
-      await getNativeFunction("setPhraseRowRecording")(row);
+      await getNativeFunction("setPhraseRowRecording")(row, recordCycleLengthPulses[row] ?? 16);
     }
-
-    await pushCurrentPhraseRow(row);
   }
 
   function queueRecordingCaptureNative(name, ...args) {
@@ -5222,9 +5226,45 @@
     }
   }
 
+  async function setRecordingCycleLengthPulses(value) {
+    if (recordingRow === null) return;
+
+    const next = Math.min(64, Math.max(1, Number.parseInt(String(value), 10) || 16));
+    recordCycleLengthPulses[recordingRow] = next;
+
+    if (nativeFunctionAvailable("setPhraseRowRecordingCycleLength")) {
+      await getNativeFunction("setPhraseRowRecordingCycleLength")(next);
+    }
+  }
+
   async function pollRowRecordingNotes() {
     if (recordingRow === null) {
       return;
+    }
+
+    if (nativeFunctionAvailable("drainPhraseRowRecordingUpdates")) {
+      try {
+        const update = await getNativeFunction("drainPhraseRowRecordingUpdates")();
+        const updated = Boolean(Number.parseInt(String(update?.captured ?? 0), 10));
+
+        if (updated) {
+          const updatedRow = Number.parseInt(String(update?.row ?? recordingRow), 10);
+          const row = Number.isNaN(updatedRow) ? recordingRow : updatedRow;
+          applyCapturedRecordingRow(row, update);
+          recordingCapturedNotes = true;
+
+          const cycleLength = Number.parseInt(
+            String(update?.recordCycleLengthPulses ?? recordCycleLengthPulses[row] ?? 16),
+            10,
+          );
+
+          if (!Number.isNaN(cycleLength)) {
+            recordCycleLengthPulses[row] = Math.min(64, Math.max(1, cycleLength));
+          }
+        }
+      } catch {
+        // Native bridge unavailable during teardown.
+      }
     }
 
     if (nativeFunctionAvailable("getPhraseRowRecordingKeysHeld")) {
@@ -5251,6 +5291,21 @@
       }
     }
 
+  }
+
+  async function pollRowRecordingProgress() {
+    if (recordingRow === null || !nativeFunctionAvailable("getPhraseRowRecordingProgress")) {
+      recordingProgress = 0;
+      return;
+    }
+
+    try {
+      const result = await getNativeFunction("getPhraseRowRecordingProgress")();
+      const progress = Number.parseFloat(String(result));
+      recordingProgress = Number.isNaN(progress) ? 0 : Math.min(1, Math.max(0, progress));
+    } catch {
+      recordingProgress = 0;
+    }
   }
 
   /** @param {number} midi */
@@ -5298,6 +5353,7 @@
     }
 
     updateActiveGatesForBeat(playbackBeat);
+    await pollRowRecordingProgress();
 
     playbackSlowPollCounter += 1;
 
@@ -6589,8 +6645,8 @@
                   style:height="{rowHeaderRecordIconSizePx}px"
                   onclick={() => toggleRowRecording(row)}
                   title={recordingRow === row
-                    ? "Stop recording and quantize the loop into this row"
-                    : "Record a loop from MIDI keyboard into this row"}
+                    ? "Stop loop overdub recording"
+                    : "Loop overdub from MIDI keyboard into this row"}
                 >
                   <RowRecordIcon
                     compact
@@ -6907,15 +6963,25 @@
         onBulkSelectPointerDown={beginStepMarqueeSelection}
       />
     {:else if recordingRow !== null}
-      <RecordPianoKeyboard
-        row={recordingRow}
-        {scaleRoot}
-        {scaleModeIndex}
-        accent={rowAccentFor(recordingRow, rowColorsEnabled)}
-        heldKeys={recordingKeysHeld}
-        onNotePress={onRecordPianoNotePress}
-        onNoteRelease={onRecordPianoNoteRelease}
-      />
+      {@const recordingAccent = rowAccentFor(recordingRow, rowColorsEnabled)}
+      <section class="flex min-h-0 w-full flex-1 overflow-hidden bg-workspace">
+        <RecordModePanel
+          row={recordingRow}
+          cycleLengthPulses={recordCycleLengthPulses[recordingRow] ?? 16}
+          progress={recordingProgress}
+          accent={recordingAccent}
+          onCycleLengthChange={setRecordingCycleLengthPulses}
+        />
+        <RecordPianoKeyboard
+          row={recordingRow}
+          {scaleRoot}
+          {scaleModeIndex}
+          accent={recordingAccent}
+          heldKeys={recordingKeysHeld}
+          onNotePress={onRecordPianoNotePress}
+          onNoteRelease={onRecordPianoNoteRelease}
+        />
+      </section>
     {:else}
       <PianoRollPreview
         notes={grid}

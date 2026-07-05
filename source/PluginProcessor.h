@@ -73,6 +73,9 @@ public:
     static constexpr int phraseRowCount = 4;
     static constexpr int defaultPhraseStepsPerRow = 0;
     static constexpr int maxPhraseStepsPerRow = 64;
+    static constexpr int minRecordCycleLengthPulses = 1;
+    static constexpr int maxRecordCycleLengthPulses = 64;
+    static constexpr int defaultRecordCycleLengthPulses = 16;
     static constexpr int patternSlotCount = 8;
     static constexpr int loopSlotCount = 8;
     static constexpr int midiMuteTriggerNote = patternSlotCount + loopSlotCount;
@@ -302,11 +305,19 @@ public:
                                  const std::array<int, maxPhraseStepsPerRow>& cycleOffset);
 
     /** Arm row for MIDI capture ({@code row} -1 disarms). Only one row at a time. */
-    void setPhraseRowRecording (int row);
+    void setPhraseRowRecording (int row, int cycleLengthPulses = -1);
     int getPhraseRowRecording() const;
+    void setPhraseRowRecordingCycleLength (int cycleLengthPulses);
+    int getPhraseRowRecordingCycleLength() const;
+    int getPatternRecordCycleLengthPulses (int patternSlot, int row) const;
+    void setPatternRecordCycleLengthPulses (int patternSlot, int row, int cycleLengthPulses);
+    double getPhraseRowRecordingProgress() const;
 
     /** Drains captured notes since the last call and applies them to the armed row. */
     juce::Array<int> drainPhraseRowRecordedNotes();
+
+    /** Drains completed loop-overdub edits and applies them to the armed row. */
+    bool drainPhraseRowRecordingUpdates (int& rowOut);
 
     /** MIDI note numbers currently held on a controller while recording (for keyboard UI). */
     juce::Array<int> getPhraseRowRecordingKeysHeld() const;
@@ -485,6 +496,7 @@ private:
         int seedingRhythmStep = defaultSeedingRhythmStep;
         std::array<SeedingRowState, phraseRowCount> seedingRows {};
         std::array<int, phraseRowCount> seedingRowTargets { 1, 0, 0, 0 };
+        std::array<int, phraseRowCount> recordCycleLengthPulses {};
     };
 
     struct LoopSlotState
@@ -653,6 +665,12 @@ private:
                                      double transportPpqStart,
                                      double ppqPerSample);
     void resetPhraseRowRecordingCapture();
+    int defaultRecordCycleLengthPulsesForRow (int patternSlot, int row) const;
+    int resolvedRecordCycleLengthPulses (int patternSlot, int row) const;
+    static int clampRecordCycleLengthPulses (int pulses);
+    double recordingLoopLengthQuarters() const;
+    double recordingLoopPhaseForPpq (double ppq) const;
+    double recordingCurrentTransportPpq() const;
     void capturePhraseRowRecordedNoteEvent (int midiNote,
                                             int velocity,
                                             bool noteOn,
@@ -663,6 +681,22 @@ private:
                                                      double eventPpq);
     double recordingCaptureQuartersForMilliseconds (double eventMilliseconds) const;
     static int timingMultiplierIndexForCaptureQuarters (double quarters);
+    void capturePhraseRowRecordedLoopEvent (int midiNote, int velocity, bool noteOn, double eventPpq);
+    void enqueueRecordingLoopSpan (int row,
+                                   int midiNote,
+                                   int velocity,
+                                   double startQuarters,
+                                   double endQuarters);
+    bool tryDequeueRecordingLoopSpan (int& rowOut,
+                                      int& midiNoteOut,
+                                      int& velocityOut,
+                                      double& startQuartersOut,
+                                      double& endQuartersOut);
+    void applyRecordingLoopSpanToRow (int row,
+                                      int midiNote,
+                                      int velocity,
+                                      double startQuarters,
+                                      double endQuarters);
     void enqueueRecordingKeyboardMidiEvent (int channel, int midiNote, int velocity, bool noteOn);
     bool tryDequeueRecordingKeyboardMidiEvent (int& channelOut,
                                                int& midiNoteOut,
@@ -860,6 +894,18 @@ private:
     std::atomic<double> latestRecordingTempoBpm { 120.0 };
     std::atomic<double> latestRecordingTransportPpq { -1.0 };
     std::atomic<int> recordingActiveEventIndex { -1 };
+    std::atomic<int> recordingCycleLengthPulses { defaultRecordCycleLengthPulses };
+    std::atomic<int> recordingActiveNote { -1 };
+    std::atomic<int> recordingActiveVelocity { defaultStepVelocity };
+    std::atomic<double> recordingActiveStartQuarters { 0.0 };
+    static constexpr int recordingLoopSpanQueueCapacity = 128;
+    std::array<int, recordingLoopSpanQueueCapacity> recordingLoopSpanRows {};
+    std::array<int, recordingLoopSpanQueueCapacity> recordingLoopSpanNotes {};
+    std::array<int, recordingLoopSpanQueueCapacity> recordingLoopSpanVelocities {};
+    std::array<double, recordingLoopSpanQueueCapacity> recordingLoopSpanStarts {};
+    std::array<double, recordingLoopSpanQueueCapacity> recordingLoopSpanEnds {};
+    std::atomic<int> recordingLoopSpanQueueWrite { 0 };
+    std::atomic<int> recordingLoopSpanQueueRead { 0 };
     static constexpr int recordingKeyboardMidiQueueCapacity = 128;
     std::array<int, recordingKeyboardMidiQueueCapacity> recordingKeyboardMidiChannels {};
     std::array<int, recordingKeyboardMidiQueueCapacity> recordingKeyboardMidiNotes {};

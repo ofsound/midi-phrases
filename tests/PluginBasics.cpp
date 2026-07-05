@@ -245,7 +245,7 @@ TEST_CASE ("MIDI recording captures transport quantized rhythm and gates", "[rec
 
     testPlugin.prepareToPlay (sampleRate, blockSize);
     testPlugin.setCurrentPatternSlot (0);
-    testPlugin.setPhraseRowRecording (0);
+    testPlugin.setPhraseRowRecording (0, 4);
 
     struct PlayHeadMock : juce::AudioPlayHead
     {
@@ -259,7 +259,7 @@ TEST_CASE ("MIDI recording captures transport quantized rhythm and gates", "[rec
 
     playHead.info.setBpm (60.0);
     playHead.info.setIsPlaying (true);
-    playHead.info.setPpqPosition (10.0);
+    playHead.info.setPpqPosition (0.0);
     testPlugin.setPlayHead (&playHead);
 
     juce::AudioBuffer<float> buffer (2, blockSize);
@@ -278,17 +278,130 @@ TEST_CASE ("MIDI recording captures transport quantized rhythm and gates", "[rec
     CHECK (testPlugin.getPhraseNote (0, 0) == 60);
     CHECK (testPlugin.getPhraseNote (0, 1) == 62);
     CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 0) == 1);
-    CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 1) == 1);
+    CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 1) == 13);
     CHECK (testPlugin.getPhraseStepDurationFraction (0, 0) == Catch::Approx (0.5));
-    CHECK (testPlugin.getPhraseStepDurationFraction (0, 1) == Catch::Approx (0.5));
+    CHECK (testPlugin.getPhraseStepDurationFraction (0, 1) == Catch::Approx (0.25 / 3.5));
     CHECK (testPlugin.getPhraseStepVelocity (0, 0) == 96);
     CHECK (testPlugin.getPhraseStepVelocity (0, 1) == 88);
 
     midi.clear();
-    playHead.info.setPpqPosition (11.0);
+    playHead.info.setPpqPosition (4.0);
     testPlugin.processBlock (buffer, midi);
 
     CHECK (findNoteOnSampleOnChannel (midi, 60, 1) == 0);
+
+    testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Loop overdub recording uses transport phase and monophonic replacement", "[recording]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 1000;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setCurrentPatternSlot (0);
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (60.0);
+    playHead.info.setIsPlaying (true);
+    testPlugin.setPlayHead (&playHead);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+
+    SECTION ("progress is host PPQ modulo record cycle")
+    {
+        testPlugin.setPhraseRowRecording (0, 4);
+        playHead.info.setPpqPosition (5.0);
+        juce::MidiBuffer midi;
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getPhraseRowRecordingProgress() == Catch::Approx (0.5).margin (0.001));
+    }
+
+    SECTION ("played span replaces only the held range")
+    {
+        ensurePhraseRowStepCount (testPlugin, 0, 4);
+
+        for (int step = 0; step < 4; ++step)
+        {
+            testPlugin.setPhraseStepTimingMultiplier (0, step, PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (0, step, 1.0);
+            testPlugin.setPhraseStepVelocity (0, step, 100);
+        }
+
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseNote (0, 1, 62);
+        testPlugin.setPhraseNote (0, 2, 64);
+        testPlugin.setPhraseNote (0, 3, 65);
+        testPlugin.setPhraseRowRecording (0, 4);
+
+        playHead.info.setPpqPosition (1.0);
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::noteOn (1, 70, static_cast<juce::uint8> (110)), 0);
+        midi.addEvent (juce::MidiMessage::noteOff (1, 70), 1000);
+        testPlugin.processBlock (buffer, midi);
+
+        auto row = -1;
+        REQUIRE (testPlugin.drainPhraseRowRecordingUpdates (row));
+        REQUIRE (row == 0);
+        REQUIRE (testPlugin.getPhraseRowStepCount (0) == 4);
+        CHECK (testPlugin.getPhraseNote (0, 0) == 60);
+        CHECK (testPlugin.getPhraseNote (0, 1) == 70);
+        CHECK (testPlugin.getPhraseNote (0, 2) == 64);
+        CHECK (testPlugin.getPhraseNote (0, 3) == 65);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 1) == 110);
+    }
+
+    SECTION ("leading silence is encoded as a timing rest")
+    {
+        testPlugin.setPhraseRowRecording (0, 4);
+        playHead.info.setPpqPosition (1.0);
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::noteOn (1, 72, static_cast<juce::uint8> (100)), 0);
+        midi.addEvent (juce::MidiMessage::noteOff (1, 72), 500);
+        testPlugin.processBlock (buffer, midi);
+
+        auto row = -1;
+        REQUIRE (testPlugin.drainPhraseRowRecordingUpdates (row));
+        REQUIRE (testPlugin.getPhraseRowStepCount (0) == 2);
+        CHECK (testPlugin.getPhraseStepVelocity (0, 0) == 0);
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 0) == Catch::Approx (0.0));
+        CHECK_FALSE (testPlugin.isPhraseStepSkipped (0, 0));
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 0)
+               == PluginProcessor::defaultStepTimingMultiplierIndex);
+        CHECK (testPlugin.getPhraseNote (0, 1) == 72);
+    }
+
+    SECTION ("wrapped held spans split around the cycle boundary")
+    {
+        testPlugin.setPhraseRowRecording (0, 4);
+        playHead.info.setPpqPosition (3.5);
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::noteOn (1, 76, static_cast<juce::uint8> (100)), 0);
+        midi.addEvent (juce::MidiMessage::noteOff (1, 76), 1000);
+        testPlugin.processBlock (buffer, midi);
+
+        auto row = -1;
+        REQUIRE (testPlugin.drainPhraseRowRecordingUpdates (row));
+        REQUIRE (testPlugin.getPhraseRowStepCount (0) == 2);
+        CHECK (testPlugin.getPhraseNote (0, 0) == 76);
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 0) == 13);
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 0) == Catch::Approx (0.5 / 3.5));
+        CHECK (testPlugin.getPhraseNote (0, 1) == 76);
+        CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 1) == 1);
+        CHECK (testPlugin.getPhraseStepDurationFraction (0, 1) == Catch::Approx (1.0));
+    }
 
     testPlugin.setPlayHead (nullptr);
 }
@@ -1953,6 +2066,72 @@ TEST_CASE ("Hocket mode matches preview schedule for four offset rows", "[instan
     }
 }
 
+TEST_CASE ("Hocket mode does not starve later rows when pattern repeat is long", "[instance]")
+{
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 256;
+    constexpr int blockCount = 32;
+
+    PluginProcessor testPlugin;
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeHocket, true);
+
+    const std::array<int, 4> rowLengths { 17, 19, 23, 29 };
+    const std::array<int, 4> activeSteps { 0, 2, 4, 6 };
+    const std::array<int, 4> activeNotes { 60, 62, 64, 65 };
+
+    for (int row = 0; row < 4; ++row)
+    {
+        testPlugin.setPhraseRowMuted (row, false);
+        ensurePhraseRowStepCount (testPlugin, row, rowLengths[static_cast<size_t> (row)]);
+
+        for (int step = 0; step < rowLengths[static_cast<size_t> (row)]; ++step)
+        {
+            testPlugin.setPhraseNote (row, step, activeNotes[static_cast<size_t> (row)]);
+            testPlugin.setPhraseStepTimingMultiplier (row,
+                                                      step,
+                                                      PluginProcessor::defaultStepTimingMultiplierIndex);
+            testPlugin.setPhraseStepDurationFraction (row, step, 1.0);
+            testPlugin.setPhraseStepVelocity (
+                row,
+                step,
+                step == activeSteps[static_cast<size_t> (row)] ? 100 : 0);
+        }
+    }
+
+    const auto outputEvents =
+        collectNoteOnEvents (testPlugin, sampleRate, blockSize, blockCount);
+
+    std::vector<std::pair<int, int>> firstEightQuarters;
+
+    for (const auto& event : outputEvents)
+    {
+        if (event.first < 8000)
+            firstEightQuarters.push_back (event);
+    }
+
+    const std::array<std::pair<int, int>, 8> expectedEvents { {
+        { 0, 60 },
+        { 500, 60 },
+        { 2000, 62 },
+        { 2500, 62 },
+        { 4000, 64 },
+        { 4500, 64 },
+        { 6000, 65 },
+        { 6500, 65 },
+    } };
+
+    REQUIRE (firstEightQuarters.size() == expectedEvents.size());
+
+    for (size_t index = 0; index < expectedEvents.size(); ++index)
+    {
+        CHECK (firstEightQuarters[index].first == expectedEvents[index].first);
+        CHECK (firstEightQuarters[index].second == expectedEvents[index].second);
+    }
+}
+
 TEST_CASE ("Cross-Mod with Hocket stays monophonic and bounded in audio output", "[instance]")
 {
     constexpr double sampleRate = 44100.0;
@@ -2178,6 +2357,25 @@ TEST_CASE ("Loop hocket user pattern emits one C3 per loop pass", "[instance]")
     {
         if (noteOn.second == 48)
             ++c3Count;
+    }
+
+    const std::array<std::pair<double, int>, 8> expectedNoteOns { {
+        { 4.0, 48 },
+        { 4.5, 43 },
+        { 5.0, 43 },
+        { 5.5, 51 },
+        { 6.0, 51 },
+        { 6.5, 53 },
+        { 7.25, 43 },
+        { 7.5, 43 },
+    } };
+
+    REQUIRE (noteOns.size() == expectedNoteOns.size());
+
+    for (size_t index = 0; index < expectedNoteOns.size(); ++index)
+    {
+        CHECK (noteOns[index].first == Catch::Approx (expectedNoteOns[index].first).margin (1.0e-6));
+        CHECK (noteOns[index].second == expectedNoteOns[index].second);
     }
 
     CHECK (c3Count == 1);

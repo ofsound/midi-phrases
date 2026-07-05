@@ -164,35 +164,30 @@
 </script>
 
 <section class="flex min-h-0 w-full flex-1 flex-col">
-  <div class="mb-2 flex shrink-0 items-center justify-between gap-3">
-    <p class="text-xs font-medium uppercase tracking-widest text-text-muted">
-      Record keyboard · row {row + 1}
-    </p>
-    <div class="flex items-center gap-2">
-      <button
-        type="button"
-        data-cursor="pointer"
-        class="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-lg font-semibold text-text transition-colors hover:border-border-strong hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
-        aria-label="Shift keyboard down one octave"
-        title="Octave down"
-        onclick={shiftOctaveDown}
-      >
-        −
-      </button>
-      <span class="min-w-[7.5rem] text-center text-xs font-medium tabular-nums text-text-secondary">
-        {rangeLabel}
-      </span>
-      <button
-        type="button"
-        data-cursor="pointer"
-        class="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-lg font-semibold text-text transition-colors hover:border-border-strong hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
-        aria-label="Shift keyboard up one octave"
-        title="Octave up"
-        onclick={shiftOctaveUp}
-      >
-        +
-      </button>
-    </div>
+  <div class="mb-2 flex shrink-0 items-center justify-end gap-2">
+    <button
+      type="button"
+      data-cursor="pointer"
+      class="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-lg font-semibold text-text transition-colors hover:border-border-strong hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
+      aria-label="Shift keyboard down one octave"
+      title="Octave down"
+      onclick={shiftOctaveDown}
+    >
+      −
+    </button>
+    <span class="min-w-[7.5rem] text-center text-xs font-medium tabular-nums text-text-secondary">
+      {rangeLabel}
+    </span>
+    <button
+      type="button"
+      data-cursor="pointer"
+      class="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-lg font-semibold text-text transition-colors hover:border-border-strong hover:bg-surface-muted outline-none focus-visible:ring-1 {accent.ringFocus}"
+      aria-label="Shift keyboard up one octave"
+      title="Octave up"
+      onclick={shiftOctaveUp}
+    >
+      +
+    </button>
   </div>
 
   <div
