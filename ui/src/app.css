@@ -1135,7 +1135,10 @@
     }
 
     .step-inspector--piano-roll .inspector-sidebar {
-      grid-template-columns: minmax(12rem, 1.1fr) minmax(16rem, 1.8fr);
+      display: flex;
+      width: 13rem;
+      grid-template-columns: none;
+      align-items: stretch;
     }
 
     .inspector-sliders {

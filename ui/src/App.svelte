@@ -1387,18 +1387,6 @@
 
     return locations.length > 0 && locations.every(({ row, step }) => stepMuted[row][step]);
   });
-  let rowPianoRollBulkStepCount = $derived.by(() => {
-    const editor = activeRowPianoRollEditor;
-    if (editor === null) return 0;
-
-    const row = editor.row;
-    const selected = selectedStepIdsByRow[row]?.length ?? 0;
-    const total = stepIds[row]?.length ?? 0;
-
-    return selected > 0 ? selected : total;
-  });
-  let rowPianoRollBulkOrderCycleAvailable = $derived(rowPianoRollBulkStepCount > 1);
-  let rowPianoRollBulkReverseAvailable = $derived(rowPianoRollBulkOrderCycleAvailable);
   let marqueeLeft = $derived(marqueeSelection
     ? Math.min(marqueeSelection.startX, marqueeSelection.currentX)
     : 0);
@@ -6917,31 +6905,6 @@
         onInsertStep={insertStep}
         onDuplicateStep={duplicateStep}
         onBulkSelectPointerDown={beginStepMarqueeSelection}
-        bulkDurationPercent={bulkDurationPercent}
-        bulkVelocityPercent={bulkVelocityPercent}
-        bulkLengthDelta={bulkLengthDelta}
-        bulkTransposeSemitones={bulkTransposeSemitones}
-        bulkPitchAriaLabel={bulkPitchAriaLabel}
-        bulkShiftAvailable={rowPianoRollBulkOrderCycleAvailable}
-        bulkReverseAvailable={rowPianoRollBulkReverseAvailable}
-        bulkSkipActive={bulkSkipActive}
-        bulkMuteActive={bulkMuteActive}
-        onBulkShift={shiftSelectedStepsLeftByRow}
-        onBulkReverse={reverseSelectedStepsByRow}
-        onBulkShuffle={shuffleSelectedSteps}
-        onBulkRandomizeOctaves={randomizeSelectedStepOctaves}
-        onBulkRandomizeLengths={randomizeSelectedStepLengths}
-        onBulkToggleSkip={toggleBulkStepSkip}
-        onBulkToggleMute={toggleBulkStepMute}
-        onBulkGestureStart={beginBulkEditGesture}
-        onBulkLengthPreview={previewBulkLengthDelta}
-        onBulkLengthCommit={commitBulkLengthDelta}
-        onBulkDurationPreview={previewBulkDurationPercent}
-        onBulkDurationCommit={commitBulkDurationPercent}
-        onBulkVelocityPreview={previewBulkVelocityPercent}
-        onBulkVelocityCommit={commitBulkVelocityPercent}
-        onBulkTransposePreview={previewBulkTransposeSemitones}
-        onBulkTransposeCommit={commitBulkTransposeSemitones}
       />
     {:else if recordingRow !== null}
       <RecordPianoKeyboard

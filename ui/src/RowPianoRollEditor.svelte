@@ -27,8 +27,8 @@
   } from "./rowPianoRollTimeline.js";
   import RowPianoRollModeIcon from "./RowPianoRollModeIcon.svelte";
   import RowShapeDrawIcon from "./RowShapeDrawIcon.svelte";
-  import BulkStepEditControls from "./BulkStepEditControls.svelte";
   import { durationBarFillOpacity } from "./compactStepVisuals.js";
+  import { inspectorInactiveControlClasses } from "./inspectorSidebar.js";
   import CompactStepResizeHandle from "./CompactStepResizeHandle.svelte";
   import StepSkippedOverlay from "./StepSkippedOverlay.svelte";
   import {
@@ -68,31 +68,6 @@
    * @property {(row: number, step: number, multiplierIndex?: number) => void | Promise<void>} [onInsertStep]
    * @property {(row: number, step: number) => void | Promise<void>} [onDuplicateStep]
    * @property {(event: PointerEvent, origin?: { toggleStep?: boolean }) => void} [onBulkSelectPointerDown]
-   * @property {number} [bulkDurationPercent]
-   * @property {number} [bulkVelocityPercent]
-   * @property {number} [bulkLengthDelta]
-   * @property {number} [bulkTransposeSemitones]
-   * @property {string} [bulkPitchAriaLabel]
-   * @property {boolean} [bulkShiftAvailable]
-   * @property {boolean} [bulkReverseAvailable]
-   * @property {boolean} [bulkSkipActive]
-   * @property {boolean} [bulkMuteActive]
-   * @property {() => void | Promise<void>} [onBulkShift]
-   * @property {() => void | Promise<void>} [onBulkReverse]
-   * @property {() => void | Promise<void>} [onBulkShuffle]
-   * @property {() => void | Promise<void>} [onBulkRandomizeOctaves]
-   * @property {() => void | Promise<void>} [onBulkRandomizeLengths]
-   * @property {() => void | Promise<void>} [onBulkToggleSkip]
-   * @property {() => void | Promise<void>} [onBulkToggleMute]
-   * @property {() => void} [onBulkGestureStart]
-   * @property {(value: number) => void} [onBulkLengthPreview]
-   * @property {(value: number) => void | Promise<void>} [onBulkLengthCommit]
-   * @property {(value: number) => void} [onBulkDurationPreview]
-   * @property {(value: number) => void | Promise<void>} [onBulkDurationCommit]
-   * @property {(value: number) => void} [onBulkVelocityPreview]
-   * @property {(value: number) => void | Promise<void>} [onBulkVelocityCommit]
-   * @property {(value: number) => void} [onBulkTransposePreview]
-   * @property {(value: number) => void | Promise<void>} [onBulkTransposeCommit]
    */
 
   /** @type {Props} */
@@ -124,31 +99,6 @@
     onDuplicateStep = () => {},
     onShapeVelocitiesCommit = () => {},
     onBulkSelectPointerDown = () => {},
-    bulkDurationPercent = 0,
-    bulkVelocityPercent = 0,
-    bulkLengthDelta = 0,
-    bulkTransposeSemitones = 0,
-    bulkPitchAriaLabel = "Bulk step pitch semitones",
-    bulkShiftAvailable = false,
-    bulkReverseAvailable = false,
-    bulkSkipActive = false,
-    bulkMuteActive = false,
-    onBulkShift = () => {},
-    onBulkReverse = () => {},
-    onBulkShuffle = () => {},
-    onBulkRandomizeOctaves = () => {},
-    onBulkRandomizeLengths = () => {},
-    onBulkToggleSkip = () => {},
-    onBulkToggleMute = () => {},
-    onBulkGestureStart = () => {},
-    onBulkLengthPreview = () => {},
-    onBulkLengthCommit = () => {},
-    onBulkDurationPreview = () => {},
-    onBulkDurationCommit = () => {},
-    onBulkVelocityPreview = () => {},
-    onBulkVelocityCommit = () => {},
-    onBulkTransposePreview = () => {},
-    onBulkTransposeCommit = () => {},
   } = $props();
 
   const basePxPerQuarter = 28;
@@ -167,9 +117,6 @@
   /** @type {{ pointerId: number, mode: 'velocity', points: { x: number, y: number }[] } | null} */
   let shapeStroke = $state(null);
   let rowAccent = $derived(accent ?? emeraldRowAccent);
-  let bulkEffectiveStepCount = $derived(
-    selectedStepIds.length > 0 ? selectedStepIds.length : stepIds.length,
-  );
   /** CSS color variable resolved from the row accent's bgAccent class (e.g. "bg-accent" → "--color-accent"). */
   let boundaryAccentVar = $derived(
     `var(--color-${rowAccent.bgAccent.replace('bg-', '')})`
@@ -414,11 +361,11 @@
   function shapeModeButtonClasses(mode) {
     const active = shapeDrawMode === mode;
 
-    return `flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors outline-none ${
+    return `flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-md border px-4 text-sm font-semibold leading-none tracking-normal transition-[background-color,border-color,color,box-shadow] outline-none ${rowAccent.ringFocusWithWidth || "focus-visible:ring-1 focus-visible:ring-focus-ring"} ${
       active
-        ? `${rowAccent.borderActive} ${rowAccent.bgAccentStrong} text-control-primary-text`
-        : "border-border bg-surface text-text-muted hover:border-border-strong hover:text-text"
-    } ${rowAccent.ringFocusWithWidth || "focus-visible:ring-1 focus-visible:ring-focus-ring"}`;
+        ? `${rowAccent.bgAccentStrong} ${rowAccent.borderFocus} border text-white ${rowAccent.playbackGlow}`
+        : inspectorInactiveControlClasses()
+    }`;
   }
 
   /** @param {PointerEvent} event */
@@ -858,52 +805,12 @@
 </script>
 
 <section class="step-inspector step-inspector--piano-roll flex min-h-0 w-full flex-1 overflow-hidden bg-workspace">
-  <aside class="inspector-sidebar flex h-full min-h-0 w-[13rem] shrink-0 flex-col gap-2 pt-0 pr-3 pb-2 pl-0">
-    <div class="inspector-bulk-controls flex min-h-0 w-full flex-1 flex-col">
-      <BulkStepEditControls
-        layout="sidebar"
-        inspectorEmbedded
-        className="min-h-0 flex-1"
-      accent={rowAccent}
-      requireSelection={false}
-      totalStepCount={stepIds.length}
-      selectedStepCount={selectedStepIds.length}
-      shiftAvailable={bulkShiftAvailable}
-      reverseAvailable={bulkReverseAvailable}
-      skipActive={bulkSkipActive}
-      muteActive={bulkMuteActive}
-      durationPercent={bulkDurationPercent}
-      velocityPercent={bulkVelocityPercent}
-      lengthDelta={bulkLengthDelta}
-      transposeSemitones={bulkTransposeSemitones}
-      pitchAriaLabel={bulkPitchAriaLabel}
-      onShift={onBulkShift}
-      onReverse={onBulkReverse}
-      onShuffle={onBulkShuffle}
-      onRandomizeOctaves={onBulkRandomizeOctaves}
-      onRandomizeLengths={onBulkRandomizeLengths}
-      onToggleSkip={onBulkToggleSkip}
-      onToggleMute={onBulkToggleMute}
-      onGestureStart={onBulkGestureStart}
-      onLengthPreview={onBulkLengthPreview}
-      onLengthCommit={onBulkLengthCommit}
-      onDurationPreview={onBulkDurationPreview}
-      onDurationCommit={onBulkDurationCommit}
-      onVelocityPreview={onBulkVelocityPreview}
-      onVelocityCommit={onBulkVelocityCommit}
-      onTransposePreview={onBulkTransposePreview}
-      onTransposeCommit={onBulkTransposeCommit}
-    />
-    </div>
-  </aside>
-
-  <div class="inspector-main grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)] content-start gap-y-2 overflow-hidden pb-2">
-    <div class="flex w-full items-center justify-center bg-surface/15 px-4 py-1.25">
-      <div
-        class="flex shrink-0 gap-1.5"
-        role="radiogroup"
-        aria-label="Piano roll interaction mode"
-      >
+  <aside class="inspector-sidebar flex h-full min-h-0 w-[13rem] shrink-0 flex-col pt-0 pr-3 pb-2 pl-0">
+    <div
+      class="flex w-full shrink-0 flex-col gap-2"
+      role="radiogroup"
+      aria-label="Piano roll interaction mode"
+    >
       <button
         type="button"
         role="radio"
@@ -914,7 +821,7 @@
         class={shapeModeButtonClasses("roll")}
         onclick={() => setShapeDrawMode("roll")}
       >
-        <RowPianoRollModeIcon class="pointer-events-none h-4 w-4 shrink-0" />
+        <RowPianoRollModeIcon class="pointer-events-none h-5 w-5 shrink-0" />
         Roll
       </button>
       <button
@@ -927,19 +834,19 @@
         class={shapeModeButtonClasses("velocity")}
         onclick={() => setShapeDrawMode("velocity")}
       >
-        <RowShapeDrawIcon class="pointer-events-none h-4 w-4 shrink-0" />
+        <RowShapeDrawIcon class="pointer-events-none h-5 w-5 shrink-0" />
         Velocity
       </button>
-      </div>
     </div>
+  </aside>
 
-  <div class="flex min-h-0 min-w-0 overflow-hidden">
-  <div
-    class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-workspace"
-    role="group"
-    aria-label="Monophonic piano roll"
-    onpointerdown={onBulkSelectPointerDown}
-  >
+  <div class="inspector-main flex min-h-0 min-w-0 flex-1 overflow-hidden pb-2">
+    <div
+      class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border-subtle bg-workspace"
+      role="group"
+      aria-label="Monophonic piano roll"
+      onpointerdown={onBulkSelectPointerDown}
+    >
     <div
       class="shrink-0 border-r border-border-subtle bg-surface/90"
       style:width="{keyboardWidthPx}px"
@@ -1223,9 +1130,9 @@
         </div>
       </div>
     </div>
+    </div>
   </div>
-  </div>
-  </div>
+
 </section>
 
 <style>
