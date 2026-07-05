@@ -1367,7 +1367,7 @@
   );
   let selectedStepCount = $derived(selectedStepKeysForGrid.size);
   let selectableStepCount = $derived(stepIds.reduce((count, rowStepIds) => count + rowStepIds.length, 0));
-  let bulkReverseAvailable = $derived.by(() => {
+  let bulkRowOrderCycleAvailable = $derived.by(() => {
     for (const locations of bulkEditLocationsGroupedByRow().values()) {
       if (locations.length > 1) {
         return true;
@@ -1376,6 +1376,7 @@
 
     return false;
   });
+  let bulkReverseAvailable = $derived(bulkRowOrderCycleAvailable);
   let bulkSkipActive = $derived.by(() => {
     const locations = bulkEditLocations();
 
@@ -1396,7 +1397,8 @@
 
     return selected > 0 ? selected : total;
   });
-  let rowPianoRollBulkReverseAvailable = $derived(rowPianoRollBulkStepCount > 1);
+  let rowPianoRollBulkOrderCycleAvailable = $derived(rowPianoRollBulkStepCount > 1);
+  let rowPianoRollBulkReverseAvailable = $derived(rowPianoRollBulkOrderCycleAvailable);
   let marqueeLeft = $derived(marqueeSelection
     ? Math.min(marqueeSelection.startX, marqueeSelection.currentX)
     : 0);
@@ -4239,6 +4241,32 @@
     syncBulkControlsFromSelection();
   }
 
+  async function shiftSelectedStepsLeftByRow() {
+    const groups = [...bulkEditLocationsGroupedByRow().entries()]
+      .filter(([, locations]) => locations.length > 1);
+
+    if (groups.length === 0) return;
+
+    await commitHistory("Shift selected steps", async () => {
+      const changedRows = new SvelteSet();
+
+      for (const [row, locations] of groups) {
+        const payloads = locations.map(({ step }) => stepPayloadAt(row, step));
+        const shiftedPayloads = [...payloads.slice(1), payloads[0]];
+
+        for (let index = 0; index < locations.length; index += 1) {
+          writeStepPayload(row, locations[index].step, shiftedPayloads[index]);
+        }
+
+        changedRows.add(row);
+      }
+
+      await pushRowsForRowSet(changedRows);
+    });
+
+    syncBulkControlsFromSelection();
+  }
+
   function beginRowTimingOffsetGesture() {
     if (!rowTimingOffsetGestureBefore) {
       rowTimingOffsetGestureBefore = createHistorySnapshot();
@@ -6308,6 +6336,7 @@
           requireSelection={false}
           totalStepCount={selectableStepCount}
           {selectedStepCount}
+          shiftAvailable={bulkRowOrderCycleAvailable}
           reverseAvailable={bulkReverseAvailable}
           skipActive={bulkSkipActive}
           muteActive={bulkMuteActive}
@@ -6316,6 +6345,7 @@
           lengthDelta={bulkLengthDelta}
           transposeSemitones={bulkTransposeSemitones}
           pitchAriaLabel={bulkPitchAriaLabel}
+          onShift={shiftSelectedStepsLeftByRow}
           onReverse={reverseSelectedStepsByRow}
           onShuffle={shuffleSelectedSteps}
           onRandomizeOctaves={randomizeSelectedStepOctaves}
@@ -6892,9 +6922,11 @@
         bulkLengthDelta={bulkLengthDelta}
         bulkTransposeSemitones={bulkTransposeSemitones}
         bulkPitchAriaLabel={bulkPitchAriaLabel}
+        bulkShiftAvailable={rowPianoRollBulkOrderCycleAvailable}
         bulkReverseAvailable={rowPianoRollBulkReverseAvailable}
         bulkSkipActive={bulkSkipActive}
         bulkMuteActive={bulkMuteActive}
+        onBulkShift={shiftSelectedStepsLeftByRow}
         onBulkReverse={reverseSelectedStepsByRow}
         onBulkShuffle={shuffleSelectedSteps}
         onBulkRandomizeOctaves={randomizeSelectedStepOctaves}

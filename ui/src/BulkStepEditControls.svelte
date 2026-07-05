@@ -3,6 +3,7 @@
   import RowRandomizeOctaveIcon from "./RowRandomizeOctaveIcon.svelte";
   import RowRandomizeOrderIcon from "./RowRandomizeOrderIcon.svelte";
   import RowReverseOrderIcon from "./RowReverseOrderIcon.svelte";
+  import RowShiftOrderIcon from "./RowShiftOrderIcon.svelte";
   import StepMuteIcon from "./StepMuteIcon.svelte";
   import StepNumberDragInput from "./StepNumberDragInput.svelte";
   import StepSkipIcon from "./StepSkipIcon.svelte";
@@ -27,6 +28,7 @@
    * @property {boolean} [requireSelection]
    * @property {boolean} [omitSkipMuteToggles]
    * @property {boolean} [inspectorEmbedded]
+   * @property {boolean} [shiftAvailable]
    * @property {boolean} [reverseAvailable]
    * @property {boolean} [skipActive]
    * @property {boolean} [muteActive]
@@ -35,6 +37,7 @@
    * @property {number} [lengthDelta]
    * @property {number} [transposeSemitones]
    * @property {string} [pitchAriaLabel]
+   * @property {() => void | Promise<void>} [onShift]
    * @property {() => void | Promise<void>} [onReverse]
    * @property {() => void | Promise<void>} [onShuffle]
    * @property {() => void | Promise<void>} [onRandomizeOctaves]
@@ -63,6 +66,7 @@
     requireSelection = true,
     omitSkipMuteToggles = false,
     inspectorEmbedded = false,
+    shiftAvailable = false,
     reverseAvailable = false,
     skipActive = false,
     muteActive = false,
@@ -71,6 +75,7 @@
     lengthDelta = 0,
     transposeSemitones = 0,
     pitchAriaLabel = "Bulk step pitch semitones",
+    onShift = () => {},
     onReverse = () => {},
     onShuffle = () => {},
     onRandomizeOctaves = () => {},
@@ -140,9 +145,9 @@
       : sidebarLayout
         ? omitSkipMuteToggles
           ? "flex w-full items-center gap-1"
-          : "grid w-full grid-cols-6 gap-1"
+          : "grid w-full grid-cols-7 gap-1"
         : operationsGridLayout
-          ? "grid grid-cols-3 gap-1"
+          ? "grid grid-cols-4 gap-1"
           : "flex items-center gap-1",
   );
   let labelClass = $derived(
@@ -209,6 +214,17 @@
             onclick={onToggleMute}
           >
             <StepMuteIcon class="pointer-events-none h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Shift selected steps left by row"
+            title="Shift selected steps left by row"
+            disabled={!shiftAvailable}
+            data-cursor="pointer"
+            class={actionButtonClasses(shiftAvailable, true)}
+            onclick={onShift}
+          >
+            <RowShiftOrderIcon class="pointer-events-none h-4 w-4" />
           </button>
           <button
             type="button"
@@ -281,6 +297,17 @@
         <StepMuteIcon class="pointer-events-none h-5 w-5" />
       </button>
       {/if}
+      <button
+        type="button"
+        aria-label="Shift selected steps left by row"
+        title="Shift selected steps left by row"
+        disabled={!shiftAvailable}
+        data-cursor="pointer"
+        class={actionButtonClasses(shiftAvailable)}
+        onclick={onShift}
+      >
+        <RowShiftOrderIcon class="pointer-events-none h-5 w-5" />
+      </button>
       <button
         type="button"
         aria-label="Reverse selected steps by row"

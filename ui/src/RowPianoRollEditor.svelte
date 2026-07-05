@@ -73,9 +73,11 @@
    * @property {number} [bulkLengthDelta]
    * @property {number} [bulkTransposeSemitones]
    * @property {string} [bulkPitchAriaLabel]
+   * @property {boolean} [bulkShiftAvailable]
    * @property {boolean} [bulkReverseAvailable]
    * @property {boolean} [bulkSkipActive]
    * @property {boolean} [bulkMuteActive]
+   * @property {() => void | Promise<void>} [onBulkShift]
    * @property {() => void | Promise<void>} [onBulkReverse]
    * @property {() => void | Promise<void>} [onBulkShuffle]
    * @property {() => void | Promise<void>} [onBulkRandomizeOctaves]
@@ -127,9 +129,11 @@
     bulkLengthDelta = 0,
     bulkTransposeSemitones = 0,
     bulkPitchAriaLabel = "Bulk step pitch semitones",
+    bulkShiftAvailable = false,
     bulkReverseAvailable = false,
     bulkSkipActive = false,
     bulkMuteActive = false,
+    onBulkShift = () => {},
     onBulkReverse = () => {},
     onBulkShuffle = () => {},
     onBulkRandomizeOctaves = () => {},
@@ -864,6 +868,7 @@
       requireSelection={false}
       totalStepCount={stepIds.length}
       selectedStepCount={selectedStepIds.length}
+      shiftAvailable={bulkShiftAvailable}
       reverseAvailable={bulkReverseAvailable}
       skipActive={bulkSkipActive}
       muteActive={bulkMuteActive}
@@ -872,6 +877,7 @@
       lengthDelta={bulkLengthDelta}
       transposeSemitones={bulkTransposeSemitones}
       pitchAriaLabel={bulkPitchAriaLabel}
+      onShift={onBulkShift}
       onReverse={onBulkReverse}
       onShuffle={onBulkShuffle}
       onRandomizeOctaves={onBulkRandomizeOctaves}
