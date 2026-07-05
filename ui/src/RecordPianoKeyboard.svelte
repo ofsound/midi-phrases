@@ -29,6 +29,7 @@
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {Set<number>} [heldKeys]
    * @property {(midi: number) => void} [onNotePress]
+   * @property {(midi: number) => void} [onNoteRelease]
    */
 
   /** @type {Props} */
@@ -38,7 +39,8 @@
     scaleModeIndex = 0,
     accent = emeraldRowAccent,
     heldKeys = new Set(),
-    onNotePress = () => {}
+    onNotePress = () => {},
+    onNoteRelease = () => {}
   } = $props();
 
   const scaleToneMarkerClass =
@@ -129,6 +131,7 @@
     if (!pointerHeldKeys.has(midi)) return;
 
     pointerHeldKeys.delete(midi);
+    onNoteRelease(midi);
   }
 
   function shiftOctaveDown() {
@@ -303,9 +306,9 @@
 
   <p class="mt-2 shrink-0 text-center text-[11px] text-text-faint">
     {#if chromatic}
-      Click keys or play MIDI · each note adds a 1× step · chords at the same instant are ignored
+      Click keys or play MIDI · starts on first note · stop quantizes the loop to 0.25×
     {:else}
-      Click scale keys or play MIDI · off-scale notes are ignored · chords at the same instant are ignored
+      Click scale keys or play MIDI · off-scale notes are ignored · stop quantizes the loop to 0.25×
     {/if}
   </p>
 </section>

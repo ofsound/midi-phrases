@@ -348,6 +348,54 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
     return juce::var (object.release());
 }
 
+juce::var createPhraseRowStateVar (PluginProcessor& processor,
+                                   const int row,
+                                   const bool captured)
+{
+    auto object = std::make_unique<juce::DynamicObject>();
+    object->setProperty ("captured", captured ? 1 : 0);
+    object->setProperty ("row", row);
+
+    juce::Array<juce::var> notes;
+    juce::Array<juce::var> timingMultipliers;
+    juce::Array<juce::var> durations;
+    juce::Array<juce::var> velocities;
+    juce::Array<juce::var> muted;
+    juce::Array<juce::var> skipped;
+    juce::Array<juce::var> probabilities;
+    juce::Array<juce::var> cycles;
+    juce::Array<juce::var> cycleOffsets;
+
+    if (row >= 0 && row < PluginProcessor::phraseRowCount && captured)
+    {
+        const auto count = processor.getPhraseRowStepCount (row);
+
+        for (int step = 0; step < count; ++step)
+        {
+            notes.add (processor.getPhraseNote (row, step));
+            timingMultipliers.add (processor.getPhraseStepTimingMultiplier (row, step));
+            durations.add (processor.getPhraseStepDurationFraction (row, step));
+            velocities.add (processor.getPhraseStepVelocity (row, step));
+            muted.add (processor.isPhraseStepMuted (row, step) ? 1 : 0);
+            skipped.add (processor.isPhraseStepSkipped (row, step) ? 1 : 0);
+            probabilities.add (processor.getPhraseStepProbability (row, step));
+            cycles.add (processor.getPhraseStepCycle (row, step));
+            cycleOffsets.add (processor.getPhraseStepCycleOffset (row, step));
+        }
+    }
+
+    object->setProperty ("notes", notes);
+    object->setProperty ("timingMultiplier", timingMultipliers);
+    object->setProperty ("durationFraction", durations);
+    object->setProperty ("velocity", velocities);
+    object->setProperty ("muted", muted);
+    object->setProperty ("skipped", skipped);
+    object->setProperty ("probability", probabilities);
+    object->setProperty ("cycle", cycles);
+    object->setProperty ("cycleOffset", cycleOffsets);
+    return juce::var (object.release());
+}
+
 juce::var createCurrentSlotStateVar (PluginProcessor& processor)
 {
     auto object = std::make_unique<juce::DynamicObject>();
@@ -1094,6 +1142,40 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    processor.injectPhraseRowRecordedNote (varToInt (args[0]));
 
                                complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "capturePhraseRowRecordedNoteOn",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                               {
+                                   const auto velocity =
+                                       args.size() >= 2 ? varToInt (args[1])
+                                                        : PluginProcessor::defaultStepVelocity;
+                                   processor.capturePhraseRowRecordedNoteOn (varToInt (args[0]),
+                                                                             velocity);
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "capturePhraseRowRecordedNoteOff",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.capturePhraseRowRecordedNoteOff (varToInt (args[0]));
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "finishPhraseRowRecordingCapture",
+                           [&processor] (const juce::Array<juce::var>&,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               auto row = -1;
+                               const auto captured =
+                                   processor.finishPhraseRowRecordingCapture (row);
+
+                               complete (createPhraseRowStateVar (processor, row, captured));
                            })
                        .withNativeFunction (
                            "setPhraseStepTimingMultiplier",

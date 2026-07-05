@@ -60,9 +60,9 @@
           y2="58"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0%" stop-color="var(--color-border-subtle)" />
-          <stop offset="42%" stop-color="var(--color-text-muted)" />
-          <stop offset="100%" stop-color="var(--color-border)" />
+          <stop offset="0%" stop-color="var(--svm-ring-top, var(--color-border-subtle))" />
+          <stop offset="42%" stop-color="var(--svm-ring-mid, var(--color-text-muted))" />
+          <stop offset="100%" stop-color="var(--svm-ring-bottom, var(--color-border))" />
         </linearGradient>
         <clipPath id={whiteRingClipId} clipPathUnits="userSpaceOnUse">
           <path
@@ -81,11 +81,11 @@
             y1="1.5"
             x2="1.2"
             y2="9.5"
-            stroke="var(--color-app)"
+            stroke="var(--svm-lane-stroke, var(--color-app))"
             stroke-width="0.65"
             stroke-dasharray="1.2 1.6"
             stroke-linecap="butt"
-            opacity="0.62"
+            opacity="var(--svm-lane-opacity, 0.62)"
           />
         </pattern>
       </defs>
@@ -93,11 +93,11 @@
       <g clip-path={`url(#${whiteRingClipId})`}>
         <rect x="0" y="0" width="134" height="58" fill="url(#step-view-mode-white-ring-shade)" />
         <rect x="5" y="5" width="124" height="10.5" fill={`url(#${lanePatternId})`} />
-        <line x1="5" y1="16.75" x2="129" y2="16.75" stroke="var(--color-app)" stroke-width="0.45" opacity="0.26" />
+        <line x1="5" y1="16.75" x2="129" y2="16.75" stroke="var(--svm-lane-stroke, var(--color-app))" stroke-width="0.45" opacity="var(--svm-lane-divider-opacity, 0.26)" />
         <rect x="5" y="17.25" width="124" height="10.5" fill={`url(#${lanePatternId})`} />
-        <line x1="5" y1="29" x2="129" y2="29" stroke="var(--color-app)" stroke-width="0.45" opacity="0.26" />
+        <line x1="5" y1="29" x2="129" y2="29" stroke="var(--svm-lane-stroke, var(--color-app))" stroke-width="0.45" opacity="var(--svm-lane-divider-opacity, 0.26)" />
         <rect x="5" y="29.5" width="124" height="10.5" fill={`url(#${lanePatternId})`} />
-        <line x1="5" y1="41.25" x2="129" y2="41.25" stroke="var(--color-app)" stroke-width="0.45" opacity="0.26" />
+        <line x1="5" y1="41.25" x2="129" y2="41.25" stroke="var(--svm-lane-stroke, var(--color-app))" stroke-width="0.45" opacity="var(--svm-lane-divider-opacity, 0.26)" />
         <rect x="5" y="41.75" width="124" height="10.5" fill={`url(#${lanePatternId})`} />
       </g>
     </svg>
@@ -241,5 +241,43 @@
       0 calc(3px * var(--svm)) calc(11px * var(--svm)) color-mix(in srgb, var(--color-app) 55%, transparent),
       inset 0 calc(-2px * var(--svm)) calc(5px * var(--svm))
         color-mix(in srgb, var(--color-app) 24%, transparent);
+  }
+
+  :global(:root[data-theme="light"]) .step-view-mode-root {
+    --svm-ring-top: var(--color-border-subtle);
+    --svm-ring-mid: color-mix(in srgb, var(--color-border) 38%, var(--color-border-subtle));
+    --svm-ring-bottom: var(--color-border-subtle);
+    --svm-lane-stroke: var(--color-border-subtle);
+    --svm-lane-opacity: 0.42;
+    --svm-lane-divider-opacity: 0.18;
+  }
+
+  :global(:root[data-theme="light"]) .step-view-mode-frame {
+    background-color: var(--color-border-subtle);
+    box-shadow:
+      0 calc(2px * var(--svm)) calc(6px * var(--svm)) color-mix(in srgb, var(--color-border) 14%, transparent),
+      inset 0 calc(-1px * var(--svm)) calc(3px * var(--svm))
+        color-mix(in srgb, var(--color-border-subtle) 75%, transparent);
+  }
+
+  :global(:root[data-theme="light"]) .step-view-mode-frame:focus-visible {
+    box-shadow:
+      0 0 0 calc(2px * var(--svm)) var(--color-focus-ring),
+      0 calc(2px * var(--svm)) calc(6px * var(--svm)) color-mix(in srgb, var(--color-border) 14%, transparent),
+      inset 0 calc(-1px * var(--svm)) calc(3px * var(--svm))
+        color-mix(in srgb, var(--color-border-subtle) 75%, transparent);
+  }
+
+  :global(:root[data-theme="light"]) .step-view-mode-track {
+    border-color: color-mix(in srgb, var(--color-border-subtle) 92%, transparent);
+    background-color: color-mix(in srgb, var(--color-surface-muted) 58%, var(--color-workspace));
+    box-shadow: inset 0 calc(1px * var(--svm)) calc(2px * var(--svm))
+      color-mix(in srgb, var(--color-border) 10%, transparent);
+  }
+
+  :global(:root[data-theme="light"]) .icon-slot {
+    color: color-mix(in srgb, var(--color-text-faint) 72%, transparent);
+    opacity: 0.78;
+    filter: none;
   }
 </style>

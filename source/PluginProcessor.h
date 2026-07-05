@@ -311,7 +311,14 @@ public:
     /** MIDI note numbers currently held on a controller while recording (for keyboard UI). */
     juce::Array<int> getPhraseRowRecordingKeysHeld() const;
 
-    /** Appends one captured step from the on-screen keyboard (message thread). */
+    /** Captures one on-screen keyboard note event into the active realtime recording. */
+    void capturePhraseRowRecordedNoteOn (int midiNote, int velocity);
+    void capturePhraseRowRecordedNoteOff (int midiNote);
+
+    /** Finalises the active realtime recording into row step data. */
+    bool finishPhraseRowRecordingCapture (int& rowOut);
+
+    /** Legacy one-shot step entry for older WebView bundles. */
     void injectPhraseRowRecordedNote (int midiNote);
 
     static constexpr int defaultLoopBraceStartQuarters = 0;
@@ -641,7 +648,28 @@ private:
     void clearPatternScheduleAnchor();
     double mapTransportToPatternSchedulePpq (double transportPpq) const;
     void applyMuteOutputSilence (juce::MidiBuffer& midiMessages);
-    void handleIncomingControlNotes (juce::MidiBuffer& midiMessages);
+    void handleIncomingControlNotes (juce::MidiBuffer& midiMessages,
+                                     bool transportClockAvailable,
+                                     double transportPpqStart,
+                                     double ppqPerSample);
+    void resetPhraseRowRecordingCapture();
+    void capturePhraseRowRecordedNoteEvent (int midiNote,
+                                            int velocity,
+                                            bool noteOn,
+                                            double eventMilliseconds);
+    void capturePhraseRowRecordedNoteTransportEvent (int midiNote,
+                                                     int velocity,
+                                                     bool noteOn,
+                                                     double eventPpq);
+    double recordingCaptureQuartersForMilliseconds (double eventMilliseconds) const;
+    static int timingMultiplierIndexForCaptureQuarters (double quarters);
+    void enqueueRecordingKeyboardMidiEvent (int channel, int midiNote, int velocity, bool noteOn);
+    bool tryDequeueRecordingKeyboardMidiEvent (int& channelOut,
+                                               int& midiNoteOut,
+                                               int& velocityOut,
+                                               bool& noteOnOut);
+    void drainRecordingKeyboardMidiEvents (juce::MidiBuffer& midiMessages);
+    void requestRecordingKeyboardMidiFlush();
     bool shouldApplyPendingPatternSwitch (double ppqStart, double ppqEnd) const;
     void processTransportPlaybackRange (double transportPpqStart,
                                         double transportPpqEnd,
@@ -814,6 +842,33 @@ private:
     std::atomic<int> recordingRow { -1 };
     std::atomic<int> recordingAwaitingFirstNote { 0 };
     std::array<std::atomic<int>, 128> recordingKeysHeld {};
+    struct RecordingCaptureEvent
+    {
+        std::atomic<int> ready { 0 };
+        std::atomic<int> note { -1 };
+        std::atomic<int> velocity { defaultStepVelocity };
+        std::atomic<double> startQuarters { 0.0 };
+        std::atomic<double> endQuarters { 0.0 };
+        std::atomic<int> active { 0 };
+    };
+
+    std::array<RecordingCaptureEvent, maxPhraseStepsPerRow> recordingCaptureEvents {};
+    std::atomic<int> recordingCaptureCount { 0 };
+    std::atomic<double> recordingCaptureStartMilliseconds { -1.0 };
+    std::atomic<double> recordingCaptureTempoBpm { 120.0 };
+    std::atomic<int> recordingCaptureClockMode { 0 };
+    std::atomic<double> latestRecordingTempoBpm { 120.0 };
+    std::atomic<double> latestRecordingTransportPpq { -1.0 };
+    std::atomic<int> recordingActiveEventIndex { -1 };
+    static constexpr int recordingKeyboardMidiQueueCapacity = 128;
+    std::array<int, recordingKeyboardMidiQueueCapacity> recordingKeyboardMidiChannels {};
+    std::array<int, recordingKeyboardMidiQueueCapacity> recordingKeyboardMidiNotes {};
+    std::array<int, recordingKeyboardMidiQueueCapacity> recordingKeyboardMidiVelocities {};
+    std::array<int, recordingKeyboardMidiQueueCapacity> recordingKeyboardMidiNoteOns {};
+    std::atomic<int> recordingKeyboardMidiQueueWrite { 0 };
+    std::atomic<int> recordingKeyboardMidiQueueRead { 0 };
+    std::atomic<int> recordingKeyboardMidiFlushRequested { 0 };
+    std::array<std::array<int, 128>, 16> activeRecordingKeyboardNoteCounts {};
 
 #if JUCE_WEB_BROWSER
     std::function<void (const juce::String&)> webHostCursorHandler;

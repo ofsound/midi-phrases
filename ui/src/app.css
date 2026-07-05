@@ -351,11 +351,12 @@
 
   :root[data-theme="light"] .combination-mode-rail,
   :root[data-theme="light"] .mp-honeycomb-rail {
-    --honeycomb-cell-tint: var(--color-border);
-    --honeycomb-cell-opacity: 0.22;
-    --honeycomb-line-tint: linear-gradient(282deg, var(--color-text-secondary) 0%, var(--color-text-faint) 34%, var(--color-text-muted) 62%, var(--color-border) 100%);
-    --honeycomb-line-opacity: 0.16;
-    background-color: var(--color-shell);
+    --honeycomb-cell-opacity: 0;
+    --honeycomb-line-tint: var(--color-border-subtle);
+    --honeycomb-line-opacity: 0.55;
+    background-color: var(--color-workspace);
+    border-top-color: color-mix(in srgb, var(--color-border-subtle) 90%, transparent);
+    border-bottom-color: color-mix(in srgb, var(--color-border-subtle) 90%, transparent);
   }
 
   .combination-mode-rail-layout {

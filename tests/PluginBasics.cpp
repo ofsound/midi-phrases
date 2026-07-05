@@ -236,6 +236,84 @@ std::vector<std::pair<int, int>> collectNoteOnEvents (PluginProcessor& testPlugi
 }
 }
 
+TEST_CASE ("MIDI recording captures transport quantized rhythm and gates", "[recording]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 1000.0;
+    constexpr int blockSize = 1000;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPhraseRowRecording (0);
+
+    struct PlayHeadMock : juce::AudioPlayHead
+    {
+        juce::AudioPlayHead::PositionInfo info;
+
+        juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+        {
+            return info;
+        }
+    } playHead;
+
+    playHead.info.setBpm (60.0);
+    playHead.info.setIsPlaying (true);
+    playHead.info.setPpqPosition (10.0);
+    testPlugin.setPlayHead (&playHead);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 60, static_cast<juce::uint8> (96)), 0);
+    midi.addEvent (juce::MidiMessage::noteOff (1, 60), 250);
+    midi.addEvent (juce::MidiMessage::noteOn (1, 62, static_cast<juce::uint8> (88)), 500);
+    midi.addEvent (juce::MidiMessage::noteOff (1, 62), 750);
+
+    testPlugin.processBlock (buffer, midi);
+
+    auto capturedRow = -1;
+    REQUIRE (testPlugin.finishPhraseRowRecordingCapture (capturedRow));
+    REQUIRE (capturedRow == 0);
+    REQUIRE (testPlugin.getPhraseRowStepCount (0) == 2);
+    CHECK (testPlugin.getPhraseNote (0, 0) == 60);
+    CHECK (testPlugin.getPhraseNote (0, 1) == 62);
+    CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 0) == 1);
+    CHECK (testPlugin.getPhraseStepTimingMultiplier (0, 1) == 1);
+    CHECK (testPlugin.getPhraseStepDurationFraction (0, 0) == Catch::Approx (0.5));
+    CHECK (testPlugin.getPhraseStepDurationFraction (0, 1) == Catch::Approx (0.5));
+    CHECK (testPlugin.getPhraseStepVelocity (0, 0) == 96);
+    CHECK (testPlugin.getPhraseStepVelocity (0, 1) == 88);
+
+    testPlugin.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Built-in record keyboard emits exact MIDI notes in realtime", "[recording]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setCurrentPatternSlot (0);
+    testPlugin.setPhraseRowMidiChannel (0, 3);
+    testPlugin.setPhraseRowRecording (0);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    testPlugin.capturePhraseRowRecordedNoteOn (64, 91);
+    testPlugin.processBlock (buffer, midi);
+
+    CHECK (findNoteOnSampleOnChannel (midi, 64, 3) == 0);
+
+    midi.clear();
+    testPlugin.capturePhraseRowRecordedNoteOff (64);
+    testPlugin.processBlock (buffer, midi);
+
+    CHECK (findNoteOffSampleOnChannel (midi, 64, 3) == 0);
+}
+
 TEST_CASE ("Echo mode follows pattern scale", "[instance]")
 {
     PluginProcessor testPlugin;

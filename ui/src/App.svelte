@@ -318,6 +318,7 @@
   let recordingCapturedNotes = false;
   /** Clears the row on the next captured note. */
   let recordingAwaitingFirstNote = false;
+  let recordingCaptureNativePromise = Promise.resolve();
   /** @type {Set<number>} */
   let recordingKeysHeld = $state(new Set());
 
@@ -4977,6 +4978,49 @@
 
   }
 
+  function applyCapturedRecordingRow(row, state) {
+    const notes = Array.isArray(state?.notes) ? state.notes.map((value) => clampPhraseNote(value)) : [];
+
+    grid[row] = notes;
+    stepTimingMultiplier[row] = Array.isArray(state?.timingMultiplier)
+      ? state.timingMultiplier.map((value) =>
+          Math.min(
+            stepTimingMultiplierCount - 1,
+            Math.max(0, Number.parseInt(String(value), 10)),
+          ),
+        )
+      : notes.map(() => defaultStepTimingMultiplierIndex);
+    stepDurationFraction[row] = Array.isArray(state?.durationFraction)
+      ? state.durationFraction.map((value) =>
+          Math.min(1, Math.max(0, Number.parseFloat(String(value)))),
+        )
+      : notes.map(() => defaultStepDurationFraction);
+    stepVelocity[row] = Array.isArray(state?.velocity)
+      ? state.velocity.map((value) =>
+          Math.min(127, Math.max(0, Number.parseInt(String(value), 10))),
+        )
+      : notes.map(() => defaultStepVelocity);
+    stepMuted[row] = Array.isArray(state?.muted)
+      ? state.muted.map((value) => Boolean(Number.parseInt(String(value), 10)))
+      : notes.map(() => false);
+    stepSkipped[row] = Array.isArray(state?.skipped)
+      ? state.skipped.map((value) => Boolean(Number.parseInt(String(value), 10)))
+      : notes.map(() => false);
+    stepProbability[row] = Array.isArray(state?.probability)
+      ? state.probability.map((value) =>
+          Math.min(100, Math.max(0, Number.parseInt(String(value), 10))),
+        )
+      : notes.map(() => defaultStepProbabilityValue);
+    stepCycle[row] = Array.isArray(state?.cycle)
+      ? state.cycle.map((value) => Math.min(64, Math.max(1, Number.parseInt(String(value), 10))))
+      : notes.map(() => 1);
+    stepCycleOffset[row] = Array.isArray(state?.cycleOffset)
+      ? state.cycleOffset.map((value) => Number.parseInt(String(value), 10))
+      : notes.map(() => defaultStepCycleMask);
+    stepIds[row] = notes.map(() => createStepId());
+    activeGates[row] = notes.map(() => false);
+  }
+
   async function disarmRowRecordingNative() {
     if (nativeFunctionAvailable("setPhraseRowRecording")) {
       await getNativeFunction("setPhraseRowRecording")(-1);
@@ -4989,6 +5033,7 @@
     recordingRow = null;
     recordingAwaitingFirstNote = false;
     recordingCapturedNotes = false;
+    recordingCaptureNativePromise = Promise.resolve();
     recordingKeysHeld = new Set();
 
     await disarmRowRecordingNative();
@@ -5017,10 +5062,28 @@
     recordingHistoryBefore = createHistorySnapshot();
     recordingCapturedNotes = false;
     recordingAwaitingFirstNote = true;
+    recordingCaptureNativePromise = Promise.resolve();
+    applyCapturedRecordingRow(row, { notes: [] });
 
     if (nativeFunctionAvailable("setPhraseRowRecording")) {
       await getNativeFunction("setPhraseRowRecording")(row);
     }
+
+    await pushCurrentPhraseRow(row);
+  }
+
+  function queueRecordingCaptureNative(name, ...args) {
+    recordingCaptureNativePromise = recordingCaptureNativePromise
+      .then(async () => {
+        if (nativeFunctionAvailable(name)) {
+          await getNativeFunction(name)(...args);
+        }
+      })
+      .catch(() => {
+        // Native bridge unavailable during teardown.
+      });
+
+    return recordingCaptureNativePromise;
   }
 
   async function finishRowRecording() {
@@ -5028,23 +5091,41 @@
 
     const row = recordingRow;
     const before = recordingHistoryBefore;
-    const hadNotes = recordingCapturedNotes;
+    let captureResult = null;
+    let hadNotes = false;
+
+    if (nativeFunctionAvailable("finishPhraseRowRecordingCapture")) {
+      await recordingCaptureNativePromise;
+      captureResult = await getNativeFunction("finishPhraseRowRecordingCapture")();
+      hadNotes = Boolean(
+        Number.parseInt(String(captureResult?.captured ?? 0), 10),
+      );
+
+      if (hadNotes) {
+        const capturedRow = Number.parseInt(String(captureResult?.row ?? row), 10);
+        applyCapturedRecordingRow(
+          Number.isNaN(capturedRow) ? row : capturedRow,
+          captureResult,
+        );
+      }
+    } else {
+      hadNotes = recordingCapturedNotes;
+      await disarmRowRecordingNative();
+    }
 
     recordingRow = null;
     recordingAwaitingFirstNote = false;
     recordingCapturedNotes = false;
+    recordingCaptureNativePromise = Promise.resolve();
     recordingHistoryBefore = null;
     recordingKeysHeld = new Set();
-
-    await disarmRowRecordingNative();
 
     if (hadNotes && before !== null) {
       const after = createHistorySnapshot();
       pushHistoryEntry("Record row", before, after);
     } else if (before !== null) {
-      assignSnapshot(before);
-      const previousSnapshot = createHistorySnapshot();
-      await syncSnapshotToNative(before, previousSnapshot);
+      const after = createHistorySnapshot();
+      pushHistoryEntry("Clear row", before, after);
     }
   }
 
@@ -5075,38 +5156,39 @@
                   isMidiInScale(midi, scaleRoot, scaleModeIndex)),
             ),
         );
+
+        if (recordingKeysHeld.size > 0) {
+          recordingAwaitingFirstNote = false;
+          recordingCapturedNotes = true;
+        }
       } catch {
         // Native bridge unavailable during teardown.
       }
     }
 
-    if (!nativeFunctionAvailable("drainPhraseRowRecordedNotes")) {
-      return;
-    }
-
-    try {
-      const drained = await getNativeFunction("drainPhraseRowRecordedNotes")();
-      const notes = Array.isArray(drained) ? drained : [];
-
-      for (const raw of notes) {
-        const midi = Number.parseInt(String(raw), 10);
-
-        if (Number.isNaN(midi)) continue;
-        if (!isChromaticScaleMode(scaleModeIndex) && !isMidiInScale(midi, scaleRoot, scaleModeIndex)) {
-          continue;
-        }
-
-        applyRecordedNoteToUiRow(recordingRow, midi);
-        recordingCapturedNotes = true;
-      }
-    } catch {
-      // Native bridge unavailable during teardown.
-    }
   }
 
   /** @param {number} midi */
   function onRecordPianoNotePress(midi) {
-    void commitRecordedNote(midi);
+    recordingAwaitingFirstNote = false;
+    recordingCapturedNotes = true;
+
+    if (nativeFunctionAvailable("capturePhraseRowRecordedNoteOn")) {
+      void queueRecordingCaptureNative(
+        "capturePhraseRowRecordedNoteOn",
+        midi,
+        defaultStepVelocity,
+      );
+    } else {
+      void commitRecordedNote(midi);
+    }
+  }
+
+  /** @param {number} midi */
+  function onRecordPianoNoteRelease(midi) {
+    if (nativeFunctionAvailable("capturePhraseRowRecordedNoteOff")) {
+      void queueRecordingCaptureNative("capturePhraseRowRecordedNoteOff", midi);
+    }
   }
 
   async function pollPlaybackActivityFrame() {
@@ -6420,8 +6502,8 @@
                   style:height="{rowHeaderRecordIconSizePx}px"
                   onclick={() => toggleRowRecording(row)}
                   title={recordingRow === row
-                    ? "Stop recording (notes fill this row as 1× steps)"
-                    : "Record row from MIDI keyboard (first note replaces row)"}
+                    ? "Stop recording and quantize the loop into this row"
+                    : "Record a loop from MIDI keyboard into this row"}
                 >
                   <RowRecordIcon
                     compact
@@ -6768,6 +6850,7 @@
         accent={rowAccentFor(recordingRow, rowColorsEnabled)}
         heldKeys={recordingKeysHeld}
         onNotePress={onRecordPianoNotePress}
+        onNoteRelease={onRecordPianoNoteRelease}
       />
     {:else}
       <PianoRollPreview
