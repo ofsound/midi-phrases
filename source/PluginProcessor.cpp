@@ -4569,6 +4569,7 @@ bool PluginProcessor::finishPhraseRowRecordingCapture (int& rowOut)
                            probability,
                            cycle,
                            cycleOffset);
+    requestSchedulePhaseReset();
     resetPhraseRowRecordingCapture();
     recordQueueWrite.store (0, std::memory_order_release);
     recordQueueRead.store (0, std::memory_order_release);

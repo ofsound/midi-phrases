@@ -284,6 +284,12 @@ TEST_CASE ("MIDI recording captures transport quantized rhythm and gates", "[rec
     CHECK (testPlugin.getPhraseStepVelocity (0, 0) == 96);
     CHECK (testPlugin.getPhraseStepVelocity (0, 1) == 88);
 
+    midi.clear();
+    playHead.info.setPpqPosition (11.0);
+    testPlugin.processBlock (buffer, midi);
+
+    CHECK (findNoteOnSampleOnChannel (midi, 60, 1) == 0);
+
     testPlugin.setPlayHead (nullptr);
 }
 
