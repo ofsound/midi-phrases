@@ -6372,7 +6372,46 @@
       <div class="h-[2.125rem] w-px shrink-0 self-center bg-border-strong"></div>
     </div>
 
-    <div class="flex min-w-0 flex-1 items-center gap-x-1.5">
+    <div class="flex min-w-0 flex-1 items-center gap-x-3">
+      <div class="flex shrink-0 items-stretch gap-1.5">
+        <button
+          type="button"
+          aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
+          aria-pressed={scaleDialogOpen}
+          title={activeScaleName}
+          data-cursor="pointer"
+          class="flex min-w-[6.25rem] shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface/30 px-1.5 py-1.5 text-center outline-none transition-[border-color,opacity] hover:border-border-strong hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
+          onclick={() => {
+            scaleDialogOpen = true;
+          }}
+        >
+          <span
+            class="pointer-events-none text-[1.5rem] font-bold leading-[0.85] tracking-tight text-text"
+            >{activeKeyCenterLabel}</span
+          >
+          <span
+            class="pointer-events-none max-w-[6.25rem] truncate text-xs font-semibold leading-none text-accent"
+            >{activeScaleModeLabel}</span
+          >
+        </button>
+        <button
+          type="button"
+          aria-label={`${seedModeActive ? "Leave" : "Enter"} seed mode for pattern ${activePatternSlot >= 0 ? activePatternSlot + 1 : viewPatternSlot + 1} in ${activeScaleName}`}
+          aria-pressed={seedModeActive}
+          title={seedModeActive ? "Leave seed mode" : "Enter seed mode"}
+          disabled={projectOperationBusy}
+          data-cursor="pointer"
+          class="flex w-12 shrink-0 items-center justify-center self-stretch rounded-md border outline-none transition-colors focus-visible:ring-1 focus-visible:ring-focus-ring disabled:opacity-40 {seedModeActive
+            ? 'border-accent bg-accent text-control-primary-text shadow-accent-selection'
+            : 'border-border bg-surface/30 text-accent hover:border-border-strong'}"
+          onclick={() => {
+            void toggleSeedMode();
+          }}
+        >
+          <SaplingIcon class="pointer-events-none h-8 w-8" />
+        </button>
+      </div>
+
       <div class="shrink-0">
         <BulkStepEditControls
           compact
@@ -6406,47 +6445,6 @@
           onTransposePreview={previewBulkTransposeSemitones}
           onTransposeCommit={commitBulkTransposeSemitones}
         />
-      </div>
-
-      <div class="min-w-0 flex-1" aria-hidden="true"></div>
-
-      <div class="flex shrink-0 items-stretch gap-1.5">
-        <button
-          type="button"
-          aria-label={`${seedModeActive ? "Leave" : "Enter"} seed mode for pattern ${activePatternSlot >= 0 ? activePatternSlot + 1 : viewPatternSlot + 1} in ${activeScaleName}`}
-          aria-pressed={seedModeActive}
-          title={seedModeActive ? "Leave seed mode" : "Enter seed mode"}
-          disabled={projectOperationBusy}
-          data-cursor="pointer"
-          class="flex w-12 shrink-0 items-center justify-center self-stretch rounded-md border outline-none transition-colors focus-visible:ring-1 focus-visible:ring-focus-ring disabled:opacity-40 {seedModeActive
-            ? 'border-accent bg-accent text-control-primary-text shadow-accent-selection'
-            : 'border-border bg-surface/30 text-accent hover:border-border-strong'}"
-          onclick={() => {
-            void toggleSeedMode();
-          }}
-        >
-          <SaplingIcon class="pointer-events-none h-8 w-8" />
-        </button>
-        <button
-          type="button"
-          aria-label={`Scale mode, ${activeScaleName}. Click to edit.`}
-          aria-pressed={scaleDialogOpen}
-          title={activeScaleName}
-          data-cursor="pointer"
-          class="flex min-w-[6.25rem] shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface/30 px-1.5 py-1.5 text-center outline-none transition-[border-color,opacity] hover:border-border-strong hover:opacity-90 focus-visible:ring-1 focus-visible:ring-focus-ring"
-          onclick={() => {
-            scaleDialogOpen = true;
-          }}
-        >
-          <span
-            class="pointer-events-none text-[1.5rem] font-bold leading-[0.85] tracking-tight text-text"
-            >{activeKeyCenterLabel}</span
-          >
-          <span
-            class="pointer-events-none max-w-[6.25rem] truncate text-xs font-semibold leading-none text-accent"
-            >{activeScaleModeLabel}</span
-          >
-        </button>
       </div>
 
       <div class="flex shrink-0 items-center gap-1">
@@ -6629,7 +6627,7 @@
                 </div>
               </div>
               <div
-                class="pointer-events-none absolute right-1.5 bottom-1.5 z-[1] flex items-end gap-2"
+                class="pointer-events-none absolute bottom-[14px] left-[26px] z-[1] flex items-end gap-2"
               >
                 <button
                   type="button"

@@ -201,6 +201,22 @@ bool isCombinationGestureAnchor (const double ppq,
     return phase <= anchorWindow + epsilon;
 }
 
+double quantizedCanonDelayQuarters (const double gesturePulseQuarters,
+                                    const int activeRowCount,
+                                    const double pulseQuarters)
+{
+    constexpr auto epsilon = 1.0e-9;
+
+    const auto rawDelay =
+        gesturePulseQuarters / static_cast<double> (juce::jmax (1, activeRowCount));
+    const auto grid = pulseQuarters * PluginProcessor::stepTimingMultiplierQuarterStep;
+
+    if (grid <= epsilon)
+        return rawDelay;
+
+    return juce::jmax (grid, std::round (rawDelay / grid) * grid);
+}
+
 int clampPercent (const int percent)
 {
     return juce::jlimit (0, PluginProcessor::maxPercentValue, percent);
@@ -5868,7 +5884,8 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
             combinedWorkingEvents[index] = combinedEvents[index];
 
         auto write = originalCount;
-        const auto canonDelay = combinationGesturePulse / static_cast<double> (activeRowCount);
+        const auto canonDelay =
+            quantizedCanonDelayQuarters (combinationGesturePulse, activeRowCount, pulse);
 
         for (size_t read = 0; read < originalCount && write < modeExpansionCap; ++read)
         {

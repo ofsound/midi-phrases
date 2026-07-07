@@ -1071,14 +1071,29 @@
   }
 
   .seed-param-value--reshuffle {
-    border: 0;
-    background: transparent;
+    min-height: 1.35rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 46%, var(--color-border-subtle));
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
     cursor: pointer;
-    transition: color 120ms ease, opacity 120ms ease;
+    outline: none;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      box-shadow 120ms ease,
+      color 120ms ease,
+      opacity 120ms ease;
   }
 
   .seed-param-value--reshuffle:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--color-accent) 72%, white);
+    background-color: color-mix(in srgb, var(--color-accent) 14%, transparent);
     color: color-mix(in srgb, var(--color-accent) 82%, white);
+  }
+
+  .seed-param-value--reshuffle:focus-visible {
+    border-color: var(--color-focus-ring);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-focus-ring) 72%, transparent);
   }
 
   .seed-param-value--reshuffle:disabled {

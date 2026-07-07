@@ -14,7 +14,7 @@ import {
   transposeMidiByScaleDegrees,
 } from "./scaleUtils.js";
 import {cycleGatePasses} from "./cyclePattern.js";
-import {timingMultiplierAtIndex, timingOffsetValues} from "./stepCellLayout.js";
+import {stepTimingMultiplierQuarterStep, timingMultiplierAtIndex, timingOffsetValues} from "./stepCellLayout.js";
 
 export const DEFAULT_PREVIEW_LENGTH_QUARTERS = 300;
 
@@ -30,6 +30,21 @@ const HOCKET_MINIMUM_SLICE_OVERLAP_FRACTION = 0.5;
  */
 function combinationGestureGridQuarters(pulseQuarters) {
   return Math.max(pulseQuarters, COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR) * 0.25;
+}
+
+/**
+ * @param {number} gesturePulseQuarters
+ * @param {number} activeRowCount
+ * @param {number} pulseQuarters
+ * @returns {number}
+ */
+function quantizedCanonDelayQuarters(gesturePulseQuarters, activeRowCount, pulseQuarters) {
+  const rawDelay = gesturePulseQuarters / Math.max(1, activeRowCount);
+  const grid = pulseQuarters * stepTimingMultiplierQuarterStep;
+
+  if (grid <= EPSILON) return rawDelay;
+
+  return Math.max(grid, Math.round(rawDelay / grid) * grid);
 }
 const UNISON_OVERLAP_WINDOW_QUARTERS = 1 / 96;
 const DEFAULT_PREVIEW_WINDOW_LOOKBACK_QUARTERS = 64;
@@ -1349,7 +1364,8 @@ function applyCombinationModes({
   }
 
   if (combinationModeEnabled(combinationModeMask, 7) && activeRows.length > 1) {
-    const combinationGesturePulse = Math.max(pulseQuartersForIndex(pulseIndex), COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR);
+    const pulseQuarters = pulseQuartersForIndex(pulseIndex);
+    const combinationGesturePulse = Math.max(pulseQuarters, COMBINATION_GESTURE_PULSE_QUARTERS_FLOOR);
     events = addCanonFollowers(
       events,
       activeRows,
@@ -1357,7 +1373,7 @@ function applyCombinationModes({
       rowMidiChannel,
       scaleRoot,
       scaleModeIndex,
-      combinationGesturePulse / activeRows.length,
+      quantizedCanonDelayQuarters(combinationGesturePulse, activeRows.length, pulseQuarters),
       lengthQuarters,
       modeExpansionCap,
     );
