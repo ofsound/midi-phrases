@@ -2,7 +2,7 @@
   /**
    * Combination-mode glyphs (Cross-Mod, Canon, Retro-Inv, Hocket, Tendril, Echo, Weave).
    *
-   * @typedef {'crossMod' | 'canon' | 'retroInv' | 'hocket' | 'tendril' | 'echo' | 'weave'} CombinationModeIconKind
+   * @typedef {'crossMod' | 'canon' | 'retroInv' | 'hocket' | 'tendril' | 'echo' | 'weave' | 'snare'} CombinationModeIconKind
    * @typedef {Object} Props
    * @property {CombinationModeIconKind} kind
    * @property {string} [class]
@@ -150,6 +150,49 @@
     <circle cx="11.75" cy="8.7" r="1.25" fill="currentColor" opacity="0.72" />
     <circle cx="16.55" cy="13.45" r="1.35" fill="currentColor" />
     <circle cx="20" cy="10.75" r="1.25" fill="currentColor" opacity="0.58" />
+  {:else if kind === "snare"}
+    <!-- Row output locked to adjacent drum notes. -->
+    <path
+      d="M5.2 8.25 H18.8 L17.75 17.25 H6.25 Z"
+      stroke="currentColor"
+      stroke-width="1.35"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M6.45 10.45 H17.55"
+      stroke="currentColor"
+      stroke-width="1.1"
+      stroke-linecap="round"
+      opacity="0.62"
+    />
+    <path
+      d="M8.25 14.9 L15.75 11.65"
+      stroke="currentColor"
+      stroke-width="1.05"
+      stroke-linecap="round"
+      opacity="0.62"
+    />
+    <path
+      d="M8.25 11.65 L15.75 14.9"
+      stroke="currentColor"
+      stroke-width="1.05"
+      stroke-linecap="round"
+      opacity="0.62"
+    />
+    <path
+      d="M8 6.3 L4.6 3.85"
+      stroke="currentColor"
+      stroke-width="1.15"
+      stroke-linecap="round"
+    />
+    <path
+      d="M16 6.3 L19.4 3.85"
+      stroke="currentColor"
+      stroke-width="1.15"
+      stroke-linecap="round"
+    />
+    <circle cx="4.25" cy="3.6" r="1.05" fill="currentColor" />
+    <circle cx="19.75" cy="3.6" r="1.05" fill="currentColor" />
   {:else if kind === "echo"}
     <!-- One carrier event multiplied into staggered, fading repeats. -->
     <path

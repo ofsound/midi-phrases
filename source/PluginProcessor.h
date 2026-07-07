@@ -138,6 +138,10 @@ public:
 
     void setPatternGlobalTransposeSemitones (int semitones);
     int getPatternGlobalTransposeSemitones (int patternSlot) const;
+    static constexpr int drumRowPitchLockBaseMidi = 36; // C1
+    static int drumRowPitchLockNoteForRow (int row);
+    void setPatternDrumRowPitchLockEnabled (bool enabled);
+    bool isPatternDrumRowPitchLockEnabled (int patternSlot) const;
 
     static constexpr int defaultOctavizerRelativeVelocity = 0;
     static constexpr int minOctavizerRelativeVelocity = -127;
@@ -304,14 +308,27 @@ public:
                                  const std::array<int, maxPhraseStepsPerRow>& cycle,
                                  const std::array<int, maxPhraseStepsPerRow>& cycleOffset);
 
+    enum class RecordingMode
+    {
+        autoSelect = 0,
+        loopOverdub = 1,
+        starter = 2
+    };
+
     /** Arm row for MIDI capture ({@code row} -1 disarms). Only one row at a time. */
-    void setPhraseRowRecording (int row, int cycleLengthPulses = -1);
+    void setPhraseRowRecording (int row,
+                                int cycleLengthPulses = -1,
+                                RecordingMode mode = RecordingMode::autoSelect);
     int getPhraseRowRecording() const;
+    RecordingMode getPhraseRowRecordingMode() const;
     void setPhraseRowRecordingCycleLength (int cycleLengthPulses);
     int getPhraseRowRecordingCycleLength() const;
     int getPatternRecordCycleLengthPulses (int patternSlot, int row) const;
     void setPatternRecordCycleLengthPulses (int patternSlot, int row, int cycleLengthPulses);
     double getPhraseRowRecordingProgress() const;
+    double getPhraseRowRecordingElapsedSeconds() const;
+    double getLastRecordingSuggestedTempoBpm() const;
+    double getLastRecordingAppliedTempoBpm() const;
 
     /** Drains captured notes since the last call and applies them to the armed row. */
     juce::Array<int> drainPhraseRowRecordedNotes();
@@ -388,6 +405,9 @@ public:
     bool isStandaloneTransportPlaying() const;
     void setStandaloneTempoBpm (double bpm);
     double getStandaloneTempoBpm() const;
+#if RUN_PAMPLEJUCE_TESTS
+    void setStandaloneTransportAvailableForTests (bool available);
+#endif
 
     bool hasActiveGeneratedNotes() const;
     void appendGeneratedNotePanicMessages (juce::MidiBuffer& midiMessages);
@@ -485,6 +505,7 @@ private:
         int velocityTiltPivotMidi = defaultVelocityTiltPivotMidi;
         int velocityTiltAmount = defaultVelocityTiltAmount;
         int globalTransposeSemitones = defaultGlobalTransposeSemitones;
+        int drumRowPitchLockEnabled = 0;
         int octavizerDown8vaEnabled = 0;
         int octavizerUp8vaEnabled = 0;
         int octavizerDown8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
@@ -537,6 +558,7 @@ private:
             SetPatternVelocityTiltPivotMidi,
             SetPatternVelocityTiltAmount,
             SetPatternGlobalTransposeSemitones,
+            SetPatternDrumRowPitchLockEnabled,
             SetPatternOctavizerDown8vaEnabled,
             SetPatternOctavizerUp8vaEnabled,
             SetPatternOctavizerDown8vaRelativeVelocity,
@@ -675,15 +697,14 @@ private:
     double recordingLoopLengthQuarters() const;
     double recordingLoopPhaseForPpq (double ppq) const;
     double recordingCurrentTransportPpq() const;
-    void capturePhraseRowRecordedNoteEvent (int midiNote,
-                                            int velocity,
-                                            bool noteOn,
-                                            double eventMilliseconds);
+    void capturePhraseRowStarterEvent (int midiNote,
+                                       int velocity,
+                                       bool noteOn,
+                                       double eventSeconds);
     void capturePhraseRowRecordedNoteTransportEvent (int midiNote,
                                                      int velocity,
                                                      bool noteOn,
                                                      double eventPpq);
-    double recordingCaptureQuartersForMilliseconds (double eventMilliseconds) const;
     static int timingMultiplierIndexForCaptureQuarters (double quarters);
     void capturePhraseRowRecordedLoopEvent (int midiNote, int velocity, bool noteOn, double eventPpq);
     void enqueueRecordingLoopSpan (int row,
@@ -701,6 +722,9 @@ private:
                                       int velocity,
                                       double startQuarters,
                                       double endQuarters);
+    bool applyStarterRecordingCaptureToRow (int row, double stopSeconds);
+    bool recordingTransportClockAvailable() const;
+    double recordingCurrentCaptureSeconds() const;
     void enqueueRecordingKeyboardMidiEvent (int channel, int midiNote, int velocity, bool noteOn);
     bool tryDequeueRecordingKeyboardMidiEvent (int& channelOut,
                                                int& midiNoteOut,
@@ -863,6 +887,9 @@ private:
     std::atomic<int> standaloneTransportResetRequested { 0 };
     std::atomic<double> standaloneTempoBpm { 120.0 };
     std::atomic<double> standaloneTransportPpqPosition { 0.0 };
+#if RUN_PAMPLEJUCE_TESTS
+    std::atomic<int> standaloneTransportAvailableForTests { 0 };
+#endif
     juce::String projectName { "Untitled Project" };
     juce::String projectDescription;
     juce::String projectCreatedAt;
@@ -888,16 +915,20 @@ private:
         std::atomic<int> ready { 0 };
         std::atomic<int> note { -1 };
         std::atomic<int> velocity { defaultStepVelocity };
-        std::atomic<double> startQuarters { 0.0 };
-        std::atomic<double> endQuarters { 0.0 };
+        std::atomic<double> startSeconds { 0.0 };
+        std::atomic<double> endSeconds { 0.0 };
         std::atomic<int> active { 0 };
     };
 
     std::array<RecordingCaptureEvent, maxPhraseStepsPerRow> recordingCaptureEvents {};
     std::atomic<int> recordingCaptureCount { 0 };
-    std::atomic<double> recordingCaptureStartMilliseconds { -1.0 };
+    std::atomic<double> recordingCaptureStartSeconds { -1.0 };
+    std::atomic<double> recordingCaptureStopSeconds { -1.0 };
     std::atomic<double> recordingCaptureTempoBpm { 120.0 };
-    std::atomic<int> recordingCaptureClockMode { 0 };
+    std::atomic<int> recordingMode { static_cast<int> (RecordingMode::loopOverdub) };
+    std::atomic<double> recordingTimelineSeconds { 0.0 };
+    std::atomic<double> lastRecordingSuggestedTempoBpm { 0.0 };
+    std::atomic<double> lastRecordingAppliedTempoBpm { 0.0 };
     std::atomic<double> latestRecordingTempoBpm { 120.0 };
     std::atomic<double> latestRecordingTransportPpq { -1.0 };
     std::atomic<int> recordingActiveEventIndex { -1 };

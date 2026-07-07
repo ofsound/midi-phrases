@@ -103,6 +103,7 @@
     clampGlobalTransposeSemitones,
     defaultGlobalTransposeSemitones,
   } from "./globalTranspose.js";
+  import { defaultDrumRowPitchLockEnabled } from "./drumRowPitchLock.js";
   import {
     combinationModeMaskBits,
     combinationModes,
@@ -291,9 +292,11 @@
 
   let playbackPollTimerId = 0;
   let playbackPollInFlight = false;
+  let playbackPollStartedAtMs = 0;
   /** Poll slot/recording native state every N playback frames (~4 Hz at 16 ms). */
   let playbackSlowPollCounter = 0;
   const playbackSlowPollInterval = 15;
+  const playbackPollStallMs = 250;
   let slotSelectionInFlight = 0;
   let previousGateSnapshot = defaultPhraseGrid().map((row) => row.map(() => false));
   let activeGateHoldUntil = defaultPhraseGrid().map((row) => row.map(() => 0));
@@ -308,7 +311,11 @@
   let recordingRow = $state(null);
   /** Per-row loop length used by MIDI/keyboard record overdub. */
   let recordCycleLengthPulses = $state([16, 16, 16, 16]);
+  let recordingMode = $state("loop");
   let recordingProgress = $state(0);
+  let recordingElapsedSeconds = $state(0);
+  let recordingSuggestedTempoBpm = $state(0);
+  let recordingAppliedTempoBpm = $state(0);
   /** Step shown in the lower inspector panel, or null. */
   /** @type {{ row: number, stepId: string } | null} */
   let inspectedStep = $state(null);
@@ -373,6 +380,7 @@
   let velocityTiltPivotMidi = $state(defaultVelocityTiltPivotMidi);
   let velocityTiltAmount = $state(defaultVelocityTiltAmount);
   let globalTransposeSemitones = $state(defaultGlobalTransposeSemitones);
+  let drumRowPitchLockEnabled = $state(defaultDrumRowPitchLockEnabled);
   let octavizerDown8vaEnabled = $state(false);
   let octavizerUp8vaEnabled = $state(false);
   let octavizerDown8vaRelativeVelocity = $state(defaultOctavizerRelativeVelocity);
@@ -667,6 +675,10 @@
     globalTransposeSemitones = clampGlobalTransposeSemitones(value);
   }
 
+  function setDrumRowPitchLockState(enabled) {
+    drumRowPitchLockEnabled = Boolean(enabled);
+  }
+
   function setShimmerState({
     enabled = shimmerEnabled,
     delayMultiplierIndex = shimmerDelayMultiplierIndex,
@@ -710,6 +722,17 @@
     const parsed = Number.parseInt(String(confirmed), 10);
 
     if (!Number.isNaN(parsed)) setGlobalTransposeState(parsed);
+  }
+
+  async function syncDrumRowPitchLockToNative() {
+    if (!nativeFunctionAvailable("setPatternDrumRowPitchLockEnabled")) return;
+
+    const confirmed = await getNativeFunction("setPatternDrumRowPitchLockEnabled")(
+      drumRowPitchLockEnabled ? 1 : 0,
+    );
+    const parsed = Number.parseInt(String(confirmed), 10);
+
+    if (!Number.isNaN(parsed)) setDrumRowPitchLockState(parsed !== 0);
   }
 
   async function syncOctavizerToNative() {
@@ -954,6 +977,19 @@
       (before, after) =>
         after.globalTransposeSemitones !== before.globalTransposeSemitones,
     );
+  }
+
+  async function handleDrumRowPitchLockToggle(enabled) {
+    const previousEnabled = drumRowPitchLockEnabled;
+    setDrumRowPitchLockState(enabled);
+    await syncDrumRowPitchLockToNative();
+
+    const after = createHistorySnapshot();
+    if (after.drumRowPitchLockEnabled === previousEnabled) return;
+
+    const before = cloneSnapshot(after);
+    before.drumRowPitchLockEnabled = previousEnabled;
+    pushHistoryEntry("Drum row pitch lock", before, after);
   }
 
   async function handleShimmerToggle(enabled) {
@@ -2065,6 +2101,7 @@
       velocityTiltPivotMidi,
       velocityTiltAmount,
       globalTransposeSemitones,
+      drumRowPitchLockEnabled,
       octavizerDown8vaEnabled,
       octavizerUp8vaEnabled,
       octavizerDown8vaRelativeVelocity,
@@ -2164,6 +2201,9 @@
     setGlobalTransposeState(
       next.globalTransposeSemitones ?? defaultGlobalTransposeSemitones,
     );
+    setDrumRowPitchLockState(
+      next.drumRowPitchLockEnabled ?? defaultDrumRowPitchLockEnabled,
+    );
     setOctavizerState({
       down8vaEnabled: next.octavizerDown8vaEnabled ?? false,
       up8vaEnabled: next.octavizerUp8vaEnabled ?? false,
@@ -2235,6 +2275,12 @@
         String(state.globalTransposeSemitones ?? defaultGlobalTransposeSemitones),
         10,
       ),
+    );
+    setDrumRowPitchLockState(
+      Number.parseInt(
+        String(state.drumRowPitchLockEnabled ?? (defaultDrumRowPitchLockEnabled ? 1 : 0)),
+        10,
+      ) !== 0,
     );
     setOctavizerState({
       down8vaEnabled: Boolean(Number.parseInt(String(state.octavizerDown8vaEnabled ?? 0), 10)),
@@ -2411,6 +2457,11 @@
       snapshot.globalTransposeSemitones ?? defaultGlobalTransposeSemitones,
     );
     await syncGlobalTransposeToNative();
+
+    setDrumRowPitchLockState(
+      snapshot.drumRowPitchLockEnabled ?? defaultDrumRowPitchLockEnabled,
+    );
+    await syncDrumRowPitchLockToNative();
 
     setOctavizerState({
       down8vaEnabled: snapshot.octavizerDown8vaEnabled ?? false,
@@ -5112,6 +5163,36 @@
     activeGates[row] = notes.map(() => false);
   }
 
+  function applyRecordingMetadata(state, fallbackRow = recordingRow) {
+    if (state === null || state === undefined) return;
+
+    const mode = String(state?.recordingMode ?? recordingMode);
+    recordingMode = mode === "starter" ? "starter" : "loop";
+
+    const elapsed = Number.parseFloat(String(state?.recordingElapsedSeconds ?? recordingElapsedSeconds));
+    recordingElapsedSeconds = Number.isNaN(elapsed) ? 0 : Math.max(0, elapsed);
+
+    const suggestedTempo = Number.parseFloat(String(state?.suggestedTempoBpm ?? 0));
+    recordingSuggestedTempoBpm = Number.isNaN(suggestedTempo) ? 0 : Math.max(0, suggestedTempo);
+
+    const appliedTempo = Number.parseFloat(String(state?.appliedTempoBpm ?? 0));
+    recordingAppliedTempoBpm = Number.isNaN(appliedTempo) ? 0 : Math.max(0, appliedTempo);
+
+    if (recordingAppliedTempoBpm > 0) {
+      standaloneTempoBpm = Math.min(300, Math.max(20, recordingAppliedTempoBpm));
+    }
+
+    const row = Number.parseInt(String(state?.row ?? fallbackRow ?? -1), 10);
+    const cycleLength = Number.parseInt(
+      String(state?.recordCycleLengthPulses ?? (row >= 0 ? recordCycleLengthPulses[row] : 16)),
+      10,
+    );
+
+    if (!Number.isNaN(row) && row >= 0 && row < recordCycleLengthPulses.length && !Number.isNaN(cycleLength)) {
+      recordCycleLengthPulses[row] = Math.min(64, Math.max(1, cycleLength));
+    }
+  }
+
   async function disarmRowRecordingNative() {
     if (nativeFunctionAvailable("setPhraseRowRecording")) {
       await getNativeFunction("setPhraseRowRecording")(-1);
@@ -5126,6 +5207,11 @@
     recordingCapturedNotes = false;
     recordingCaptureNativePromise = Promise.resolve();
     recordingKeysHeld = new Set();
+    recordingMode = "loop";
+    recordingProgress = 0;
+    recordingElapsedSeconds = 0;
+    recordingSuggestedTempoBpm = 0;
+    recordingAppliedTempoBpm = 0;
 
     await disarmRowRecordingNative();
 
@@ -5155,9 +5241,13 @@
     recordingAwaitingFirstNote = false;
     recordingCaptureNativePromise = Promise.resolve();
     recordingProgress = 0;
+    recordingElapsedSeconds = 0;
+    recordingSuggestedTempoBpm = 0;
+    recordingAppliedTempoBpm = 0;
 
     if (nativeFunctionAvailable("setPhraseRowRecording")) {
-      await getNativeFunction("setPhraseRowRecording")(row, recordCycleLengthPulses[row] ?? 16);
+      const state = await getNativeFunction("setPhraseRowRecording")(row, recordCycleLengthPulses[row] ?? 16);
+      applyRecordingMetadata(state, row);
     }
   }
 
@@ -5192,6 +5282,7 @@
 
       if (hadNotes) {
         const capturedRow = Number.parseInt(String(captureResult?.row ?? row), 10);
+        applyRecordingMetadata(captureResult, Number.isNaN(capturedRow) ? row : capturedRow);
         applyCapturedRecordingRow(
           Number.isNaN(capturedRow) ? row : capturedRow,
           captureResult,
@@ -5208,6 +5299,9 @@
     recordingCaptureNativePromise = Promise.resolve();
     recordingHistoryBefore = null;
     recordingKeysHeld = new Set();
+    recordingMode = "loop";
+    recordingProgress = 0;
+    recordingElapsedSeconds = 0;
 
     if (hadNotes && before !== null) {
       const after = createHistorySnapshot();
@@ -5245,6 +5339,7 @@
     if (nativeFunctionAvailable("drainPhraseRowRecordingUpdates")) {
       try {
         const update = await getNativeFunction("drainPhraseRowRecordingUpdates")();
+        applyRecordingMetadata(update);
         const updated = Boolean(Number.parseInt(String(update?.captured ?? 0), 10));
 
         if (updated) {
@@ -5252,15 +5347,6 @@
           const row = Number.isNaN(updatedRow) ? recordingRow : updatedRow;
           applyCapturedRecordingRow(row, update);
           recordingCapturedNotes = true;
-
-          const cycleLength = Number.parseInt(
-            String(update?.recordCycleLengthPulses ?? recordCycleLengthPulses[row] ?? 16),
-            10,
-          );
-
-          if (!Number.isNaN(cycleLength)) {
-            recordCycleLengthPulses[row] = Math.min(64, Math.max(1, cycleLength));
-          }
         }
       } catch {
         // Native bridge unavailable during teardown.
@@ -5294,17 +5380,32 @@
   }
 
   async function pollRowRecordingProgress() {
-    if (recordingRow === null || !nativeFunctionAvailable("getPhraseRowRecordingProgress")) {
+    if (recordingRow === null) {
       recordingProgress = 0;
+      recordingElapsedSeconds = 0;
       return;
     }
 
-    try {
-      const result = await getNativeFunction("getPhraseRowRecordingProgress")();
-      const progress = Number.parseFloat(String(result));
-      recordingProgress = Number.isNaN(progress) ? 0 : Math.min(1, Math.max(0, progress));
-    } catch {
+    if (nativeFunctionAvailable("getPhraseRowRecordingProgress")) {
+      try {
+        const result = await getNativeFunction("getPhraseRowRecordingProgress")();
+        const progress = Number.parseFloat(String(result));
+        recordingProgress = Number.isNaN(progress) ? 0 : Math.min(1, Math.max(0, progress));
+      } catch {
+        recordingProgress = 0;
+      }
+    } else {
       recordingProgress = 0;
+    }
+
+    if (nativeFunctionAvailable("getPhraseRowRecordingElapsedSeconds")) {
+      try {
+        const elapsedResult = await getNativeFunction("getPhraseRowRecordingElapsedSeconds")();
+        const elapsed = Number.parseFloat(String(elapsedResult));
+        recordingElapsedSeconds = Number.isNaN(elapsed) ? 0 : Math.max(0, elapsed);
+      } catch {
+        recordingElapsedSeconds = 0;
+      }
     }
   }
 
@@ -5365,11 +5466,25 @@
   }
 
   function schedulePlaybackPoll() {
-    if (playbackPollInFlight) return;
+    const now = currentUiTimeMs();
+
+    if (playbackPollInFlight) {
+      if (playbackPollStartedAtMs > 0 && now - playbackPollStartedAtMs < playbackPollStallMs) {
+        return;
+      }
+
+      playbackPollInFlight = false;
+    }
 
     playbackPollInFlight = true;
+    playbackPollStartedAtMs = now;
+    const pollStartedAtMs = playbackPollStartedAtMs;
+
     void pollPlaybackActivityFrame().finally(() => {
-      playbackPollInFlight = false;
+      if (playbackPollStartedAtMs === pollStartedAtMs) {
+        playbackPollInFlight = false;
+        playbackPollStartedAtMs = 0;
+      }
     });
   }
 
@@ -5388,6 +5503,8 @@
     }
 
     playbackSlowPollCounter = 0;
+    playbackPollInFlight = false;
+    playbackPollStartedAtMs = 0;
   }
 
   function queuePlaybackUiRefresh() {
@@ -5665,6 +5782,15 @@
         ),
         10,
       ),
+    );
+  }
+
+  function loadDrumRowPitchLockFromInitialisation() {
+    setDrumRowPitchLockState(
+      Number.parseInt(
+        String(unwrapJuceInit("drumRowPitchLockEnabled") ?? (defaultDrumRowPitchLockEnabled ? 1 : 0)),
+        10,
+      ) !== 0,
     );
   }
 
@@ -6014,6 +6140,7 @@
     loadNoteBandpassFromInitialisation();
     loadVelocityTiltFromInitialisation();
     loadGlobalTransposeFromInitialisation();
+    loadDrumRowPitchLockFromInitialisation();
     loadOctavizerFromInitialisation();
     loadShimmerFromInitialisation();
     loadStandaloneTransportFromInitialisation();
@@ -6817,6 +6944,7 @@
       velocityTiltPivotMidi={velocityTiltPivotMidi}
       velocityTiltAmount={velocityTiltAmount}
       globalTransposeSemitones={globalTransposeSemitones}
+      drumRowPitchLockEnabled={drumRowPitchLockEnabled}
       onVelocityTiltPivotPreview={previewVelocityTiltPivot}
       onVelocityTiltPivotCommit={commitVelocityTiltPivot}
       onVelocityTiltAmountPreview={previewVelocityTiltAmount}
@@ -6824,6 +6952,7 @@
       onVelocityTiltXYCommit={commitVelocityTiltXY}
       onGlobalTransposePreview={previewGlobalTranspose}
       onGlobalTransposeCommit={commitGlobalTranspose}
+      onDrumRowPitchLockToggle={handleDrumRowPitchLockToggle}
       octavizerDown8vaEnabled={octavizerDown8vaEnabled}
       octavizerUp8vaEnabled={octavizerUp8vaEnabled}
       octavizerDown8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}
@@ -6965,8 +7094,12 @@
       <section class="flex min-h-0 w-full flex-1 overflow-hidden bg-workspace">
         <RecordModePanel
           row={recordingRow}
+          mode={recordingMode}
           cycleLengthPulses={recordCycleLengthPulses[recordingRow] ?? 16}
           progress={recordingProgress}
+          elapsedSeconds={recordingElapsedSeconds}
+          suggestedTempoBpm={recordingSuggestedTempoBpm}
+          appliedTempoBpm={recordingAppliedTempoBpm}
           accent={recordingAccent}
           onCycleLengthChange={setRecordingCycleLengthPulses}
         />
@@ -7003,6 +7136,7 @@
         velocityTiltPivotMidi={velocityTiltPivotMidi}
         velocityTiltAmount={velocityTiltAmount}
         globalTransposeSemitones={globalTransposeSemitones}
+        drumRowPitchLockEnabled={drumRowPitchLockEnabled}
         octavizerDown8vaEnabled={octavizerDown8vaEnabled}
         octavizerUp8vaEnabled={octavizerUp8vaEnabled}
         octavizerDown8vaRelativeVelocity={octavizerDown8vaRelativeVelocity}

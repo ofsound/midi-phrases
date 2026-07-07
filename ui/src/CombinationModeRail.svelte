@@ -37,6 +37,8 @@
    * @property {number} globalTransposeSemitones
    * @property {(value: number) => void} [onGlobalTransposePreview]
    * @property {(value: number) => void | Promise<void>} [onGlobalTransposeCommit]
+   * @property {boolean} drumRowPitchLockEnabled
+   * @property {(enabled: boolean) => void | Promise<void>} [onDrumRowPitchLockToggle]
    * @property {boolean} octavizerDown8vaEnabled
    * @property {boolean} octavizerUp8vaEnabled
    * @property {number} octavizerDown8vaRelativeVelocity
@@ -83,6 +85,8 @@
     globalTransposeSemitones = 0,
     onGlobalTransposePreview = () => {},
     onGlobalTransposeCommit = () => {},
+    drumRowPitchLockEnabled = false,
+    onDrumRowPitchLockToggle = () => {},
     octavizerDown8vaEnabled = false,
     octavizerUp8vaEnabled = false,
     octavizerDown8vaRelativeVelocity = 0,
@@ -228,5 +232,15 @@
       onPreview={onGlobalTransposePreview}
       onCommit={onGlobalTransposeCommit}
     />
+
+    <CombinationModeButton
+      class="drum-row-pitch-lock-button"
+      pressed={drumRowPitchLockEnabled}
+      ariaLabel="Toggle drum row pitch lock"
+      title="Drum row pitch lock"
+      onToggle={() => onDrumRowPitchLockToggle(!drumRowPitchLockEnabled)}
+    >
+      <CombinationModeIcon kind="snare" />
+    </CombinationModeButton>
   </div>
 </div>

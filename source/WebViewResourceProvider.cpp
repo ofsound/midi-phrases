@@ -305,6 +305,8 @@ juce::var createPatternStateVar (PluginProcessor& processor, const int patternSl
                          processor.getPatternVelocityTiltAmount (patternSlot));
     object->setProperty ("globalTransposeSemitones",
                          processor.getPatternGlobalTransposeSemitones (patternSlot));
+    object->setProperty ("drumRowPitchLockEnabled",
+                         processor.isPatternDrumRowPitchLockEnabled (patternSlot) ? 1 : 0);
     object->setProperty ("octavizerDown8vaEnabled",
                          processor.isPatternOctavizerDown8vaEnabled (patternSlot) ? 1 : 0);
     object->setProperty ("octavizerUp8vaEnabled",
@@ -357,8 +359,17 @@ juce::var createPhraseRowStateVar (PluginProcessor& processor,
                                    const bool captured)
 {
     auto object = std::make_unique<juce::DynamicObject>();
+    const auto suggestedTempo = processor.getLastRecordingSuggestedTempoBpm();
+    const auto activeMode = processor.getPhraseRowRecordingMode();
+    const auto isStarter =
+        suggestedTempo > 0.0 || activeMode == PluginProcessor::RecordingMode::starter;
     object->setProperty ("captured", captured ? 1 : 0);
     object->setProperty ("row", row);
+    object->setProperty ("recordingMode", isStarter ? "starter" : "loop");
+    object->setProperty ("recordingElapsedSeconds",
+                         processor.getPhraseRowRecordingElapsedSeconds());
+    object->setProperty ("suggestedTempoBpm", suggestedTempo);
+    object->setProperty ("appliedTempoBpm", processor.getLastRecordingAppliedTempoBpm());
     object->setProperty (
         "recordCycleLengthPulses",
         row >= 0 ? processor.getPatternRecordCycleLengthPulses (
@@ -558,6 +569,7 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
 
     auto options = Options{}
                        .withNativeIntegrationEnabled()
+                       .withKeepPageLoadedWhenBrowserIsHidden()
                        .withInitialisationData ("pluginName", juce::var { PRODUCT_NAME_WITHOUT_VERSION })
                        .withInitialisationData ("currentPatternSlot", processor.getCurrentPatternSlot())
                        .withInitialisationData ("viewPatternSlot", processor.getViewPatternSlot())
@@ -616,6 +628,11 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                        .withInitialisationData ("globalTransposeSemitones",
                                                 processor.getPatternGlobalTransposeSemitones (
                                                     patternSlotForNativeDefault (processor)))
+                       .withInitialisationData ("drumRowPitchLockEnabled",
+                                                processor.isPatternDrumRowPitchLockEnabled (
+                                                    patternSlotForNativeDefault (processor))
+                                                    ? 1
+                                                    : 0)
                        .withInitialisationData ("octavizerDown8vaEnabled",
                                                 processor.isPatternOctavizerDown8vaEnabled (
                                                     patternSlotForNativeDefault (processor))
@@ -881,6 +898,18 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                    patternSlotForNativeDefault (processor)));
                            })
                        .withNativeFunction (
+                           "setPatternDrumRowPitchLockEnabled",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.setPatternDrumRowPitchLockEnabled (varToInt (args[0]) != 0);
+
+                               complete (processor.isPatternDrumRowPitchLockEnabled (
+                                             patternSlotForNativeDefault (processor))
+                                         ? 1
+                                         : 0);
+                           })
+                       .withNativeFunction (
                            "setPatternOctavizerDown8vaEnabled",
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
@@ -1117,15 +1146,28 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                            "setPhraseRowRecording",
                            [&processor] (const juce::Array<juce::var>& args,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               auto row = -1;
                                if (args.size() >= 1)
                                {
+                                   row = varToInt (args[0]);
                                    const auto cycleLength =
                                        args.size() >= 2 ? varToInt (args[1]) : -1;
-                                   processor.setPhraseRowRecording (varToInt (args[0]),
-                                                                    cycleLength);
+                                   auto mode = PluginProcessor::RecordingMode::autoSelect;
+
+                                   if (args.size() >= 3)
+                                   {
+                                       const auto rawMode = varToInt (args[2]);
+
+                                       if (rawMode == static_cast<int> (PluginProcessor::RecordingMode::starter))
+                                           mode = PluginProcessor::RecordingMode::starter;
+                                       else if (rawMode == static_cast<int> (PluginProcessor::RecordingMode::loopOverdub))
+                                           mode = PluginProcessor::RecordingMode::loopOverdub;
+                                   }
+
+                                   processor.setPhraseRowRecording (row, cycleLength, mode);
                                }
 
-                               complete (juce::var {});
+                               complete (createPhraseRowStateVar (processor, row, false));
                            })
                        .withNativeFunction (
                            "setPhraseRowRecordingCycleLength",
@@ -1141,6 +1183,12 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                            [&processor] (const juce::Array<juce::var>&,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {
                                complete (processor.getPhraseRowRecordingProgress());
+                           })
+                       .withNativeFunction (
+                           "getPhraseRowRecordingElapsedSeconds",
+                           [&processor] (const juce::Array<juce::var>&,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               complete (processor.getPhraseRowRecordingElapsedSeconds());
                            })
                        .withNativeFunction (
                            "drainPhraseRowRecordingUpdates",

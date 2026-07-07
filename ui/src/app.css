@@ -362,7 +362,7 @@
   .combination-mode-rail-layout {
     --processing-rail-cluster-gap: 3rem;
     display: grid;
-    grid-template-columns: 24px auto minmax(0, 1fr) auto minmax(0, 1fr) auto var(--processing-rail-cluster-gap) auto var(--processing-rail-cluster-gap) auto 24px;
+    grid-template-columns: 24px auto minmax(0, 1fr) auto minmax(0, 1fr) auto var(--processing-rail-cluster-gap) auto var(--processing-rail-cluster-gap) auto 0.75rem auto 24px;
     align-items: center;
     min-height: 3.75rem;
     padding-block: 0.25rem;
@@ -770,6 +770,11 @@
     justify-self: end;
     flex-shrink: 0;
     gap: 0.2975rem;
+  }
+
+  .drum-row-pitch-lock-button {
+    grid-column: 12;
+    justify-self: end;
   }
 
   .global-transpose-octave-button {

@@ -13,7 +13,7 @@ constexpr double combinationGesturePulseQuartersFloor = 2.0;
 constexpr double hocketMinimumSliceOverlapFraction = 0.5;
 constexpr double swingSubdivisionValues[] = { 0.25, 0.5, 1.0 };
 constexpr double timingHumanizeScale = 0.2;
-constexpr int phraseStateVersion = 27;
+constexpr int phraseStateVersion = 28;
 
 int clampStepProbability (const int probability)
 {
@@ -962,6 +962,14 @@ int PluginProcessor::defaultStepNoteForScaleRoot (const int scaleRoot)
     return (defaultStepOctave + 2) * 12 + clampScaleRoot (scaleRoot);
 }
 
+int PluginProcessor::drumRowPitchLockNoteForRow (const int row)
+{
+    return juce::jlimit (minMidiNote,
+                         maxMidiNote,
+                         drumRowPitchLockBaseMidi
+                             + juce::jlimit (0, phraseRowCount - 1, row));
+}
+
 int PluginProcessor::defaultNoteForRow (const int row) const
 {
     juce::ignoreUnused (row);
@@ -1079,6 +1087,7 @@ void PluginProcessor::initialisePatternDefaults (PatternState& pattern)
     pattern.velocityTiltPivotMidi = defaultVelocityTiltPivotMidi;
     pattern.velocityTiltAmount = defaultVelocityTiltAmount;
     pattern.globalTransposeSemitones = defaultGlobalTransposeSemitones;
+    pattern.drumRowPitchLockEnabled = 0;
     pattern.octavizerDown8vaEnabled = 0;
     pattern.octavizerUp8vaEnabled = 0;
     pattern.octavizerDown8vaRelativeVelocity = defaultOctavizerRelativeVelocity;
@@ -1212,6 +1221,7 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             && command.type != SequencerCommand::Type::SetPatternVelocityTiltPivotMidi
             && command.type != SequencerCommand::Type::SetPatternVelocityTiltAmount
             && command.type != SequencerCommand::Type::SetPatternGlobalTransposeSemitones
+            && command.type != SequencerCommand::Type::SetPatternDrumRowPitchLockEnabled
             && command.type != SequencerCommand::Type::SetPatternOctavizerDown8vaEnabled
             && command.type != SequencerCommand::Type::SetPatternOctavizerUp8vaEnabled
             && command.type != SequencerCommand::Type::SetPatternOctavizerDown8vaRelativeVelocity
@@ -1607,6 +1617,10 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             pattern.globalTransposeSemitones = clampGlobalTransposeSemitones (command.intValue);
             break;
 
+        case SequencerCommand::Type::SetPatternDrumRowPitchLockEnabled:
+            pattern.drumRowPitchLockEnabled = command.intValue != 0 ? 1 : 0;
+            break;
+
         case SequencerCommand::Type::SetPatternOctavizerDown8vaEnabled:
             pattern.octavizerDown8vaEnabled = command.intValue != 0 ? 1 : 0;
             break;
@@ -1665,7 +1679,8 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
 
     if (command.type == SequencerCommand::Type::ReplacePattern
         || command.type == SequencerCommand::Type::SetCombinationModeMask
-        || command.type == SequencerCommand::Type::SetPatternNoteBandpass)
+        || command.type == SequencerCommand::Type::SetPatternNoteBandpass
+        || command.type == SequencerCommand::Type::SetPatternDrumRowPitchLockEnabled)
     {
         flushAllRows();
     }
@@ -1906,6 +1921,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     clearPendingAudioLoopBraceRange();
     resetLastEmittedTriggers();
     wasPlaying = false;
+    recordingTimelineSeconds.store (0.0, std::memory_order_release);
     clearLoopScheduleAnchor();
     loopScheduleReanchorRequested = false;
     currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
@@ -2118,6 +2134,26 @@ void PluginProcessor::setPatternGlobalTransposeSemitones (const int semitones)
 int PluginProcessor::getPatternGlobalTransposeSemitones (const int patternSlot) const
 {
     return clampGlobalTransposeSemitones (modelPattern (patternSlot).globalTransposeSemitones);
+}
+
+void PluginProcessor::setPatternDrumRowPitchLockEnabled (const bool enabled)
+{
+    const auto patternSlot = getViewPatternSlot();
+    auto& pattern = modelPattern (patternSlot);
+
+    pattern.drumRowPitchLockEnabled = enabled ? 1 : 0;
+
+    SequencerCommand command;
+    command.type = SequencerCommand::Type::SetPatternDrumRowPitchLockEnabled;
+    command.patternSlot = patternSlot;
+    command.row = -1;
+    command.intValue = enabled ? 1 : 0;
+    publishCommandToAudio (command);
+}
+
+bool PluginProcessor::isPatternDrumRowPitchLockEnabled (const int patternSlot) const
+{
+    return modelPattern (patternSlot).drumRowPitchLockEnabled != 0;
 }
 
 void PluginProcessor::setPatternOctavizerDown8vaEnabled (const bool enabled)
@@ -4053,9 +4089,12 @@ void PluginProcessor::processPhraseRowNoteAuditions (const int bufferSamples,
             velocityHumanizePercent.load (std::memory_order_relaxed),
             playbackRandomState);
 
-        const auto outputNote = juce::jlimit (minMidiNote,
-                                               maxMidiNote,
-                                               newNote + activePattern.globalTransposeSemitones);
+        auto outputNote = juce::jlimit (minMidiNote,
+                                        maxMidiNote,
+                                        newNote + activePattern.globalTransposeSemitones);
+
+        if (activePattern.drumRowPitchLockEnabled != 0)
+            outputNote = drumRowPitchLockNoteForRow (row);
 
         emitScheduledNoteOn (row,
                              pending.channel,
@@ -4117,8 +4156,21 @@ void PluginProcessor::flushPendingNoteOns (const int bufferSamples, juce::MidiBu
 
 bool PluginProcessor::hasStandaloneTransport() const
 {
+#if RUN_PAMPLEJUCE_TESTS
+    if (standaloneTransportAvailableForTests.load (std::memory_order_relaxed) != 0)
+        return true;
+#endif
+
     return wrapperType == wrapperType_Standalone;
 }
+
+#if RUN_PAMPLEJUCE_TESTS
+void PluginProcessor::setStandaloneTransportAvailableForTests (const bool available)
+{
+    standaloneTransportAvailableForTests.store (available ? 1 : 0,
+                                                std::memory_order_relaxed);
+}
+#endif
 
 void PluginProcessor::setStandaloneTransportPlaying (const bool shouldPlay)
 {
@@ -4246,8 +4298,29 @@ double PluginProcessor::recordingCurrentTransportPpq() const
     return playback >= 0.0 ? playback : 0.0;
 }
 
+bool PluginProcessor::recordingTransportClockAvailable() const
+{
+    if (hasStandaloneTransport())
+        return isStandaloneTransportPlaying()
+               && clampStandaloneTempoBpm (standaloneTempoBpm.load (std::memory_order_relaxed)) > 0.0;
+
+    if (const auto* playHead = getPlayHead())
+    {
+        const auto position = playHead->getPosition();
+
+        if (position.hasValue())
+            return position->getIsPlaying()
+                   && position->getBpm().orFallback (120.0) > 0.0;
+    }
+
+    return false;
+}
+
 double PluginProcessor::getPhraseRowRecordingProgress() const
 {
+    if (getPhraseRowRecordingMode() == RecordingMode::starter)
+        return 0.0;
+
     const auto loopLength = recordingLoopLengthQuarters();
 
     if (recordingRow.load (std::memory_order_acquire) < 0 || loopLength <= 0.0)
@@ -4259,8 +4332,33 @@ double PluginProcessor::getPhraseRowRecordingProgress() const
                              / loopLength);
 }
 
+double PluginProcessor::getPhraseRowRecordingElapsedSeconds() const
+{
+    if (recordingRow.load (std::memory_order_acquire) < 0
+        || getPhraseRowRecordingMode() != RecordingMode::starter)
+        return 0.0;
+
+    const auto start = recordingCaptureStartSeconds.load (std::memory_order_acquire);
+
+    if (start < 0.0)
+        return 0.0;
+
+    return juce::jmax (0.0, recordingCurrentCaptureSeconds() - start);
+}
+
+double PluginProcessor::getLastRecordingSuggestedTempoBpm() const
+{
+    return lastRecordingSuggestedTempoBpm.load (std::memory_order_acquire);
+}
+
+double PluginProcessor::getLastRecordingAppliedTempoBpm() const
+{
+    return lastRecordingAppliedTempoBpm.load (std::memory_order_acquire);
+}
+
 void PluginProcessor::setPhraseRowRecording (const int row,
-                                             const int cycleLengthPulses)
+                                             const int cycleLengthPulses,
+                                             const RecordingMode requestedMode)
 {
     for (auto& keyHeld : recordingKeysHeld)
         keyHeld.store (0, std::memory_order_release);
@@ -4287,23 +4385,34 @@ void PluginProcessor::setPhraseRowRecording (const int row,
         requestRecordingKeyboardMidiFlush();
 
     resetPhraseRowRecordingCapture();
+    lastRecordingSuggestedTempoBpm.store (0.0, std::memory_order_release);
+    lastRecordingAppliedTempoBpm.store (0.0, std::memory_order_release);
 
     if (row >= 0 && row < phraseRowCount)
     {
+        const auto resolvedMode =
+            requestedMode == RecordingMode::autoSelect
+                ? (recordingTransportClockAvailable() ? RecordingMode::loopOverdub
+                                                       : RecordingMode::starter)
+                : requestedMode;
         const auto resolvedCycle =
             cycleLengthPulses >= minRecordCycleLengthPulses
                 ? clampRecordCycleLengthPulses (cycleLengthPulses)
                 : resolvedRecordCycleLengthPulses (getViewPatternSlot(), row);
         setPatternRecordCycleLengthPulses (getViewPatternSlot(), row, resolvedCycle);
         recordingCycleLengthPulses.store (resolvedCycle, std::memory_order_release);
+        recordingMode.store (static_cast<int> (resolvedMode), std::memory_order_release);
         recordingLoopSpanQueueWrite.store (0, std::memory_order_release);
         recordingLoopSpanQueueRead.store (0, std::memory_order_release);
         recordingRow.store (row, std::memory_order_release);
-        recordingAwaitingFirstNote.store (0, std::memory_order_release);
+        recordingAwaitingFirstNote.store (resolvedMode == RecordingMode::starter ? 1 : 0,
+                                          std::memory_order_release);
     }
     else
     {
         recordingRow.store (-1, std::memory_order_release);
+        recordingMode.store (static_cast<int> (RecordingMode::loopOverdub),
+                             std::memory_order_release);
         recordingAwaitingFirstNote.store (0, std::memory_order_release);
     }
 
@@ -4314,6 +4423,19 @@ void PluginProcessor::setPhraseRowRecording (const int row,
 int PluginProcessor::getPhraseRowRecording() const
 {
     return recordingRow.load (std::memory_order_acquire);
+}
+
+PluginProcessor::RecordingMode PluginProcessor::getPhraseRowRecordingMode() const
+{
+    const auto mode = recordingMode.load (std::memory_order_acquire);
+
+    if (mode == static_cast<int> (RecordingMode::starter))
+        return RecordingMode::starter;
+
+    if (mode == static_cast<int> (RecordingMode::autoSelect))
+        return RecordingMode::autoSelect;
+
+    return RecordingMode::loopOverdub;
 }
 
 void PluginProcessor::setPhraseRowRecordingCycleLength (const int cycleLengthPulses)
@@ -4402,11 +4524,11 @@ void PluginProcessor::appendRecordedNoteToModelRow (const int row, const int mid
 void PluginProcessor::resetPhraseRowRecordingCapture()
 {
     recordingCaptureCount.store (0, std::memory_order_release);
-    recordingCaptureStartMilliseconds.store (-1.0, std::memory_order_release);
+    recordingCaptureStartSeconds.store (-1.0, std::memory_order_release);
+    recordingCaptureStopSeconds.store (-1.0, std::memory_order_release);
     recordingCaptureTempoBpm.store (
         juce::jmax (20.0, latestRecordingTempoBpm.load (std::memory_order_relaxed)),
         std::memory_order_release);
-    recordingCaptureClockMode.store (0, std::memory_order_release);
     latestRecordingTransportPpq.store (-1.0, std::memory_order_release);
     recordingActiveEventIndex.store (-1, std::memory_order_release);
     recordingActiveNote.store (-1, std::memory_order_release);
@@ -4418,28 +4540,15 @@ void PluginProcessor::resetPhraseRowRecordingCapture()
         event.ready.store (0, std::memory_order_release);
         event.note.store (-1, std::memory_order_release);
         event.velocity.store (defaultStepVelocity, std::memory_order_release);
-        event.startQuarters.store (0.0, std::memory_order_release);
-        event.endQuarters.store (0.0, std::memory_order_release);
+        event.startSeconds.store (0.0, std::memory_order_release);
+        event.endSeconds.store (0.0, std::memory_order_release);
         event.active.store (0, std::memory_order_release);
     }
 }
 
-double PluginProcessor::recordingCaptureQuartersForMilliseconds (
-    const double eventMilliseconds) const
+double PluginProcessor::recordingCurrentCaptureSeconds() const
 {
-    auto startMilliseconds =
-        recordingCaptureStartMilliseconds.load (std::memory_order_acquire);
-
-    if (startMilliseconds < 0.0)
-        return 0.0;
-
-    const auto tempo = juce::jmax (
-        20.0,
-        recordingCaptureTempoBpm.load (std::memory_order_acquire));
-
-    return juce::jmax (
-        0.0,
-        (eventMilliseconds - startMilliseconds) * tempo / 60000.0);
+    return recordingTimelineSeconds.load (std::memory_order_acquire);
 }
 
 int PluginProcessor::timingMultiplierIndexForCaptureQuarters (
@@ -4868,17 +4977,341 @@ void PluginProcessor::applyRecordingLoopSpanToRow (const int row,
                            cycleOffset);
 }
 
-void PluginProcessor::capturePhraseRowRecordedNoteEvent (const int midiNote,
-                                                         const int velocity,
-                                                         const bool noteOn,
-                                                         const double eventMilliseconds)
+bool PluginProcessor::applyStarterRecordingCaptureToRow (const int row,
+                                                         const double stopSeconds)
+{
+    if (row < 0 || row >= phraseRowCount)
+        return false;
+
+    constexpr auto epsilon = 1.0e-9;
+    const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
+    const auto grid = pulse * stepTimingMultiplierQuarterStep;
+    const auto startSeconds = recordingCaptureStartSeconds.load (std::memory_order_acquire);
+
+    if (pulse <= 0.0 || grid <= 0.0 || startSeconds < 0.0)
+        return false;
+
+    struct StarterEvent
+    {
+        double startSeconds = 0.0;
+        double endSeconds = 0.0;
+        int note = defaultStepNote;
+        int eventVelocity = defaultStepVelocity;
+    };
+
+    std::array<StarterEvent, maxPhraseStepsPerRow> events {};
+    auto eventCount = 0;
+    auto captureEndSeconds = juce::jmax (startSeconds, stopSeconds);
+    const auto count = juce::jlimit (
+        0,
+        maxPhraseStepsPerRow,
+        recordingCaptureCount.load (std::memory_order_acquire));
+
+    for (int index = 0; index < count; ++index)
+    {
+        const auto& source = recordingCaptureEvents[static_cast<size_t> (index)];
+
+        if (source.ready.load (std::memory_order_acquire) == 0)
+            continue;
+
+        const auto note = source.note.load (std::memory_order_acquire);
+
+        if (note < 0)
+            continue;
+
+        const auto sourceStart = source.startSeconds.load (std::memory_order_acquire);
+        const auto sourceEnd =
+            source.active.load (std::memory_order_acquire) != 0
+                ? stopSeconds
+                : source.endSeconds.load (std::memory_order_acquire);
+        const auto eventStart = juce::jmax (startSeconds, sourceStart);
+        auto eventEnd = juce::jmax (eventStart, sourceEnd);
+
+        if (eventEnd <= eventStart + epsilon)
+            eventEnd = eventStart;
+
+        if (eventCount >= maxPhraseStepsPerRow)
+            break;
+
+        auto& target = events[static_cast<size_t> (eventCount++)];
+        target.startSeconds = eventStart;
+        target.endSeconds = eventEnd;
+        target.note = juce::jlimit (0, 127, note);
+        target.eventVelocity = juce::jlimit (
+            1,
+            127,
+            source.velocity.load (std::memory_order_acquire));
+        captureEndSeconds = juce::jmax (captureEndSeconds, eventEnd);
+    }
+
+    if (eventCount <= 0)
+        return false;
+
+    std::sort (events.begin(),
+               events.begin() + eventCount,
+               [] (const StarterEvent& left, const StarterEvent& right)
+               {
+                   if (std::abs (left.startSeconds - right.startSeconds) > 1.0e-9)
+                       return left.startSeconds < right.startSeconds;
+
+                   return left.note < right.note;
+               });
+
+    const auto captureSeconds =
+        juce::jmax (0.001, captureEndSeconds - startSeconds);
+    const auto latestTempo = juce::jlimit (
+        20.0,
+        300.0,
+        recordingCaptureTempoBpm.load (std::memory_order_acquire));
+
+    const auto commonPulsePenalty = [] (const int candidatePulseCount)
+    {
+        switch (candidatePulseCount)
+        {
+            case 4:
+            case 8:
+            case 16:
+            case 32:
+            case 64:
+                return 0.0;
+            case 2:
+            case 12:
+            case 24:
+            case 48:
+                return 0.01;
+            default:
+                return 0.02;
+        }
+    };
+
+    auto bestPulseCount = defaultRecordCycleLengthPulses;
+    auto bestTempo = latestTempo;
+    auto bestScore = std::numeric_limits<double>::infinity();
+
+    for (int candidatePulseCount = minRecordCycleLengthPulses;
+         candidatePulseCount <= maxRecordCycleLengthPulses;
+         ++candidatePulseCount)
+    {
+        const auto cycleLength = static_cast<double> (candidatePulseCount) * pulse;
+        const auto rawTempo = 60.0 * cycleLength / captureSeconds;
+        const auto tempo = juce::jlimit (20.0, 300.0, rawTempo);
+        const auto rangePenalty =
+            rawTempo < 20.0 ? (20.0 - rawTempo) * 100.0
+                            : rawTempo > 300.0 ? (rawTempo - 300.0) * 100.0
+                                                : 0.0;
+        auto timingError = 0.0;
+
+        for (int index = 0; index < eventCount; ++index)
+        {
+            const auto& event = events[static_cast<size_t> (index)];
+            const auto startQuarter =
+                (event.startSeconds - startSeconds) / captureSeconds * cycleLength;
+            const auto endQuarter =
+                (event.endSeconds - startSeconds) / captureSeconds * cycleLength;
+            const auto quantizedStart = std::round (startQuarter / grid) * grid;
+            const auto quantizedEnd = std::round (endQuarter / grid) * grid;
+            timingError += std::abs (startQuarter - quantizedStart);
+            timingError += std::abs (endQuarter - quantizedEnd) * 0.5;
+        }
+
+        const auto tempoPenalty = std::abs (tempo - latestTempo) / latestTempo * 0.001;
+        const auto score = rangePenalty
+                           + timingError
+                           + commonPulsePenalty (candidatePulseCount)
+                           + tempoPenalty;
+
+        if (score < bestScore - epsilon)
+        {
+            bestScore = score;
+            bestPulseCount = candidatePulseCount;
+            bestTempo = tempo;
+        }
+    }
+
+    const auto cycleLength = static_cast<double> (bestPulseCount) * pulse;
+    setPatternRecordCycleLengthPulses (getViewPatternSlot(), row, bestPulseCount);
+    recordingCycleLengthPulses.store (bestPulseCount, std::memory_order_release);
+    lastRecordingSuggestedTempoBpm.store (bestTempo, std::memory_order_release);
+
+    if (hasStandaloneTransport())
+    {
+        setStandaloneTempoBpm (bestTempo);
+        lastRecordingAppliedTempoBpm.store (getStandaloneTempoBpm(), std::memory_order_release);
+    }
+    else
+    {
+        lastRecordingAppliedTempoBpm.store (0.0, std::memory_order_release);
+    }
+
+    std::array<int, maxPhraseStepsPerRow> notes {};
+    std::array<int, maxPhraseStepsPerRow> timingMultiplier {};
+    std::array<double, maxPhraseStepsPerRow> durationFraction {};
+    std::array<int, maxPhraseStepsPerRow> stepVelocity {};
+    std::array<int, maxPhraseStepsPerRow> stepMuted {};
+    std::array<int, maxPhraseStepsPerRow> stepSkipped {};
+    std::array<int, maxPhraseStepsPerRow> probability {};
+    std::array<int, maxPhraseStepsPerRow> cycle {};
+    std::array<int, maxPhraseStepsPerRow> cycleOffset {};
+    auto stepCount = 0;
+
+    const auto multiplierIndexForLength = [pulse] (const double lengthQuarters)
+    {
+        const auto multiplier = juce::jlimit (
+            stepTimingMultiplierMin,
+            stepTimingMultiplierMax,
+            lengthQuarters / pulse);
+        const auto index = static_cast<int> (std::lround (
+            (multiplier - stepTimingMultiplierMin) / stepTimingMultiplierQuarterStep));
+
+        return juce::jlimit (0, stepTimingMultiplierCount - 1, index);
+    };
+
+    const auto appendStep = [&] (const int note,
+                                const int velocityValue,
+                                const double lengthQuarters,
+                                const double gateQuarters)
+    {
+        if (stepCount >= maxPhraseStepsPerRow || lengthQuarters <= epsilon)
+            return;
+
+        const auto index = static_cast<size_t> (stepCount++);
+        notes[index] = juce::jlimit (0, 127, note);
+        timingMultiplier[index] = multiplierIndexForLength (lengthQuarters);
+        durationFraction[index] =
+            velocityValue > 0
+                ? clampStepDurationFraction (gateQuarters / lengthQuarters)
+                : 0.0;
+        stepVelocity[index] = juce::jlimit (0, 127, velocityValue);
+        stepMuted[index] = 0;
+        stepSkipped[index] = 0;
+        probability[index] = defaultStepProbability;
+        cycle[index] = defaultStepCycle;
+        cycleOffset[index] = defaultStepCycleMask;
+    };
+
+    const auto appendRegion = [&] (const int note,
+                                  const int velocityValue,
+                                  const double regionStart,
+                                  const double regionEnd,
+                                  const double gateEnd)
+    {
+        auto cursor = regionStart;
+        auto remainingGate = juce::jmax (0.0, gateEnd - regionStart);
+        const auto maxStepQuarters = stepTimingMultiplierMax * pulse;
+
+        while (cursor < regionEnd - epsilon && stepCount < maxPhraseStepsPerRow)
+        {
+            const auto chunkLength =
+                juce::jmin (maxStepQuarters, regionEnd - cursor);
+            const auto chunkGate =
+                juce::jmin (remainingGate, chunkLength);
+
+            if (velocityValue > 0 && chunkGate > epsilon)
+            {
+                appendStep (note, velocityValue, chunkLength, chunkGate);
+            }
+            else
+            {
+                appendStep (defaultStepNoteForScaleRoot (
+                                modelPattern (getViewPatternSlot()).scaleRoot),
+                            0,
+                            chunkLength,
+                            0.0);
+            }
+
+            remainingGate = juce::jmax (0.0, remainingGate - chunkGate);
+            cursor += chunkLength;
+        }
+    };
+
+    const auto quantize = [grid, cycleLength] (const double value)
+    {
+        return juce::jlimit (0.0,
+                             cycleLength,
+                             std::round (value / grid) * grid);
+    };
+
+    auto cursor = 0.0;
+
+    for (int index = 0; index < eventCount && stepCount < maxPhraseStepsPerRow; ++index)
+    {
+        const auto& event = events[static_cast<size_t> (index)];
+        auto eventStart = quantize (
+            (event.startSeconds - startSeconds) / captureSeconds * cycleLength);
+        auto eventEnd = quantize (
+            (event.endSeconds - startSeconds) / captureSeconds * cycleLength);
+
+        eventStart = juce::jlimit (0.0, cycleLength, eventStart);
+        eventEnd = juce::jlimit (0.0, cycleLength, eventEnd);
+
+        if (eventEnd <= eventStart + epsilon)
+            eventEnd = juce::jmin (cycleLength, eventStart + grid);
+
+        if (eventEnd <= eventStart + epsilon)
+            continue;
+
+        if (eventStart < cursor)
+            eventStart = cursor;
+
+        if (eventStart > cursor + epsilon)
+        {
+            appendRegion (defaultStepNoteForScaleRoot (
+                              modelPattern (getViewPatternSlot()).scaleRoot),
+                          0,
+                          cursor,
+                          eventStart,
+                          cursor);
+        }
+
+        appendRegion (event.note,
+                      event.eventVelocity,
+                      eventStart,
+                      eventEnd,
+                      eventEnd);
+        cursor = eventEnd;
+    }
+
+    if (cursor < cycleLength - epsilon && stepCount < maxPhraseStepsPerRow)
+    {
+        appendRegion (defaultStepNoteForScaleRoot (
+                          modelPattern (getViewPatternSlot()).scaleRoot),
+                      0,
+                      cursor,
+                      cycleLength,
+                      cursor);
+    }
+
+    if (stepCount <= 0)
+        return false;
+
+    replacePhraseRowSteps (row,
+                           stepCount,
+                           notes,
+                           timingMultiplier,
+                           durationFraction,
+                           stepVelocity,
+                           stepMuted,
+                           stepSkipped,
+                           probability,
+                           cycle,
+                           cycleOffset);
+
+    return true;
+}
+
+void PluginProcessor::capturePhraseRowStarterEvent (const int midiNote,
+                                                    const int velocity,
+                                                    const bool noteOn,
+                                                    const double eventSeconds)
 {
     const auto row = recordingRow.load (std::memory_order_acquire);
 
-    if (row < 0)
+    if (row < 0 || getPhraseRowRecordingMode() != RecordingMode::starter)
         return;
 
     const auto clamped = juce::jlimit (0, 127, midiNote);
+    const auto clampedSeconds = juce::jmax (0.0, eventSeconds);
+    recordingCaptureStopSeconds.store (clampedSeconds, std::memory_order_release);
 
     if (noteOn)
     {
@@ -4888,32 +5321,23 @@ void PluginProcessor::capturePhraseRowRecordedNoteEvent (const int midiNote,
             && ! pitchClassInScale (clamped, pattern.scaleRoot, pattern.scaleModeIndex))
             return;
 
-        auto startMilliseconds =
-            recordingCaptureStartMilliseconds.load (std::memory_order_acquire);
+        auto startSeconds =
+            recordingCaptureStartSeconds.load (std::memory_order_acquire);
 
-        if (startMilliseconds < 0.0)
+        if (startSeconds < 0.0)
         {
-            auto expected = startMilliseconds;
+            auto expected = startSeconds;
 
-            if (recordingCaptureStartMilliseconds.compare_exchange_strong (
+            if (recordingCaptureStartSeconds.compare_exchange_strong (
                     expected,
-                    eventMilliseconds,
+                    clampedSeconds,
                     std::memory_order_acq_rel))
             {
                 recordingCaptureTempoBpm.store (
                     juce::jmax (20.0, latestRecordingTempoBpm.load (std::memory_order_relaxed)),
                     std::memory_order_release);
-                recordingCaptureClockMode.store (1, std::memory_order_release);
-                startMilliseconds = eventMilliseconds;
-            }
-            else
-            {
-                startMilliseconds = expected;
             }
         }
-
-        const auto eventQuarters =
-            recordingCaptureQuartersForMilliseconds (eventMilliseconds);
 
         const auto previousActive =
             recordingActiveEventIndex.exchange (-1, std::memory_order_acq_rel);
@@ -4922,7 +5346,7 @@ void PluginProcessor::capturePhraseRowRecordedNoteEvent (const int midiNote,
         {
             auto& previous =
                 recordingCaptureEvents[static_cast<size_t> (previousActive)];
-            previous.endQuarters.store (eventQuarters, std::memory_order_release);
+            previous.endSeconds.store (clampedSeconds, std::memory_order_release);
             previous.active.store (0, std::memory_order_release);
         }
 
@@ -4947,18 +5371,15 @@ void PluginProcessor::capturePhraseRowRecordedNoteEvent (const int midiNote,
         auto& event = recordingCaptureEvents[static_cast<size_t> (reservedIndex)];
         event.note.store (clamped, std::memory_order_release);
         event.velocity.store (juce::jlimit (1, 127, velocity), std::memory_order_release);
-        event.startQuarters.store (eventQuarters, std::memory_order_release);
-        event.endQuarters.store (eventQuarters, std::memory_order_release);
+        event.startSeconds.store (clampedSeconds, std::memory_order_release);
+        event.endSeconds.store (clampedSeconds, std::memory_order_release);
         event.active.store (1, std::memory_order_release);
         event.ready.store (1, std::memory_order_release);
         recordingActiveEventIndex.store (reservedIndex, std::memory_order_release);
         recordingAwaitingFirstNote.store (0, std::memory_order_release);
-        enqueueRecordedNote (clamped);
         return;
     }
 
-    const auto eventQuarters =
-        recordingCaptureQuartersForMilliseconds (eventMilliseconds);
     const auto count = juce::jlimit (
         0,
         maxPhraseStepsPerRow,
@@ -4973,7 +5394,7 @@ void PluginProcessor::capturePhraseRowRecordedNoteEvent (const int midiNote,
             || event.note.load (std::memory_order_acquire) != clamped)
             continue;
 
-        event.endQuarters.store (eventQuarters, std::memory_order_release);
+        event.endSeconds.store (clampedSeconds, std::memory_order_release);
         event.active.store (0, std::memory_order_release);
 
         auto expected = index;
@@ -5007,11 +5428,22 @@ void PluginProcessor::capturePhraseRowRecordedNoteOn (const int midiNote,
             true);
     }
 
-    capturePhraseRowRecordedLoopEvent (
-        midiNote,
-        velocity,
-        true,
-        recordingCurrentTransportPpq());
+    if (getPhraseRowRecordingMode() == RecordingMode::starter)
+    {
+        capturePhraseRowStarterEvent (
+            midiNote,
+            velocity,
+            true,
+            recordingCurrentCaptureSeconds());
+    }
+    else
+    {
+        capturePhraseRowRecordedLoopEvent (
+            midiNote,
+            velocity,
+            true,
+            recordingCurrentTransportPpq());
+    }
 }
 
 void PluginProcessor::capturePhraseRowRecordedNoteOff (const int midiNote)
@@ -5025,11 +5457,22 @@ void PluginProcessor::capturePhraseRowRecordedNoteOff (const int midiNote)
                                        midiNote,
                                        defaultStepVelocity,
                                        false);
-    capturePhraseRowRecordedLoopEvent (
-        midiNote,
-        defaultStepVelocity,
-        false,
-        recordingCurrentTransportPpq());
+    if (getPhraseRowRecordingMode() == RecordingMode::starter)
+    {
+        capturePhraseRowStarterEvent (
+            midiNote,
+            defaultStepVelocity,
+            false,
+            recordingCurrentCaptureSeconds());
+    }
+    else
+    {
+        capturePhraseRowRecordedLoopEvent (
+            midiNote,
+            defaultStepVelocity,
+            false,
+            recordingCurrentTransportPpq());
+    }
 }
 
 bool PluginProcessor::finishPhraseRowRecordingCapture (int& rowOut)
@@ -5043,7 +5486,25 @@ bool PluginProcessor::finishPhraseRowRecordingCapture (int& rowOut)
     if (rowOut < 0 || rowOut >= phraseRowCount)
     {
         resetPhraseRowRecordingCapture();
+        recordingMode.store (static_cast<int> (RecordingMode::loopOverdub),
+                             std::memory_order_release);
         return false;
+    }
+
+    if (getPhraseRowRecordingMode() == RecordingMode::starter)
+    {
+        const auto stopSeconds = juce::jmax (
+            recordingCurrentCaptureSeconds(),
+            recordingCaptureStopSeconds.load (std::memory_order_acquire));
+        recordingCaptureStopSeconds.store (stopSeconds, std::memory_order_release);
+
+        const auto captured = applyStarterRecordingCaptureToRow (rowOut, stopSeconds);
+        resetPhraseRowRecordingCapture();
+        recordQueueWrite.store (0, std::memory_order_release);
+        recordQueueRead.store (0, std::memory_order_release);
+        recordingMode.store (static_cast<int> (RecordingMode::loopOverdub),
+                             std::memory_order_release);
+        return captured;
     }
 
     const auto activeNote =
@@ -5064,6 +5525,8 @@ bool PluginProcessor::finishPhraseRowRecordingCapture (int& rowOut)
     resetPhraseRowRecordingCapture();
     recordQueueWrite.store (0, std::memory_order_release);
     recordQueueRead.store (0, std::memory_order_release);
+    recordingMode.store (static_cast<int> (RecordingMode::loopOverdub),
+                         std::memory_order_release);
     return hadUpdates;
 }
 
@@ -5287,6 +5750,12 @@ void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages
     {
         return transportPpqStart + static_cast<double> (samplePosition) * ppqPerSample;
     };
+    const auto blockStartSeconds = recordingCurrentCaptureSeconds();
+    const auto captureEventSeconds = [this, blockStartSeconds] (const int samplePosition)
+    {
+        const auto rate = juce::jmax (1.0, sampleRateHz);
+        return blockStartSeconds + static_cast<double> (samplePosition) / rate;
+    };
 
     for (const auto metadata : midiMessages)
     {
@@ -5310,7 +5779,15 @@ void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages
                 if (! message.isNoteOn())
                 {
                     filtered.addEvent (message, metadata.samplePosition);
-                    if (transportClockAvailable)
+                    if (getPhraseRowRecordingMode() == RecordingMode::starter)
+                    {
+                        capturePhraseRowStarterEvent (
+                            message.getNoteNumber(),
+                            defaultStepVelocity,
+                            false,
+                            captureEventSeconds (metadata.samplePosition));
+                    }
+                    else if (transportClockAvailable)
                     {
                         capturePhraseRowRecordedNoteTransportEvent (
                             message.getNoteNumber(),
@@ -5333,7 +5810,15 @@ void PluginProcessor::handleIncomingControlNotes (juce::MidiBuffer& midiMessages
 
                 if (countAtSample == 1)
                 {
-                    if (transportClockAvailable)
+                    if (getPhraseRowRecordingMode() == RecordingMode::starter)
+                    {
+                        capturePhraseRowStarterEvent (
+                            message.getNoteNumber(),
+                            static_cast<int> (message.getVelocity()),
+                            true,
+                            captureEventSeconds (metadata.samplePosition));
+                    }
+                    else if (transportClockAvailable)
                     {
                         capturePhraseRowRecordedNoteTransportEvent (
                             message.getNoteNumber(),
@@ -6860,6 +7345,15 @@ void PluginProcessor::processCombinedScheduledRange (const double schedulePpqSta
         }
     }
 
+    if (activePattern.drumRowPitchLockEnabled != 0)
+    {
+        for (size_t index = 0; index < eventCount; ++index)
+        {
+            auto& event = combinedEvents[index];
+            event.note = drumRowPitchLockNoteForRow (event.row);
+        }
+    }
+
     if (eventCount > 1)
     {
         std::sort (combinedEvents.begin(),
@@ -7234,6 +7728,10 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     drainRecordingKeyboardMidiEvents (midiMessages);
     drainSequencerCommands();
     applyMuteOutputSilence (midiMessages);
+    recordingTimelineSeconds.store (
+        recordingCurrentCaptureSeconds()
+            + static_cast<double> (bufferSamples) / juce::jmax (1.0, sampleRateHz),
+        std::memory_order_release);
 
     const auto stopPlayback = [&] {
         if (wasPlaying)
@@ -7778,6 +8276,9 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
         patternTree.setProperty ("globalTransposeSemitones",
                                  getPatternGlobalTransposeSemitones (patternSlot),
                                  nullptr);
+        patternTree.setProperty ("drumRowPitchLockEnabled",
+                                 isPatternDrumRowPitchLockEnabled (patternSlot) ? 1 : 0,
+                                 nullptr);
         patternTree.setProperty ("octavizerDown8vaEnabled",
                                  isPatternOctavizerDown8vaEnabled (patternSlot) ? 1 : 0,
                                  nullptr);
@@ -8092,6 +8593,8 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         pattern.globalTransposeSemitones = clampGlobalTransposeSemitones (
             static_cast<int> (patternTree.getProperty ("globalTransposeSemitones",
                                                        defaultGlobalTransposeSemitones)));
+        pattern.drumRowPitchLockEnabled =
+            static_cast<int> (patternTree.getProperty ("drumRowPitchLockEnabled", 0)) != 0 ? 1 : 0;
         pattern.octavizerDown8vaEnabled =
             static_cast<int> (patternTree.getProperty ("octavizerDown8vaEnabled", 0)) != 0 ? 1 : 0;
         pattern.octavizerUp8vaEnabled =

@@ -1389,4 +1389,33 @@ describe("global transpose schedule preview", () => {
     expect(schedule).toHaveLength(1);
     expect(schedule[0].midi).toBe(65);
   });
+
+  it("locks final row output to adjacent C1 drum notes after transpose", () => {
+    const schedule = buildPhraseSchedule({
+      ...baseWindowScheduleParams({
+        notes: [[60], [67], [72], [79]],
+        rowMuted: [false, false, false, false],
+        stepDurationFraction: [[1], [1], [1], [1]],
+        stepTimingMultiplier: [
+          [defaultStepTimingMultiplierIndex],
+          [defaultStepTimingMultiplierIndex],
+          [defaultStepTimingMultiplierIndex],
+          [defaultStepTimingMultiplierIndex],
+        ],
+        stepVelocity: [[100], [100], [100], [100]],
+        stepMuted: [[false], [false], [false], [false]],
+        stepSkipped: [[false], [false], [false], [false]],
+        stepProbability: [[100], [100], [100], [100]],
+        stepCycle: [[1], [1], [1], [1]],
+        stepCycleOffset: [[1], [1], [1], [1]],
+        lengthQuarters: 1,
+        noteBandpassLowMidi: 60,
+        noteBandpassHighMidi: 79,
+        globalTransposeSemitones: 12,
+        drumRowPitchLockEnabled: true,
+      }),
+    });
+
+    expect(schedule.map((event) => event.midi)).toEqual([36, 37, 38, 39]);
+  });
 });

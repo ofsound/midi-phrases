@@ -47,6 +47,7 @@ import { scaledPx } from "./uiScale.svelte.js";
    * @property {number} [velocityTiltPivotMidi]
    * @property {number} [velocityTiltAmount]
    * @property {number} [globalTransposeSemitones]
+   * @property {boolean} [drumRowPitchLockEnabled]
    * @property {boolean} [octavizerDown8vaEnabled]
    * @property {boolean} [octavizerUp8vaEnabled]
    * @property {number} [octavizerDown8vaRelativeVelocity]
@@ -89,6 +90,7 @@ import { scaledPx } from "./uiScale.svelte.js";
     velocityTiltPivotMidi = 60,
     velocityTiltAmount = 0,
     globalTransposeSemitones = 0,
+    drumRowPitchLockEnabled = false,
     octavizerDown8vaEnabled = false,
     octavizerUp8vaEnabled = false,
     octavizerDown8vaRelativeVelocity = 0,
@@ -246,6 +248,7 @@ import { scaledPx } from "./uiScale.svelte.js";
     velocityTiltPivotMidi,
     velocityTiltAmount,
     globalTransposeSemitones,
+    drumRowPitchLockEnabled,
   });
 
   let scheduled = $derived(

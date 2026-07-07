@@ -6,6 +6,7 @@ import {defaultStepProbabilityValue, maxPercentValue, maxStepProbabilityValue} f
 import {applyShimmer, combinedModeExpansionCap, defaultShimmerDelayMultiplierIndex, defaultShimmerFeedbackPercent, defaultShimmerMixPercent} from "./shimmer.js";
 import {applyVelocityTilt, defaultVelocityTiltAmount, defaultVelocityTiltPivotMidi} from "./velocityTilt.js";
 import {applyGlobalTranspose, defaultGlobalTransposeSemitones} from "./globalTranspose.js";
+import {applyDrumRowPitchLock, defaultDrumRowPitchLockEnabled} from "./drumRowPitchLock.js";
 import {
   defaultScaleModeIndex,
   defaultScaleRoot,
@@ -531,6 +532,10 @@ export function stepTriggerCountAtBeat({
  * @param {number} [params.scaleModeIndex]
  * @param {number} [params.noteBandpassLowMidi]
  * @param {number} [params.noteBandpassHighMidi]
+ * @param {number} [params.velocityTiltPivotMidi]
+ * @param {number} [params.velocityTiltAmount]
+ * @param {number} [params.globalTransposeSemitones]
+ * @param {boolean} [params.drumRowPitchLockEnabled]
  * @param {boolean} [params.octavizerDown8vaEnabled]
  * @param {boolean} [params.octavizerUp8vaEnabled]
  * @param {number} [params.octavizerDown8vaRelativeVelocity]
@@ -767,7 +772,7 @@ export function buildPhraseSchedule(params) {
     params.loopOutputStartQuarters,
     params.loopOutputEndQuarters,
   );
-  const finalTransformed = applyGlobalTranspose(
+  const transposed = applyGlobalTranspose(
     applyVelocityTilt(
       applyNoteBandpass(
         buildPhraseScheduleBeforeBandpass(params),
@@ -778,6 +783,10 @@ export function buildPhraseSchedule(params) {
       params.velocityTiltAmount ?? defaultVelocityTiltAmount,
     ),
     params.globalTransposeSemitones ?? defaultGlobalTransposeSemitones,
+  );
+  const finalTransformed = applyDrumRowPitchLock(
+    transposed,
+    params.drumRowPitchLockEnabled ?? defaultDrumRowPitchLockEnabled,
   );
 
   const postProcessed = suppressHeldNoteRetriggers(finalTransformed, true);
