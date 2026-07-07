@@ -724,6 +724,7 @@ void PluginProcessor::resetPlaybackMidiState()
 {
     wasPlaying = false;
     resolvePendingAudioLoopBraceEnableForStoppedPlayback();
+    resolvePendingAudioLoopBraceRangeForStoppedPlayback();
     resetLastEmittedTriggers();
     resetPendingNoteOffs();
     resetPendingNoteOns();
@@ -1516,6 +1517,9 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
                 if (pendingAudioLoopBraceEnablePatternSlot == patternSlot)
                     clearPendingAudioLoopBraceEnable();
 
+                if (pendingAudioLoopBraceRangePatternSlot == patternSlot)
+                    clearPendingAudioLoopBraceRange();
+
                 if (patternSlot == audioActivePatternSlot)
                     clearLoopScheduleAnchor();
             }
@@ -1523,14 +1527,44 @@ void PluginProcessor::applySequencerCommand (const SequencerCommand& command)
             break;
 
         case SequencerCommand::Type::SetLoopBraceStart:
-            pattern.loopBrace.startQuarters =
-                clampLoopBraceStart (command.doubleValue, pattern.loopBrace.endQuarters);
+        {
+            if (patternSlot == audioActivePatternSlot
+                && wasPlaying
+                && pattern.loopBrace.enabled != 0)
+            {
+                const auto pendingEnd =
+                    pendingAudioLoopBraceRangePatternSlot == patternSlot
+                        ? pendingAudioLoopBraceEndQuarters
+                        : pattern.loopBrace.endQuarters;
+                requestAudioLoopBraceRange (patternSlot, command.doubleValue, pendingEnd);
+            }
+            else
+            {
+                pattern.loopBrace.startQuarters =
+                    clampLoopBraceStart (command.doubleValue, pattern.loopBrace.endQuarters);
+            }
             break;
+        }
 
         case SequencerCommand::Type::SetLoopBraceEnd:
-            pattern.loopBrace.endQuarters =
-                clampLoopBraceEnd (command.doubleValue, pattern.loopBrace.startQuarters);
+        {
+            if (patternSlot == audioActivePatternSlot
+                && wasPlaying
+                && pattern.loopBrace.enabled != 0)
+            {
+                const auto pendingStart =
+                    pendingAudioLoopBraceRangePatternSlot == patternSlot
+                        ? pendingAudioLoopBraceStartQuarters
+                        : pattern.loopBrace.startQuarters;
+                requestAudioLoopBraceRange (patternSlot, pendingStart, command.doubleValue);
+            }
+            else
+            {
+                pattern.loopBrace.endQuarters =
+                    clampLoopBraceEnd (command.doubleValue, pattern.loopBrace.startQuarters);
+            }
             break;
+        }
 
         case SequencerCommand::Type::SetCombinationModeMask:
         {
@@ -1869,6 +1903,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     juce::ignoreUnused (samplesPerBlock);
     sampleRateHz = sampleRate;
     clearPendingAudioLoopBraceEnable();
+    clearPendingAudioLoopBraceRange();
     resetLastEmittedTriggers();
     wasPlaying = false;
     clearLoopScheduleAnchor();
@@ -3084,6 +3119,7 @@ void PluginProcessor::deactivateLoopBraceForPatternSelection (const int patternS
     audioActiveLoopSlot.store (-1, std::memory_order_release);
     pendingAudioLoopSlot.store (-1, std::memory_order_release);
     clearPendingAudioLoopBraceEnable();
+    clearPendingAudioLoopBraceRange();
     modelPattern (slot).loopBrace.enabled = 0;
     audioPatterns[static_cast<size_t> (slot)].loopBrace.enabled = 0;
     audioPatterns[static_cast<size_t> (audioSlot)].loopBrace.enabled = 0;
@@ -3135,6 +3171,7 @@ void PluginProcessor::deactivatePatternOutput()
     pendingSchedulePhaseReset.store (0, std::memory_order_release);
     clearPendingAudioCombinationModeMask();
     clearPendingAudioLoopBraceEnable();
+    clearPendingAudioLoopBraceRange();
 
     deactivateLoopBraceForPatternSelection (lastViewPatternSlot);
     muteFlushRequested.store (1, std::memory_order_release);
@@ -3170,6 +3207,7 @@ void PluginProcessor::applyAudioPatternSlot (const int patternSlot,
     }
 
     clearPendingAudioLoopBraceEnable();
+    clearPendingAudioLoopBraceRange();
     audioActivePatternSlot = slot;
     pendingAudioPatternSlot.store (-1, std::memory_order_release);
     currentLoopSlot.store (-1, std::memory_order_release);
@@ -3615,6 +3653,7 @@ void PluginProcessor::requestAudioLoopSlot (const int loopSlot)
         return;
 
     clearPendingAudioLoopBraceEnable();
+    clearPendingAudioLoopBraceRange();
     pendingAudioLoopSlot.store (slot, std::memory_order_release);
 }
 
@@ -3627,6 +3666,7 @@ void PluginProcessor::applyAudioLoopSlot (const int loopSlot, const double reanc
         return;
 
     clearPendingAudioLoopBraceEnable();
+    clearPendingAudioLoopBraceRange();
     audioActivePatternSlot = clampPatternSlot (loopSlotState.patternSlot);
 
     auto& loopBrace = audioPatterns[static_cast<size_t> (audioActivePatternSlot)].loopBrace;
@@ -3657,6 +3697,51 @@ void PluginProcessor::clearPendingAudioLoopBraceEnable()
     pendingAudioLoopBraceEnablePatternSlot = -1;
 }
 
+void PluginProcessor::requestAudioLoopBraceRange (const int patternSlot,
+                                                  const double startQuarters,
+                                                  const double endQuarters)
+{
+    const auto slot = clampPatternSlot (patternSlot);
+    const auto loopStart = clampLoopBraceStart (startQuarters, endQuarters);
+    const auto loopEnd = clampLoopBraceEnd (endQuarters, loopStart);
+
+    pendingAudioLoopBraceRangePatternSlot = slot;
+    pendingAudioLoopBraceStartQuarters = loopStart;
+    pendingAudioLoopBraceEndQuarters = loopEnd;
+}
+
+void PluginProcessor::clearPendingAudioLoopBraceRange()
+{
+    pendingAudioLoopBraceRangePatternSlot = -1;
+    pendingAudioLoopBraceStartQuarters = defaultLoopBraceStartQuarters;
+    pendingAudioLoopBraceEndQuarters = defaultLoopBraceEndQuarters;
+}
+
+void PluginProcessor::applyAudioLoopBraceRange (const double reanchorTransportPpq)
+{
+    const auto slot = pendingAudioLoopBraceRangePatternSlot;
+    const auto loopStart = pendingAudioLoopBraceStartQuarters;
+    const auto loopEnd = pendingAudioLoopBraceEndQuarters;
+    clearPendingAudioLoopBraceRange();
+
+    if (slot < 0 || slot >= patternSlotCount)
+        return;
+
+    auto& loopBrace = audioPatterns[static_cast<size_t> (slot)].loopBrace;
+    loopBrace.startQuarters = clampLoopBraceStart (loopStart, loopEnd);
+    loopBrace.endQuarters = clampLoopBraceEnd (loopEnd, loopBrace.startQuarters);
+
+    if (slot != audioActivePatternSlot || loopBrace.enabled == 0)
+        return;
+
+    reanchorLoopScheduleAt (reanchorTransportPpq);
+    resetLastEmittedTriggers();
+    resetPendingNoteOffs();
+    resetPendingNoteOns();
+    resetPendingCombinedNoteOffs();
+    resetStepCycleCounters();
+}
+
 void PluginProcessor::applyAudioLoopBraceEnable (const double reanchorTransportPpq)
 {
     const auto slot = pendingAudioLoopBraceEnablePatternSlot;
@@ -3680,6 +3765,15 @@ void PluginProcessor::applyAudioLoopBraceEnable (const double reanchorTransportP
     resetPendingNoteOns();
     resetPendingCombinedNoteOffs();
     resetStepCycleCounters();
+}
+
+void PluginProcessor::resolvePendingAudioLoopBraceRangeForStoppedPlayback()
+{
+    if (pendingAudioLoopBraceRangePatternSlot < 0)
+        return;
+
+    applyAudioLoopBraceRange (-1.0);
+    clearLoopScheduleAnchor();
 }
 
 void PluginProcessor::requestAudioCombinationModeMask (const int patternSlot, const int mask)
@@ -7375,13 +7469,14 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         const auto pendingPattern = pendingAudioPatternSlot.load (std::memory_order_acquire);
         const auto pendingLoop = pendingAudioLoopSlot.load (std::memory_order_acquire);
         const auto pendingLoopBraceEnable = pendingAudioLoopBraceEnablePatternSlot;
+        const auto pendingLoopBraceRange = pendingAudioLoopBraceRangePatternSlot;
         const auto pendingPhaseReset =
             pendingSchedulePhaseReset.load (std::memory_order_acquire) != 0;
         const auto pendingCombinationModeMask =
             pendingAudioCombinationModePatternSlot.load (std::memory_order_acquire);
 
         if (pendingPattern >= 0 || pendingLoop >= 0 || pendingLoopBraceEnable >= 0
-            || pendingPhaseReset || pendingCombinationModeMask >= 0)
+            || pendingLoopBraceRange >= 0 || pendingPhaseReset || pendingCombinationModeMask >= 0)
         {
             const auto pulse = pulseQuartersForIndex (pulseIndex.load (std::memory_order_relaxed));
             auto switchPpq = std::numeric_limits<double>::infinity();
@@ -7389,7 +7484,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             auto combinationOperationPpq = std::numeric_limits<double>::infinity();
 
             if (pendingPattern >= 0 || pendingLoop >= 0 || pendingLoopBraceEnable >= 0
-                || pendingPhaseReset)
+                || pendingLoopBraceRange >= 0 || pendingPhaseReset)
             {
                 pulseOperationPpq = nextBoundaryAtOrAfter (transportCursor, pulse);
                 switchPpq = juce::jmin (switchPpq, pulseOperationPpq);
@@ -7437,6 +7532,9 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                 if (pulseOperationDue && pendingLoopBraceEnable >= 0)
                     applyAudioLoopBraceEnable (transportCursor);
 
+                if (pulseOperationDue && pendingLoopBraceRange >= 0)
+                    applyAudioLoopBraceRange (transportCursor);
+
                 if (pulseOperationDue && pendingPhaseReset)
                     applySchedulePhaseReset (transportCursor);
 
@@ -7449,7 +7547,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                 const auto otherPulseOpsDue =
                     pulseOperationDue
                     && (pendingPattern >= 0 || pendingLoop >= 0 || pendingLoopBraceEnable >= 0
-                        || pendingPhaseReset);
+                        || pendingLoopBraceRange >= 0 || pendingPhaseReset);
 
                 if (otherPulseOpsDue || ! hadPendingCombination
                     || ! isCombinationChangePhaseContinue())
@@ -7528,6 +7626,11 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             if (pulseOperationDue && pendingLoopBraceEnable >= 0)
                 applyAudioLoopBraceEnable (segmentEnd);
 
+            const auto pendingLoopBraceRangeAtSegmentEnd = pendingAudioLoopBraceRangePatternSlot;
+
+            if (pulseOperationDue && pendingLoopBraceRangeAtSegmentEnd >= 0)
+                applyAudioLoopBraceRange (segmentEnd);
+
             if (pulseOperationDue && pendingPhaseResetAtSegmentEnd)
                 applySchedulePhaseReset (segmentEnd);
 
@@ -7545,7 +7648,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             const auto otherPulseOpsDueAtSegmentEnd =
                 pulseOperationDue
                 && (nextPattern >= 0 || nextLoop >= 0 || pendingLoopBraceEnable >= 0
-                    || pendingPhaseResetAtSegmentEnd);
+                    || pendingLoopBraceRangeAtSegmentEnd >= 0 || pendingPhaseResetAtSegmentEnd);
 
             if (otherPulseOpsDueAtSegmentEnd || ! hadPendingCombinationAtSegmentEnd
                 || ! isCombinationChangePhaseContinue())
@@ -8241,6 +8344,7 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
         pendingSchedulePhaseReset.store (0, std::memory_order_release);
         clearPendingAudioCombinationModeMask();
         clearPendingAudioLoopBraceEnable();
+        clearPendingAudioLoopBraceRange();
         lastObservedParameterPatternSlot = lastViewPatternSlot;
     }
     else
@@ -8369,6 +8473,7 @@ void PluginProcessor::resetProject()
     pendingAudioLoopSlot.store (-1, std::memory_order_release);
     clearPendingAudioCombinationModeMask();
     clearPendingAudioLoopBraceEnable();
+    clearPendingAudioLoopBraceRange();
 
     for (int pattern = 0; pattern < patternSlotCount; ++pattern)
         publishPatternToAudio (pattern);

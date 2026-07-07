@@ -644,6 +644,10 @@ private:
     void requestAudioLoopBraceEnable (int patternSlot);
     void clearPendingAudioLoopBraceEnable();
     void applyAudioLoopBraceEnable (double reanchorTransportPpq);
+    void requestAudioLoopBraceRange (int patternSlot, double startQuarters, double endQuarters);
+    void clearPendingAudioLoopBraceRange();
+    void applyAudioLoopBraceRange (double reanchorTransportPpq);
+    void resolvePendingAudioLoopBraceRangeForStoppedPlayback();
     void requestAudioCombinationModeMask (int patternSlot, int mask);
     void clearPendingAudioCombinationModeMask();
     void applyAudioCombinationModeMask (double reanchorTransportPpq);
@@ -844,6 +848,9 @@ private:
     std::atomic<int> audioActiveLoopSlot { -1 };
     std::atomic<int> pendingAudioLoopSlot { -1 };
     int pendingAudioLoopBraceEnablePatternSlot = -1;
+    int pendingAudioLoopBraceRangePatternSlot = -1;
+    double pendingAudioLoopBraceStartQuarters = defaultLoopBraceStartQuarters;
+    double pendingAudioLoopBraceEndQuarters = defaultLoopBraceEndQuarters;
     std::atomic<int> pulseIndex { defaultPulseIndex };
     std::atomic<int> combinationSyncDivisionIndex { defaultCombinationSyncDivisionIndex };
     std::atomic<int> combinationChangePhaseContinue { 0 };
