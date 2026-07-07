@@ -171,6 +171,13 @@
     snapMidiToScale,
     transposeMidiByScaleDegrees,
   } from "./scaleUtils.js";
+  import {
+    clampQwertyOctaveOffset,
+    isQwertyNoteCode,
+    isQwertyOctaveCode,
+    midiFromQwertyCode,
+    qwertyOctaveDownCode,
+  } from "./qwertyKeyboard.js";
   import { applyThemeMode, defaultThemeMode, storedThemeMode } from "./themeMode.js";
   import {
     currentUiScaleMinimumSize,
@@ -332,6 +339,151 @@
   let recordingCaptureNativePromise = Promise.resolve();
   /** @type {Set<number>} */
   let recordingKeysHeld = $state(new Set());
+  let qwertyOctaveOffset = 0;
+  /** @type {Set<string>} */
+  const qwertyKeysHeld = new Set();
+
+  /** @param {KeyboardEvent} event */
+  function qwertyKeyboardInputBlocked(event) {
+    const active = document.activeElement;
+
+    if (scaleDialogOpen) return true;
+    if (active instanceof HTMLInputElement) return true;
+    if (active instanceof HTMLTextAreaElement) return true;
+    if (active instanceof HTMLSelectElement) return true;
+    if (active instanceof HTMLButtonElement) return true;
+    if (active instanceof HTMLElement && active.isContentEditable) return true;
+    if (event.metaKey || event.ctrlKey || event.altKey) return true;
+
+    return false;
+  }
+
+  /** @param {number} midi @param {boolean} held */
+  function setRecordingKeyHeld(midi, held) {
+    if (recordingRow === null) return;
+
+    const usable =
+      isChromaticScaleMode(scaleModeIndex) || isMidiInScale(midi, scaleRoot, scaleModeIndex);
+
+    if (held && !usable) return;
+
+    const next = new Set(recordingKeysHeld);
+
+    if (held) {
+      next.add(midi);
+    } else {
+      next.delete(midi);
+    }
+
+    recordingKeysHeld = next;
+  }
+
+  /** @param {number} midi */
+  function releaseQwertyMidi(midi) {
+    if (recordingRow !== null) {
+      onRecordPianoNoteRelease(midi);
+      setRecordingKeyHeld(midi, false);
+      return;
+    }
+
+    if (nativeFunctionAvailable("playStandaloneKeyboardNoteOff")) {
+      void getNativeFunction("playStandaloneKeyboardNoteOff")(midi);
+    }
+  }
+
+  /** @param {string} code @param {number} midi */
+  function pressQwertyMidi(code, midi) {
+    if (qwertyKeysHeld.has(code)) return;
+
+    qwertyKeysHeld.add(code);
+
+    if (recordingRow !== null) {
+      if (!isChromaticScaleMode(scaleModeIndex) && !isMidiInScale(midi, scaleRoot, scaleModeIndex)) {
+        qwertyKeysHeld.delete(code);
+        return;
+      }
+
+      onRecordPianoNotePress(midi);
+      setRecordingKeyHeld(midi, true);
+      return;
+    }
+
+    if (nativeFunctionAvailable("playStandaloneKeyboardNoteOn")) {
+      void getNativeFunction("playStandaloneKeyboardNoteOn")(midi, defaultStepVelocity);
+    }
+  }
+
+  /** @param {number} delta */
+  function shiftQwertyOctave(delta) {
+    const heldCodes = [...qwertyKeysHeld];
+
+    for (const code of heldCodes) {
+      const oldMidi = midiFromQwertyCode(code, qwertyOctaveOffset);
+
+      if (oldMidi !== null) {
+        qwertyKeysHeld.delete(code);
+        releaseQwertyMidi(oldMidi);
+      }
+    }
+
+    qwertyOctaveOffset = clampQwertyOctaveOffset(qwertyOctaveOffset + delta);
+
+    for (const code of heldCodes) {
+      const newMidi = midiFromQwertyCode(code, qwertyOctaveOffset);
+
+      if (newMidi !== null) {
+        pressQwertyMidi(code, newMidi);
+      }
+    }
+  }
+
+  /** @param {KeyboardEvent} event */
+  function handleQwertyKeydown(event) {
+    if (!standaloneTransportAvailable || qwertyKeyboardInputBlocked(event)) return;
+
+    if (isQwertyOctaveCode(event.code)) {
+      if (event.repeat) return;
+
+      event.preventDefault();
+      shiftQwertyOctave(event.code === qwertyOctaveDownCode ? -1 : 1);
+      return;
+    }
+
+    if (!isQwertyNoteCode(event.code) || event.repeat) return;
+
+    const midi = midiFromQwertyCode(event.code, qwertyOctaveOffset);
+
+    if (midi === null) return;
+
+    event.preventDefault();
+    pressQwertyMidi(event.code, midi);
+  }
+
+  /** @param {KeyboardEvent} event */
+  function handleQwertyKeyup(event) {
+    if (!standaloneTransportAvailable || qwertyKeyboardInputBlocked(event)) return;
+    if (!isQwertyNoteCode(event.code)) return;
+
+    const midi = midiFromQwertyCode(event.code, qwertyOctaveOffset);
+
+    if (midi === null || !qwertyKeysHeld.has(event.code)) return;
+
+    event.preventDefault();
+    qwertyKeysHeld.delete(event.code);
+    releaseQwertyMidi(midi);
+  }
+
+  function releaseAllQwertyNotes() {
+    for (const code of [...qwertyKeysHeld]) {
+      const midi = midiFromQwertyCode(code, qwertyOctaveOffset);
+
+      if (midi !== null) {
+        releaseQwertyMidi(midi);
+      }
+
+      qwertyKeysHeld.delete(code);
+    }
+  }
 
   /** @param {number} quarters */
   function formatRowTimingOffsetLabel(quarters) {
@@ -5207,6 +5359,7 @@
     recordingCapturedNotes = false;
     recordingCaptureNativePromise = Promise.resolve();
     recordingKeysHeld = new Set();
+    releaseAllQwertyNotes();
     recordingMode = "loop";
     recordingProgress = 0;
     recordingElapsedSeconds = 0;
@@ -5299,6 +5452,7 @@
     recordingCaptureNativePromise = Promise.resolve();
     recordingHistoryBefore = null;
     recordingKeysHeld = new Set();
+    releaseAllQwertyNotes();
     recordingMode = "loop";
     recordingProgress = 0;
     recordingElapsedSeconds = 0;
@@ -6282,6 +6436,9 @@
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("keydown", handleKeydown);
+    window.addEventListener("keydown", handleQwertyKeydown);
+    window.addEventListener("keyup", handleQwertyKeyup);
+    window.addEventListener("blur", releaseAllQwertyNotes);
     startPlaybackPoll();
 
     return () => {
@@ -6289,6 +6446,10 @@
       if (scaleFrameId) cancelAnimationFrame(scaleFrameId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("keydown", handleKeydown);
+      window.removeEventListener("keydown", handleQwertyKeydown);
+      window.removeEventListener("keyup", handleQwertyKeyup);
+      window.removeEventListener("blur", releaseAllQwertyNotes);
+      releaseAllQwertyNotes();
       stopPlaybackPoll();
       document.removeEventListener("pointermove", updateMarqueePointer);
       document.removeEventListener("pointerup", finishMarqueeSelection);
@@ -7109,6 +7270,7 @@
           {scaleModeIndex}
           accent={recordingAccent}
           heldKeys={recordingKeysHeld}
+          {standaloneTransportAvailable}
           onNotePress={onRecordPianoNotePress}
           onNoteRelease={onRecordPianoNoteRelease}
         />

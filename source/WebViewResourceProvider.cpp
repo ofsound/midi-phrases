@@ -1254,6 +1254,30 @@ juce::WebBrowserComponent::Options WebViewResources::makeBrowserOptions (PluginP
                                complete (juce::var {});
                            })
                        .withNativeFunction (
+                           "playStandaloneKeyboardNoteOn",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                               {
+                                   const auto velocity =
+                                       args.size() >= 2 ? varToInt (args[1])
+                                                        : PluginProcessor::defaultStepVelocity;
+                                   processor.playStandaloneKeyboardNoteOn (varToInt (args[0]),
+                                                                           velocity);
+                               }
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
+                           "playStandaloneKeyboardNoteOff",
+                           [&processor] (const juce::Array<juce::var>& args,
+                                         juce::WebBrowserComponent::NativeFunctionCompletion complete) {
+                               if (args.size() >= 1)
+                                   processor.playStandaloneKeyboardNoteOff (varToInt (args[0]));
+
+                               complete (juce::var {});
+                           })
+                       .withNativeFunction (
                            "finishPhraseRowRecordingCapture",
                            [&processor] (const juce::Array<juce::var>&,
                                          juce::WebBrowserComponent::NativeFunctionCompletion complete) {

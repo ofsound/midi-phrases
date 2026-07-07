@@ -343,6 +343,10 @@ public:
     void capturePhraseRowRecordedNoteOn (int midiNote, int velocity);
     void capturePhraseRowRecordedNoteOff (int midiNote);
 
+    /** Standalone QWERTY keyboard playthrough when not recording. */
+    void playStandaloneKeyboardNoteOn (int midiNote, int velocity);
+    void playStandaloneKeyboardNoteOff (int midiNote);
+
     /** Finalises the active realtime recording into row step data. */
     bool finishPhraseRowRecordingCapture (int& rowOut);
 

@@ -28,6 +28,7 @@
    * @property {number} [scaleModeIndex]
    * @property {import('./rowAccentTheme.js').RowAccent} [accent]
    * @property {Set<number>} [heldKeys]
+   * @property {boolean} [standaloneTransportAvailable]
    * @property {(midi: number) => void} [onNotePress]
    * @property {(midi: number) => void} [onNoteRelease]
    */
@@ -39,6 +40,7 @@
     scaleModeIndex = 0,
     accent = emeraldRowAccent,
     heldKeys = new Set(),
+    standaloneTransportAvailable = false,
     onNotePress = () => {},
     onNoteRelease = () => {}
   } = $props();
@@ -300,7 +302,9 @@
   </div>
 
   <p class="mt-2 shrink-0 text-center text-[11px] text-text-faint">
-    {#if chromatic}
+    {#if standaloneTransportAvailable}
+      QWERTY keys play notes · Z/X shift octave · Space toggles transport
+    {:else if chromatic}
       Click keys or play MIDI · starts on first note · stop quantizes the loop to 0.25×
     {:else}
       Click scale keys or play MIDI · off-scale notes are ignored · stop quantizes the loop to 0.25×

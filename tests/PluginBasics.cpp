@@ -433,6 +433,51 @@ TEST_CASE ("Built-in record keyboard emits exact MIDI notes in realtime", "[reco
     CHECK (findNoteOffSampleOnChannel (midi, 64, 3) == 0);
 }
 
+TEST_CASE ("Standalone QWERTY keyboard emits MIDI without recording", "[recording]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.setStandaloneTransportAvailableForTests (true);
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setCurrentPatternSlot (0);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    testPlugin.playStandaloneKeyboardNoteOn (67, 96);
+    testPlugin.processBlock (buffer, midi);
+
+    CHECK (findNoteOnSampleOnChannel (midi, 67, PluginProcessor::defaultPhraseRowMidiChannel) == 0);
+
+    midi.clear();
+    testPlugin.playStandaloneKeyboardNoteOff (67);
+    testPlugin.processBlock (buffer, midi);
+
+    CHECK (findNoteOffSampleOnChannel (midi, 67, PluginProcessor::defaultPhraseRowMidiChannel) == 0);
+}
+
+TEST_CASE ("Standalone QWERTY keyboard is ignored in plugin builds", "[recording]")
+{
+    PluginProcessor testPlugin;
+
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    testPlugin.prepareToPlay (sampleRate, blockSize);
+    testPlugin.setCurrentPatternSlot (0);
+
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    juce::MidiBuffer midi;
+
+    testPlugin.playStandaloneKeyboardNoteOn (67, 96);
+    testPlugin.processBlock (buffer, midi);
+
+    CHECK (midi.getNumEvents() == 0);
+}
+
 TEST_CASE ("Starter recording fits stopped free-time capture", "[recording]")
 {
     PluginProcessor testPlugin;

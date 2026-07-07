@@ -5475,6 +5475,28 @@ void PluginProcessor::capturePhraseRowRecordedNoteOff (const int midiNote)
     }
 }
 
+void PluginProcessor::playStandaloneKeyboardNoteOn (const int midiNote, const int velocity)
+{
+    if (! hasStandaloneTransport())
+        return;
+
+    enqueueRecordingKeyboardMidiEvent (defaultPhraseRowMidiChannel,
+                                       midiNote,
+                                       velocity,
+                                       true);
+}
+
+void PluginProcessor::playStandaloneKeyboardNoteOff (const int midiNote)
+{
+    if (! hasStandaloneTransport())
+        return;
+
+    enqueueRecordingKeyboardMidiEvent (defaultPhraseRowMidiChannel,
+                                       midiNote,
+                                       defaultStepVelocity,
+                                       false);
+}
+
 bool PluginProcessor::finishPhraseRowRecordingCapture (int& rowOut)
 {
     rowOut = recordingRow.exchange (-1, std::memory_order_acq_rel);
