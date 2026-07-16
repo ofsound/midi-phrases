@@ -18,9 +18,19 @@ set(PRODUCT_NAME "MIDI Phrases")
 set(COMPANY_NAME "ofsound")
 set(BUNDLE_ID "com.ofsound.midiphrases")
 
-# Change me! Set the plugin formats you want built
-# Valid choices: AAX Unity VST VST3 AU AUv3 Standalone
-set(FORMATS Standalone AU VST3 AUv3)
+# iOS ships a containing app with an embedded AUv3 extension. Desktop-only
+# formats remain enabled for the normal macOS build.
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(FORMATS Standalone AUv3)
+    set(MIDI_PHRASES_COPY_PLUGIN_AFTER_BUILD FALSE)
+    set(MIDI_PHRASES_BACKGROUND_AUDIO_ENABLED TRUE)
+    set(MIDI_PHRASES_TARGETED_DEVICE_FAMILY "2")
+else()
+    set(FORMATS Standalone AU VST3 AUv3)
+    set(MIDI_PHRASES_COPY_PLUGIN_AFTER_BUILD TRUE)
+    set(MIDI_PHRASES_BACKGROUND_AUDIO_ENABLED FALSE)
+    set(MIDI_PHRASES_TARGETED_DEVICE_FAMILY "1,2")
+endif()
 
 # Force JUCE to work with sccache
 # instruct MSVC to embed debug info (/Z7) instead of emitting a .pdb
@@ -39,8 +49,10 @@ include(PamplejuceLog)
 # On Github Actions, this is done as a part of actions/checkout
 add_subdirectory(JUCE)
 
-# Add CLAP format
-add_subdirectory(modules/clap-juce-extensions EXCLUDE_FROM_ALL)
+# CLAP is a desktop format and its wrapper is not part of the iOS app.
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    add_subdirectory(modules/clap-juce-extensions EXCLUDE_FROM_ALL)
+endif()
 
 # Add any other modules you want modules here, before the juce_add_plugin call
 # juce_add_module(modules/my_module)
@@ -54,8 +66,23 @@ juce_add_plugin("${PROJECT_NAME}"
     COMPANY_NAME "${COMPANY_NAME}"
     BUNDLE_ID "${BUNDLE_ID}"
 
-    # On MacOS, plugin is copied to /Users/yourname/Library/Audio/Plug-Ins/
-    COPY_PLUGIN_AFTER_BUILD TRUE
+    # On macOS, plugins are copied to /Users/yourname/Library/Audio/Plug-Ins/.
+    COPY_PLUGIN_AFTER_BUILD ${MIDI_PHRASES_COPY_PLUGIN_AFTER_BUILD}
+
+    # The standalone app publishes a virtual MIDI output on iOS. JUCE requires
+    # the audio background mode for that endpoint to be created successfully.
+    BACKGROUND_AUDIO_ENABLED ${MIDI_PHRASES_BACKGROUND_AUDIO_ENABLED}
+    TARGETED_DEVICE_FAMILY ${MIDI_PHRASES_TARGETED_DEVICE_FAMILY}
+    IPHONE_SCREEN_ORIENTATIONS
+        UIInterfaceOrientationPortrait
+        UIInterfaceOrientationPortraitUpsideDown
+        UIInterfaceOrientationLandscapeLeft
+        UIInterfaceOrientationLandscapeRight
+    IPAD_SCREEN_ORIENTATIONS
+        UIInterfaceOrientationPortrait
+        UIInterfaceOrientationPortraitUpsideDown
+        UIInterfaceOrientationLandscapeLeft
+        UIInterfaceOrientationLandscapeRight
 
     NEEDS_WEB_BROWSER TRUE
     NEEDS_WEBVIEW2 TRUE
@@ -85,9 +112,11 @@ endif()
 # Without running into ODR violations
 add_library(SharedCode INTERFACE)
 
-clap_juce_extensions_plugin(TARGET "${PROJECT_NAME}"
-    CLAP_ID "${BUNDLE_ID}"
-    CLAP_FEATURES midi-effect)
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    clap_juce_extensions_plugin(TARGET "${PROJECT_NAME}"
+        CLAP_ID "${BUNDLE_ID}"
+        CLAP_FEATURES midi-effect)
+endif()
 
 # Enable fast math, C++20 and a few other target defaults
 include(SharedCodeDefaults)
@@ -169,23 +198,32 @@ endif()
 # IPP support (SIMD DSP) — not needed for MIDI Phrases
 # include(PamplejuceIPP)
 
-# Everything related to the tests target
-include(Tests)
+# Tests and benchmarks are desktop executables. Keeping them out of the iOS
+# project avoids non-app targets that Xcode cannot sign or run on an iPad.
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    include(Tests)
+endif()
 
 option(MIDI_PHRASES_WARNINGS_AS_ERRORS "Treat warnings in owned targets as errors" ON)
 
 if (MIDI_PHRASES_WARNINGS_AS_ERRORS)
     if (MSVC)
         target_compile_options(SharedCode INTERFACE /WX)
-        target_compile_options(Tests PRIVATE /WX)
+        if (TARGET Tests)
+            target_compile_options(Tests PRIVATE /WX)
+        endif()
     else()
         target_compile_options(SharedCode INTERFACE -Werror)
-        target_compile_options(Tests PRIVATE -Werror)
+        if (TARGET Tests)
+            target_compile_options(Tests PRIVATE -Werror)
+        endif()
     endif()
 endif()
 
 # A separate target for Benchmarks (keeps the Tests target fast)
-include(Benchmarks)
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    include(Benchmarks)
+endif()
 
 # Output some config for CI (like our PRODUCT_NAME)
 include(GitHubENV)
