@@ -7,8 +7,19 @@ include (PamplejuceVersion)
 # Modern concise way to add dependencies to your project
 include (CPM)
 
-# Configures universal binaries and decides which version of macOS to support
-include(PamplejuceMacOS)
+# The shared Pamplejuce helper forces a macOS deployment target, which is not
+# valid when cross-compiling for iOS. Keep that helper unchanged and configure
+# the iOS minimum here so a clean checkout remains reproducible.
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    if (NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum supported iOS version")
+    endif()
+
+    set(CMAKE_XCODE_GENERATE_SCHEME OFF)
+else()
+    # Configures universal binaries and decides which version of macOS to support
+    include(PamplejuceMacOS)
+endif()
 
 # Couple tweaks that IMO should be JUCE defaults
 include(JUCEDefaults)
@@ -144,8 +155,19 @@ if (TARGET WebViewUIBuild)
     add_dependencies(Assets WebViewUIBuild)
 endif()
 
-# MacOS only: Cleans up folder and target organization on Xcode.
-include(XcodePrettify)
+# The desktop helper assigns plugin schemes to the macOS AudioPluginHost. On
+# iOS, generate only the two useful device schemes without that executable.
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    foreach (target Standalone AUv3)
+        if (TARGET "${PROJECT_NAME}_${target}")
+            set_target_properties("${PROJECT_NAME}_${target}" PROPERTIES
+                FOLDER "Targets"
+                XCODE_GENERATE_SCHEME ON)
+        endif()
+    endforeach()
+else()
+    include(XcodePrettify)
+endif()
 
 # This is where you can set preprocessor definitions for JUCE and your plugin
 target_compile_definitions(SharedCode
