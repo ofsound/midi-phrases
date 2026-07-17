@@ -6646,6 +6646,63 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setPlayHead (nullptr);
     }
 
+    SECTION ("selecting an offset loop past its right edge waits for the pulse boundary")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPulseIndex (PluginProcessor::defaultPulseIndex);
+        testPlugin.setCurrentPatternSlot (0);
+        ensurePhraseRowStepCount (testPlugin, 0, 1);
+        ensurePhraseRowStepCount (testPlugin, 1, 1);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseNote (1, 0, 67);
+        testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeCanon, true);
+        testPlugin.setLoopBraceEndQuarters (40.0);
+        testPlugin.setLoopBraceStartQuarters (32.0);
+        testPlugin.saveCurrentBraceToLoopSlot (0);
+
+        // Return to the saved loop's pattern without recalling the loop, matching
+        // a normal pattern playing when its saved loop button is clicked.
+        testPlugin.setCurrentPatternSlot (1);
+        testPlugin.setCurrentPatternSlot (0);
+
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+
+        struct PlayHeadMock : juce::AudioPlayHead
+        {
+            juce::AudioPlayHead::PositionInfo info;
+
+            juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override
+            {
+                return info;
+            }
+        } playHead;
+
+        playHead.info.setBpm (60.0);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (48.25);
+        testPlugin.setPlayHead (&playHead);
+        testPlugin.processBlock (buffer, midi);
+
+        testPlugin.selectLoopSlot (0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (48.50);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (findNoteOnSample (midi, 60) < 0);
+
+        midi.clear();
+        playHead.info.setPpqPosition (48.95);
+        testPlugin.processBlock (buffer, midi);
+
+        CHECK (testPlugin.getPlaybackBeat() == Catch::Approx (32.05));
+        CHECK (testPlugin.getCurrentLoopSlot() == 0);
+        CHECK (testPlugin.getAudioPatternSlot() == 0);
+
+        testPlugin.setPlayHead (nullptr);
+    }
+
     SECTION ("direct loop brace enable while playing applies on next pulse")
     {
         testPlugin.prepareToPlay (1000.0, 100);

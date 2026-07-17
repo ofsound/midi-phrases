@@ -3918,7 +3918,11 @@ void PluginProcessor::selectLoopSlot (const int loopSlot)
 
     if (! audioAlreadyApplied)
     {
-        publishPatternToAudio (patternSlot);
+        // The active pattern is already synchronized by its queued edit commands.
+        // Republishing it here would enable the recalled brace before the quantized switch.
+        if (patternSlot != getAudioPatternSlot())
+            publishPatternToAudio (patternSlot);
+
         requestAudioLoopSlot (slot);
     }
     else
@@ -5938,6 +5942,10 @@ void PluginProcessor::processTransportPlaybackRange (const double transportPpqSt
     if (loopEnabled && loopLength > 0.0)
     {
         constexpr auto epsilon = 1.0e-9;
+
+        if (loopScheduleAnchorTransportPpq < -epsilon)
+            reanchorLoopScheduleAt (transportPpqStart);
+
         auto transportCursor = transportPpqStart;
         auto isFirstSegment = true;
 
@@ -5945,6 +5953,10 @@ void PluginProcessor::processTransportPlaybackRange (const double transportPpqSt
         {
             const auto mappedStart = mapTransportToLoopSchedulePpq (transportCursor);
             const auto remainingInLoop = loopEnd - mappedStart;
+
+            if (remainingInLoop <= epsilon)
+                break;
+
             const auto segmentTransportEnd =
                 juce::jmin (transportPpqEnd, transportCursor + remainingInLoop);
             const auto mappedEnd = mappedStart + (segmentTransportEnd - transportCursor);
