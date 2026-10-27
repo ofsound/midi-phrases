@@ -95,8 +95,8 @@ juce_add_plugin("${PROJECT_NAME}"
         UIInterfaceOrientationLandscapeLeft
         UIInterfaceOrientationLandscapeRight
 
-    NEEDS_WEB_BROWSER TRUE
-    NEEDS_WEBVIEW2 TRUE
+    NEEDS_WEB_BROWSER FALSE
+    NEEDS_WEBVIEW2 FALSE
 
     PLUGIN_MANUFACTURER_CODE Osnd
     PLUGIN_CODE MPhr
@@ -140,20 +140,14 @@ include(SharedCodeDefaults)
 # set(SourceFiles Source/PluginEditor.h Source/PluginProcessor.h Source/PluginEditor.cpp Source/PluginProcessor.cpp)
 file(GLOB_RECURSE SourceFiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/source/*.h")
 
-if(APPLE)
-    list(APPEND SourceFiles "${CMAKE_CURRENT_SOURCE_DIR}/source/WebViewHoverSupport.mm")
-endif()
 
 target_sources(SharedCode INTERFACE ${SourceFiles})
 
-include(WebViewUI)
-
-# Adds a BinaryData target for embedding assets into the binary
-include(Assets)
-
-if (TARGET WebViewUIBuild)
-    add_dependencies(Assets WebViewUIBuild)
-endif()
+# Fonts are embedded for identical native typography on every host.
+juce_add_binary_data(Assets SOURCES
+    assets/fonts/FamiljenGroteskRegular.ttf
+    assets/fonts/FamiljenGroteskSemibold.ttf
+    assets/fonts/FamiljenGroteskBold.ttf)
 
 # The desktop helper assigns plugin schemes to the macOS AudioPluginHost. On
 # iOS, generate only the two useful device schemes without that executable.
@@ -173,7 +167,7 @@ endif()
 target_compile_definitions(SharedCode
     INTERFACE
 
-    JUCE_WEB_BROWSER=1
+    JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=1
     JUCE_VST3_CAN_REPLACE_VST2=0
 

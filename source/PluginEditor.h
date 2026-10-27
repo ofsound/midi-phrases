@@ -1,104 +1,50 @@
 #pragma once
-
 #include "PluginProcessor.h"
+#include "ui/PhrasesNativeEditor.h"
 
-#if JUCE_WEB_BROWSER
- #include "WebViewResourceProvider.h"
-#endif
-
-//==============================================================================
 class PluginEditor : public juce::AudioProcessorEditor
-#if JUCE_WEB_BROWSER
-    ,
-                     private juce::Timer
-#endif
 {
 public:
+    using Completion = std::function<void (juce::var)>;
     explicit PluginEditor (PluginProcessor&);
     ~PluginEditor() override;
-
     void paint (juce::Graphics&) override;
     void resized() override;
-
-#if JUCE_WEB_BROWSER
-    void mouseMove (const juce::MouseEvent&) override;
-
-    juce::MouseCursor getHostMouseCursor() const noexcept
-    {
-        return hostMouseCursor;
-    }
-
-    bool isWebViewHierarchy (const juce::Component& component) const;
-    void applyHostCursorFromWeb (const juce::String& cursorName);
-    juce::var handleEditorFullscreenRequest (int mode);
-    juce::var handleEditorScaleMinimumRequest (int minWidth, int minHeight);
-    void showSaveProjectDialog (
-        const juce::Array<juce::var>& args,
-        juce::WebBrowserComponent::NativeFunctionCompletion complete);
-    void showLoadProjectDialog (
-        juce::WebBrowserComponent::NativeFunctionCompletion complete);
-    void createNewProject (juce::WebBrowserComponent::NativeFunctionCompletion complete);
-    void cycleProject (int direction,
-                       juce::WebBrowserComponent::NativeFunctionCompletion complete);
+    void showSaveProjectDialog (const juce::Array<juce::var>&, Completion);
+    void showLoadProjectDialog (Completion);
+    void createNewProject (Completion);
+    void cycleProject (int direction, Completion);
     bool hasPreviousProject() const;
     bool hasNextProject() const;
     juce::String getCurrentProjectFileName() const;
-#endif
+    juce::var handleEditorFullscreenRequest (int mode);
+    juce::var handleEditorScaleMinimumRequest (int minWidth, int minHeight);
 
 private:
     PluginProcessor& processorRef;
-
-#if JUCE_WEB_BROWSER
-    class HostCursorLookAndFeel : public juce::LookAndFeel_V4
-    {
-    public:
-        explicit HostCursorLookAndFeel (PluginEditor& editorIn)
-            : editor (editorIn)
-        {
-        }
-
-        juce::MouseCursor getMouseCursorFor (juce::Component& component) override;
-
-    private:
-        PluginEditor& editor;
-    };
-
-    void timerCallback() override;
-    void syncWebViewInteractionFromMouse();
-    void pokeWebViewHoverAt (juce::Point<float> localPos);
+    std::unique_ptr<phrases::ui::NativeEditor> nativeView;
+    std::unique_ptr<juce::FileChooser> projectFileChooser;
+    juce::File currentProjectFile;
+    juce::MemoryBlock savedState;
+    juce::Rectangle<int> preFullscreenEditorBounds;
+    int standaloneTitleBarHeightBeforeFullscreen = -1;
+    int scaleMinimumWidth = 1690, scaleMinimumHeight = 980;
+    bool editorFullscreen = false, standaloneNativeFullscreen = false;
+    void projectCommand (int command);
+    void updateScale();
     void applyNormalResizeLimits();
-    void applyFullscreenResizeLimits (juce::Rectangle<int> targetBounds);
+    void applyFullscreenResizeLimits (juce::Rectangle<int>);
     juce::Rectangle<int> getDisplayUserBounds() const;
     juce::ResizableWindow* getStandaloneFullscreenWindow() const;
     juce::DocumentWindow* getStandaloneDocumentWindow() const;
-    void setStandaloneWrapperChromeVisible (bool shouldBeVisible);
-    void nudgeWebViewAfterLayoutChange();
+    void setStandaloneWrapperChromeVisible (bool);
+    void refreshNativeLayout();
     juce::var createEditorFullscreenState() const;
-    juce::var setEditorFullscreen (bool shouldBeFullscreen);
+    juce::var setEditorFullscreen (bool);
     juce::File getDefaultProjectsDirectory() const;
     juce::Array<juce::File> getSiblingProjectFiles() const;
-    bool loadProjectFile (const juce::File& file, juce::String& errorMessage);
-    bool saveProjectFile (const juce::File& file, juce::String& errorMessage);
-    juce::var projectOperationResult (bool success,
-                                      const juce::String& errorMessage = {}) const;
-
-    HostCursorLookAndFeel hostCursorLookAndFeel { *this };
-    std::unique_ptr<juce::WebBrowserComponent> webView;
-    std::unique_ptr<juce::FileChooser> projectFileChooser;
-    juce::File currentProjectFile;
-    juce::MouseCursor hostMouseCursor { juce::MouseCursor::NormalCursor };
-    juce::String lastHostCursorName;
-    juce::Rectangle<int> preFullscreenEditorBounds;
-    int standaloneTitleBarHeightBeforeFullscreen = -1;
-    int scaleMinimumWidth = 1690;
-    int scaleMinimumHeight = 980;
-    bool mouseWasOverWebView = false;
-    bool windowAcceptsMouseMoved = false;
-    bool editorFullscreen = false;
-    bool standaloneNativeFullscreen = false;
-#else
-    juce::Label fallbackLabel;
-#endif
-
+    bool loadProjectFile (const juce::File&, juce::String&);
+    bool saveProjectFile (const juce::File&, juce::String&);
+    juce::var projectOperationResult (bool, const juce::String& errorMessage = {}) const;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginEditor)
 };

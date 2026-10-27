@@ -1,213 +1,103 @@
 #include "PluginEditor.h"
-#include "WebViewHoverSupport.h"
 
-#include <algorithm>
-
-//==============================================================================
-#if JUCE_WEB_BROWSER
-
-namespace
+PluginEditor::PluginEditor (PluginProcessor& owner)
+    : AudioProcessorEditor (owner), processorRef (owner), nativeView (std::make_unique<phrases::ui::NativeEditor> (owner))
 {
-constexpr int defaultEditorWidth = 1690;
-constexpr int defaultPluginEditorHeight = 980;
-constexpr int defaultStandaloneEditorHeight = 1044;
-
-juce::MouseCursor mouseCursorFromWebName (const juce::String& name)
-{
-    if (name == "pointer")
-        return juce::MouseCursor (juce::MouseCursor::PointingHandCursor);
-
-    if (name == "ew-resize")
-        return juce::MouseCursor (juce::MouseCursor::LeftRightResizeCursor);
-
-    if (name == "ns-resize")
-        return juce::MouseCursor (juce::MouseCursor::UpDownResizeCursor);
-
-    if (name == "grab" || name == "grabbing")
-        return juce::MouseCursor (juce::MouseCursor::DraggingHandCursor);
-
-    if (name == "none")
-    {
-        juce::Image image (juce::Image::ARGB, 16, 16, true);
-        image.clear (image.getBounds());
-        return juce::MouseCursor (image, 8, 8);
-    }
-
-    return juce::MouseCursor (juce::MouseCursor::NormalCursor);
-}
-} // namespace
-
-juce::MouseCursor PluginEditor::HostCursorLookAndFeel::getMouseCursorFor (juce::Component& component)
-{
-    if (editor.isWebViewHierarchy (component))
-        return editor.getHostMouseCursor();
-
-    return juce::LookAndFeel_V4::getMouseCursorFor (component);
-}
-
-bool PluginEditor::isWebViewHierarchy (const juce::Component& component) const
-{
-    if (webView == nullptr)
-        return false;
-
-    return &component == webView.get() || webView->isParentOf (&component);
-}
-
-void PluginEditor::applyHostCursorFromWeb (const juce::String& cursorName)
-{
-    const auto normalized = cursorName.isEmpty() ? juce::String ("default") : cursorName;
-
-    if (normalized == lastHostCursorName)
-        return;
-
-    lastHostCursorName = normalized;
-    hostMouseCursor = mouseCursorFromWebName (normalized);
-
-    setMouseCursor (hostMouseCursor);
-
-    if (webView != nullptr)
-    {
-        webView->setMouseCursor (hostMouseCursor);
-
-        for (int i = 0; i < webView->getNumChildComponents(); ++i)
-            if (auto* child = webView->getChildComponent (i))
-                child->setMouseCursor (hostMouseCursor);
-
-        WebViewHoverSupport::applyNativeCursorToWebView (webView->getChildComponent (0), normalized);
-    }
-
-    // Do not use forceMouseCursorUpdate() — it re-queries the WKWebView child and resets the arrow.
-    juce::Desktop::getInstance().getMainMouseSource().showMouseCursor (hostMouseCursor);
-}
-
-void PluginEditor::pokeWebViewHoverAt (const juce::Point<float> localPos)
-{
-    if (webView == nullptr)
-        return;
-
-    WebViewHoverSupport::pokeWebKitHoverState (webView->getChildComponent (0));
-
-    const auto script = juce::String::formatted (
-        R"((function(x,y,w,h){if(typeof window.__mpOnMouseAt==='function')window.__mpOnMouseAt(x,y,w,h);})(%f,%f,%d,%d))",
-        localPos.x,
-        localPos.y,
-        webView->getWidth(),
-        webView->getHeight());
-
-    webView->evaluateJavascript (script);
-}
-
-void PluginEditor::syncWebViewInteractionFromMouse()
-{
-    if (webView == nullptr || ! isShowing())
-        return;
-
-    if (! windowAcceptsMouseMoved)
-        windowAcceptsMouseMoved = WebViewHoverSupport::ensureWindowAcceptsMouseMoved (webView->getChildComponent (0));
-
-    const auto screenPos = juce::Desktop::getInstance().getMainMouseSource().getScreenPosition().toFloat();
-    const auto localPos = webView->getLocalPoint (nullptr, screenPos);
-    const auto inside = webView->getLocalBounds().toFloat().contains (localPos);
-
-    if (! inside)
-    {
-        if (mouseWasOverWebView)
-        {
-            mouseWasOverWebView = false;
-            applyHostCursorFromWeb ("default");
-            webView->evaluateJavascript ("window.__mpClearCursor?.()");
-        }
-
-        return;
-    }
-
-    mouseWasOverWebView = true;
-    pokeWebViewHoverAt (localPos);
-}
-
-void PluginEditor::mouseMove (const juce::MouseEvent&)
-{
-    syncWebViewInteractionFromMouse();
-}
-
-void PluginEditor::timerCallback()
-{
-    syncWebViewInteractionFromMouse();
-}
-
-#endif
-
-//==============================================================================
-PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p),
-      processorRef (p)
-{
-    juce::ignoreUnused (processorRef);
-
-#if JUCE_WEB_BROWSER
-    webView = std::make_unique<juce::WebBrowserComponent> (
-        WebViewResources::makeBrowserOptions (processorRef, *this));
-    addAndMakeVisible (*webView);
-
-    setLookAndFeel (&hostCursorLookAndFeel);
-    webView->setLookAndFeel (&hostCursorLookAndFeel);
-
-    processorRef.setWebHostCursorHandler ([this] (const juce::String& cursorName)
-    {
-        applyHostCursorFromWeb (cursorName);
-    });
-    processorRef.setWebEditorFullscreenHandler ([this] (const int mode)
-    {
-        return handleEditorFullscreenRequest (mode);
-    });
-    processorRef.setWebEditorScaleMinimumHandler ([this] (const int minWidth, const int minHeight)
-    {
-        return handleEditorScaleMinimumRequest (minWidth, minHeight);
-    });
-
-   #if JUCE_DEBUG && defined (MIDI_PHRASES_UI_DEV_SERVER)
-    webView->goToURL ("http://localhost:5174");
-   #else
-    webView->goToURL (juce::WebBrowserComponent::getResourceProviderRoot());
-   #endif
-
-    startTimerHz (60);
-#else
-    fallbackLabel.setText ("WebView is not available on this platform.\nEnable JUCE_WEB_BROWSER.",
-                           juce::dontSendNotification);
-    fallbackLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (fallbackLabel);
-#endif
-
-#if JUCE_WEB_BROWSER
-    scaleMinimumWidth = defaultEditorWidth;
-    scaleMinimumHeight = processorRef.hasStandaloneTransport() ? defaultStandaloneEditorHeight
-                                                               : defaultPluginEditorHeight;
-    applyNormalResizeLimits();
-#else
-    setResizeLimits (1000, 480, 2000, 1280);
-#endif
+    addAndMakeVisible (*nativeView);
+    nativeView->projectAction = [this] (int command) { projectCommand (command); };
+    nativeView->scaleChanged = [this] { updateScale(); };
+    nativeView->fullscreenChanged = [this] {
+        setEditorFullscreen (!editorFullscreen);
+        nativeView->fullscreen = editorFullscreen;
+    };
     setResizable (true, true);
-    setSize (defaultEditorWidth,
-             processorRef.hasStandaloneTransport() ? defaultStandaloneEditorHeight
-                                                   : defaultPluginEditorHeight);
+    scaleMinimumHeight = owner.hasStandaloneTransport() ? 1044 : 980;
+    setSize (scaleMinimumWidth, scaleMinimumHeight);
+    updateScale();
+    processorRef.getStateInformation (savedState);
 }
+PluginEditor::~PluginEditor() = default;
 
-PluginEditor::~PluginEditor()
+void PluginEditor::projectCommand (int command)
 {
-#if JUCE_WEB_BROWSER
-    processorRef.setWebHostCursorHandler (nullptr);
-    processorRef.setWebEditorFullscreenHandler (nullptr);
-    processorRef.setWebEditorScaleMinimumHandler (nullptr);
-
-    if (webView != nullptr)
-        webView->setLookAndFeel (nullptr);
-
-    setLookAndFeel (nullptr);
-#endif
+    const juce::Component::SafePointer<PluginEditor> safeThis (this);
+    auto operation = [safeThis, command] {
+        if (safeThis == nullptr)
+            return;
+        auto completion = [safeThis, command] (juce::var result) {
+            if (safeThis == nullptr)
+                return;
+            if (static_cast<int> (result["success"]) == 0)
+            {
+                const auto error = result["error"].toString();
+                if (error.isNotEmpty())
+                    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "MIDI Phrases", error);
+                return;
+            }
+            safeThis->processorRef.getStateInformation (safeThis->savedState);
+            if (command == 2)
+                safeThis->nativeView->synchronise();
+            else
+                safeThis->nativeView->documentChanged();
+            safeThis->updateScale();
+        };
+        if (command == 0)
+            safeThis->createNewProject (completion);
+        else if (command == 1)
+            safeThis->showLoadProjectDialog (completion);
+        else if (command == 2)
+            safeThis->showSaveProjectDialog ({}, completion);
+        else
+            safeThis->cycleProject (command == 3 ? -1 : 1, completion);
+    };
+    juce::MemoryBlock current;
+    processorRef.getStateInformation (current);
+    if (command != 2 && current != savedState)
+    {
+        juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                          .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                                          .withTitle ("Unsaved changes")
+                                          .withMessage ("Discard changes to this project?")
+                                          .withButton ("Discard")
+                                          .withButton ("Cancel"),
+            [operation] (int result) { if (result == 1) operation(); });
+    }
+    else
+        operation();
+}
+void PluginEditor::updateScale()
+{
+    struct Anchor
+    {
+        int scale, width, height, standaloneHeight;
+    };
+    constexpr Anchor anchors[] { { 50, 845, 515, 549 }, { 70, 1183, 694, 737 }, { 80, 1352, 784, 831 }, { 90, 1521, 884, 933 }, { 100, 1690, 980, 1044 } };
+    const int scale = juce::jlimit (50, 100, processorRef.getProjectUiScalePercent());
+    for (size_t i = 1; i < std::size (anchors); ++i)
+    {
+        if (scale > anchors[i].scale)
+            continue;
+        const auto& a = anchors[i - 1];
+        const auto& b = anchors[i];
+        const double t = static_cast<double> (scale - a.scale) / (b.scale - a.scale);
+        const bool standalone = processorRef.hasStandaloneTransport();
+        const int ah = standalone ? a.standaloneHeight : a.height;
+        const int bh = standalone ? b.standaloneHeight : b.height;
+        handleEditorScaleMinimumRequest (juce::roundToInt (a.width + t * (b.width - a.width)), juce::roundToInt (ah + t * (bh - ah)));
+        break;
+    }
+    resized();
+}
+void PluginEditor::paint (juce::Graphics& g) { g.fillAll (nativeView->palette.app); }
+void PluginEditor::resized()
+{
+    if (!nativeView)
+        return;
+    const float scale = static_cast<float> (processorRef.getProjectUiScalePercent()) / 100.0f;
+    nativeView->setTransform (juce::AffineTransform::scale (scale));
+    nativeView->setBounds (0, 0, juce::roundToInt (getWidth() / scale), juce::roundToInt (getHeight() / scale));
 }
 
-#if JUCE_WEB_BROWSER
 juce::File PluginEditor::getDefaultProjectsDirectory() const
 {
     return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
@@ -225,8 +115,7 @@ juce::Array<juce::File> PluginEditor::getSiblingProjectFiles() const
     if (directory.isDirectory())
         directory.findChildFiles (files, juce::File::findFiles, false, "*.midiphrases");
 
-    std::sort (files.begin(), files.end(), [] (const juce::File& left, const juce::File& right)
-    {
+    std::sort (files.begin(), files.end(), [] (const juce::File& left, const juce::File& right) {
         return left.getFileName().compareNatural (right.getFileName(), true) < 0;
     });
     return files;
@@ -248,7 +137,7 @@ juce::String PluginEditor::getCurrentProjectFileName() const
 }
 
 juce::var PluginEditor::projectOperationResult (const bool success,
-                                                 const juce::String& errorMessage) const
+    const juce::String& errorMessage) const
 {
     auto object = std::make_unique<juce::DynamicObject>();
     object->setProperty ("success", success ? 1 : 0);
@@ -272,7 +161,7 @@ bool PluginEditor::loadProjectFile (const juce::File& file, juce::String& errorM
 {
     constexpr size_t maximumProjectBytes = 16 * 1024 * 1024;
 
-    if (! file.existsAsFile())
+    if (!file.existsAsFile())
     {
         errorMessage = "That project file no longer exists.";
         return false;
@@ -285,7 +174,7 @@ bool PluginEditor::loadProjectFile (const juce::File& file, juce::String& errorM
     }
 
     juce::MemoryBlock data;
-    if (! file.loadFileAsData (data))
+    if (!file.loadFileAsData (data))
     {
         errorMessage = "The project file could not be read.";
         return false;
@@ -293,7 +182,7 @@ bool PluginEditor::loadProjectFile (const juce::File& file, juce::String& errorM
 
     const auto xml = juce::parseXML (
         juce::String::createStringFromData (data.getData(), static_cast<int> (data.getSize())));
-    if (xml == nullptr || ! xml->hasTagName ("MidiPhrases"))
+    if (xml == nullptr || !xml->hasTagName ("MidiPhrases"))
     {
         errorMessage = "The selected file is not a MIDI Phrases project.";
         return false;
@@ -302,15 +191,15 @@ bool PluginEditor::loadProjectFile (const juce::File& file, juce::String& errorM
     processorRef.setStateInformation (data.getData(), static_cast<int> (data.getSize()));
     currentProjectFile = file;
 
-    if (! xml->hasAttribute ("projectName"))
+    if (!xml->hasAttribute ("projectName"))
     {
         processorRef.setProjectMetadata (file.getFileNameWithoutExtension(),
-                                         {},
-                                         {},
-                                         {},
-                                         "dark",
-                                         100,
-                                         false);
+            {},
+            {},
+            {},
+            "dark",
+            100,
+            false);
     }
     else
     {
@@ -321,12 +210,12 @@ bool PluginEditor::loadProjectFile (const juce::File& file, juce::String& errorM
             && fileBaseName != "Untitled Project")
         {
             processorRef.setProjectMetadata (fileBaseName,
-                                               processorRef.getProjectDescription(),
-                                               processorRef.getProjectCreatedAt(),
-                                               processorRef.getProjectModifiedAt(),
-                                               processorRef.getProjectThemeMode(),
-                                               processorRef.getProjectUiScalePercent(),
-                                               processorRef.getProjectStretchStepsToFit());
+                processorRef.getProjectDescription(),
+                processorRef.getProjectCreatedAt(),
+                processorRef.getProjectModifiedAt(),
+                processorRef.getProjectThemeMode(),
+                processorRef.getProjectUiScalePercent(),
+                processorRef.getProjectStretchStepsToFit());
         }
     }
 
@@ -335,7 +224,7 @@ bool PluginEditor::loadProjectFile (const juce::File& file, juce::String& errorM
 
 bool PluginEditor::saveProjectFile (const juce::File& file, juce::String& errorMessage)
 {
-    if (! file.getParentDirectory().createDirectory())
+    if (!file.getParentDirectory().createDirectory())
     {
         errorMessage = "The project folder could not be created.";
         return false;
@@ -345,8 +234,8 @@ bool PluginEditor::saveProjectFile (const juce::File& file, juce::String& errorM
     processorRef.getStateInformation (data);
     juce::TemporaryFile temporaryFile (file);
 
-    if (! temporaryFile.getFile().replaceWithData (data.getData(), data.getSize())
-        || ! temporaryFile.overwriteTargetFileWithTemporary())
+    if (!temporaryFile.getFile().replaceWithData (data.getData(), data.getSize())
+        || !temporaryFile.overwriteTargetFileWithTemporary())
     {
         errorMessage = "The project file could not be written.";
         return false;
@@ -358,7 +247,7 @@ bool PluginEditor::saveProjectFile (const juce::File& file, juce::String& errorM
 
 void PluginEditor::showSaveProjectDialog (
     const juce::Array<juce::var>& args,
-    juce::WebBrowserComponent::NativeFunctionCompletion complete)
+    Completion complete)
 {
     if (projectFileChooser != nullptr)
     {
@@ -377,7 +266,7 @@ void PluginEditor::showSaveProjectDialog (
                                ? processorRef.getProjectCreatedAt()
                                : now;
     auto directory = currentProjectFile.existsAsFile() ? currentProjectFile.getParentDirectory()
-                                                        : getDefaultProjectsDirectory();
+                                                       : getDefaultProjectsDirectory();
     directory.createDirectory();
     auto legalName = juce::File::createLegalFileName (
         name.isNotEmpty() ? name : juce::String ("Untitled Project"));
@@ -394,15 +283,14 @@ void PluginEditor::showSaveProjectDialog (
         juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
             | juce::FileBrowserComponent::warnAboutOverwriting,
         [safeThis,
-         completion = std::move (complete),
-         name,
-         description,
-         createdAt,
-         now,
-         theme,
-         scale,
-         stretch] (const juce::FileChooser& chooser) mutable
-        {
+            completion = std::move (complete),
+            name,
+            description,
+            createdAt,
+            now,
+            theme,
+            scale,
+            stretch] (const juce::FileChooser& chooser) mutable {
             if (safeThis == nullptr)
                 return;
 
@@ -414,11 +302,11 @@ void PluginEditor::showSaveProjectDialog (
                 return;
             }
 
-            if (! file.hasFileExtension (".midiphrases"))
+            if (!file.hasFileExtension (".midiphrases"))
                 file = file.withFileExtension (".midiphrases");
 
             const auto previousProjectFile = safeThis->currentProjectFile;
-            const auto savedToNewPath = ! previousProjectFile.existsAsFile()
+            const auto savedToNewPath = !previousProjectFile.existsAsFile()
                                         || previousProjectFile != file;
             const auto projectNameToSave = savedToNewPath ? file.getFileNameWithoutExtension()
                                                           : name;
@@ -432,7 +320,7 @@ void PluginEditor::showSaveProjectDialog (
 }
 
 void PluginEditor::showLoadProjectDialog (
-    juce::WebBrowserComponent::NativeFunctionCompletion complete)
+    Completion complete)
 {
     if (projectFileChooser != nullptr)
     {
@@ -441,14 +329,13 @@ void PluginEditor::showLoadProjectDialog (
     }
 
     const auto start = currentProjectFile.existsAsFile() ? currentProjectFile
-                                                          : getDefaultProjectsDirectory();
+                                                         : getDefaultProjectsDirectory();
     projectFileChooser = std::make_unique<juce::FileChooser> (
         "Load MIDI Phrases Project", start, "*.midiphrases", true);
     const juce::Component::SafePointer<PluginEditor> safeThis (this);
     projectFileChooser->launchAsync (
         juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-        [safeThis, completion = std::move (complete)] (const juce::FileChooser& chooser) mutable
-        {
+        [safeThis, completion = std::move (complete)] (const juce::FileChooser& chooser) mutable {
             if (safeThis == nullptr)
                 return;
 
@@ -467,7 +354,7 @@ void PluginEditor::showLoadProjectDialog (
 }
 
 void PluginEditor::createNewProject (
-    juce::WebBrowserComponent::NativeFunctionCompletion complete)
+    Completion complete)
 {
     if (projectFileChooser != nullptr)
     {
@@ -482,7 +369,7 @@ void PluginEditor::createNewProject (
 
 void PluginEditor::cycleProject (
     const int direction,
-    juce::WebBrowserComponent::NativeFunctionCompletion complete)
+    Completion complete)
 {
     const auto files = getSiblingProjectFiles();
 
@@ -522,9 +409,7 @@ void PluginEditor::cycleProject (
     const auto loaded = loadProjectFile (files[nextIndex], error);
     complete (projectOperationResult (loaded, error));
 }
-#endif
 
-#if JUCE_WEB_BROWSER
 void PluginEditor::applyNormalResizeLimits()
 {
     setResizeLimits (scaleMinimumWidth, scaleMinimumHeight, 4096, 2400);
@@ -533,9 +418,9 @@ void PluginEditor::applyNormalResizeLimits()
 void PluginEditor::applyFullscreenResizeLimits (const juce::Rectangle<int> targetBounds)
 {
     setResizeLimits (1000,
-                     480,
-                     juce::jmax (2000, targetBounds.getWidth()),
-                     juce::jmax (1280, targetBounds.getHeight()));
+        480,
+        juce::jmax (2000, targetBounds.getWidth()),
+        juce::jmax (1280, targetBounds.getHeight()));
 }
 
 juce::Rectangle<int> PluginEditor::getDisplayUserBounds() const
@@ -550,7 +435,7 @@ juce::Rectangle<int> PluginEditor::getDisplayUserBounds() const
 
 juce::ResizableWindow* PluginEditor::getStandaloneFullscreenWindow() const
 {
-    if (! processorRef.hasStandaloneTransport())
+    if (!processorRef.hasStandaloneTransport())
         return nullptr;
 
     auto* topLevelComponent = getTopLevelComponent();
@@ -563,7 +448,7 @@ juce::ResizableWindow* PluginEditor::getStandaloneFullscreenWindow() const
 
 juce::DocumentWindow* PluginEditor::getStandaloneDocumentWindow() const
 {
-    if (! processorRef.hasStandaloneTransport())
+    if (!processorRef.hasStandaloneTransport())
         return nullptr;
 
     auto* topLevelComponent = getTopLevelComponent();
@@ -581,7 +466,7 @@ void PluginEditor::setStandaloneWrapperChromeVisible (const bool shouldBeVisible
     if (standaloneWindow == nullptr)
         return;
 
-    if (! shouldBeVisible)
+    if (!shouldBeVisible)
     {
         if (standaloneTitleBarHeightBeforeFullscreen < 0)
             standaloneTitleBarHeightBeforeFullscreen = standaloneWindow->getTitleBarHeight();
@@ -595,7 +480,7 @@ void PluginEditor::setStandaloneWrapperChromeVisible (const bool shouldBeVisible
                                                  ? standaloneTitleBarHeightBeforeFullscreen
                                                  : 26);
         standaloneWindow->setTitleBarButtonsRequired (juce::DocumentWindow::minimiseButton | juce::DocumentWindow::closeButton,
-                                                      false);
+            false);
         standaloneTitleBarHeightBeforeFullscreen = -1;
     }
 
@@ -611,12 +496,9 @@ void PluginEditor::setStandaloneWrapperChromeVisible (const bool shouldBeVisible
     standaloneWindow->resized();
 }
 
-void PluginEditor::nudgeWebViewAfterLayoutChange()
+void PluginEditor::refreshNativeLayout()
 {
     resized();
-
-    if (webView != nullptr)
-        webView->evaluateJavascript ("window.dispatchEvent(new Event('resize')); void 0;");
 }
 
 juce::var PluginEditor::createEditorFullscreenState() const
@@ -651,12 +533,12 @@ juce::var PluginEditor::setEditorFullscreen (const bool shouldBeFullscreen)
             setStandaloneWrapperChromeVisible (false);
             standaloneWindow->setFullScreen (true);
             standaloneWindow->setContentComponentSize (displayBounds.getWidth(), displayBounds.getHeight());
-            nudgeWebViewAfterLayoutChange();
+            refreshNativeLayout();
             return createEditorFullscreenState();
         }
 
         setSize (displayBounds.getWidth(), displayBounds.getHeight());
-        nudgeWebViewAfterLayoutChange();
+        refreshNativeLayout();
         return createEditorFullscreenState();
     }
 
@@ -673,10 +555,10 @@ juce::var PluginEditor::setEditorFullscreen (const bool shouldBeFullscreen)
     editorFullscreen = false;
     applyNormalResizeLimits();
 
-    if (! restoreBounds.isEmpty())
+    if (!restoreBounds.isEmpty())
         setSize (restoreBounds.getWidth(), restoreBounds.getHeight());
 
-    nudgeWebViewAfterLayoutChange();
+    refreshNativeLayout();
     return createEditorFullscreenState();
 }
 
@@ -693,12 +575,12 @@ juce::var PluginEditor::handleEditorScaleMinimumRequest (const int minWidth, con
     const auto previousMinimumWidth = scaleMinimumWidth;
     const auto previousMinimumHeight = scaleMinimumHeight;
     const auto followsScaleMinimum = getWidth() == previousMinimumWidth
-                                  && getHeight() == previousMinimumHeight;
+                                     && getHeight() == previousMinimumHeight;
 
-    scaleMinimumWidth = juce::jlimit (900, 2400, minWidth);
+    scaleMinimumWidth = juce::jlimit (845, 2400, minWidth);
     scaleMinimumHeight = juce::jlimit (480, 1800, minHeight);
 
-    if (! editorFullscreen)
+    if (!editorFullscreen)
     {
         applyNormalResizeLimits();
         const auto nextWidth = followsScaleMinimum ? scaleMinimumWidth
@@ -713,20 +595,4 @@ juce::var PluginEditor::handleEditorScaleMinimumRequest (const int minWidth, con
     object->setProperty ("minWidth", scaleMinimumWidth);
     object->setProperty ("minHeight", scaleMinimumHeight);
     return juce::var (object.release());
-}
-#endif
-
-void PluginEditor::paint (juce::Graphics& g)
-{
-    g.fillAll (juce::Colour (0xff1a1a1a));
-}
-
-void PluginEditor::resized()
-{
-#if JUCE_WEB_BROWSER
-    if (webView != nullptr)
-        webView->setBounds (getLocalBounds());
-#else
-    fallbackLabel.setBounds (getLocalBounds());
-#endif
 }

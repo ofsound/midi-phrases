@@ -69,6 +69,7 @@ public:
     int getProjectUiScalePercent() const noexcept { return projectUiScalePercent; }
     void setProjectUiScalePercent (int uiScalePercent);
     bool getProjectStretchStepsToFit() const noexcept { return projectStretchStepsToFit; }
+    uint64_t getDocumentGeneration() const noexcept { return documentGeneration.load (std::memory_order_acquire); }
 
     static constexpr int phraseRowCount = 4;
     static constexpr int defaultPhraseStepsPerRow = 0;
@@ -895,6 +896,7 @@ private:
     std::atomic<int> standaloneTransportAvailableForTests { 0 };
 #endif
     juce::String projectName { "Untitled Project" };
+    std::atomic<uint64_t> documentGeneration { 0 };
     juce::String projectDescription;
     juce::String projectCreatedAt;
     juce::String projectModifiedAt;

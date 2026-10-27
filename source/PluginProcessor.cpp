@@ -8467,6 +8467,8 @@ void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
 
     const auto stateVersion = static_cast<int> (state.getProperty ("version", 1));
 
+    documentGeneration.fetch_add (1, std::memory_order_release);
+
     projectName = state.getProperty ("projectName", "Untitled Project").toString();
     projectDescription = state.getProperty ("projectDescription", juce::String()).toString();
     projectCreatedAt = state.getProperty ("projectCreatedAt", juce::String()).toString();
@@ -8974,6 +8976,7 @@ void PluginProcessor::setProjectUiScalePercent (const int uiScalePercent)
 
 void PluginProcessor::resetProject()
 {
+    documentGeneration.fetch_add (1, std::memory_order_release);
     for (auto& pattern : modelPatterns)
         initialisePatternDefaults (pattern);
 
