@@ -351,7 +351,7 @@ public:
     /** Finalises the active realtime recording into row step data. */
     bool finishPhraseRowRecordingCapture (int& rowOut);
 
-    /** Legacy one-shot step entry for older WebView bundles. */
+    /** Legacy one-shot step entry for older saved projects. */
     void injectPhraseRowRecordedNote (int midiNote);
 
     static constexpr int defaultLoopBraceStartQuarters = 0;

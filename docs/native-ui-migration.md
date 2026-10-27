@@ -33,5 +33,8 @@ only. The processor remains responsible for actual timing.
 
 ## Status
 
-Reference capture and implementation in progress. Pixel parity and migration
-completion have not yet been established.
+The shipping editor is the native JUCE UI in `source/ui/`. The Svelte app,
+`assets/webview/ui.zip`, and the WebView resource provider have been removed.
+Host identifiers and project serialization are unchanged.
+
+Reference captures remain in `docs/native-ui-reference/`.

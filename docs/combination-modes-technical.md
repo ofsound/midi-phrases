@@ -9,7 +9,7 @@ The implementation lives in two places:
 
 - Audio output: `PluginProcessor::processCombinedScheduledRange()` in
   `source/PluginProcessor.cpp`
-- Piano-roll preview: `applyCombinationModes()` in `ui/src/phraseSchedule.js`
+- Piano-roll preview: `Preview::refresh()` in `source/ui/PhrasesPreview.cpp`
 
 The preview intentionally mirrors the same mode order and core transforms as the
 audio scheduler. The preview remains deterministic and visual-only; actual MIDI

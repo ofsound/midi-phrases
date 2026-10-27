@@ -19,23 +19,15 @@ Built AU/VST3 are copied to `~/Library/Audio/Plug-Ins/` when `COPY_PLUGIN_AFTER_
 
 **Standalone (Debug):** `Builds/MidiPhrases_artefacts/Debug/Standalone/MIDI Phrases.app`
 
-## WebView UI (`ui/`)
+## Editor
 
-The editor is a JUCE `WebBrowserComponent` running a **Svelte 5** app (Vite, Tailwind). Production builds embed `assets/webview/ui.zip`; Debug can hot-reload from Vite on port **5174**.
+The interface is native JUCE in `source/ui/`. Fonts are embedded from `assets/fonts/`. There is no browser UI or npm frontend build.
 
-```bash
-cd ui && npm install
-./scripts/setup-git-hooks.sh   # once: pre-commit runs svelte-check when ui/ is staged
-cd ui && npm run dev           # hot reload (Debug + dev server)
-cd ui && npm run check         # svelte-check
-cd ui && npm run build         # dist + ui.zip
-```
-
-After UI changes, run `cmake --build Builds` so every format embeds the new zip (not standalone-only).
+After UI changes, run `cmake --build Builds` so every format is updated (not standalone-only).
 
 ## AI agents
 
-See **`CLAUDE.md`** and **`AGENTS.md`** (kept in sync) for build workflow, realtime rules, and Svelte 5 conventions. Cursor also loads `.cursor/rules/` (rebuild + `ui/**` Svelte guidance).
+See **`CLAUDE.md`** and **`AGENTS.md`** (kept in sync) for build workflow and realtime rules. Cursor also loads `.cursor/rules/rebuild-after-changes.mdc`.
 
 ## Formats
 

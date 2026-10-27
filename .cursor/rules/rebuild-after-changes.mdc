@@ -5,11 +5,13 @@ alwaysApply: true
 
 # Rebuild after changes
 
-After any change that affects what the user sees in the app (`ui/`, `source/`, `CMakeLists.txt`, or plugin-related CMake), **rebuild every shipping format** and report success or errors. Do not ask the user to rebuild manually unless the toolchain is broken.
+After any change to `source/`, `tests/`, `assets/`, `CMakeLists.txt`, or plugin-related CMake, **rebuild every shipping format** and report success or errors. Do not ask the user to rebuild manually unless the toolchain is broken.
+
+The editor is native JUCE (`source/ui/`). There is no web frontend, npm build, dev server, or embedded UI bundle.
 
 ## Required build (always)
 
-**Do not** build only `MidiPhrases_Standalone`. Standalone and DAW plugins are separate binaries; a standalone-only build leaves VST3/AU stale with an old embedded UI.
+**Do not** build only `MidiPhrases_Standalone`. Standalone and DAW plugins are separate binaries; a standalone-only build leaves VST3/AU stale.
 
 **Always** run the full default build:
 
@@ -17,7 +19,7 @@ After any change that affects what the user sees in the app (`ui/`, `source/`, `
 cmake --build Builds
 ```
 
-That rebuilds **Standalone**, **AU**, **VST3**, and **AUv3**, refreshes `assets/webview/ui.zip` in BinaryData when `ui/` changed, and copies AU/VST3 to `~/Library/Audio/Plug-Ins/` via `COPY_PLUGIN_AFTER_BUILD`.
+That rebuilds **Standalone**, **AU**, **VST3**, and **AUv3**, and copies AU/VST3 to `~/Library/Audio/Plug-Ins/` via `COPY_PLUGIN_AFTER_BUILD`.
 
 Equivalent explicit targets (only if you truly need a subset — prefer full build):
 
@@ -25,27 +27,15 @@ Equivalent explicit targets (only if you truly need a subset — prefer full bui
 cmake --build Builds --target MidiPhrases_Standalone MidiPhrases_VST3 MidiPhrases_AU MidiPhrases_AUv3
 ```
 
-## WebView UI (`ui/`)
-
-Editors load the UI from **`assets/webview/ui.zip` embedded in BinaryData**, not from `ui/dist` directly.
-
-Svelte 5 sources in `ui/` must pass **`cd ui && npm run check`** before you finish (also enforced on commit when `.githooks` is enabled). See `CLAUDE.md` / `.cursor/rules/svelte-ui.mdc` for runes conventions.
-
-1. `npm run check` in `ui/` when `.svelte` or UI logic changed.
-2. `npm run build` in `ui/` (or let CMake run it via `WebViewUIBuild`) updates the zip.
-3. **Still run `cmake --build Builds`** so every binary embeds the new zip.
-
-`npm run dev` alone does **not** update standalone or plugins unless the build defines `MIDI_PHRASES_UI_DEV_SERVER` and the dev server on port **5174** is running.
-
 Built standalone (Debug):
 
 `Builds/MidiPhrases_artefacts/Debug/Standalone/MIDI Phrases.app`
 
-Remind the user to **fully quit and reopen** the standalone after a rebuild; relaunching an already-running instance keeps the old embedded UI.
+Remind the user to **fully quit and reopen** the standalone after a rebuild. An already-running instance keeps the old binary.
 
 ## Plugin C++ (`source/`), CMake, tests
 
-1. If `CMakeLists.txt` changed: `cmake -B Builds -G Ninja -DCMAKE_BUILD_TYPE=Debug`
+1. If `CMakeLists.txt` or the embedded font list changed: `cmake -B Builds -G Ninja -DCMAKE_BUILD_TYPE=Debug`
 2. **Always:** `cmake --build Builds` (all formats above)
 3. Run `./Builds/Tests` when test or processor behavior changes.
 

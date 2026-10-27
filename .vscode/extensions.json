@@ -1,7 +1,6 @@
 {
     "recommendations": [
         "ms-vscode.cmake-tools",
-        "llvm-vs-code-extensions.vscode-clangd",
-        "svelte.svelte-vscode"
+        "llvm-vs-code-extensions.vscode-clangd"
     ]
 }
