@@ -77,9 +77,13 @@ public:
     static constexpr int minRecordCycleLengthPulses = 1;
     static constexpr int maxRecordCycleLengthPulses = 64;
     static constexpr int defaultRecordCycleLengthPulses = 16;
-    static constexpr int patternSlotCount = 8;
-    static constexpr int loopSlotCount = 8;
-    static constexpr int midiMuteTriggerNote = patternSlotCount + loopSlotCount;
+    static constexpr int slotCount = 16;
+    static constexpr int patternSlotCount = slotCount;
+    static constexpr int loopSlotCount = slotCount;
+    static constexpr int midiMuteTriggerNote = slotCount;
+    // Keep legacy loop indices 0–7 in the second row and on MIDI notes 8–15.
+    static constexpr int slotForLoopIndex (int loopIndex) { return (loopIndex + slotCount / 2) % slotCount; }
+    static constexpr int loopIndexForSlot (int slot) { return slotForLoopIndex (slot); }
     static constexpr int combinationModeCount = 9;
     static constexpr int combinationModeCrossModulation = 0;
     static constexpr int combinationModeTendril = 1;
@@ -399,6 +403,8 @@ public:
     int getCurrentLoopSlot() const;
     bool isLoopSlotAssigned (int loopSlot) const;
     int getLoopSlotPatternSlot (int loopSlot) const;
+    bool isLoopSlotType (int slot) const;
+    void setLoopSlotType (int slot, bool loop);
 
     double getLoopPlaybackBeat() const;
 
@@ -663,8 +669,9 @@ private:
     void initialisePatternDefaults (PatternState& pattern);
     void publishPatternToAudio (int patternSlot);
     void publishLoopBraceCommandToAudio (SequencerCommand::Type type, int patternSlot);
-    void deactivateLoopBraceForPatternSelection (int patternSlot);
+    void selectPatternForPlayback (int slot);
     void requestAudioPatternSlot (int patternSlot);
+    void updatePatternSlotParameter (int patternSlot);
     void applyAudioPatternSlot (int patternSlot, double reanchorTransportPpq = -1.0);
     void requestAudioLoopSlot (int loopSlot);
     void applyAudioLoopSlot (int loopSlot, double reanchorTransportPpq);
@@ -841,9 +848,11 @@ private:
     static constexpr size_t pendingCombinedNoteOffCapacity = 256;
     static constexpr size_t combinedEventCapacity = 1024;
 
-    std::array<PatternState, patternSlotCount> modelPatterns {};
-    std::array<PatternState, patternSlotCount> audioPatterns {};
+    using PatternBank = std::array<PatternState, patternSlotCount>;
+    const std::unique_ptr<PatternBank> modelPatterns = std::make_unique<PatternBank>();
+    const std::unique_ptr<PatternBank> audioPatterns = std::make_unique<PatternBank>();
     std::array<LoopSlotState, loopSlotCount> loopSlots {};
+    std::atomic<unsigned int> loopSlotTypeMask { 0 };
     std::unique_ptr<std::array<SequencerCommand, sequencerCommandQueueCapacity>> sequencerCommandQueue {};
     std::atomic<size_t> sequencerCommandWriteIndex { 0 };
     std::atomic<size_t> sequencerCommandReadIndex { 0 };
@@ -862,11 +871,11 @@ private:
     std::array<std::array<std::uint32_t, maxPhraseStepsPerRow>, phraseRowCount> stepCycleCounters {};
     std::uint32_t playbackRandomState = 0xA5C3F17Du;
     std::atomic<double> currentPlaybackPpq { -1.0 };
-    juce::AudioParameterInt* patternSlotParameter = nullptr;
+    std::array<juce::AudioParameterInt*, 2> patternSlotParameters {};
+    std::array<std::atomic<int>, 2> observedPatternParameters { 1, 9 };
     std::atomic<int> currentModelPatternSlot { 0 };
     int lastViewPatternSlot = 0;
     int audioActivePatternSlot = 0;
-    int lastObservedParameterPatternSlot = 0;
     std::atomic<int> patternOutputArmed { 1 };
     std::atomic<int> muteFlushRequested { 0 };
     std::atomic<int> pendingAudioPatternSlot { -1 };
@@ -902,7 +911,7 @@ private:
     juce::String projectModifiedAt;
     juce::String projectThemeMode { "dark" };
     int projectUiScalePercent = 100;
-    bool projectStretchStepsToFit = false;
+    bool projectStretchStepsToFit = true;
     double sampleRateHz = 44100.0;
     bool wasPlaying = false;
     double loopScheduleAnchorTransportPpq = -1.0;

@@ -1,19 +1,29 @@
 #include "PluginEditor.h"
 
+namespace
+{
+    juce::Rectangle<int> canvasSizeFor (juce::Rectangle<int> available)
+    {
+        const int units = std::max (1, std::min (available.getWidth() / 4, available.getHeight() / 3));
+        return { units * 4, units * 3 };
+    }
+}
+
 PluginEditor::PluginEditor (PluginProcessor& owner)
     : AudioProcessorEditor (owner), processorRef (owner), nativeView (std::make_unique<phrases::ui::NativeEditor> (owner))
 {
     addAndMakeVisible (*nativeView);
     nativeView->projectAction = [this] (int command) { projectCommand (command); };
-    nativeView->scaleChanged = [this] { updateScale(); };
-    nativeView->fullscreenChanged = [this] {
-        setEditorFullscreen (!editorFullscreen);
-        nativeView->fullscreen = editorFullscreen;
-    };
+    nativeView->fullscreenChanged = [this] { setEditorFullscreen (! editorFullscreen); };
+   #if JUCE_IOS
+    setSize (designWidth, designHeight);
+   #else
     setResizable (true, true);
-    scaleMinimumHeight = owner.hasStandaloneTransport() ? 1044 : 980;
-    setSize (scaleMinimumWidth, scaleMinimumHeight);
-    updateScale();
+    const auto initialSize = canvasSizeFor (getDisplayUserBounds().reduced (24).withZeroOrigin()
+                                               .getIntersection ({ designWidth, designHeight }));
+    setSize (initialSize.getWidth(), initialSize.getHeight());
+   #endif
+    applyNormalResizeLimits();
     processorRef.getStateInformation (savedState);
 }
 PluginEditor::~PluginEditor() = default;
@@ -35,24 +45,25 @@ void PluginEditor::projectCommand (int command)
                 return;
             }
             safeThis->processorRef.getStateInformation (safeThis->savedState);
-            if (command == 2)
+            if (command == 2 || command == 5)
                 safeThis->nativeView->synchronise();
             else
                 safeThis->nativeView->documentChanged();
-            safeThis->updateScale();
         };
         if (command == 0)
             safeThis->createNewProject (completion);
         else if (command == 1)
             safeThis->showLoadProjectDialog (completion);
         else if (command == 2)
-            safeThis->showSaveProjectDialog ({}, completion);
+            safeThis->saveProject (completion);
+        else if (command == 5)
+            safeThis->showSaveProjectDialog (completion);
         else
             safeThis->cycleProject (command == 3 ? -1 : 1, completion);
     };
     juce::MemoryBlock current;
     processorRef.getStateInformation (current);
-    if (command != 2 && current != savedState)
+    if (command != 2 && command != 5 && current != savedState)
     {
         juce::AlertWindow::showAsync (juce::MessageBoxOptions()
                                           .withIconType (juce::MessageBoxIconType::QuestionIcon)
@@ -65,37 +76,28 @@ void PluginEditor::projectCommand (int command)
     else
         operation();
 }
-void PluginEditor::updateScale()
-{
-    struct Anchor
-    {
-        int scale, width, height, standaloneHeight;
-    };
-    constexpr Anchor anchors[] { { 50, 845, 515, 549 }, { 70, 1183, 694, 737 }, { 80, 1352, 784, 831 }, { 90, 1521, 884, 933 }, { 100, 1690, 980, 1044 } };
-    const int scale = juce::jlimit (50, 100, processorRef.getProjectUiScalePercent());
-    for (size_t i = 1; i < std::size (anchors); ++i)
-    {
-        if (scale > anchors[i].scale)
-            continue;
-        const auto& a = anchors[i - 1];
-        const auto& b = anchors[i];
-        const double t = static_cast<double> (scale - a.scale) / (b.scale - a.scale);
-        const bool standalone = processorRef.hasStandaloneTransport();
-        const int ah = standalone ? a.standaloneHeight : a.height;
-        const int bh = standalone ? b.standaloneHeight : b.height;
-        handleEditorScaleMinimumRequest (juce::roundToInt (a.width + t * (b.width - a.width)), juce::roundToInt (ah + t * (bh - ah)));
-        break;
-    }
-    resized();
-}
 void PluginEditor::paint (juce::Graphics& g) { g.fillAll (nativeView->palette.app); }
 void PluginEditor::resized()
 {
-    if (!nativeView)
+    auto available = getLocalBounds().toFloat();
+   #if JUCE_IOS
+    if (processorRef.hasStandaloneTransport())
+    {
+        if (const auto* display = juce::Desktop::getInstance().getDisplays().getDisplayForRect (getScreenBounds()))
+        {
+            const auto safeScreen = display->safeAreaInsets.subtractedFrom (display->userBounds.toNearestInt());
+            const auto intersection = available.getIntersection (getLocalArea (nullptr, safeScreen).toFloat());
+            if (! intersection.isEmpty())
+                available = intersection;
+        }
+    }
+   #endif
+    if (available.isEmpty())
         return;
-    const float scale = static_cast<float> (processorRef.getProjectUiScalePercent()) / 100.0f;
-    nativeView->setTransform (juce::AffineTransform::scale (scale));
-    nativeView->setBounds (0, 0, juce::roundToInt (getWidth() / scale), juce::roundToInt (getHeight() / scale));
+
+    const auto fit = fitDesignToAvailable (available.getWidth(), available.getHeight(), designWidth, designHeight);
+    nativeView->setTransform (juce::AffineTransform::scale (fit.scale).translated (available.getX() + fit.x, available.getY() + fit.y));
+    nativeView->setBounds (0, 0, designWidth, designHeight);
 }
 
 juce::File PluginEditor::getDefaultProjectsDirectory() const
@@ -199,7 +201,7 @@ bool PluginEditor::loadProjectFile (const juce::File& file, juce::String& errorM
             {},
             "dark",
             100,
-            false);
+            processorRef.getProjectStretchStepsToFit());
     }
     else
     {
@@ -222,7 +224,7 @@ bool PluginEditor::loadProjectFile (const juce::File& file, juce::String& errorM
     return true;
 }
 
-bool PluginEditor::saveProjectFile (const juce::File& file, juce::String& errorMessage)
+bool PluginEditor::saveProjectFile (const juce::File& file, const juce::String& name, juce::String& errorMessage)
 {
     if (!file.getParentDirectory().createDirectory())
     {
@@ -230,6 +232,16 @@ bool PluginEditor::saveProjectFile (const juce::File& file, juce::String& errorM
         return false;
     }
 
+    const auto oldName = processorRef.getProjectName();
+    const auto oldCreated = processorRef.getProjectCreatedAt();
+    const auto oldModified = processorRef.getProjectModifiedAt();
+    const auto now = juce::Time::getCurrentTime().toISO8601 (true);
+    const auto setMetadata = [this] (const juce::String& projectName, const juce::String& created, const juce::String& modified) {
+        processorRef.setProjectMetadata (projectName, processorRef.getProjectDescription(), created, modified,
+                                         processorRef.getProjectThemeMode(), processorRef.getProjectUiScalePercent(),
+                                         processorRef.getProjectStretchStepsToFit());
+    };
+    setMetadata (name, oldCreated.isEmpty() ? now : oldCreated, now);
     juce::MemoryBlock data;
     processorRef.getStateInformation (data);
     juce::TemporaryFile temporaryFile (file);
@@ -237,6 +249,7 @@ bool PluginEditor::saveProjectFile (const juce::File& file, juce::String& errorM
     if (!temporaryFile.getFile().replaceWithData (data.getData(), data.getSize())
         || !temporaryFile.overwriteTargetFileWithTemporary())
     {
+        setMetadata (oldName, oldCreated, oldModified);
         errorMessage = "The project file could not be written.";
         return false;
     }
@@ -245,9 +258,25 @@ bool PluginEditor::saveProjectFile (const juce::File& file, juce::String& errorM
     return true;
 }
 
-void PluginEditor::showSaveProjectDialog (
-    const juce::Array<juce::var>& args,
-    Completion complete)
+void PluginEditor::saveProject (Completion complete)
+{
+    if (projectFileChooser != nullptr)
+    {
+        complete (projectOperationResult (false, "A project dialog is already open."));
+        return;
+    }
+    if (!currentProjectFile.existsAsFile())
+    {
+        showSaveProjectDialog (std::move (complete));
+        return;
+    }
+
+    juce::String error;
+    const bool saved = saveProjectFile (currentProjectFile, processorRef.getProjectName(), error);
+    complete (projectOperationResult (saved, error));
+}
+
+void PluginEditor::showSaveProjectDialog (Completion complete)
 {
     if (projectFileChooser != nullptr)
     {
@@ -255,16 +284,8 @@ void PluginEditor::showSaveProjectDialog (
         return;
     }
 
-    const auto now = juce::Time::getCurrentTime().toISO8601 (true);
-    const auto name = args.size() > 0 ? args[0].toString().trim() : processorRef.getProjectName();
-    const auto description = args.size() > 1 ? args[1].toString() : processorRef.getProjectDescription();
-    const auto theme = args.size() > 2 ? args[2].toString() : processorRef.getProjectThemeMode();
-    const auto scale = args.size() > 3 ? static_cast<int> (args[3]) : processorRef.getProjectUiScalePercent();
-    const auto stretch = args.size() > 4 ? static_cast<int> (args[4]) != 0
-                                         : processorRef.getProjectStretchStepsToFit();
-    const auto createdAt = processorRef.getProjectCreatedAt().isNotEmpty()
-                               ? processorRef.getProjectCreatedAt()
-                               : now;
+    const auto name = processorRef.getProjectName();
+    const auto generation = processorRef.getDocumentGeneration();
     auto directory = currentProjectFile.existsAsFile() ? currentProjectFile.getParentDirectory()
                                                        : getDefaultProjectsDirectory();
     directory.createDirectory();
@@ -282,15 +303,7 @@ void PluginEditor::showSaveProjectDialog (
     projectFileChooser->launchAsync (
         juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
             | juce::FileBrowserComponent::warnAboutOverwriting,
-        [safeThis,
-            completion = std::move (complete),
-            name,
-            description,
-            createdAt,
-            now,
-            theme,
-            scale,
-            stretch] (const juce::FileChooser& chooser) mutable {
+        [safeThis, completion = std::move (complete), generation] (const juce::FileChooser& chooser) mutable {
             if (safeThis == nullptr)
                 return;
 
@@ -301,6 +314,11 @@ void PluginEditor::showSaveProjectDialog (
                 completion (safeThis->projectOperationResult (false));
                 return;
             }
+            if (generation != safeThis->processorRef.getDocumentGeneration())
+            {
+                completion (safeThis->projectOperationResult (false, "The project changed while the save dialog was open. Please save again."));
+                return;
+            }
 
             if (!file.hasFileExtension (".midiphrases"))
                 file = file.withFileExtension (".midiphrases");
@@ -309,12 +327,9 @@ void PluginEditor::showSaveProjectDialog (
             const auto savedToNewPath = !previousProjectFile.existsAsFile()
                                         || previousProjectFile != file;
             const auto projectNameToSave = savedToNewPath ? file.getFileNameWithoutExtension()
-                                                          : name;
-
-            safeThis->processorRef.setProjectMetadata (
-                projectNameToSave, description, createdAt, now, theme, scale, stretch);
+                                                         : safeThis->processorRef.getProjectName();
             juce::String error;
-            const auto saved = safeThis->saveProjectFile (file, error);
+            const auto saved = safeThis->saveProjectFile (file, projectNameToSave, error);
             completion (safeThis->projectOperationResult (saved, error));
         });
 }
@@ -412,15 +427,20 @@ void PluginEditor::cycleProject (
 
 void PluginEditor::applyNormalResizeLimits()
 {
-    setResizeLimits (scaleMinimumWidth, scaleMinimumHeight, 4096, 2400);
+   #if JUCE_IOS
+    // The OS and AUv3 host provide their own viewport.
+    setResizeLimits (1, 1, 100000, 100000);
+   #else
+    setResizeLimits (400, 300, 4096, 3072);
+    getConstrainer()->setFixedAspectRatio (static_cast<double> (designWidth) / designHeight);
+   #endif
 }
 
 void PluginEditor::applyFullscreenResizeLimits (const juce::Rectangle<int> targetBounds)
 {
-    setResizeLimits (1000,
-        480,
-        juce::jmax (2000, targetBounds.getWidth()),
-        juce::jmax (1280, targetBounds.getHeight()));
+    if (auto* limits = getConstrainer())
+        limits->setFixedAspectRatio (0.0);
+    setResizeLimits (1, 1, juce::jmax (4096, targetBounds.getWidth()), juce::jmax (3072, targetBounds.getHeight()));
 }
 
 juce::Rectangle<int> PluginEditor::getDisplayUserBounds() const
@@ -496,11 +516,6 @@ void PluginEditor::setStandaloneWrapperChromeVisible (const bool shouldBeVisible
     standaloneWindow->resized();
 }
 
-void PluginEditor::refreshNativeLayout()
-{
-    resized();
-}
-
 juce::var PluginEditor::createEditorFullscreenState() const
 {
     const auto* standaloneWindow = getStandaloneFullscreenWindow();
@@ -533,12 +548,13 @@ juce::var PluginEditor::setEditorFullscreen (const bool shouldBeFullscreen)
             setStandaloneWrapperChromeVisible (false);
             standaloneWindow->setFullScreen (true);
             standaloneWindow->setContentComponentSize (displayBounds.getWidth(), displayBounds.getHeight());
-            refreshNativeLayout();
+            resized();
             return createEditorFullscreenState();
         }
 
-        setSize (displayBounds.getWidth(), displayBounds.getHeight());
-        refreshNativeLayout();
+        const auto size = canvasSizeFor (displayBounds);
+        setSize (size.getWidth(), size.getHeight());
+        resized();
         return createEditorFullscreenState();
     }
 
@@ -558,7 +574,7 @@ juce::var PluginEditor::setEditorFullscreen (const bool shouldBeFullscreen)
     if (!restoreBounds.isEmpty())
         setSize (restoreBounds.getWidth(), restoreBounds.getHeight());
 
-    refreshNativeLayout();
+    resized();
     return createEditorFullscreenState();
 }
 
@@ -568,31 +584,4 @@ juce::var PluginEditor::handleEditorFullscreenRequest (const int mode)
         return createEditorFullscreenState();
 
     return setEditorFullscreen (mode != 0);
-}
-
-juce::var PluginEditor::handleEditorScaleMinimumRequest (const int minWidth, const int minHeight)
-{
-    const auto previousMinimumWidth = scaleMinimumWidth;
-    const auto previousMinimumHeight = scaleMinimumHeight;
-    const auto followsScaleMinimum = getWidth() == previousMinimumWidth
-                                     && getHeight() == previousMinimumHeight;
-
-    scaleMinimumWidth = juce::jlimit (845, 2400, minWidth);
-    scaleMinimumHeight = juce::jlimit (480, 1800, minHeight);
-
-    if (!editorFullscreen)
-    {
-        applyNormalResizeLimits();
-        const auto nextWidth = followsScaleMinimum ? scaleMinimumWidth
-                                                   : juce::jmax (getWidth(), scaleMinimumWidth);
-        const auto nextHeight = followsScaleMinimum ? scaleMinimumHeight
-                                                    : juce::jmax (getHeight(), scaleMinimumHeight);
-        setSize (nextWidth, nextHeight);
-    }
-
-    auto object = std::make_unique<juce::DynamicObject>();
-    object->setProperty ("available", 1);
-    object->setProperty ("minWidth", scaleMinimumWidth);
-    object->setProperty ("minHeight", scaleMinimumHeight);
-    return juce::var (object.release());
 }

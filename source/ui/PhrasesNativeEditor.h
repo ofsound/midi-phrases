@@ -1,4 +1,5 @@
 #pragma once
+#include "PhrasesCycleEditor.h"
 #include "PhrasesGrid.h"
 #include "PhrasesPreview.h"
 #include "PhrasesSeed.h"
@@ -61,8 +62,7 @@ namespace phrases::ui
         Grid grid;
         Preview preview;
         std::function<void (int)> projectAction;
-        std::function<void()> scaleChanged, fullscreenChanged;
-        bool fullscreen = false;
+        std::function<void()> fullscreenChanged;
         void paint (juce::Graphics&) override;
         void resized() override;
         void mouseDown (const juce::MouseEvent&) override;
@@ -70,7 +70,7 @@ namespace phrases::ui
         void applyTheme (const juce::String& mode);
         void documentChanged();
         void showInspector (int row, int step);
-        void showRowEditor (int row);
+        void toggleRowVelocity (int row);
         void showSeed (int row = -1);
         bool keyPressed (const juce::KeyPress&) override;
         bool keyStateChanged (bool) override;
@@ -87,6 +87,7 @@ namespace phrases::ui
         std::vector<std::unique_ptr<Control>> controls;
         std::vector<Placement> placements;
         Keyboard keyboard { palette };
+        CycleEditor cycleEditor { controller, palette };
         juce::Label projectName, projectDescription;
         std::unique_ptr<juce::Component> scalePicker;
         juce::TooltipWindow tooltips { this, 600 };
@@ -95,15 +96,19 @@ namespace phrases::ui
         double viewThumbStart = 0;
         bool viewThumbMoving = false;
         float viewThumbPosition() const;
+        void setCompactSteps (bool);
         void repaintPatternSlots();
         int knownPattern = -1;
         uint64_t knownDocument = 0;
         bool wasPlaying = false;
         bool seedOpen = false, previewDirty = true;
+        int operationSelectionCount = -1;
         std::array<int, 17> heldKeys {};
         juce::String theme;
         double top() const { return controller.p.hasStandaloneTransport() ? 48.0 : 0.0; }
         int slot() const { return controller.p.getViewPatternSlot(); }
+        juce::Rectangle<int> stepOperationsBounds() const;
+        void refreshStepOperations();
         Control& button (juce::String name, juce::String caption, int region, Rect, std::function<void (juce::ModifierKeys)>, const char* art = nullptr);
         Control& parameter (juce::String name, juce::String label, int region, Rect, double min, double max, double reset, std::function<double()>, std::function<void (double)>, std::function<juce::String()> display = {});
         void buildControls();

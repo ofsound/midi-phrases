@@ -3,6 +3,14 @@ namespace phrases::ui
 {
     namespace
     {
+        constexpr int operationsRegion = 9;
+        constexpr int selectionToolsRegion = 10;
+        constexpr int footerRegion = 2;
+        constexpr int footerHeight = 32;
+    }
+
+    namespace
+    {
         juce::String number (double value)
         {
             if (std::abs (value - std::round (value)) < 1.0e-8)
@@ -363,16 +371,26 @@ namespace phrases::ui
         addAndMakeVisible (grid);
         addAndMakeVisible (preview);
         addChildComponent (keyboard);
+        addChildComponent (cycleEditor);
+        cycleEditor.addKeyListener (this);
+        cycleEditor.changed = [this] { edited(); };
         grid.addKeyListener (this);
         preview.addKeyListener (this);
         keyboard.addKeyListener (this);
         grid.inspect = [this] (int r, int s) { showInspector (r, s); };
-        grid.editRow = [this] (int r) { showRowEditor (r); };
+        grid.toggleVelocity = [this] (int row) { toggleRowVelocity (row); };
         grid.seedRow = [this] (int r) { showSeed (r); };
         grid.recordRow = [this] (int r) { record (r); };
         grid.changed = [this] { edited(); };
+        grid.changeCompactMode = [this] (bool compact) {
+            if (compact && inspectorRow >= 0)
+            {
+                inspectorRow = inspectorStep = -1;
+                keyboard.scrolling = false;
+            }
+            setCompactSteps (compact);
+        };
         preview.changed = [this] { edited(); };
-        preview.inspect = grid.inspect;
         keyboard.noteOn = [this] (int note) {
             if (controller.p.getPhraseRowRecording() >= 0)
                 controller.p.capturePhraseRowRecordedNoteOn (note, 100);
@@ -451,20 +469,12 @@ namespace phrases::ui
     void NativeEditor::buildControls()
     {
         auto& p = controller.p;
-        auto& view = button ("Toggle compact steps", {}, 0, { 297, 40, 65, 32 }, [this] (auto) {
-            viewThumbFrom = viewThumbPosition();
-            viewThumbStart = juce::Time::getMillisecondCounterHiRes();
-            viewThumbMoving = true;
-            grid.compact = ! grid.compact;
-            updateMetadata();
-            grid.updateLayout();
-        });
+        auto& view = button ("Toggle compact steps", {}, 0, { 297, 40, 65, 32 }, [this] (auto) { setCompactSteps (!grid.compact); });
         view.radius = 16;
+        view.setTooltip ("Switch between Compact (left) and Detailed (right).");
         view.customPaint = [this] (juce::Graphics& g, Rect b) {
             const float outerRadius = b.getHeight() * 0.5f;
-            const auto ringTop = palette.light ? palette.borderSubtle : palette.borderSubtle;
-            const auto ringBottom = palette.light ? palette.borderSubtle : palette.border;
-            g.setGradientFill (juce::ColourGradient (ringTop, b.getTopLeft(), ringBottom, b.getBottomLeft(), false));
+            g.setGradientFill (juce::ColourGradient (palette.borderSubtle, b.getTopLeft(), palette.border, b.getBottomLeft(), false));
             g.fillRoundedRectangle (b, outerRadius);
             const float insetX = b.getWidth() * (10.5f / 117.6f);
             const float insetY = b.getHeight() * (7.0f / 57.6f);
@@ -476,17 +486,17 @@ namespace phrases::ui
                 ring.addRoundedRectangle (track, track.getHeight() * 0.5f);
                 ring.setUsingNonZeroWinding (false);
                 g.reduceClipRegion (ring);
-                g.setColour (palette.app.withAlpha (palette.light ? 0.28f : 0.62f));
+                g.setColour (palette.app.withAlpha (0.62f));
                 for (float x = b.getX() + 3.0f; x < b.getRight() - 3.0f; x += 2.5f)
                     for (float y = b.getY() + 1.5f; y < b.getBottom() - 1.5f; y += 3.1f)
                         g.fillRect (x, y, 0.65f, 1.35f);
-                g.setColour (palette.app.withAlpha (palette.light ? 0.16f : 0.26f));
+                g.setColour (palette.app.withAlpha (0.26f));
                 for (int band = 1; band <= 3; ++band)
                     g.drawHorizontalLine (juce::roundToInt (b.getY() + b.getHeight() * static_cast<float> (band) / 4.0f), b.getX() + 4.0f, b.getRight() - 4.0f);
             }
-            g.setColour (palette.light ? palette.surfaceMuted.interpolatedWith (palette.workspace, 0.42f) : juce::Colours::black.withAlpha (0.60f));
+            g.setColour (juce::Colours::black.withAlpha (0.60f));
             g.fillRoundedRectangle (track, track.getHeight() * 0.5f);
-            g.setColour (palette.border.withAlpha (palette.light ? 0.18f : 0.30f));
+            g.setColour (palette.border.withAlpha (0.30f));
             g.drawRoundedRectangle (track.reduced (0.5f), track.getHeight() * 0.5f, 1);
             const float pad = 1.15f;
             const float gap = 2.1f;
@@ -505,7 +515,7 @@ namespace phrases::ui
                 auto cell = bed.withWidth (thumbW).translated (side == 0 ? 0 : thumbW + gap, 0);
                 auto icon = cell.withSizeKeepingCentre (11.0f, 12.0f);
                 g.setColour (engaged ? palette.app : palette.muted.withAlpha (0.55f));
-                if (side == 0)
+                if (side == 1)
                 {
                     g.drawRoundedRectangle (icon, 1.6f, 1.15f);
                     g.drawLine (icon.getX() + 1.6f, icon.getY() + 3.2f, icon.getRight() - 1.6f, icon.getY() + 3.2f, 1.1f);
@@ -515,8 +525,8 @@ namespace phrases::ui
                 else
                     g.fillRoundedRectangle (icon.reduced (0.4f), 2.2f);
             };
-            paintIcon (0, !grid.compact);
-            paintIcon (1, grid.compact);
+            paintIcon (0, grid.compact);
+            paintIcon (1, !grid.compact);
         };
         button ("Undo", juce::String::fromUTF8 ("↶"), 0, { 374, 40, 32, 32 }, [this] (auto) { controller.cancel(); controller.undo(); }, UndoIcon);
         button ("Redo", juce::String::fromUTF8 ("↷"), 0, { 410, 40, 32, 32 }, [this] (auto) { controller.cancel(); controller.redo(); }, RedoIcon);
@@ -565,13 +575,22 @@ namespace phrases::ui
         seed.glow = true;
         const char* art[] { StepSkipIcon, StepMuteIcon, RowShiftOrderIcon, RowReverseOrderIcon, RowRandomizeOrderIcon, RowRandomizeOctaveIcon, RowRandomizeLengthIcon };
         const char* names[] { "Skip selected steps", "Mute selected steps", "Shift selected steps left by row", "Reverse selected steps by row", "Shuffle selected steps", "Randomize selected step octaves", "Randomize selected step lengths" };
+        const char* captions[] { "Skip", "Mute", "Shift left", "Reverse", "Shuffle", "Randomize octave", "Randomize length" };
         for (int i = 0; i < 7; ++i)
-            button (names[i], {}, 0, { 832 + static_cast<float> (i) * 36, 40, 32, 32 }, [this, i] (auto) { bulkOrder (i); }, art[i]);
+        {
+            const float y = i < 2 ? 70.0f : 126.0f + static_cast<float> ((i - 2) / 2) * 46.0f;
+            auto& operation = button (names[i], captions[i], operationsRegion, { 24 + static_cast<float> (i % 2) * 192, y, 182, 38 }, [this, i] (auto) { bulkOrder (i); }, art[i]);
+            operation.iconWithCaption = true;
+            operation.iconInset = 10;
+        }
+        button ("Select all steps", "Select all", selectionToolsRegion, { 24, 24, 96, 30 }, [this] (auto) { controller.selectAll(); });
+        button ("Clear step selection", "Clear selection", selectionToolsRegion, { 128, 24, 116, 30 }, [this] (auto) { controller.clearSelection(); });
         const char* labels[] { "Len", "Dur %", "Vel %", "Pitch" };
+        const char* fieldLabels[] { "Length", "Duration %", "Velocity %", "Pitch" };
         for (int i = 0; i < 4; ++i)
         {
             auto baseline = std::make_shared<Rows>();
-            auto& field = parameter ("Bulk " + juce::String (labels[i]), labels[i], 0, { 1092 + static_cast<float> (i) * 37, 40, 33, 32 }, -99, 99, 0, [] { return 0.0; }, [this, i, baseline] (double v) {
+            auto& field = parameter ("Bulk " + juce::String (labels[i]), fieldLabels[i], operationsRegion, { 24 + static_cast<float> (i) * 96, 294, 86, 36 }, -99, 99, 0, [] { return 0.0; }, [this, i, baseline] (double v) {
             // Recompute from the start of the drag, including when a value hits its limit.
             controller.rows = *baseline;
             const int d = static_cast<int> (v);
@@ -581,13 +600,18 @@ namespace phrases::ui
                 if (i == 1) s.duration = juce::jlimit (0.0, 1.0, s.duration + d / 100.0);
                 if (i == 2) s.velocity = juce::jlimit (0, 127, s.velocity + juce::roundToInt (d * 1.27));
                 if (i == 3) s.note = scaleNote (s.note, d, controller.p.getPatternScaleRoot (slot()), controller.p.getPatternScaleModeIndex (slot()));
-            }, true); });
+            }); });
             field.begin = [this, baseline] { controller.begin(); *baseline = controller.rows; };
             field.pixelsPerUnit = 8;
+            field.showRelativeDrag = true;
+            field.artwork = icon (R"svg(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 20"><path d="M4 7L8 3L12 7M8 3V8M4 13L8 17L12 13M8 12V17" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>)svg");
+            field.iconInset = 6;
         }
-        for (int i = 0; i < 8; ++i)
+        for (int i = 0; i < PluginProcessor::slotCount; ++i)
         {
-            auto& pattern = button ("Select pattern " + juce::String (i + 1), juce::String (i + 1), 0, { 1315 + static_cast<float> (i) * 37.5f, 12, 33.5f, 32 }, [this, &p, i] (auto mods) {
+            const auto numberLabel = juce::String (i + 1);
+            const auto bounds = Rect (1315 + static_cast<float> (i % 8) * 37.5f, i < 8 ? 12.0f : 49.0f, 33.5f, 32);
+            auto& control = button ("Select slot " + numberLabel, numberLabel, 0, bounds, [this, &p, i] (auto mods) {
                 if (mods.isShiftDown())
                 {
                     copyPattern = copyPattern == i ? -1 : i;
@@ -604,25 +628,19 @@ namespace phrases::ui
                 clearPattern = -1;
                 controller.clearSelection();
                 inspectorRow = inspectorStep = -1;
-                preview.editingRow = -1;
+                grid.setVelocityRow (-1);
                 keyboard.scrolling = false;
-                grid.presentFlip (-1, -1);
                 repaintPatternSlots();
             });
-            pattern.active = [&p, i] { return p.getCurrentPatternSlot() == i; };
-            pattern.copySource = [this, i] { return copyPattern == i; };
-            pattern.copyTarget = [this, i] { return copyPattern >= 0 && copyPattern != i; };
-            pattern.strongLabel = true;
-            pattern.glow = true;
-            pattern.radius = 3;
-            auto& loop = button ("Select or Shift-save loop " + juce::String (i + 1), juce::String (i + 1), 0, { 1315 + static_cast<float> (i) * 37.5f, 49, 33.5f, 32 }, [&p, i] (auto mods) { if (mods.isShiftDown() || ! p.isLoopSlotAssigned (i)) p.saveCurrentBraceToLoopSlot (i); else p.selectLoopSlot (i); });
-            loop.active = [&p, i] { return p.getCurrentLoopSlot() == i; };
-            loop.strongLabel = true;
-            loop.glow = true;
-            loop.radius = 3;
-            loop.dimmed = [&p, i] { return ! p.isLoopSlotAssigned (i); };;
+            control.active = [&p, i] { return p.getCurrentPatternSlot() == i; };
+            control.copySource = [this, i] { return copyPattern == i; };
+            control.copyTarget = [this, i] { return copyPattern >= 0 && copyPattern != i; };
+            control.strongLabel = true;
+            control.glow = true;
+            control.radius = 3;
+            control.setTooltip ("Select this slot. Shift-click to choose it as the copy source.");
         }
-        auto& clear = button ("Clear selected pattern", juce::String::fromUTF8 ("×"), 0, { 1614, 12, 24, 32 }, [this, &p] (auto) {
+        auto& clear = button ("Clear selected slot", juce::String::fromUTF8 ("×"), 0, { 1614, 12, 24, 32 }, [this, &p] (auto) {
             if (clearPattern != slot())
             {
                 clearPattern = slot();
@@ -750,49 +768,69 @@ namespace phrases::ui
         loop.display = [&p] { return p.isLoopBraceEnabled() ? "LOOP ON" : "LOOP OFF"; };
         loop.active = [&p] { return p.isLoopBraceEnabled(); };
         button ("Fit notes", "FIT", 3, { 99, 8, 32, 21 }, [this] (auto) { preview.fit(); }).size = 11;
-        button ("Close inspector or row editor", juce::String::fromUTF8 ("×"), 3, { 1640, 8, 24, 21 }, [this] (auto) { inspectorRow = inspectorStep = -1; preview.editingRow = -1; resized(); });
-        const juce::String projectLabels[] { "NEW", "LOAD", "SAVE", juce::String::fromUTF8 ("◀"), juce::String::fromUTF8 ("▶") };
-        const float projectX[] { 24, 98, 176, 264, 1483 };
-        const float projectW[] { 66, 70, 70, 40, 40 };
-        for (int i = 0; i < 5; ++i)
+        button ("Close inspector", juce::String::fromUTF8 ("×"), 3, { 1640, 8, 24, 21 }, [this] (auto) { inspectorRow = inspectorStep = -1; resized(); });
+        const juce::String projectLabels[] { "NEW", "LOAD", "SAVE", juce::String::fromUTF8 ("◀"), juce::String::fromUTF8 ("▶"), "SAVE AS" };
+        const float projectX[] { 832, 889, 946, 1081, 1113, 1003 };
+        const float projectW[] { 51, 51, 51, 28, 28, 72 };
+        for (int i = 0; i < static_cast<int> (std::size (projectLabels)); ++i)
         {
-            auto& projectButton = button (projectLabels[i], projectLabels[i], 2, { projectX[i], 6, projectW[i], 32 }, [this, i] (auto) { controller.cancel(); if (projectAction) projectAction (i); });
+            auto& projectButton = button (projectLabels[i], projectLabels[i], 0, { projectX[i], 8, projectW[i], 30 }, [this, i] (auto) { controller.cancel(); if (projectAction) projectAction (i); });
             projectButton.bare = true;
             projectButton.radius = 4;
-            const bool arrow = i >= 3;
-            projectButton.customPaint = [this, i, arrow, control = &projectButton] (juce::Graphics& g, Rect b) {
+            const bool arrow = i == 3 || i == 4;
+            projectButton.customPaint = [this, arrow, control = &projectButton] (juce::Graphics& g, Rect b) {
                 g.setColour (palette.raised);
                 g.fillRoundedRectangle (b, 4);
                 g.setColour (control->isMouseOver() ? palette.accent.withAlpha (0.6f) : palette.borderSubtle);
                 g.drawRoundedRectangle (b.reduced (0.5f), 4, 1);
-                const juce::String label = i == 0 ? "NEW" : i == 1 ? "LOAD" : i == 2 ? "SAVE" : i == 3 ? juce::String::fromUTF8 ("◀") : juce::String::fromUTF8 ("▶");
-                text (g, label, b, arrow ? palette.muted : palette.text, arrow ? 16.0f : 12.0f, !arrow, juce::Justification::centred, arrow ? 0.0f : 0.16f);
+                text (g, control->caption, b, arrow ? palette.muted : palette.text, arrow ? 16.0f : 12.0f, !arrow, juce::Justification::centred, arrow ? 0.0f : 0.16f);
             };
         }
-        button ("Change theme", {}, 2, { 1546, 6, 32, 32 }, [this] (auto) { theme = theme == "dark" ? "alt" : theme == "alt" ? "light" : "dark"; palette.set (theme); updateMetadata(); synchronise(); }, ThemeMoonIcon).bare = true;
-        parameter ("UI scale percent", {}, 2, { 1582, 6, 46, 32 }, 50, 100, 100, [&p] { return p.getProjectUiScalePercent(); }, [this, &p] (double v) { p.setProjectUiScalePercent (static_cast<int> (v)); if (scaleChanged) scaleChanged(); }, [&p] { return juce::String (p.getProjectUiScalePercent()) + "%"; });
-        button ("Fullscreen", {}, 2, { 1640, 6, 32, 32 }, [this] (auto) { if (fullscreenChanged) fullscreenChanged(); }, FullscreenIcon).bare = true;
-        auto& play = button ("Toggle transport (Space)", "Play", 4, { 1472, 8, 64, 32 }, [&p] (auto) { p.setStandaloneTransportPlaying (!p.isStandaloneTransportPlaying()); });
-        play.display = [&p] { return p.isStandaloneTransportPlaying() ? "Stop" : "Play"; };
-        play.active = [&p] { return p.isStandaloneTransportPlaying(); };
-        auto& tempo = parameter ("Tempo", "BPM", 4, { 1575, 8, 90, 32 }, 20, 300, 120, [&p] { return p.getStandaloneTempoBpm(); }, [&p] (double v) { p.setStandaloneTempoBpm (v); });
-        tempo.customPaint = [this, &tempo] (juce::Graphics& g, Rect b) {
-            face (g, b, palette);
-            text (g, tempo.display ? tempo.display() : juce::String(), b.withTrimmedRight (22), palette.text, 14, true);
-            const auto spinner = Rect (b.getRight() - 20, b.getCentreY() - 11, 14, 22);
-            g.setColour (palette.raised);
-            g.fillRoundedRectangle (spinner, 3);
-            g.setColour (palette.border);
-            g.drawRoundedRectangle (spinner.reduced (0.5f), 3, 1);
-            g.setColour (palette.secondary);
-            juce::Path chevrons;
-            const float x = spinner.getCentreX();
-            chevrons.addTriangle (x - 3.2f, spinner.getY() + 9, x + 3.2f, spinner.getY() + 9, x, spinner.getY() + 4);
-            chevrons.addTriangle (x - 3.2f, spinner.getBottom() - 9, x + 3.2f, spinner.getBottom() - 9, x, spinner.getBottom() - 4);
-            g.fillPath (chevrons);
+        auto& themeButton = button ("Change theme", {}, footerRegion, { -82, 3, 26, 26 }, [this] (auto) { theme = theme == "alt" ? "dark" : "alt"; updateMetadata(); synchronise(); }, ThemeMoonIcon);
+        themeButton.bare = true;
+        themeButton.iconInset = 4;
+       #if ! JUCE_IOS
+        auto& fullscreen = button ("Fullscreen", {}, footerRegion, { -46, 3, 26, 26 }, [this] (auto) { if (fullscreenChanged) fullscreenChanged(); }, FullscreenIcon);
+        fullscreen.bare = true;
+        fullscreen.iconInset = 4;
+       #endif
+        auto& play = button ("Play or stop (Space)", {}, 4, { 1472, 8, 64, 32 }, [&p] (auto) { p.setStandaloneTransportPlaying (!p.isStandaloneTransportPlaying()); });
+        play.customPaint = [this, &p, &play] (juce::Graphics& g, Rect b) {
+            const bool playing = p.isStandaloneTransportPlaying();
+            face (g, b, palette, playing, play.radius);
+            g.setColour (playing ? palette.primaryText : play.isMouseOver() ? palette.accent : palette.secondary);
+            const auto centre = b.getCentre();
+            if (playing)
+                g.fillRect (Rect (12.0f, 12.0f).withCentre (centre));
+            else
+            {
+                juce::Path triangle;
+                triangle.addTriangle (centre.x - 5, centre.y - 7, centre.x + 7, centre.y, centre.x - 5, centre.y + 7);
+                g.fillPath (triangle);
+            }
+            if (play.hasKeyboardFocus (true))
+            {
+                g.setColour (palette.accent);
+                g.drawRoundedRectangle (b.reduced (1), play.radius, 1);
+            }
         };
-        button ("Edit notes on the piano roll", "Roll", 8, { 0, 8, 188, 32 }, [this] (auto) { preview.drawVelocity = false; preview.repaint(); }).active = [this] { return !preview.drawVelocity; };
-        button ("Draw velocity shape across steps", "Velocity", 8, { 0, 48, 188, 32 }, [this] (auto) { preview.drawVelocity = true; preview.repaint(); }).active = [this] { return preview.drawVelocity; };
+        const Rect tempoBounds (1575, 8, 56, 32);
+        parameter ("Tempo", "BPM", 4, tempoBounds, 20, 300, 120, [&p] { return p.getStandaloneTempoBpm(); }, [&p] (double v) { p.setStandaloneTempoBpm (v); });
+        const auto arrowStack = tempoBounds.withX (tempoBounds.getRight() + 2).withWidth (32);
+        const float arrowHeight = (arrowStack.getHeight() - 2) * .5f;
+        for (const int direction : { 1, -1 })
+        {
+            const bool increasing = direction > 0;
+            const auto* arrow = increasing
+                ? R"svg(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 8"><path fill="#ffffff" d="M0 8 L5 0 L10 8 Z"/></svg>)svg"
+                : R"svg(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 8"><path fill="#ffffff" d="M0 0 L5 8 L10 0 Z"/></svg>)svg";
+            auto& stepper = button (increasing ? "Increase tempo by 1 BPM" : "Decrease tempo by 1 BPM", {}, 4,
+                                    increasing ? arrowStack.withHeight (arrowHeight) : arrowStack.withTop (arrowStack.getBottom() - arrowHeight),
+                                    [&p, direction] (auto) { p.setStandaloneTempoBpm (p.getStandaloneTempoBpm() + direction); },
+                                    arrow);
+            stepper.radius = 4;
+            stepper.iconInset = 4.5f;
+        }
         parameter ("Recording cycle length in pulses", "Cycle length", 7, { 0, 36, 188, 32 }, 1, 64, 16, [&p] { return p.getPhraseRowRecordingCycleLength(); }, [&p] (double v) { p.setPhraseRowRecordingCycleLength (static_cast<int> (v)); });
         button ("Finish recording", "Finish", 7, { 0, 220, 188, 32 }, [this, &p] (auto) { if (p.getPhraseRowRecording() >= 0) record (p.getPhraseRowRecording()); });
     }
@@ -841,36 +879,6 @@ namespace phrases::ui
         parameter ("Step duration", "Duration %", 5, { 0, 115, 188, 28 }, 0, 100, 100, [this] { return currentStep().duration * 100; }, [this] (double v) { const double delta = v / 100 - currentStep().duration; editStep ([delta] (Step& s) { s.duration = juce::jlimit (0.0, 1.0, s.duration + delta); }); });
         parameter ("Step velocity", "Velocity", 5, { 0, 165, 188, 28 }, 0, 127, 100, [this] { return currentStep().velocity; }, [this] (double v) { const int delta = static_cast<int> (v) - currentStep().velocity; editStep ([delta] (Step& s) { s.velocity = juce::jlimit (0, 127, s.velocity + delta); }); });
         parameter ("Step probability", "Probability", 5, { 1130, 38, 300, 28 }, 0, 100, 100, [this] { return currentStep().probability; }, [this] (double v) { editStep ([v] (Step& s) { s.probability = static_cast<int> (v); }); }, [this] { return juce::String (currentStep().probability) + "%"; });
-        parameter ("Step cycle length", {}, 5, { 670, 64, 300, 16 }, 1, 8, 1, [this] { return currentStep().cycle; }, [this] (double v) { editStep ([v] (Step& s) { s.cycle = static_cast<int> (v); }); });
-        for (int i = 0; i < 8; ++i)
-        {
-            auto& cycle = button ("Cycle beat " + juce::String (i + 1), {}, 5, { 670 + static_cast<float> (i) * 36, 40, 36, 22 }, [this, i] (auto) { editStep ([i] (Step& s) { if (i < s.cycle) { s.mask ^= 1 << i; if (s.mask == 0) s.mask = 1; } }); });
-            cycle.bare = true;
-            cycle.active = [this, i] { return i < currentStep().cycle && (currentStep().mask & (1 << i)) != 0; };
-            cycle.customPaint = [this, i] (juce::Graphics& g, Rect b) {
-                const int length = std::max (1, currentStep().cycle);
-                const bool inside = i < length;
-                const bool on = inside && (currentStep().mask & (1 << i)) != 0;
-                const auto accent = inspectorRow >= 0 ? palette.rows[static_cast<size_t> (inspectorRow)] : palette.accent;
-                g.setColour (inside ? palette.surface : palette.app.withAlpha (0.55f));
-                g.fillRect (b);
-                if (on)
-                {
-                    g.setColour (accent);
-                    g.fillRect (b.reduced (1, 1));
-                }
-                else if (inside)
-                {
-                    juce::Graphics::ScopedSaveState hatch (g);
-                    g.reduceClipRegion (b.toNearestInt());
-                    g.setColour (palette.muted.withAlpha (0.55f));
-                    for (float x = b.getX() - b.getHeight(); x < b.getRight(); x += 4.0f)
-                        g.drawLine (x, b.getBottom(), x + b.getHeight(), b.getY(), 1);
-                }
-                g.setColour (palette.border);
-                g.drawRect (b, 1);
-            };
-        }
         parameter ("Step note", {}, 5, { 350, 24, 180, 56 }, 0, 127, 60, [this] { return currentStep().note; }, [this] (double v) { editStep ([this, v] (Step& s) { s.note = snapNote (static_cast<int> (v), controller.p.getPatternScaleRoot (slot()), controller.p.getPatternScaleModeIndex (slot())); }); }, [this] { return noteName (currentStep().note); });
         button ("Delete inspected steps", juce::String::fromUTF8 ("×  Delete"), 5, { 0, 240, 188, 28 }, [this] (auto) { controller.removeSelected(); inspectorRow = inspectorStep = -1; });
         for (auto& placement : placements)
@@ -878,16 +886,7 @@ namespace phrases::ui
             auto& control = *placement.control;
             if (placement.region == 5 && control.change)
             {
-                if (control.getName() == "Step cycle length")
-                {
-                    control.bare = true;
-                    control.customPaint = [this, &control] (juce::Graphics& g, Rect b) {
-                        const float length = static_cast<float> (std::max (1.0, control.value()));
-                        g.setColour (palette.faint.withAlpha (0.65f));
-                        g.fillRoundedRectangle ({ b.getX(), b.getCentreY() - 1.5f, b.getWidth() * length / 8.0f, 3 }, 1.5f);
-                    };
-                }
-                else if (control.getName() != "Step note")
+                if (control.getName() != "Step note")
                     sliderAppearance (control);
                 else
                 {
@@ -1103,14 +1102,13 @@ namespace phrases::ui
     void NativeEditor::bulkOrder (int operation)
     {
         auto& random = juce::Random::getSystemRandom();
-        const bool all = !controller.hasSelection();
         for (size_t r = 0; r < 4; ++r)
         {
             auto& row = controller.rows[r];
             std::vector<size_t> indices;
             std::vector<Step> steps;
             for (size_t s = 0; s < row.steps.size(); ++s)
-                if (all || controller.selection[r][s])
+                if (controller.selection[r][s])
                 {
                     indices.push_back (s);
                     steps.push_back (row.steps[s]);
@@ -1163,8 +1161,7 @@ namespace phrases::ui
         controller.documentChanged();
         inspectorRow = inspectorStep = -1;
         keyboard.scrolling = false;
-        grid.presentFlip (-1, -1);
-        preview.editingRow = -1;
+        grid.setVelocityRow (-1);
         resized();
         edited();
     }
@@ -1177,27 +1174,23 @@ namespace phrases::ui
             inspectorRow = row;
             inspectorStep = step;
         }
-        preview.editingRow = -1;
+        grid.setVelocityRow (-1);
         keyboard.scrolling = inspectorRow >= 0;
         keyboard.rowAccent = row;
         keyboard.scaleRoot = controller.p.getPatternScaleRoot (slot());
         keyboard.scaleMode = controller.p.getPatternScaleModeIndex (slot());
         if (inspectorRow >= 0)
             keyboard.selected = currentStep().note;
-        grid.inspectedRow = inspectorRow;
-        grid.inspectedStep = inspectorStep;
-        grid.presentFlip (inspectorRow, inspectorStep);
         resized();
         if (inspectorRow >= 0)
             keyboard.centerOn (keyboard.selected);
         repaint();
     }
-    void NativeEditor::showRowEditor (int row)
+    void NativeEditor::toggleRowVelocity (int row)
     {
         inspectorRow = inspectorStep = -1;
         keyboard.scrolling = false;
-        grid.presentFlip (-1, -1);
-        preview.editingRow = preview.editingRow == row ? -1 : row;
+        grid.setVelocityRow (grid.getVelocityRow() == row ? -1 : row);
         resized();
         repaint();
     }
@@ -1222,9 +1215,20 @@ namespace phrases::ui
         auto& p = controller.p;
         p.setProjectMetadata (projectName.getText(), projectDescription.getText(), p.getProjectCreatedAt(), p.getProjectModifiedAt(), theme, p.getProjectUiScalePercent(), grid.compact);
     }
+    void NativeEditor::setCompactSteps (bool compact)
+    {
+        if (grid.compact == compact)
+            return;
+        viewThumbFrom = viewThumbPosition();
+        viewThumbStart = juce::Time::getMillisecondCounterHiRes();
+        viewThumbMoving = true;
+        grid.compact = compact;
+        updateMetadata();
+        grid.updateLayout();
+    }
     float NativeEditor::viewThumbPosition() const
     {
-        const float target = grid.compact ? 1.0f : 0.0f;
+        const float target = grid.compact ? 0.0f : 1.0f;
         if (!viewThumbMoving)
             return target;
         const float t = juce::jlimit (0.0f, 1.0f, static_cast<float> ((juce::Time::getMillisecondCounterHiRes() - viewThumbStart) / 150.0));
@@ -1234,14 +1238,14 @@ namespace phrases::ui
     void NativeEditor::repaintPatternSlots()
     {
         for (const auto& control : controls)
-            if (control->getName().startsWith ("Select pattern") || control->getName() == "Clear selected pattern")
+            if (control->getName().startsWith ("Select slot") || control->getName() == "Clear selected slot")
                 control->repaint();
     }
     void NativeEditor::mouseDown (const juce::MouseEvent& e)
     {
         if (clearPattern < 0 || e.eventComponent == nullptr)
             return;
-        if (e.eventComponent->getName() == "Clear selected pattern")
+        if (e.eventComponent->getName() == "Clear selected slot")
             return;
         clearPattern = -1;
         repaintPatternSlots();
@@ -1250,6 +1254,7 @@ namespace phrases::ui
     {
         previewDirty = true;
         controller.rows = readRows (controller.p);
+        refreshStepOperations();
         if (inspectorRow >= 0)
         {
             keyboard.selected = currentStep().note;
@@ -1266,12 +1271,9 @@ namespace phrases::ui
         controller.documentChanged();
         inspectorRow = inspectorStep = -1;
         keyboard.scrolling = false;
-        grid.presentFlip (-1, -1);
-        preview.editingRow = -1;
+        grid.setVelocityRow (-1);
         synchronise();
         edited();
-        if (scaleChanged)
-            scaleChanged();
     }
     void NativeEditor::applyTheme (const juce::String& mode)
     {
@@ -1291,6 +1293,7 @@ namespace phrases::ui
         projectName.setText (p.getProjectName(), juce::dontSendNotification);
         projectDescription.setText (p.getProjectDescription(), juce::dontSendNotification);
         applyTheme (theme);
+        refreshStepOperations();
         for (const auto& control : controls)
         {
             if (control->getName() == "Undo")
@@ -1302,17 +1305,42 @@ namespace phrases::ui
         resized();
         repaint();
     }
+    juce::Rectangle<int> NativeEditor::stepOperationsBounds() const
+    {
+        const int left = getWidth() * 3 / 4;
+        return { left, static_cast<int> (top()) + 98, getWidth() - left, 496 };
+    }
+    void NativeEditor::refreshStepOperations()
+    {
+        int count = 0;
+        for (const auto& row : controller.selection)
+            count += static_cast<int> (row.count());
+        if (count == operationSelectionCount)
+            return;
+
+        operationSelectionCount = count;
+        for (const auto& placement : placements)
+            if (placement.region == operationsRegion || placement.control->getName() == "Clear step selection")
+                placement.control->setEnabled (count > 0);
+        repaint (stepOperationsBounds());
+    }
     void NativeEditor::resized()
     {
         const float header = static_cast<float> (top()), processing = header + 98 + 496, bottom = processing + 60;
         const float extraWidth = std::max (0.0f, getWidth() - 1690.0f);
         const int gridX = seedOpen ? 400 : 0;
-        grid.setBounds (gridX, static_cast<int> (header + 98), getWidth() - gridX, 496);
-        preview.setBounds (preview.editingRow >= 0 ? 232 : 24, static_cast<int> (bottom + 39), getWidth() - (preview.editingRow >= 0 ? 256 : 48), std::max (20, getHeight() - static_cast<int> (bottom + 39) - 48));
+        const auto operations = stepOperationsBounds();
+        grid.inspectedRow = inspectorRow;
+        grid.inspectedStep = inspectorStep;
+        cycleEditor.setBounds (686, static_cast<int> (bottom) + 24, 324, 72);
+        cycleEditor.setInspectedStep (inspectorRow, inspectorStep);
+        grid.setBounds (gridX, operations.getY(), std::max (0, operations.getX() - gridX), operations.getHeight());
+        const int contentBottom = getHeight() - footerHeight - 8;
+        preview.setBounds (24, static_cast<int> (bottom + 39), getWidth() - 48, std::max (20, contentBottom - static_cast<int> (bottom + 39)));
         const bool recording = controller.p.getPhraseRowRecording() >= 0;
         preview.setVisible (inspectorRow < 0 && !recording);
         keyboard.setVisible (inspectorRow >= 0 || recording);
-        keyboard.setBounds (232, static_cast<int> (bottom + 98), getWidth() - 256, std::max (80, getHeight() - static_cast<int> (bottom + 98) - 60));
+        keyboard.setBounds (232, static_cast<int> (bottom + 98), getWidth() - 256, std::max (80, contentBottom - static_cast<int> (bottom + 98)));
         for (auto& placement : placements)
         {
             auto b = placement.bounds;
@@ -1325,14 +1353,12 @@ namespace phrases::ui
             {
                 b = b.translated (0, processing);
             }
-            if (placement.region == 2)
-            {
-                b = b.translated (b.getX() >= 1480 ? extraWidth : 0, getHeight() - 46.0f);
-            }
+            if (placement.region == footerRegion)
+                b = b.translated (static_cast<float> (getWidth()), static_cast<float> (getHeight() - footerHeight));
             if (placement.region == 3)
             {
                 b = b.translated (b.getX() > 1600 ? extraWidth : 0, bottom);
-                visible = placement.bounds.getX() > 1600 ? (inspectorRow >= 0 || preview.editingRow >= 0) : (inspectorRow < 0 && preview.editingRow < 0 && ! recording);
+                visible = placement.bounds.getX() > 1600 ? (inspectorRow >= 0) : (inspectorRow < 0 && ! recording);
             }
             if (placement.region == 4)
             {
@@ -1354,16 +1380,13 @@ namespace phrases::ui
                 b = b.translated (24, bottom + 4);
                 visible = recording;
             }
-            if (placement.region == 8)
-            {
-                b = b.translated (24, bottom + 4);
-                visible = preview.editingRow >= 0;
-            }
+            if (placement.region == operationsRegion || placement.region == selectionToolsRegion)
+                b = b.translated (static_cast<float> (operations.getX()), static_cast<float> (operations.getY()));
             placement.control->setVisible (visible);
             placement.control->setBounds (b.toNearestInt());
         }
-        projectName.setBounds (318, getHeight() - 40, 156, 32);
-        projectDescription.setBounds (474, getHeight() - 40, std::max (100, getWidth() - 850), 32);
+        projectName.setBounds (832, static_cast<int> (header) + 45, 164, 32);
+        projectDescription.setBounds (996, static_cast<int> (header) + 45, 248, 32);
         if (scalePicker)
             scalePicker->setBounds (getLocalBounds());
     }
@@ -1373,13 +1396,19 @@ namespace phrases::ui
         const float header = static_cast<float> (top()), processing = header + 594, bottom = processing + 60;
         rail (g, { 0, header, static_cast<float> (getWidth()), 98 }, palette);
         rail (g, { 0, processing, static_cast<float> (getWidth()), 60 }, palette);
-        rail (g, { 0, getHeight() - 46.0f, static_cast<float> (getWidth()), 46 }, palette);
+        rail (g, { 0, static_cast<float> (getHeight() - footerHeight), static_cast<float> (getWidth()), static_cast<float> (footerHeight) }, palette);
         text (g, "OFSOUND", { 24, header + 22, 150, 14 }, palette.accent, 14, Weight::bold, juce::Justification::centredLeft, 0.1f);
         logo (g, { 24, header + 42 }, palette);
-        text (g, "Operation", { 832, header + 25, 150, 16 }, palette.text, 12, true, juce::Justification::centredLeft);
+        const auto operations = stepOperationsBounds().toFloat();
+        g.setColour (palette.surface.interpolatedWith (palette.app, 0.25f));
+        g.fillRect (operations);
+        g.setColour (palette.border);
+        g.drawVerticalLine (juce::roundToInt (operations.getX()), operations.getY(), operations.getBottom());
+        g.setColour (palette.borderSubtle);
+        for (float y : { 62.0f, 117.0f, 265.0f })
+            g.drawHorizontalLine (juce::roundToInt (operations.getY() + y), operations.getX() + 24, operations.getRight() - 24);
         const float extra = std::max (0.0f, getWidth() - 1690.0f);
-        text (g, "Patterns:", { 1254 + extra, header + 14, 58, 32 }, palette.text, 12, true, juce::Justification::centredRight);
-        text (g, "Loops:", { 1254 + extra, header + 51, 58, 32 }, palette.text, 12, true, juce::Justification::centredRight);
+        text (g, "Slots:", { 1254 + extra, header + 14, 58, 32 }, palette.text, 12, true, juce::Justification::centredRight);
         for (const auto& placement : placements)
         {
             if (!placement.control->isVisible() || placement.label.isEmpty())
@@ -1394,9 +1423,7 @@ namespace phrases::ui
             const bool transportLabel = placement.region == 4;
             text (g, placement.label, b, transportLabel ? palette.muted : palette.text, placement.region == 1 ? 9.0f : 12.0f, false, placement.region == 1 || transportLabel ? juce::Justification::centred : juce::Justification::centredLeft);
         }
-        const float foot = getHeight() - 40.0f;
-        const float nextX = 1483.0f + extra;
-        const auto meta = Rect (312, foot, nextX - 8.0f - 312.0f, 32);
+        const auto meta = projectName.getBounds().getUnion (projectDescription.getBounds()).toFloat();
         g.setColour (palette.surface.withAlpha (0.80f));
         g.fillRoundedRectangle (meta, 4);
         g.setColour (palette.borderSubtle);
@@ -1413,19 +1440,18 @@ namespace phrases::ui
             if (when.toMilliseconds() > 0)
                 dateLabel = when.formatted ("%b %e, %Y").toUpperCase().replace ("  ", " ");
         }
-        text (g, dateLabel, { nextX - 128.0f, foot, 112, 32 }, palette.text, 10.4f, true, juce::Justification::centredRight, 0.14f);
+        text (g, dateLabel, { 1149, header + 10, 95, 30 }, palette.muted, 10.4f, true, juce::Justification::centredRight, 0.14f);
         if (inspectorRow < 0)
             text (g, "loop " + number (controller.p.getLoopBraceStartQuarters()) + juce::String::fromUTF8 ("–") + number (controller.p.getLoopBraceEndQuarters()) + " (" + number (controller.p.getLoopBraceEndQuarters() - controller.p.getLoopBraceStartQuarters()) + " beats)", { getWidth() - 250.0f, bottom + 8, 208, 21 }, palette.secondary, 12, true, juce::Justification::centredRight);
         if (controller.p.getPhraseRowRecording() >= 0)
             text (g, "Recording row " + juce::String (controller.p.getPhraseRowRecording() + 1) + juce::String::fromUTF8 (" · Play MIDI or the computer keyboard"), { 24, bottom + 70, 800, 30 }, palette.danger, 18, true, juce::Justification::centredLeft);
-        if (inspectorRow >= 0)
-            text (g, "Cycle", { 694, bottom + 24, 300, 16 }, palette.text, 12);
         if (copyPattern >= 0)
-            text (g, "Copy pattern " + juce::String (copyPattern + 1) + ": choose destination", { 880, header + 78, 350, 16 }, palette.accent, 12);
+            text (g, "Copy slot " + juce::String (copyPattern + 1) + ": choose destination", { 832, header + 78, 412, 16 }, palette.accent, 12);
     }
     void NativeEditor::timerCallback()
     {
         auto& p = controller.p;
+        refreshStepOperations();
         int recorded = -1;
         const bool recordingUpdate = p.drainPhraseRowRecordingUpdates (recorded);
         const auto captured = p.drainPhraseRowRecordedNotes();
@@ -1442,12 +1468,9 @@ namespace phrases::ui
             scalePicker.reset();
             inspectorRow = inspectorStep = -1;
             keyboard.scrolling = false;
-            grid.presentFlip (-1, -1);
-            preview.editingRow = -1;
+            grid.setVelocityRow (-1);
             controller.refresh();
             synchronise();
-            if (scaleChanged)
-                scaleChanged();
             previewDirty = true;
         }
         if (knownPattern != slot())
@@ -1456,8 +1479,7 @@ namespace phrases::ui
             controller.clearSelection();
             inspectorRow = inspectorStep = -1;
             keyboard.scrolling = false;
-            grid.presentFlip (-1, -1);
-            preview.editingRow = -1;
+            grid.setVelocityRow (-1);
             synchronise();
             previewDirty = true;
         }
@@ -1482,8 +1504,6 @@ namespace phrases::ui
                 if (control->getName() == "Toggle compact steps")
                     control->repaint();
         }
-        if (grid.flipsActive())
-            grid.repaint();
         const bool playing = p.getPlaybackBeat() >= 0;
         if (playing || wasPlaying)
         {
@@ -1530,7 +1550,7 @@ namespace phrases::ui
             grid.cancelGesture();
             scalePicker.reset();
             inspectorRow = inspectorStep = -1;
-            preview.editingRow = -1;
+            grid.setVelocityRow (-1);
             copyPattern = -1;
             clearPattern = -1;
             releaseKeys();

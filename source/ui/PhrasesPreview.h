@@ -16,9 +16,6 @@ namespace phrases::ui
     public:
         Preview (Controller& controller, Palette& palette) : c (controller), p (palette) { setWantsKeyboardFocus (true); }
         std::function<void()> changed;
-        std::function<void (int, int)> inspect;
-        int editingRow = -1;
-        bool drawVelocity = false;
         double visibleQuarters = 8, firstQuarter = 0, pixelsPerQuarter = 28;
         int lowNote = 48, highNote = 72;
         void refresh();
@@ -35,17 +32,12 @@ namespace phrases::ui
         Controller& c;
         Palette& p;
         std::vector<PreviewNote> notes;
-        std::vector<std::pair<Rect, int>> rowNotes;
-        int dragKind = 0, dragStep = -1;
+        int dragKind = 0;
         double initialStart = 0, initialEnd = 8;
-        Step initialStep;
-        Rows baseline;
-        std::vector<std::pair<Rect, int>> slots;
-        juce::Point<float> lastStroke;
-        bool moveInstead = false;
         juce::Point<float> origin;
         float beatX (double) const;
         double xBeat (float) const;
+        float pitchLaneHeight() const;
         Rect noteBounds (double, double, int) const;
     };
 }

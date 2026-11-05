@@ -27,10 +27,8 @@ namespace phrases::ui
         juce::Colour app, workspace, shell, surface, raised, surfaceMuted, subtle, field, text, secondary, muted, faint, inverse, primaryText, border, borderSubtle, borderStrong, accent, strong;
         std::array<juce::Colour, 4> rows, rowSoft, rowStrong;
         juce::Colour danger = colour (0xf87171);
-        bool light = false;
         void set (const juce::String& mode)
         {
-            light = mode == "light";
             if (mode == "alt")
             {
                 app = colour (0x0b0d0e);
@@ -58,30 +56,30 @@ namespace phrases::ui
             }
             else
             {
-                app = colour (light ? 0xf7f8fa : 0x09090b);
-                shell = colour (light ? 0xe6e9ef : 0x0e0e10);
-                surface = colour (light ? 0xfafbfc : 0x18181b);
-                raised = colour (light ? 0xfefefe : 0x27272a);
-                surfaceMuted = colour (light ? 0xf1f3f7 : 0x3f3f46);
-                subtle = colour (light ? 0xe4e8ef : 0x52525b);
-                field = colour (light ? 0xf8f9fb : 0x09090b);
-                text = colour (light ? 0x0c0e12 : 0xfafafa);
-                secondary = colour (light ? 0x2e3542 : 0xd4d4d8);
-                muted = colour (light ? 0x505968 : 0xa1a1aa);
-                faint = colour (light ? 0x707a8a : 0x71717a);
+                app = colour (0x09090b);
+                shell = colour (0x0e0e10);
+                surface = colour (0x18181b);
+                raised = colour (0x27272a);
+                surfaceMuted = colour (0x3f3f46);
+                subtle = colour (0x52525b);
+                field = colour (0x09090b);
+                text = colour (0xfafafa);
+                secondary = colour (0xd4d4d8);
+                muted = colour (0xa1a1aa);
+                faint = colour (0x71717a);
                 inverse = colour (0x09090b);
-                primaryText = light ? colour (0xf5faf7) : inverse;
-                border = colour (light ? 0xa4b0c0 : 0x3f3f46);
-                borderSubtle = colour (light ? 0xd1d7e1 : 0x27272a);
-                borderStrong = colour (light ? 0x5e6b7d : 0x71717a);
-                accent = colour (light ? 0x2a6e4a : 0x62f5b4);
-                strong = colour (light ? 0x1a5236 : 0x2fd68f);
-                danger = colour (light ? 0xd64545 : 0xf87171);
+                primaryText = inverse;
+                border = colour (0x3f3f46);
+                borderSubtle = colour (0x27272a);
+                borderStrong = colour (0x71717a);
+                accent = colour (0x62f5b4);
+                strong = colour (0x2fd68f);
+                danger = colour (0xf87171);
                 rows = { colour (0x48a8c0), colour (0x4868c8), colour (0x7858c8), colour (0xa848c8) };
                 rowSoft = { colour (0x78c0d8), colour (0x7898d8), colour (0x9888d8), colour (0xc888d8) };
                 rowStrong = { colour (0x3890a8), colour (0x3a58a8), colour (0x6040a8), colour (0x8838a0) };
             }
-            workspace = light ? juce::Colours::white : app;
+            workspace = app;
         }
         Palette() { set ("dark"); }
     };
@@ -141,42 +139,47 @@ namespace phrases::ui
         }
     }
 
-    // Dash each subpath on its own so the pattern does not bridge the gaps between letters.
-    inline void strokeDashed (juce::Graphics& g, const juce::Path& path, juce::Colour ink, float on, float off, float width)
+    inline juce::Path logoDivider (const juce::Path& path)
     {
+        constexpr float dash = 1.2f, gap = 1.6f;
         juce::Path dashes;
         juce::PathFlatteningIterator it (path, {}, 0.25f);
-        const float period = on + off;
-        float phase = 0;
-        int lastSub = -1;
+        float remaining = dash;
+        bool drawing = true, startDash = true;
         while (it.next())
         {
-            if (static_cast<int> (it.subPathIndex) != lastSub)
-                lastSub = static_cast<int> (it.subPathIndex);
-            const juce::Point<float> a (it.x1, it.y1), b (it.x2, it.y2);
-            const float len = a.getDistanceFrom (b);
-            float walked = 0;
-            while (walked < len - 0.0001f)
+            if (it.subPathIndex == 0)
             {
-                const float into = std::fmod (phase, period);
-                const bool drawing = into < on;
-                const float remain = drawing ? on - into : period - into;
-                const float step = std::min (remain, len - walked);
-                if (step <= 0.0001f)
-                    break;
+                remaining = dash;
+                drawing = startDash = true;
+            }
+
+            const juce::Point<float> a (it.x1, it.y1), b (it.x2, it.y2);
+            const float length = a.getDistanceFrom (b);
+            float walked = 0;
+            while (walked < length)
+            {
+                const float step = std::min (remaining, length - walked);
                 if (drawing)
                 {
-                    const float t0 = walked / len;
-                    const float t1 = (walked + step) / len;
-                    dashes.startNewSubPath (a + (b - a) * t0);
-                    dashes.lineTo (a + (b - a) * t1);
+                    if (startDash)
+                        dashes.startNewSubPath (a + (b - a) * (walked / length));
+                    dashes.lineTo (a + (b - a) * ((walked + step) / length));
+                    startDash = false;
                 }
                 walked += step;
-                phase += step;
+                remaining -= step;
+                if (remaining <= 0.0f)
+                {
+                    drawing = !drawing;
+                    remaining = drawing ? dash : gap;
+                    startDash = true;
+                }
             }
         }
-        g.setColour (ink);
-        g.strokePath (dashes, juce::PathStrokeType (width, juce::PathStrokeType::mitered, juce::PathStrokeType::butt));
+        juce::Path stroke;
+        juce::PathStrokeType (0.65f).createStrokedPath (stroke, dashes);
+        return stroke;
     }
 
     inline std::unique_ptr<juce::Drawable> icon (const char* svg)
@@ -219,7 +222,7 @@ namespace phrases::ui
                 grid.closeSubPath();
             }
         }
-        g.setColour (p.muted.withAlpha (p.light ? 0.16f : 0.075f));
+        g.setColour (p.muted.withAlpha (0.075f));
         g.strokePath (grid, juce::PathStrokeType (0.54f));
         g.setColour (p.text.withAlpha (0.07f));
         g.drawHorizontalLine (juce::roundToInt (bounds.getY()), bounds.getX(), bounds.getRight());
@@ -228,21 +231,35 @@ namespace phrases::ui
 
     inline void logo (juce::Graphics& g, juce::Point<float> origin, const Palette& p)
     {
-        for (size_t i = 0; i < std::size (logoPaths); ++i)
+        struct Letter
         {
-            auto path = juce::Drawable::parseSVGPath (logoPaths[i]);
-            const auto transform = juce::AffineTransform::translation (origin.x + (i >= 4 ? 86.72f : 0), origin.y);
-            g.setColour (p.accent);
-            g.strokePath (path, juce::PathStrokeType (10, juce::PathStrokeType::curved, juce::PathStrokeType::rounded), transform);
-            g.setColour (p.text);
-            g.strokePath (path, juce::PathStrokeType (8, juce::PathStrokeType::curved, juce::PathStrokeType::rounded), transform);
-            g.setColour (p.app.withAlpha (0.86f));
-            for (float shift : { -2.0f, 0.0f, 2.0f })
+            juce::Path shoulder, bed, divider;
+        };
+        static const auto letters = [] {
+            std::array<Letter, std::size (logoPaths)> result;
+            for (size_t i = 0; i < result.size(); ++i)
             {
-                auto dashed = path;
-                dashed.applyTransform (transform.translated (shift, 0));
-                strokeDashed (g, dashed, p.app.withAlpha (0.86f), 1.2f, 1.6f, 0.65f);
+                auto path = juce::Drawable::parseSVGPath (logoPaths[i]);
+                path.applyTransform (juce::AffineTransform::translation (i >= 4 ? 86.72f : 0.0f, 0.0f));
+                auto& letter = result[i];
+                juce::PathStrokeType (10, juce::PathStrokeType::curved, juce::PathStrokeType::rounded).createStrokedPath (letter.shoulder, path);
+                juce::PathStrokeType (8, juce::PathStrokeType::curved, juce::PathStrokeType::rounded).createStrokedPath (letter.bed, path);
+                const auto divider = logoDivider (path);
+                for (float shift : { -2.0f, 0.0f, 2.0f })
+                    letter.divider.addPath (divider, juce::AffineTransform::translation (shift, 0.0f));
             }
+            return result;
+        }();
+
+        const auto transform = juce::AffineTransform::translation (origin.x, origin.y);
+        for (const auto& letter : letters)
+        {
+            g.setColour (p.accent);
+            g.fillPath (letter.shoulder, transform);
+            g.setColour (p.text);
+            g.fillPath (letter.bed, transform);
+            g.setColour (p.app.withAlpha (0.86f));
+            g.fillPath (letter.divider, transform);
         }
     }
 
@@ -272,6 +289,8 @@ namespace phrases::ui
         double minimum = 0, maximum = 127, interval = 1, reset = 0, pixelsPerUnit = 4;
         float size = 14, radius = 6, iconInset = 8, tracking = 0;
         bool bare = false, processing = false, horizontal = false, absolute = false;
+        bool iconWithCaption = false;
+        bool showRelativeDrag = false;
         bool accentWhenIdle = false, strongLabel = false, glow = false, translucent = false;
         std::function<bool()> dimmed, copySource, copyTarget;
         void paint (juce::Graphics& g) override
@@ -323,11 +342,16 @@ namespace phrases::ui
             const auto idle = accentWhenIdle ? p.accent : (strongLabel ? p.text : p.secondary);
             const bool targetHover = copyTarget && copyTarget() && isMouseOver();
             const auto ink = quiet ? p.faint : (on ? p.primaryText : (targetHover ? p.text : (isMouseOver() ? p.accent : idle)));
-            if (artwork)
+            if (showRelativeDrag && dragged)
+                text (g, (dragOffset > 0 ? "+" : "") + juce::String (juce::roundToInt (dragOffset)), b.reduced (3, 0), ink, size, true);
+            else if (artwork)
             {
                 artwork->replaceColour (lastInk, ink);
                 lastInk = ink;
-                artwork->drawWithin (g, b.reduced (processing ? 6.0f : iconInset), juce::RectanglePlacement::centred, 1);
+                const auto iconArea = iconWithCaption ? b.removeFromLeft (40.0f) : b;
+                artwork->drawWithin (g, iconArea.reduced (processing ? 6.0f : iconInset), juce::RectanglePlacement::centred, 1);
+                if (iconWithCaption)
+                    text (g, caption, b.withTrimmedRight (6), ink, size, strongLabel, juce::Justification::centredLeft, tracking);
             }
             else
                 text (g, display ? display() : caption, b.reduced (3, 0), ink, size, true, juce::Justification::centred, tracking);
@@ -349,6 +373,7 @@ namespace phrases::ui
             if (isShowing())
                 grabKeyboardFocus();
             origin = value ? value() : 0;
+            dragOffset = 0;
             dragged = false;
             if (begin)
                 begin();
@@ -386,6 +411,7 @@ namespace phrases::ui
         {
             if (!dragged && !e.mods.isPopupMenu() && action)
                 action (e.mods);
+            dragged = false;
             if (end)
                 end();
             repaint();
@@ -442,11 +468,14 @@ namespace phrases::ui
 
     private:
         juce::Colour lastInk = juce::Colours::white;
-        double origin = 0;
+        double origin = 0, dragOffset = 0;
         bool dragged = false;
         void assign (double v)
         {
-            change (juce::jlimit (minimum, maximum, std::round (v / interval) * interval));
+            const auto assigned = juce::jlimit (minimum, maximum, std::round (v / interval) * interval);
+            if (showRelativeDrag && dragged)
+                dragOffset = assigned - origin;
+            change (assigned);
             repaint();
         }
     };

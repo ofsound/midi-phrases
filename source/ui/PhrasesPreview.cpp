@@ -68,10 +68,15 @@ namespace phrases::ui
     }
     float Preview::beatX (double beat) const { return 44 + static_cast<float> ((beat - firstQuarter) * pixelsPerQuarter); }
     double Preview::xBeat (float x) const { return firstQuarter + (x - 44) / pixelsPerQuarter; }
+    float Preview::pitchLaneHeight() const
+    {
+        return std::max (1.0f, getHeight() - 30.0f) / static_cast<float> (highNote - lowNote + 1);
+    }
     Rect Preview::noteBounds (double start, double end, int note) const
     {
-        const float height = std::max (1.0f, (getHeight() - 30.0f) / static_cast<float> (highNote - lowNote + 1));
-        return { beatX (start), 30 + static_cast<float> (highNote - note) * height + 1, std::max (2.0f, beatX (end) - beatX (start) - 1), std::max (1.0f, height - 2) };
+        const float lane = pitchLaneHeight();
+        const float height = std::max (1.0f, lane - 2);
+        return { beatX (start), 30 + static_cast<float> (highNote - note) * lane + (lane - height) * .5f, std::max (2.0f, beatX (end) - beatX (start) - 1), height };
     }
     void Preview::refresh()
     {
@@ -92,23 +97,22 @@ namespace phrases::ui
         visibleQuarters = std::min (128.0, visibleQuarters);
         notes = renderPreview (c.p, visibleQuarters);
         fit();
-        repaint();
     }
     void Preview::fit()
     {
+        int low = 128, high = -1;
+        for (const auto& event : notes)
+        {
+            low = std::min (low, event.note);
+            high = std::max (high, event.note);
+        }
+
         lowNote = 48;
         highNote = 72;
-        if (!notes.empty())
+        if (high >= low)
         {
-            lowNote = 127;
-            highNote = 0;
-            for (const auto& event : notes)
-            {
-                lowNote = std::min (lowNote, event.note);
-                highNote = std::max (highNote, event.note);
-            }
-            lowNote = std::max (0, lowNote - 2);
-            highNote = std::min (127, highNote + 2);
+            lowNote = std::max (0, low - 1);
+            highNote = std::min (127, high + 1);
             while (highNote - lowNote + 1 < 5)
             {
                 if (lowNote > 0)
@@ -128,7 +132,7 @@ namespace phrases::ui
         juce::Path clip;
         clip.addRoundedRectangle (bounds, 12);
         g.reduceClipRegion (clip);
-        const float h = std::max (1.0f, (getHeight() - 30.0f) / static_cast<float> (highNote - lowNote + 1));
+        const float h = pitchLaneHeight();
         for (int n = lowNote; n <= highNote; ++n)
         {
             const auto pitch = n % 12;
@@ -157,46 +161,15 @@ namespace phrases::ui
         g.setColour (loopColour);
         g.fillRoundedRectangle (Rect (start, 1, 9, 16), 3);
         g.fillRoundedRectangle (Rect (end - 9, 1, 9, 16), 3);
-        rowNotes.clear();
-        slots.clear();
-        if (editingRow >= 0)
+        for (const auto& event : notes)
         {
-            const auto& row = c.rows[static_cast<size_t> (editingRow)];
-            double beat = (row.offset - 8) * .25 * PluginProcessor::pulseQuartersForIndex (c.p.getPulseIndex());
-            for (size_t s = 0; s < row.steps.size(); ++s)
-            {
-                const auto& step = row.steps[s];
-                const double length = (step.timing + 1) * .25 * PluginProcessor::pulseQuartersForIndex (c.p.getPulseIndex());
-                const auto b = noteBounds (beat, beat + length * step.duration, step.note);
-                rowNotes.emplace_back (b, static_cast<int> (s));
-                const auto span = Rect (beatX (beat), 30, static_cast<float> (length * pixelsPerQuarter), getHeight() - 30.0f);
-                slots.emplace_back (span, static_cast<int> (s));
-                const auto accent = p.rows[static_cast<size_t> (editingRow)];
-                g.setColour (accent.withAlpha (step.muted || step.skipped ? .2f : .2f + .8f * step.velocity / 127.0f));
-                g.fillRoundedRectangle (b, 2);
-                g.setColour (c.selection[static_cast<size_t> (editingRow)][s] ? p.text : accent.brighter (.2f));
-                g.drawRoundedRectangle (b, 2, 1);
-                if (drawVelocity)
-                {
-                    const auto bar = span.withTop (span.getBottom() - span.getHeight() * step.velocity / 127.0f).reduced (1, 0);
-                    g.setColour (accent.withAlpha (.45f));
-                    g.fillRect (bar);
-                    g.setColour (accent);
-                    g.drawHorizontalLine (juce::roundToInt (bar.getY()), bar.getX(), bar.getRight());
-                }
-                beat += length;
-            }
+            const auto b = noteBounds (event.start, event.end, event.note);
+            const auto accent = p.rows[static_cast<size_t> (event.row)];
+            g.setColour (accent.withAlpha (.25f + .6f * event.velocity / 127.0f));
+            g.fillRoundedRectangle (b, 2);
+            g.setColour (accent.brighter (.25f).withAlpha (.55f));
+            g.drawRoundedRectangle (b, 2, 1);
         }
-        else
-            for (const auto& event : notes)
-            {
-                const auto b = noteBounds (event.start, event.end, event.note);
-                const auto accent = p.rows[static_cast<size_t> (event.row)];
-                g.setColour (accent.withAlpha (.25f + .6f * event.velocity / 127.0f));
-                g.fillRoundedRectangle (b, 2);
-                g.setColour (accent.brighter (.25f).withAlpha (.55f));
-                g.drawRoundedRectangle (b, 2, 1);
-            }
         const double playback = c.p.getPlaybackBeat();
         if (playback >= 0)
         {
@@ -214,38 +187,12 @@ namespace phrases::ui
         initialStart = c.p.getLoopBraceStartQuarters();
         initialEnd = c.p.getLoopBraceEndQuarters();
         dragKind = 0;
-        dragStep = -1;
-        baseline = readRows (c.p);
-        lastStroke = e.position;
-        moveInstead = false;
-        if (editingRow >= 0 && drawVelocity && e.position.y >= 30)
-        {
-            c.begin();
-            dragKind = 6;
-            mouseDrag (e);
-            return;
-        }
-        if (e.position.y < 30 && editingRow < 0)
+        if (e.position.y < 30)
         {
             dragKind = std::abs (e.position.x - beatX (initialStart)) < 12 ? 1 : std::abs (e.position.x - beatX (initialEnd)) < 12 ? 2
                                                                                                                                    : 3;
             c.begin();
         }
-        else if (editingRow >= 0)
-            for (const auto& [b, step] : rowNotes)
-            {
-                if (!b.expanded (2).contains (e.position))
-                    continue;
-                dragStep = step;
-                initialStep = c.rows[static_cast<size_t> (editingRow)].steps[static_cast<size_t> (step)];
-                dragKind = e.position.x > b.getRight() - 7 ? 5 : e.position.x < b.getX() + 5 && step > 0 ? 7
-                                                                                                         : 4;
-                if (!e.mods.isShiftDown())
-                    c.clearSelection();
-                c.selection[static_cast<size_t> (editingRow)].set (static_cast<size_t> (step));
-                c.begin();
-                break;
-            }
         repaint();
     }
     void Preview::mouseDrag (const juce::MouseEvent& e)
@@ -263,98 +210,17 @@ namespace phrases::ui
             c.p.setLoopBraceEndQuarters (start + initialEnd - initialStart);
             c.p.setLoopBraceStartQuarters (start);
         }
-        if (dragKind == 6)
-        {
-            const float left = std::min (lastStroke.x, e.position.x), right = std::max (lastStroke.x, e.position.x);
-            for (const auto& [bounds, step] : slots)
-            {
-                if (bounds.getRight() < left || bounds.getX() > right)
-                    continue;
-                const float x = juce::jlimit (left, right, bounds.getCentreX());
-                const float t = std::abs (e.position.x - lastStroke.x) < .001f ? 1 : (x - lastStroke.x) / (e.position.x - lastStroke.x);
-                const float y = lastStroke.y + t * (e.position.y - lastStroke.y);
-                c.p.setPhraseStepVelocity (editingRow, step, juce::jlimit (0, 127, juce::roundToInt ((1 - (y - 30) / std::max (1, getHeight() - 30)) * 127)));
-            }
-            lastStroke = e.position;
-        }
-        if (dragKind == 4)
-        {
-            const float h = (getHeight() - 30.0f) / static_cast<float> (highNote - lowNote + 1);
-            const int degrees = juce::roundToInt ((origin.y - e.position.y) / h);
-            c.rows = baseline;
-            c.editSelected ([&] (Step& step) { step.note = scaleNote (snapNote (step.note, c.p.getPatternScaleRoot (c.p.getViewPatternSlot()), c.p.getPatternScaleModeIndex (c.p.getViewPatternSlot())), degrees, c.p.getPatternScaleRoot (c.p.getViewPatternSlot()), c.p.getPatternScaleModeIndex (c.p.getViewPatternSlot())); });
-            if (std::abs (e.position.x - origin.x) > std::abs (e.position.y - origin.y) && std::abs (e.position.x - origin.x) >= 4)
-            {
-                moveInstead = true;
-                if (dragStep > 0 && !e.mods.isAltDown())
-                {
-                    const int previous = baseline[static_cast<size_t> (editingRow)].steps[static_cast<size_t> (dragStep - 1)].timing;
-                    const double unit = .25 * PluginProcessor::pulseQuartersForIndex (c.p.getPulseIndex()) * pixelsPerQuarter;
-                    const int next = previous + juce::roundToInt ((e.position.x - origin.x) / unit);
-                    const bool crossed = origin.x - e.position.x >= (previous + 1) * unit;
-                    if (!crossed && next <= 15)
-                    {
-                        c.p.setPhraseStepTimingMultiplier (editingRow, dragStep - 1, std::max (0, next));
-                        moveInstead = false;
-                    }
-                }
-            }
-        }
-        if (dragKind == 7 && dragStep > 0)
-        {
-            const double unit = .25 * PluginProcessor::pulseQuartersForIndex (c.p.getPulseIndex()) * pixelsPerQuarter;
-            const int previous = baseline[static_cast<size_t> (editingRow)].steps[static_cast<size_t> (dragStep - 1)].timing;
-            c.p.setPhraseStepTimingMultiplier (editingRow, dragStep - 1, juce::jlimit (0, 15, previous + juce::roundToInt ((e.position.x - origin.x) / unit)));
-        }
-        if (dragKind == 5)
-        {
-            const double length = (initialStep.timing + 1) * .25 * PluginProcessor::pulseQuartersForIndex (c.p.getPulseIndex());
-            c.p.setPhraseStepDurationFraction (editingRow, dragStep, juce::jlimit (0.0, 1.0, initialStep.duration + (xBeat (e.position.x) - xBeat (origin.x)) / length));
-        }
-        c.rows = readRows (c.p);
         repaint();
     }
-    void Preview::mouseUp (const juce::MouseEvent& e)
+    void Preview::mouseUp (const juce::MouseEvent&)
     {
-        if (moveInstead && c.gestureActive() && editingRow >= 0)
-        {
-            int insertion = 0;
-            for (const auto& [bounds, step] : slots)
-                if (e.position.x >= bounds.getCentreX())
-                    insertion = step + 1;
-            c.moveSelected (editingRow, dragStep, editingRow, insertion, e.mods.isAltDown());
-        }
         c.commit();
         dragKind = 0;
         if (changed)
             changed();
     }
-    void Preview::mouseDoubleClick (const juce::MouseEvent& e)
+    void Preview::mouseDoubleClick (const juce::MouseEvent&)
     {
-        if (editingRow >= 0)
-            for (const auto& [b, step] : rowNotes)
-                if (b.contains (e.position))
-                {
-                    if (inspect)
-                        inspect (editingRow, step);
-                    return;
-                }
-        if (editingRow >= 0 && e.position.y >= 30)
-        {
-            int insertion = 0;
-            for (const auto& [bounds, step] : slots)
-                if (e.position.x >= bounds.getRight())
-                    insertion = step + 1;
-            const float h = (getHeight() - 30.0f) / static_cast<float> (highNote - lowNote + 1);
-            const int note = snapNote (highNote - static_cast<int> ((e.position.y - 30) / h), c.p.getPatternScaleRoot (c.p.getViewPatternSlot()), c.p.getPatternScaleModeIndex (c.p.getViewPatternSlot()));
-            c.begin();
-            c.p.insertPhraseStep (editingRow, insertion);
-            c.p.setPhraseNote (editingRow, insertion, note);
-            c.commit();
-            if (changed)
-                changed();
-            return;
-        }
         fit();
     }
     void Preview::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)

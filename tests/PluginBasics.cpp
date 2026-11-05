@@ -5024,7 +5024,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         CHECK (testPlugin.getProjectModifiedAt().isEmpty());
         CHECK (testPlugin.getProjectThemeMode() == "dark");
         CHECK (testPlugin.getProjectUiScalePercent() == 100);
-        CHECK_FALSE (testPlugin.getProjectStretchStepsToFit());
+        CHECK (testPlugin.getProjectStretchStepsToFit());
     }
 
     SECTION ("copy pattern slot duplicates pattern content without copying loop slot assignments")
@@ -7049,7 +7049,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         midi.clear();
         playHead.info.setPpqPosition (0.25);
         midi.addEvent (juce::MidiMessage::noteOn (1,
-                                                  PluginProcessor::patternSlotCount + 1,
+                                                  PluginProcessor::slotForLoopIndex (1),
                                                   static_cast<juce::uint8> (100)),
                        0);
         testPlugin.processBlock (buffer, midi);
@@ -7115,7 +7115,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         midi.clear();
         playHead.info.setPpqPosition (0.95);
         midi.addEvent (juce::MidiMessage::noteOn (1,
-                                                  PluginProcessor::patternSlotCount,
+                                                  PluginProcessor::slotForLoopIndex (0),
                                                   static_cast<juce::uint8> (100)),
                        0);
         testPlugin.processBlock (buffer, midi);
@@ -7155,7 +7155,7 @@ TEST_CASE ("Plugin instance", "[instance]")
         juce::AudioBuffer<float> buffer (2, 100);
         juce::MidiBuffer midi;
         midi.addEvent (juce::MidiMessage::noteOn (1,
-                                                  PluginProcessor::patternSlotCount + 1,
+                                                  PluginProcessor::slotForLoopIndex (1),
                                                   static_cast<juce::uint8> (100)),
                        0);
 
@@ -7750,6 +7750,88 @@ TEST_CASE ("Plugin instance", "[instance]")
             testPlugin.insertPhraseStep (0, testPlugin.getPhraseRowStepCount (0));
 
         CHECK (testPlugin.getPhraseRowStepCount (0) == PluginProcessor::maxPhraseStepsPerRow);
+    }
+
+    SECTION ("MIDI recalls the numbered pattern and its saved brace")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+        const auto trigger = [&] (int slot) {
+            midi.clear();
+            midi.addEvent (juce::MidiMessage::noteOn (1, slot, static_cast<juce::uint8> (100)), 0);
+            testPlugin.processBlock (buffer, midi);
+        };
+
+        trigger (15);
+        CHECK (testPlugin.getCurrentPatternSlot() == 15);
+        CHECK_FALSE (testPlugin.isLoopBraceEnabled());
+        testPlugin.setLoopBraceEndQuarters (4.0);
+        testPlugin.setLoopBraceStartQuarters (1.0);
+        testPlugin.setLoopBraceEnabled (true);
+        trigger (3);
+        CHECK_FALSE (testPlugin.isLoopBraceEnabled());
+        trigger (15);
+        CHECK (testPlugin.getCurrentLoopSlot() == -1);
+        CHECK (testPlugin.getCurrentPatternSlot() == 15);
+        CHECK (testPlugin.isLoopBraceEnabled());
+        CHECK (testPlugin.getLoopBraceStartQuarters() == Catch::Approx (1.0));
+        CHECK (testPlugin.getLoopBraceEndQuarters() == Catch::Approx (4.0));
+    }
+
+    SECTION ("A numbered slot launches at its brace downbeat during playback")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        testPlugin.setPulseIndex (1);
+        testPlugin.setCurrentPatternSlot (15);
+        ensurePhraseRowStepCount (testPlugin, 0, 2);
+        testPlugin.setPhraseNote (0, 0, 60);
+        testPlugin.setPhraseStepTimingMultiplier (0, 0, 1);
+        testPlugin.setPhraseNote (0, 1, 72);
+        testPlugin.setLoopBraceStartQuarters (0.5);
+        testPlugin.setLoopBraceEndQuarters (2.5);
+        testPlugin.setLoopBraceEnabled (true);
+        testPlugin.setCurrentPatternSlot (0);
+
+        struct Clock : juce::AudioPlayHead
+        {
+            PositionInfo info;
+            juce::Optional<PositionInfo> getPosition() const override { return info; }
+        } playHead;
+        playHead.info.setBpm (60);
+        playHead.info.setIsPlaying (true);
+        playHead.info.setPpqPosition (0.35);
+        testPlugin.setPlayHead (&playHead);
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+        testPlugin.processBlock (buffer, midi);
+
+        midi.clear();
+        midi.addEvent (juce::MidiMessage::noteOn (1, 15, static_cast<juce::uint8> (100)), 0);
+        playHead.info.setPpqPosition (0.45);
+        testPlugin.processBlock (buffer, midi);
+        CHECK (testPlugin.getAudioPatternSlot() == 15);
+        CHECK (findNoteOnSample (midi, 72) == 50);
+        CHECK (findNoteOnSample (midi, 60) < 0);
+        testPlugin.setPlayHead (nullptr);
+    }
+
+    SECTION ("The original automation range still selects patterns one through eight")
+    {
+        testPlugin.prepareToPlay (1000.0, 100);
+        juce::AudioBuffer<float> buffer (2, 100);
+        juce::MidiBuffer midi;
+        const auto& parameters = testPlugin.getParameters();
+        REQUIRE (parameters.size() == 2);
+        parameters[0]->setValue (1.0f);
+        testPlugin.processBlock (buffer, midi);
+        CHECK (testPlugin.getCurrentPatternSlot() == 7);
+        parameters[1]->setValue (1.0f);
+        testPlugin.processBlock (buffer, midi);
+        CHECK (testPlugin.getCurrentPatternSlot() == 15);
+        parameters[0]->setValue (0.0f);
+        testPlugin.processBlock (buffer, midi);
+        CHECK (testPlugin.getCurrentPatternSlot() == 0);
     }
 
     SECTION ("MIDI mute trigger note 16 stops output immediately")
