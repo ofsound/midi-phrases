@@ -738,6 +738,7 @@ void PluginProcessor::resetPlaybackMidiState()
     pendingSchedulePhaseReset.store (0, std::memory_order_release);
     clearPendingAudioCombinationModeMask();
     currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
+    currentSchedulePpqForUi.store (-1.0, std::memory_order_relaxed);
 }
 
 void PluginProcessor::appendGeneratedNotePanicMessages (juce::MidiBuffer& midiMessages)
@@ -1934,6 +1935,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     clearLoopScheduleAnchor();
     loopScheduleReanchorRequested = false;
     currentPlaybackPpq.store (-1.0, std::memory_order_relaxed);
+    currentSchedulePpqForUi.store (-1.0, std::memory_order_relaxed);
     resetPendingNoteOffs();
     resetPendingNoteOns();
     resetPendingCombinedNoteOffs();
@@ -3047,22 +3049,7 @@ void PluginProcessor::movePhraseStep (const int row, const int fromStep, const i
 
 double PluginProcessor::playbackBeatForUi() const
 {
-    const auto currentPpq = currentPlaybackPpq.load (std::memory_order_relaxed);
-
-    if (currentPpq < 0.0)
-        return -1.0;
-
-    const auto& loop = modelLoopBrace();
-
-    if (loop.enabled != 0)
-    {
-        const auto loopLength = loop.endQuarters - loop.startQuarters;
-
-        if (loopLength > 0.0)
-            return mapTransportToLoopSchedulePpq (currentPpq);
-    }
-
-    return mapTransportToPatternSchedulePpq (currentPpq);
+    return currentSchedulePpqForUi.load (std::memory_order_relaxed);
 }
 
 void PluginProcessor::clearLoopScheduleAnchor()
@@ -7872,7 +7859,10 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         standaloneTransportPpqPosition.store (ppqEnd, std::memory_order_relaxed);
 
     if (! isPatternOutputArmed())
+    {
+        currentSchedulePpqForUi.store (-1.0, std::memory_order_relaxed);
         return;
+    }
 
     constexpr auto epsilon = 1.0e-9;
 
@@ -8188,6 +8178,12 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         transportCursor = segmentEnd;
         resetAtSegmentStart = true;
     }
+    // Publish the mapped position on the audio thread. UI code must not read
+    // the mutable scheduler anchors or audio-owned loop state.
+    currentSchedulePpqForUi.store (audioLoopBrace().enabled != 0
+                                     ? mapTransportToLoopSchedulePpq (ppqEnd)
+                                     : mapTransportToPatternSchedulePpq (ppqEnd),
+                                 std::memory_order_relaxed);
 }
 
 bool PluginProcessor::hasEditor() const

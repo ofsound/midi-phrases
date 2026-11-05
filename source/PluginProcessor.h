@@ -871,6 +871,7 @@ private:
     std::array<std::array<std::uint32_t, maxPhraseStepsPerRow>, phraseRowCount> stepCycleCounters {};
     std::uint32_t playbackRandomState = 0xA5C3F17Du;
     std::atomic<double> currentPlaybackPpq { -1.0 };
+    std::atomic<double> currentSchedulePpqForUi { -1.0 };
     std::array<juce::AudioParameterInt*, 2> patternSlotParameters {};
     std::array<std::atomic<int>, 2> observedPatternParameters { 1, 9 };
     std::atomic<int> currentModelPatternSlot { 0 };

@@ -281,6 +281,7 @@ namespace phrases::ui
         std::function<juce::String()> display;
         std::function<void (juce::Graphics&, Rect)> customPaint;
         std::function<bool()> active;
+        std::function<int()> accentRow;
         std::function<void (juce::ModifierKeys)> action;
         std::function<double()> value;
         std::function<void (double)> change;
@@ -295,6 +296,13 @@ namespace phrases::ui
         std::function<bool()> dimmed, copySource, copyTarget;
         void paint (juce::Graphics& g) override
         {
+            auto controlPalette = p;
+            if (accentRow)
+            {
+                const auto row = static_cast<size_t> (juce::jlimit (0, 3, accentRow()));
+                controlPalette.accent = p.rows[row];
+                controlPalette.strong = p.rowStrong[row];
+            }
             auto b = getLocalBounds().toFloat();
             if (customPaint)
             {
@@ -305,43 +313,43 @@ namespace phrases::ui
             const bool quiet = (!isEnabled() || (dimmed && dimmed())) && !on;
             if (copySource && copySource())
             {
-                g.setColour (p.accent.interpolatedWith (juce::Colours::black, 0.75f * pulseAmount()));
+                g.setColour (controlPalette.accent.interpolatedWith (juce::Colours::black, 0.75f * pulseAmount()));
                 g.fillRoundedRectangle (b, radius);
-                g.setColour (p.accent);
+                g.setColour (controlPalette.accent);
                 g.drawRoundedRectangle (b.reduced (0.5f), radius, 1);
-                text (g, display ? display() : caption, b.reduced (3, 0), p.primaryText, size, true, juce::Justification::centred, tracking);
+                text (g, display ? display() : caption, b.reduced (3, 0), controlPalette.primaryText, size, true, juce::Justification::centred, tracking);
                 return;
             }
             if (!bare)
             {
                 if (translucent && !on)
                 {
-                    g.setColour (p.surface.withAlpha (0.30f));
+                    g.setColour (controlPalette.surface.withAlpha (0.30f));
                     g.fillRoundedRectangle (b, radius);
-                    g.setColour (isMouseOver() ? p.borderStrong : p.border);
+                    g.setColour (isMouseOver() ? controlPalette.borderStrong : controlPalette.border);
                     g.drawRoundedRectangle (b.reduced (0.5f), radius, 1);
                 }
                 else
                 {
                     if (on && glow)
                     {
-                        g.setColour (p.accent.withAlpha (0.18f));
+                        g.setColour (controlPalette.accent.withAlpha (0.18f));
                         g.drawRoundedRectangle (b.expanded (1.2f), radius + 1.0f, 2.6f);
-                        g.setColour (p.accent.withAlpha (0.08f));
+                        g.setColour (controlPalette.accent.withAlpha (0.08f));
                         g.drawRoundedRectangle (b.expanded (4.0f), radius + 3.0f, 6.0f);
                     }
-                    face (g, b, p, on, processing ? 1.0f : radius, quiet);
+                    face (g, b, controlPalette, on, processing ? 1.0f : radius, quiet);
                 }
             }
             if (processing)
             {
                 b = b.reduced (5.1f);
-                g.setGradientFill (juce::ColourGradient (p.text.withAlpha (0.12f), b.getTopLeft(), p.app.withAlpha (0.25f), b.getBottomLeft(), false));
+                g.setGradientFill (juce::ColourGradient (controlPalette.text.withAlpha (0.12f), b.getTopLeft(), controlPalette.app.withAlpha (0.25f), b.getBottomLeft(), false));
                 g.fillRect (b);
             }
-            const auto idle = accentWhenIdle ? p.accent : (strongLabel ? p.text : p.secondary);
+            const auto idle = accentWhenIdle ? controlPalette.accent : (strongLabel ? controlPalette.text : controlPalette.secondary);
             const bool targetHover = copyTarget && copyTarget() && isMouseOver();
-            const auto ink = quiet ? p.faint : (on ? p.primaryText : (targetHover ? p.text : (isMouseOver() ? p.accent : idle)));
+            const auto ink = quiet ? controlPalette.faint : (on ? controlPalette.primaryText : (targetHover ? controlPalette.text : (isMouseOver() ? controlPalette.accent : idle)));
             if (showRelativeDrag && dragged)
                 text (g, (dragOffset > 0 ? "+" : "") + juce::String (juce::roundToInt (dragOffset)), b.reduced (3, 0), ink, size, true);
             else if (artwork)
@@ -357,14 +365,14 @@ namespace phrases::ui
                 text (g, display ? display() : caption, b.reduced (3, 0), ink, size, true, juce::Justification::centred, tracking);
             if (targetHover && !on)
             {
-                g.setColour (p.accent);
+                g.setColour (controlPalette.accent);
                 g.drawRoundedRectangle (b.reduced (0.5f), radius, 1.5f);
-                g.setColour (p.accent.withAlpha (0.40f));
+                g.setColour (controlPalette.accent.withAlpha (0.40f));
                 g.drawRoundedRectangle (b.expanded (1.5f), radius + 1.0f, 2.5f);
             }
             if (hasKeyboardFocus (true))
             {
-                g.setColour (p.accent);
+                g.setColour (controlPalette.accent);
                 g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1), radius, 1);
             }
         }

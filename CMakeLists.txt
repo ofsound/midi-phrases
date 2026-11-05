@@ -194,9 +194,16 @@ target_compile_definitions(SharedCode
 # See https://github.com/juce-framework/JUCE/blob/master/docs/CMake%20API.md#juce_add_module
 # However, with Pamplejuce, you'll link modules to SharedCode with INTERFACE visibility
 # This allows the JUCE plugin targets and the Tests target to link against it
+add_subdirectory(modules/melatonin_blur)
+# JUCE's module header classification must also be set in the consumer directory
+# so the library's bundled tests and examples remain IDE-only files.
+get_target_property(MELATONIN_BLUR_HEADERS melatonin_blur INTERFACE_JUCE_MODULE_HEADERS)
+set_source_files_properties(${MELATONIN_BLUR_HEADERS} PROPERTIES HEADER_FILE_ONLY TRUE)
+
 target_link_libraries(SharedCode
     INTERFACE
     Assets
+    melatonin_blur
     juce_audio_utils
     juce_audio_processors
     juce_dsp

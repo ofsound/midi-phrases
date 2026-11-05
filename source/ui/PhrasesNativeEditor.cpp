@@ -5,6 +5,9 @@ namespace phrases::ui
     {
         constexpr int operationsRegion = 9;
         constexpr int selectionToolsRegion = 10;
+        constexpr int adjustmentsRegion = 11;
+        constexpr float adjustmentSize = 86;
+        constexpr float adjustmentBottomInset = 24;
         constexpr int footerRegion = 2;
         constexpr int footerHeight = 32;
     }
@@ -180,6 +183,11 @@ namespace phrases::ui
                 top = top.darker (0.05f);
                 bottom = bottom.darker (0.08f);
             }
+            if (!scrolling && showScale && snapNote (key.note, scaleRoot, scaleMode) == key.note)
+            {
+                top = top.interpolatedWith (p.accent, 0.90f);
+                bottom = bottom.interpolatedWith (p.accent, 0.90f);
+            }
             g.setGradientFill (juce::ColourGradient (top, key.bounds.getTopLeft(), bottom, key.bounds.getBottomLeft(), false));
             if (scrolling)
                 g.fillRect (key.bounds);
@@ -202,11 +210,6 @@ namespace phrases::ui
                 text (g, noteName (key.note), key.bounds.withY (key.bounds.getBottom() - 18).withHeight (14), p.inverse, 11, Weight::bold);
             else if (!scrolling && key.note % 12 == 0)
                 text (g, noteName (key.note), key.bounds.withY (key.bounds.getBottom() - 24).withHeight (20), colour (0x52525b), 11);
-            if (!scrolling && showScale && snapNote (key.note, scaleRoot, scaleMode) == key.note)
-            {
-                g.setColour (p.accent);
-                g.fillEllipse (key.bounds.getCentreX() - 4, key.bounds.getBottom() - 13, 8, 8);
-            }
         }
         if (scrolling)
             for (const auto& key : keys)
@@ -247,6 +250,11 @@ namespace phrases::ui
                 top = top.brighter (0.25f);
                 bottom = bottom.brighter (0.25f);
             }
+            if (!scrolling && showScale && snapNote (key->note, scaleRoot, scaleMode) == key->note)
+            {
+                top = top.interpolatedWith (p.accent, 0.90f);
+                bottom = bottom.interpolatedWith (p.accent, 0.90f);
+            }
             g.setGradientFill (juce::ColourGradient (top, key->bounds.getTopLeft(), bottom, key->bounds.getBottomLeft(), false));
             g.fillRoundedRectangle (key->bounds, scrolling ? 4.0f : 2.0f);
             g.setColour (scrolling ? juce::Colours::black.withAlpha (enabled ? 0.50f : 0.25f) : colour (0x09090b));
@@ -255,11 +263,6 @@ namespace phrases::ui
             {
                 g.setColour (accent.withAlpha (0.55f));
                 g.drawRoundedRectangle (key->bounds.expanded (1.5f), 5.0f, 2.0f);
-            }
-            if (!scrolling && showScale && snapNote (key->note, scaleRoot, scaleMode) == key->note)
-            {
-                g.setColour (p.accent);
-                g.fillEllipse (key->bounds.getCentreX() - 4, key->bounds.getBottom() - 13, 8, 8);
             }
         }
     }
@@ -367,6 +370,21 @@ namespace phrases::ui
         setOpaque (true);
         theme = processor.getProjectThemeMode();
         palette.set (theme);
+        juce::PropertiesFile::Options preferences;
+        preferences.applicationName = "MIDI Phrases";
+        preferences.filenameSuffix = ".ui.settings";
+        preferences.folderName = "ofsound";
+        preferences.osxLibrarySubFolder = "Application Support";
+        preferences.millisecondsBeforeSaving = -1;
+        uiPreferences = std::make_unique<juce::PropertiesFile> (preferences);
+        footerHelpEnabled = uiPreferences->getBoolValue ("footerTooltips", true);
+        footerHelp.setTitle ("Control help");
+        footerHelp.setFont (font (12));
+        footerHelp.setJustificationType (juce::Justification::centredLeft);
+        footerHelp.setBorderSize ({});
+        footerHelp.setMinimumHorizontalScale (1.0f);
+        footerHelp.setInterceptsMouseClicks (false, false);
+        addAndMakeVisible (footerHelp);
         grid.compact = processor.getProjectStretchStepsToFit();
         addAndMakeVisible (grid);
         addAndMakeVisible (preview);
@@ -590,7 +608,9 @@ namespace phrases::ui
         for (int i = 0; i < 4; ++i)
         {
             auto baseline = std::make_shared<Rows>();
-            auto& field = parameter ("Bulk " + juce::String (labels[i]), fieldLabels[i], operationsRegion, { 24 + static_cast<float> (i) * 96, 294, 86, 36 }, -99, 99, 0, [] { return 0.0; }, [this, i, baseline] (double v) {
+            auto& field = parameter ("Bulk " + juce::String (labels[i]), fieldLabels[i], adjustmentsRegion,
+                                     { 24 + static_cast<float> (i) * 96, -adjustmentSize - adjustmentBottomInset, adjustmentSize, adjustmentSize },
+                                     -99, 99, 0, [] { return 0.0; }, [this, i, baseline] (double v) {
             // Recompute from the start of the drag, including when a value hits its limit.
             controller.rows = *baseline;
             const int d = static_cast<int> (v);
@@ -605,7 +625,7 @@ namespace phrases::ui
             field.pixelsPerUnit = 8;
             field.showRelativeDrag = true;
             field.artwork = icon (R"svg(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 20"><path d="M4 7L8 3L12 7M8 3V8M4 13L8 17L12 13M8 12V17" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>)svg");
-            field.iconInset = 6;
+            field.iconInset = (adjustmentSize - 24) * .5f;
         }
         for (int i = 0; i < PluginProcessor::slotCount; ++i)
         {
@@ -636,7 +656,7 @@ namespace phrases::ui
             control.copySource = [this, i] { return copyPattern == i; };
             control.copyTarget = [this, i] { return copyPattern >= 0 && copyPattern != i; };
             control.strongLabel = true;
-            control.glow = true;
+            control.glow = false;
             control.radius = 3;
             control.setTooltip ("Select this slot. Shift-click to choose it as the copy source.");
         }
@@ -786,6 +806,16 @@ namespace phrases::ui
                 text (g, control->caption, b, arrow ? palette.muted : palette.text, arrow ? 16.0f : 12.0f, !arrow, juce::Justification::centred, arrow ? 0.0f : 0.16f);
             };
         }
+        constexpr auto helpIcon = R"svg(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.5 8.5C6.5 2.5 17.5 2.5 17.5 8.5C17.5 12.5 12 11.5 12 15.5" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="19.2" r="1.2" fill="#ffffff"/></svg>)svg";
+        auto& help = button ("Toggle footer tips", {}, footerRegion, { -118, 3, 26, 26 }, [this] (auto) {
+            footerHelpEnabled = !footerHelpEnabled;
+            uiPreferences->setValue ("footerTooltips", footerHelpEnabled);
+            uiPreferences->saveIfNeeded();
+            refreshFooterHelp();
+        }, helpIcon);
+        help.active = [this] { return footerHelpEnabled; };
+        help.setTooltip ("Show or hide control tips in the footer.");
+        help.iconInset = 4;
         auto& themeButton = button ("Change theme", {}, footerRegion, { -82, 3, 26, 26 }, [this] (auto) { theme = theme == "alt" ? "dark" : "alt"; updateMetadata(); synchronise(); }, ThemeMoonIcon);
         themeButton.bare = true;
         themeButton.iconInset = 4;
@@ -951,6 +981,8 @@ namespace phrases::ui
                 targets[static_cast<size_t> (r)] = 1 - targets[static_cast<size_t> (r)];
                 p.setPatternSeedModeState (p.getPatternSeedingRhythmStep (slot()), settings, targets);
             });
+            target.accentRow = [r] { return r; };
+            target.accentWhenIdle = true;
             target.active = [this, &p, r] { return p.isPatternSeedingRowTargeted (slot(), r); };
         }
         const char* labels[] { "Steps", "Length Avg", "Length Var", "Center", "Range", "Repetition", "Complexity", "Randomness" };
@@ -968,6 +1000,8 @@ namespace phrases::ui
                 if (targets[static_cast<size_t> (r)]) settings[static_cast<size_t> (r)].*member = member == &Settings::centerMidi ? snapNote (static_cast<int> (v), p.getPatternScaleRoot (slot()), p.getPatternScaleModeIndex (slot())) : static_cast<int> (v);
             }
             p.setPatternSeedModeState (p.getPatternSeedingRhythmStep (slot()), settings, targets); seedGenerate(); });
+            seedParameter.accentRow = [this] { return seedTarget; };
+            seedParameter.accentWhenIdle = true;
             if (i == 1) seedParameter.display = [this, &p] { return number ((p.getPatternSeedingRowState (slot(), seedTarget).timingMeanMultiplierIndex + 1) * .25); };
             if (i == 3) seedParameter.display = [this, &p] { const int note = p.getPatternSeedingRowState (slot(), seedTarget).centerMidi; return noteName (snapNote (note < 0 ? 60 + p.getPatternScaleRoot (slot()) : note, p.getPatternScaleRoot (slot()), p.getPatternScaleModeIndex (slot()))); };
             if (i == 4) seedParameter.display = [this, &p] { return juce::String (p.getPatternSeedingRowState (slot(), seedTarget).rangeSemitones) + " st"; };
@@ -1006,13 +1040,19 @@ namespace phrases::ui
             seedGenerate();
         });
         button ("Randomize all seed settings", "All", 6, { 234, 460, 106, 28 }, [this] (auto) { reshuffleSeed (-1); });
+        for (const auto& placement : placements)
+            if (placement.region == 6 && !placement.control->accentRow)
+            {
+                placement.control->accentRow = [this] { return seedTarget; };
+                placement.control->accentWhenIdle = true;
+            }
         const char* aspectNames[] { "Length Var", "Repetition", "Complexity", "Randomness" };
         const int aspectRows[] { 2, 5, 6, 7 };
         for (int i = 0; i < 4; ++i)
         {
             auto& control = button ("Re-shuffle " + juce::String (aspectNames[i]), {}, 6, { 298, 117 + static_cast<float> (aspectRows[i]) * 42, 42, 25 }, [this, i] (auto) { reshuffleSeed (i); });
             control.bare = true;
-            control.customPaint = [this, &control] (juce::Graphics& g, Rect b) { g.setColour (palette.workspace); g.fillRect (b); text (g, control.display(), b, palette.text, 12, true, juce::Justification::centredRight); };
+            control.customPaint = [this, &control] (juce::Graphics& g, Rect b) { g.setColour (palette.workspace); g.fillRect (b); text (g, control.display(), b, palette.rows[static_cast<size_t> (seedTarget)], 12, true, juce::Justification::centredRight); };
             control.display = [this, &p, i] {
                 const auto row = p.getPatternSeedingRowState (slot(), seedTarget);
                 return juce::String (i == 0 ? row.timingVariance : i == 1 ? row.repetition
@@ -1237,6 +1277,7 @@ namespace phrases::ui
     }
     void NativeEditor::repaintPatternSlots()
     {
+        repaint (1248, static_cast<int> (top()), getWidth() - 1248, 98);
         for (const auto& control : controls)
             if (control->getName().startsWith ("Select slot") || control->getName() == "Clear selected slot")
                 control->repaint();
@@ -1279,6 +1320,7 @@ namespace phrases::ui
     {
         theme = mode;
         palette.set (theme);
+        footerHelp.setColour (juce::Label::textColourId, palette.secondary);
         projectName.setColour (juce::Label::textColourId, palette.text);
         projectDescription.setColour (juce::Label::textColourId, palette.text);
         projectName.setFont (font (14, Weight::semibold, 0.025f));
@@ -1320,15 +1362,28 @@ namespace phrases::ui
 
         operationSelectionCount = count;
         for (const auto& placement : placements)
-            if (placement.region == operationsRegion || placement.control->getName() == "Clear step selection")
+            if (placement.region == operationsRegion || placement.region == adjustmentsRegion || placement.control->getName() == "Clear step selection")
                 placement.control->setEnabled (count > 0);
         repaint (stepOperationsBounds());
+    }
+    void NativeEditor::refreshFooterHelp()
+    {
+        juce::String tip;
+        if (footerHelpEnabled)
+        {
+            auto* hovered = juce::Desktop::getInstance().getMainMouseSource().getComponentUnderMouse();
+            if (hovered != nullptr && isParentOf (hovered))
+                for (auto* target = hovered; target != this && tip.isEmpty(); target = target->getParentComponent())
+                    if (auto* client = dynamic_cast<juce::TooltipClient*> (target))
+                        tip = client->getTooltip();
+        }
+        footerHelp.setText (tip, juce::dontSendNotification);
     }
     void NativeEditor::resized()
     {
         const float header = static_cast<float> (top()), processing = header + 98 + 496, bottom = processing + 60;
         const float extraWidth = std::max (0.0f, getWidth() - 1690.0f);
-        const int gridX = seedOpen ? 400 : 0;
+        const int gridX = 0;
         const auto operations = stepOperationsBounds();
         grid.inspectedRow = inspectorRow;
         grid.inspectedStep = inspectorStep;
@@ -1336,6 +1391,7 @@ namespace phrases::ui
         cycleEditor.setInspectedStep (inspectorRow, inspectorStep);
         grid.setBounds (gridX, operations.getY(), std::max (0, operations.getX() - gridX), operations.getHeight());
         const int contentBottom = getHeight() - footerHeight - 8;
+        footerHelp.setBounds (24, getHeight() - footerHeight, std::max (0, getWidth() - 154), footerHeight);
         preview.setBounds (24, static_cast<int> (bottom + 39), getWidth() - 48, std::max (20, contentBottom - static_cast<int> (bottom + 39)));
         const bool recording = controller.p.getPhraseRowRecording() >= 0;
         preview.setVisible (inspectorRow < 0 && !recording);
@@ -1372,7 +1428,7 @@ namespace phrases::ui
             }
             if (placement.region == 6)
             {
-                b = b.translated (24, header + 98);
+                b = b.translated (static_cast<float> (operations.getX()) + 24, header + 98);
                 visible = seedOpen;
             }
             if (placement.region == 7)
@@ -1382,6 +1438,10 @@ namespace phrases::ui
             }
             if (placement.region == operationsRegion || placement.region == selectionToolsRegion)
                 b = b.translated (static_cast<float> (operations.getX()), static_cast<float> (operations.getY()));
+            if (placement.region == adjustmentsRegion)
+                b = b.translated (static_cast<float> (operations.getX()), static_cast<float> (operations.getBottom()));
+            if (placement.region == operationsRegion || placement.region == selectionToolsRegion || placement.region == adjustmentsRegion)
+                visible = !seedOpen;
             placement.control->setVisible (visible);
             placement.control->setBounds (b.toNearestInt());
         }
@@ -1397,6 +1457,16 @@ namespace phrases::ui
         rail (g, { 0, header, static_cast<float> (getWidth()), 98 }, palette);
         rail (g, { 0, processing, static_cast<float> (getWidth()), 60 }, palette);
         rail (g, { 0, static_cast<float> (getHeight() - footerHeight), static_cast<float> (getWidth()), static_cast<float> (footerHeight) }, palette);
+        juce::Path patternPath;
+        for (const auto& control : controls)
+            if (control->getName().startsWith ("Select slot") && control->active && control->active())
+                patternPath.addRoundedRectangle (control->getBounds().toFloat(), 3);
+        if (!patternPath.isEmpty())
+        {
+            patternGlow.setColor (palette.accent.withAlpha (.38f));
+            patternGlow.setRadius (9);
+            patternGlow.render (g, patternPath);
+        }
         text (g, "OFSOUND", { 24, header + 22, 150, 14 }, palette.accent, 14, Weight::bold, juce::Justification::centredLeft, 0.1f);
         logo (g, { 24, header + 42 }, palette);
         const auto operations = stepOperationsBounds().toFloat();
@@ -1405,7 +1475,8 @@ namespace phrases::ui
         g.setColour (palette.border);
         g.drawVerticalLine (juce::roundToInt (operations.getX()), operations.getY(), operations.getBottom());
         g.setColour (palette.borderSubtle);
-        for (float y : { 62.0f, 117.0f, 265.0f })
+        if (!seedOpen)
+        for (float y : { 62.0f, 117.0f, operations.getHeight() - adjustmentSize - adjustmentBottomInset - 38.0f })
             g.drawHorizontalLine (juce::roundToInt (operations.getY() + y), operations.getX() + 24, operations.getRight() - 24);
         const float extra = std::max (0.0f, getWidth() - 1690.0f);
         text (g, "Slots:", { 1254 + extra, header + 14, 58, 32 }, palette.text, 12, true, juce::Justification::centredRight);
@@ -1418,6 +1489,8 @@ namespace phrases::ui
                 b = b.withY (b.getBottom() + 2).withHeight (12);
             else if (placement.region == 4)
                 b = b.withX (b.getX() - 35).withWidth (31);
+            else if (placement.region == adjustmentsRegion)
+                b = b.withY (b.getY() - 26).withHeight (16);
             else
                 b = b.withY (b.getY() - 18).withHeight (16).withWidth (b.getWidth() + 10);
             const bool transportLabel = placement.region == 4;
@@ -1451,6 +1524,7 @@ namespace phrases::ui
     void NativeEditor::timerCallback()
     {
         auto& p = controller.p;
+        refreshFooterHelp();
         refreshStepOperations();
         int recorded = -1;
         const bool recordingUpdate = p.drainPhraseRowRecordingUpdates (recorded);

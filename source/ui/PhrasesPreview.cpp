@@ -161,20 +161,23 @@ namespace phrases::ui
         g.setColour (loopColour);
         g.fillRoundedRectangle (Rect (start, 1, 9, 16), 3);
         g.fillRoundedRectangle (Rect (end - 9, 1, 9, 16), 3);
+        const double playback = c.p.getPlaybackBeat();
+        // The overview shows one repeating window of the composition.
+        const double displayBeat = playback < 0 ? -1.0 : std::fmod (playback, visibleQuarters);
         for (const auto& event : notes)
         {
+            const bool active = displayBeat >= event.start && displayBeat < event.end;
             const auto b = noteBounds (event.start, event.end, event.note);
             const auto accent = p.rows[static_cast<size_t> (event.row)];
-            g.setColour (accent.withAlpha (.25f + .6f * event.velocity / 127.0f));
+            g.setColour (active ? accent.brighter (.35f) : accent.withAlpha (.25f + .6f * event.velocity / 127.0f));
             g.fillRoundedRectangle (b, 2);
             g.setColour (accent.brighter (.25f).withAlpha (.55f));
             g.drawRoundedRectangle (b, 2, 1);
         }
-        const double playback = c.p.getPlaybackBeat();
         if (playback >= 0)
         {
             g.setColour (p.accent);
-            g.drawVerticalLine (juce::roundToInt (beatX (playback)), 0, static_cast<float> (getHeight()));
+            g.drawVerticalLine (juce::roundToInt (beatX (displayBeat)), 0, static_cast<float> (getHeight()));
         }
         g.setColour (p.border);
         g.drawRoundedRectangle (bounds.reduced (.5f), 12, 1);

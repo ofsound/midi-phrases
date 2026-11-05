@@ -378,12 +378,27 @@ TEST_CASE ("Compact cards show pitch and let duration move independently of timi
     const auto detailedFirst = grid.stepBounds (0, 0);
     const auto detailedSecond = grid.stepBounds (0, 1);
     const auto detailedOffset = grid.stepBounds (1, 0);
+    const auto render = [&] {
+        juce::Image snapshot (juce::Image::RGB, grid.getWidth(), grid.getHeight(), true);
+        juce::Graphics graphics (snapshot);
+        grid.paint (graphics);
+        return snapshot;
+    };
+    const auto detailedImage = render();
     grid.compact = true;
     grid.updateLayout();
 
     const auto card = grid.stepBounds (0, 0);
     const auto second = grid.stepBounds (0, 1);
     const auto offset = grid.stepBounds (1, 0);
+    const auto compactImage = render();
+    for (const float fraction : { .25f, .5f, .75f })
+    {
+        const int x = juce::roundToInt (card.getX() + card.getWidth() * fraction);
+        for (const int y : { 8, 17, 28 })
+            CHECK (compactImage.getPixelAt (x, juce::roundToInt (card.getY()) + y)
+                   == detailedImage.getPixelAt (x, juce::roundToInt (detailedFirst.getY()) + y));
+    }
     CHECK (card.getX() == Catch::Approx (detailedFirst.getX()));
     CHECK (card.getWidth() == Catch::Approx (detailedFirst.getWidth()));
     CHECK (second.getX() == Catch::Approx (detailedSecond.getX()));
@@ -421,6 +436,25 @@ TEST_CASE ("Compact cards show pitch and let duration move independently of timi
     grid.mouseUp (pointerEvent (grid, wider, rightEdge, true));
     CHECK (controller.rows[0].steps[0].duration == Catch::Approx (.75));
     CHECK (controller.rows[0].steps[0].timing > timing);
+}
+
+TEST_CASE ("The detailed step bar uses the same duration drag as compact mode", "[native][interaction]")
+{
+    PluginProcessor processor;
+    processor.insertPhraseStep (0, 0);
+    processor.setPhraseStepDurationFraction (0, 0, .5);
+    Controller controller (processor);
+    Palette palette;
+    Grid grid (controller, palette);
+    grid.setSize (900, 500);
+    const auto card = grid.stepBounds (0, 0);
+    const juce::Point<float> grip { card.getCentreX(), card.getY() + 18 };
+    const auto target = grip.translated ((card.getWidth() - 20.0f) * .25f, 0);
+    grid.mouseDown (pointerEvent (grid, grip, grip));
+    grid.mouseDrag (pointerEvent (grid, target, grip, true));
+    grid.mouseUp (pointerEvent (grid, target, grip, true));
+    CHECK (processor.getPhraseStepDurationFraction (0, 0) == Catch::Approx (.75));
+    CHECK (processor.getPhraseStepTimingMultiplier (0, 0) == 3);
 }
 
 TEST_CASE ("The top row V draws a velocity stroke without opening another panel", "[native][interaction]")
@@ -561,7 +595,8 @@ TEST_CASE ("Native repeated relative drags stay anchored and undo together", "[n
     REQUIRE (field != nullptr);
     CHECK (editor.grid.getRight() == editor.getWidth() * 3 / 4);
     CHECK (field->getX() >= editor.grid.getRight());
-    CHECK (field->getBottom() <= editor.grid.getBottom());
+    CHECK (field->getWidth() == field->getHeight());
+    CHECK (editor.grid.getBottom() - field->getBottom() == 24);
     auto* newProject = findControl (editor, "NEW");
     REQUIRE (newProject != nullptr);
     CHECK (newProject->getBottom() <= editor.grid.getY());
@@ -687,7 +722,7 @@ TEST_CASE ("Shift takes priority over step editing and adds to the marquee selec
     }
     SECTION ("Detailed delete control")
     {
-        start = grid.stepBounds (0, 0).getTopLeft().translated (12, 12);
+        start = grid.stepBounds (0, 0).getTopLeft().translated (12, 48);
         grid.mouseDown (pointerEvent (grid, start, start, false, shift));
         grid.mouseUp (pointerEvent (grid, start, start, false, shift));
         CHECK (processor.getPhraseRowStepCount (0) == 2);
@@ -836,6 +871,40 @@ TEST_CASE ("The step cycle extends, moves a beat on release, and resizes as one 
     CHECK (processor.getPhraseStepCycleOffset (0, 0) == 4);
 }
 
+TEST_CASE ("Clicking another step retargets the open inspector and clears the previous selection", "[native][interaction]")
+{
+    PluginProcessor p;
+    p.setProjectMetadata ("", "", "", "", "dark", 100, false);
+    p.insertPhraseStep (0, 0);
+    p.insertPhraseStep (1, 0);
+    p.setPhraseNote (1, 0, 62);
+    NativeEditor editor (p);
+    editor.setSize (PluginEditor::designWidth, PluginEditor::designHeight);
+    editor.showInspector (0, 0);
+    editor.controller.selectAll();
+    const auto target = editor.grid.stepBounds (1, 0).getCentre();
+    const auto click = [] (juce::Component& component, juce::Point<float> point) {
+        const auto event = pointerEvent (component, point, point);
+        component.mouseDown (event);
+        component.mouseUp (event);
+    };
+    click (editor.grid, target);
+    CHECK (editor.grid.inspectedRow == 1);
+    CHECK (editor.grid.inspectedStep == 0);
+    CHECK_FALSE (editor.controller.selection[0][0]);
+    CHECK (editor.controller.selection[1][0]);
+
+    auto* note = findControl (editor, "Step note");
+    REQUIRE (note != nullptr);
+    CHECK (note->isVisible());
+    CHECK (note->display() == "D3");
+    auto* skip = findControl (editor, "Skip inspected step");
+    REQUIRE (skip != nullptr);
+    click (*skip, skip->getLocalBounds().getCentre().toFloat());
+    CHECK_FALSE (p.isPhraseStepSkipped (0, 0));
+    CHECK (p.isPhraseStepSkipped (1, 0));
+}
+
 TEST_CASE ("Inspector keyboard scrolls the full piano and blocks out-of-scale keys", "[native][keyboard]")
 {
     PluginProcessor p;
@@ -885,4 +954,56 @@ TEST_CASE ("Inspector keyboard scrolls the full piano and blocks out-of-scale ke
     clear->mouseDown (pointerEvent (*clear, { 4, 4 }, { 4, 4 }));
     clear->mouseUp (pointerEvent (*clear, { 4, 4 }, { 4, 4 }));
     CHECK_FALSE (source->copySource());
+}
+
+TEST_CASE ("Playback display advances and stops with and without the loop brace", "[native][schedule]")
+{
+    for (const bool loop : { false, true })
+    {
+        INFO ("loop=" << loop);
+        PluginProcessor processor;
+        processor.setStandaloneTransportAvailableForTests (true);
+        processor.setCurrentPatternSlot (0);
+        processor.insertPhraseStep (0, 0);
+        processor.setLoopBraceStartQuarters (0);
+        processor.setLoopBraceEndQuarters (1);
+        processor.setLoopBraceEnabled (loop);
+        processor.prepareToPlay (8000, 128);
+        processor.setStandaloneTransportPlaying (true);
+        juce::AudioBuffer<float> audio (2, 128);
+        juce::MidiBuffer midi;
+        for (int block = 0; block < 80; ++block)
+        {
+            midi.clear();
+            processor.processBlock (audio, midi);
+            const double elapsed = (block + 1) * 128.0 * 2.0 / 8000.0;
+            CHECK (processor.getPlaybackBeat() == Catch::Approx (loop ? std::fmod (elapsed, 1.0) : elapsed).margin (1.e-7));
+        }
+        processor.setStandaloneTransportPlaying (false);
+        processor.processBlock (audio, midi);
+        CHECK (processor.getPlaybackBeat() < 0);
+        processor.releaseResources();
+    }
+}
+
+TEST_CASE ("Shift drag on a detailed pitch changes octaves without deselecting the step", "[native][interaction]")
+{
+    PluginProcessor processor;
+    processor.insertPhraseStep (0, 0);
+    Controller controller (processor);
+    controller.selection[0].set (0);
+    Palette palette;
+    Grid grid (controller, palette);
+    grid.setSize (900, 500);
+    const auto start = grid.stepBounds (0, 0).withHeight (36).getCentre();
+    const auto end = start.translated (0, -24);
+    const int shift = juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::shiftModifier;
+    const int original = processor.getPhraseNote (0, 0);
+    grid.mouseDown (pointerEvent (grid, start, start, false, shift));
+    grid.mouseDrag (pointerEvent (grid, end, start, true, shift));
+    grid.mouseUp (pointerEvent (grid, end, start, true, shift));
+    CHECK (processor.getPhraseNote (0, 0) == original + 12);
+    CHECK (controller.selection[0][0]);
+    REQUIRE (controller.undo());
+    CHECK (processor.getPhraseNote (0, 0) == original);
 }

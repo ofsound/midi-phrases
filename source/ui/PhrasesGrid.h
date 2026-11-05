@@ -1,6 +1,7 @@
 #pragma once
 #include "PhrasesModel.h"
 #include "PhrasesStyle.h"
+#include <melatonin_blur/melatonin_blur.h>
 
 namespace phrases::ui
 {
@@ -75,7 +76,9 @@ namespace phrases::ui
         int velocityRow = -1;
         float unit = 76.5f;
         Hit hover;
+        std::array<melatonin::DropShadow, 4> selectionGlows;
         void drawIcon (juce::Graphics&, size_t, Rect, juce::Colour);
+        void drawStepBar (juce::Graphics&, Rect, const Step&, juce::Colour, bool durationHot);
         void drawVelocityStroke (juce::Point<float>);
         void updateHover (juce::Point<float>, juce::ModifierKeys);
         void finish();

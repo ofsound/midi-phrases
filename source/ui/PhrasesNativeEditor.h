@@ -86,11 +86,14 @@ namespace phrases::ui
         };
         std::vector<std::unique_ptr<Control>> controls;
         std::vector<Placement> placements;
+        melatonin::DropShadow patternGlow;
         Keyboard keyboard { palette };
         CycleEditor cycleEditor { controller, palette };
         juce::Label projectName, projectDescription;
         std::unique_ptr<juce::Component> scalePicker;
-        juce::TooltipWindow tooltips { this, 600 };
+        juce::Label footerHelp;
+        std::unique_ptr<juce::PropertiesFile> uiPreferences;
+        bool footerHelpEnabled = true;
         int inspectorRow = -1, inspectorStep = -1, seedTarget = 0, copyPattern = -1, clearPattern = -1, keyboardOctave = 0;
         float viewThumbFrom = 0;
         double viewThumbStart = 0;
@@ -109,6 +112,7 @@ namespace phrases::ui
         int slot() const { return controller.p.getViewPatternSlot(); }
         juce::Rectangle<int> stepOperationsBounds() const;
         void refreshStepOperations();
+        void refreshFooterHelp();
         Control& button (juce::String name, juce::String caption, int region, Rect, std::function<void (juce::ModifierKeys)>, const char* art = nullptr);
         Control& parameter (juce::String name, juce::String label, int region, Rect, double min, double max, double reset, std::function<double()>, std::function<void (double)>, std::function<juce::String()> display = {});
         void buildControls();
