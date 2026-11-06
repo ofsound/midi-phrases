@@ -43,7 +43,7 @@ namespace phrases::ui
             p.setPhraseRowMidiChannel (r, row.channel);
     }
 
-    bool stepActive (const Row& row, size_t index, double beat, int pulse, int swing, int subdivision)
+    bool stepActive (const Row& row, size_t index, double beat, int pulse, int swing, int subdivision, double* beatsSinceOnset)
     {
         constexpr double epsilon = 1.0e-8;
         if (beat < 0 || row.muted || index >= row.steps.size())
@@ -77,6 +77,8 @@ namespace phrases::ui
         const double swingUnit = PluginProcessor::pulseQuartersForIndex (pulse) * PluginProcessor::swingSubdivisionForIndex (subdivision);
         if (static_cast<int64_t> (std::floor ((onset + epsilon) / swingUnit)) % 2 != 0)
             onset += swingUnit * .5 * swing / 100;
+        if (beatsSinceOnset != nullptr)
+            *beatsSinceOnset = beat - onset;
         return beat >= onset - epsilon && beat < onset + (step.timing + 1) * unit * step.duration - epsilon;
     }
 

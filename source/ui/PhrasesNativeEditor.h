@@ -119,6 +119,7 @@ namespace phrases::ui
         void buildControls();
         void buildInspector();
         void buildSeed();
+        void syncSeedTarget();
         void openScale();
         void closeScale();
         void updateMetadata();

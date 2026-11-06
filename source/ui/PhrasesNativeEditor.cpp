@@ -11,10 +11,13 @@ namespace phrases::ui
         constexpr int footerRegion = 2;
         constexpr int footerHeight = 32;
         constexpr float rowCountFooterOffset = -214;
+        constexpr float drumFooterOffset = rowCountFooterOffset - 36;
         constexpr int headerHeight = 98;
         constexpr int sectionGap = 16;
         constexpr int processingHeight = 60;
-        const Rect scaleButtonBounds { 666, 22, 100, 50 };
+        constexpr float processingInset = 12;
+        constexpr int rowOverlayRegion = 12;
+        const Rect scaleButtonBounds { -181, 0, 165, 24 };
     }
 
     namespace
@@ -56,16 +59,15 @@ namespace phrases::ui
             return;
         if (scrolling)
         {
+            constexpr int windowSemitones = 24;
             keysTop = 52.0f;
             keysH = std::max (1.0f, height - keysTop);
-            keyWidth = keysH * (23.0f / 150.0f);
+            keyWidth = width / static_cast<float> (whiteKeys (0, windowSemitones - 1));
             octaveDown = { 0, 2, 40, 40 };
             octaveUp = { width - 40.0f, 2, 40, 40 };
             if (centerNote >= 0)
             {
-                constexpr int windowSemitones = 36;
-                const int maxOffset = std::max (0, (127 - windowSemitones + 1) / 12);
-                const int offset = juce::jlimit (0, maxOffset, juce::roundToInt ((centerNote - (windowSemitones - 1) / 2.0) / 12.0));
+                const int offset = std::max (0, juce::roundToInt ((centerNote - (windowSemitones - 1) / 2.0) / 12.0));
                 scrollLeft = static_cast<float> (whiteIndex (offset * 12)) * keyWidth;
                 centerNote = -1;
             }
@@ -580,15 +582,18 @@ namespace phrases::ui
         parameter ("Swing subdivision", "Sub", 0, { 522, 40, 31, 32 }, 0, 2, 1, [&p] { return p.getSwingSubdivisionIndex(); }, [&p] (double v) { p.setSwingSubdivisionIndex (static_cast<int> (v)); }, [&p] { return number (PluginProcessor::swingSubdivisionForIndex (p.getSwingSubdivisionIndex())); });
         parameter ("Velocity humanize percent", "Vel %", 0, { 560, 40, 36, 32 }, 0, 99, 0, [&p] { return p.getVelocityHumanizePercent(); }, [&p] (double v) { p.setVelocityHumanizePercent (static_cast<int> (v)); });
         parameter ("Timing humanize percent", "Time %", 0, { 600, 40, 36, 32 }, 0, 99, 0, [&p] { return p.getTimingHumanizePercent(); }, [&p] (double v) { p.setTimingHumanizePercent (static_cast<int> (v)); });
-        auto& scale = button ("Scale mode", {}, 0, scaleButtonBounds, [this] (auto) { openScale(); });
+        auto& scale = button ("Scale mode", {}, rowOverlayRegion, scaleButtonBounds, [this] (auto) { openScale(); });
         scale.display = [this, &p] { return noteName (p.getPatternScaleRoot (slot()) + 60).dropLastCharacters (1) + " " + scaleNames[p.getPatternScaleModeIndex (slot())]; };
-        scale.customPaint = [this, &p] (juce::Graphics& g, Rect b) {
-            g.setColour (palette.app.withAlpha (.55f));
-            g.fillRoundedRectangle (b, 6);
-            g.setColour (palette.border);
-            g.drawRoundedRectangle (b.reduced (.5f), 6, 1);
-            text (g, noteName (p.getPatternScaleRoot (slot()) + 60).dropLastCharacters (1), b.withHeight (32), palette.text, 22, true);
-            text (g, scaleNames[p.getPatternScaleModeIndex (slot())], b.withY (31).withHeight (16), palette.accent, 12, true);
+        scale.customPaint = [this, &scale] (juce::Graphics& g, Rect b) {
+            const bool highlighted = scale.isMouseOver() || scale.hasKeyboardFocus (true);
+            const auto top = juce::Colour::greyLevel (highlighted ? .22f : .16f);
+            const auto bottom = juce::Colour::greyLevel (.08f);
+            g.setGradientFill ({ top.withAlpha (.84f), b.getTopLeft(),
+                                 bottom.withAlpha (.84f), b.getBottomLeft(), false });
+            g.fillRoundedRectangle (b, 9);
+            g.setColour (palette.accent.withAlpha (highlighted ? .85f : .42f));
+            g.drawRoundedRectangle (b.reduced (.5f), 9, 1);
+            text (g, scale.display(), b.reduced (8, 0), palette.text, 12, true);
         };
         const char* art[] { StepSkipIcon, StepMuteIcon, RowShiftOrderIcon, RowReverseOrderIcon, RowRandomizeOrderIcon, RowRandomizeOctaveIcon, RowRandomizeLengthIcon };
         const char* names[] { "Skip selected steps", "Mute selected steps", "Shift selected steps left by row", "Reverse selected steps by row", "Shuffle selected steps", "Randomize selected step octaves", "Randomize selected step lengths" };
@@ -705,22 +710,42 @@ namespace phrases::ui
         }
         parameter ("Combination change quantize", {}, 1, { 472, 16, 52, 30 }, 0, 4, 2, [&p] { return p.getCombinationSyncDivisionIndex(); }, [&p] (double v) { p.setCombinationSyncDivisionIndex (static_cast<int> (v)); }, [&p] { return number (PluginProcessor::combinationSyncDivisionMultiplierForIndex (p.getCombinationSyncDivisionIndex())); });
         button ("Continue timeline on combination mode change", juce::String::fromUTF8 ("•"), 1, { 531, 23, 15, 15 }, [&p] (auto) { p.setCombinationChangePhaseContinue (!p.isCombinationChangePhaseContinue()); }).active = [&p] { return p.isCombinationChangePhaseContinue(); };
-        auto& down = button ("Down one octave", "-8va", 1, { 605, 7, 47, 47 }, [this, &p] (auto) { p.setPatternOctavizerDown8vaEnabled (!p.isPatternOctavizerDown8vaEnabled (slot())); });
-        down.processing = true;
-        down.size = 11;
-        down.active = [this, &p] { return p.isPatternOctavizerDown8vaEnabled (slot()); };
-        parameter ("Down octave relative velocity", "Vel", 1, { 657, 21, 46, 19 }, -127, 127, 0, [this, &p] { return p.getPatternOctavizerDown8vaRelativeVelocity (slot()); }, [&p] (double v) { p.setPatternOctavizerDown8vaRelativeVelocity (static_cast<int> (v)); });
-        auto& up = button ("Up one octave", "8va", 1, { 720, 7, 47, 47 }, [this, &p] (auto) { p.setPatternOctavizerUp8vaEnabled (!p.isPatternOctavizerUp8vaEnabled (slot())); });
-        up.processing = true;
-        up.size = 11;
-        up.active = [this, &p] { return p.isPatternOctavizerUp8vaEnabled (slot()); };
-        parameter ("Up octave relative velocity", "Vel", 1, { 772, 21, 46, 19 }, -127, 127, 0, [this, &p] { return p.getPatternOctavizerUp8vaRelativeVelocity (slot()); }, [&p] (double v) { p.setPatternOctavizerUp8vaRelativeVelocity (static_cast<int> (v)); });
-        auto& shimmer = button ("Shimmer", {}, 1, { 835, 7, 47, 47 }, [this, &p] (auto) { p.setPatternShimmerEnabled (!p.isPatternShimmerEnabled (slot())); }, ShimmerIcon);
-        shimmer.processing = true;
-        shimmer.active = [this, &p] { return p.isPatternShimmerEnabled (slot()); };
-        parameter ("Shimmer delay", "Del", 1, { 886, 21, 36, 19 }, 0, 15, 3, [this, &p] { return p.getPatternShimmerDelayMultiplierIndex (slot()); }, [&p] (double v) { p.setPatternShimmerDelayMultiplierIndex (static_cast<int> (v)); }, [this, &p] { return number ((p.getPatternShimmerDelayMultiplierIndex (slot()) + 1) * .25); });
-        parameter ("Shimmer feedback", "Fbk", 1, { 926, 21, 46, 19 }, 0, 99, 10, [this, &p] { return p.getPatternShimmerFeedbackPercent (slot()); }, [&p] (double v) { p.setPatternShimmerFeedbackPercent (static_cast<int> (v)); }, [this, &p] { return juce::String (p.getPatternShimmerFeedbackPercent (slot())) + "%"; });
-        parameter ("Shimmer mix", "Mix", 1, { 976, 21, 46, 19 }, 0, 99, 20, [this, &p] { return p.getPatternShimmerMixPercent (slot()); }, [&p] (double v) { p.setPatternShimmerMixPercent (static_cast<int> (v)); }, [this, &p] { return juce::String (p.getPatternShimmerMixPercent (slot())) + "%"; });
+        // An enabled octave at zero offset plays at the original note velocity.
+        constexpr int octaveOff = PluginProcessor::minOctavizerRelativeVelocity - 1;
+        const auto downMix = [this, &p] {
+            return p.isPatternOctavizerDown8vaEnabled (slot()) ? p.getPatternOctavizerDown8vaRelativeVelocity (slot()) : octaveOff;
+        };
+        const auto upMix = [this, &p] {
+            return p.isPatternOctavizerUp8vaEnabled (slot()) ? p.getPatternOctavizerUp8vaRelativeVelocity (slot()) : octaveOff;
+        };
+        parameter ("Down octave mix", "8vb mix", 1, { 621, 21, 65, 19 }, octaveOff, PluginProcessor::maxOctavizerRelativeVelocity, octaveOff, downMix,
+            [this, &p] (double v) {
+                const bool enabled = v > octaveOff;
+                if (enabled)
+                    p.setPatternOctavizerDown8vaRelativeVelocity (static_cast<int> (v));
+                if (enabled != p.isPatternOctavizerDown8vaEnabled (slot()))
+                    p.setPatternOctavizerDown8vaEnabled (enabled);
+            }, [downMix] { return downMix() == octaveOff ? juce::String ("Off") : juce::String (downMix()); });
+        parameter ("Up octave mix", "8va mix", 1, { 736, 21, 65, 19 }, octaveOff, PluginProcessor::maxOctavizerRelativeVelocity, octaveOff, upMix,
+            [this, &p] (double v) {
+                const bool enabled = v > octaveOff;
+                if (enabled)
+                    p.setPatternOctavizerUp8vaRelativeVelocity (static_cast<int> (v));
+                if (enabled != p.isPatternOctavizerUp8vaEnabled (slot()))
+                    p.setPatternOctavizerUp8vaEnabled (enabled);
+            }, [upMix] { return upMix() == octaveOff ? juce::String ("Off") : juce::String (upMix()); });
+        const auto shimmerMix = [this, &p] {
+            return p.isPatternShimmerEnabled (slot()) ? p.getPatternShimmerMixPercent (slot()) : 0;
+        };
+        parameter ("Shimmer mix", "Shimmer", 1, { 835, 21, 66, 19 }, 0, 99, 0, shimmerMix,
+            [this, &p] (double v) {
+                const int mix = static_cast<int> (v);
+                p.setPatternShimmerMixPercent (mix);
+                if ((mix > 0) != p.isPatternShimmerEnabled (slot()))
+                    p.setPatternShimmerEnabled (mix > 0);
+            }, [shimmerMix] { return juce::String (shimmerMix()) + "%"; });
+        parameter ("Shimmer delay", "Del", 1, { 908, 21, 36, 19 }, 0, 15, 3, [this, &p] { return p.getPatternShimmerDelayMultiplierIndex (slot()); }, [&p] (double v) { p.setPatternShimmerDelayMultiplierIndex (static_cast<int> (v)); }, [this, &p] { return number ((p.getPatternShimmerDelayMultiplierIndex (slot()) + 1) * .25); });
+        parameter ("Shimmer feedback", "Fbk", 1, { 950, 21, 46, 19 }, 0, 99, 10, [this, &p] { return p.getPatternShimmerFeedbackPercent (slot()); }, [&p] (double v) { p.setPatternShimmerFeedbackPercent (static_cast<int> (v)); }, [this, &p] { return juce::String (p.getPatternShimmerFeedbackPercent (slot())) + "%"; });
         parameter ("Bandpass low note", "Min", 1, { 1080, 21, 46, 19 }, 0, 127, 36, [this, &p] { return p.getPatternNoteBandpassLow (slot()); }, [this, &p] (double v) { p.setPatternNoteBandpass (static_cast<int> (v), p.getPatternNoteBandpassHigh (slot())); }, [this, &p] { return noteName (p.getPatternNoteBandpassLow (slot())); });
         auto& bandpass = parameter ("Bandpass range", {}, 1, { 1134, 17, 80, 28 }, 0, 127, 108, [this, &p] { return p.getPatternNoteBandpassHigh (slot()); }, [this, &p] (double v) { p.setPatternNoteBandpass (p.getPatternNoteBandpassLow (slot()), static_cast<int> (v)); });
         auto bandStart = std::make_shared<std::array<int, 3>>();
@@ -792,8 +817,8 @@ namespace phrases::ui
         button ("Transpose down octave", "-8va", 1, { 1495, 21, 34, 19 }, [this, &p] (auto) { p.setPatternGlobalTransposeSemitones (p.getPatternGlobalTransposeSemitones (slot()) - 12); }).size = 11;
         parameter ("Global transpose", "Semi", 1, { 1533, 21, 36, 19 }, -48, 48, 0, [this, &p] { return p.getPatternGlobalTransposeSemitones (slot()); }, [&p] (double v) { p.setPatternGlobalTransposeSemitones (static_cast<int> (v)); });
         button ("Transpose up octave", "8va", 1, { 1573, 21, 34, 19 }, [this, &p] (auto) { p.setPatternGlobalTransposeSemitones (p.getPatternGlobalTransposeSemitones (slot()) + 12); }).size = 11;
-        auto& drum = button ("Drum row pitch lock", {}, 1, { 1620, 7, 47, 47 }, [this, &p] (auto) { p.setPatternDrumRowPitchLockEnabled (!p.isPatternDrumRowPitchLockEnabled (slot())); }, snare);
-        drum.processing = true;
+        auto& drum = button ("Drum row pitch lock", {}, footerRegion, { drumFooterOffset, 3, 26, 26 }, [this, &p] (auto) { p.setPatternDrumRowPitchLockEnabled (!p.isPatternDrumRowPitchLockEnabled (slot())); }, snare);
+        drum.iconInset = 4;
         drum.active = [this, &p] { return p.isPatternDrumRowPitchLockEnabled (slot()); };
         auto& loop = button ("Loop brace enabled", "LOOP OFF", 3, { 24, 8, 62, 21 }, [&p] (auto) { p.setLoopBraceEnabled (!p.isLoopBraceEnabled()); });
         loop.size = 11;
@@ -862,7 +887,7 @@ namespace phrases::ui
         fullscreen.bare = true;
         fullscreen.iconInset = 4;
        #endif
-        auto& play = button ("Play or stop (Space)", {}, 4, { 1472, 8, 64, 32 }, [&p] (auto) { p.setStandaloneTransportPlaying (!p.isStandaloneTransportPlaying()); });
+        auto& play = button ("Play or stop (Space)", {}, 4, { 660, 40, 57, 32 }, [&p] (auto) { p.setStandaloneTransportPlaying (!p.isStandaloneTransportPlaying()); });
         play.customPaint = [this, &p, &play] (juce::Graphics& g, Rect b) {
             const bool playing = p.isStandaloneTransportPlaying();
             face (g, b, palette, playing, play.radius);
@@ -882,7 +907,7 @@ namespace phrases::ui
                 g.drawRoundedRectangle (b.reduced (1), play.radius, 1);
             }
         };
-        const Rect tempoBounds (1575, 8, 56, 32);
+        const Rect tempoBounds (727, 40, 53, 32);
         parameter ("Tempo", "BPM", 4, tempoBounds, 20, 300, 120, [&p] { return p.getStandaloneTempoBpm(); }, [&p] (double v) { p.setStandaloneTempoBpm (v); });
         const auto arrowStack = tempoBounds.withX (tempoBounds.getRight() + 2).withWidth (32);
         const float arrowHeight = (arrowStack.getHeight() - 2) * .5f;
@@ -974,7 +999,8 @@ namespace phrases::ui
         control.customPaint = [this, &control] (juce::Graphics& g, Rect b) {
             const float trackWidth = std::max (1.0f, b.getWidth() - 45);
             const float ratio = static_cast<float> ((control.value() - control.minimum) / std::max (1.0, control.maximum - control.minimum));
-            const auto accent = inspectorRow >= 0 ? palette.rows[static_cast<size_t> (inspectorRow)] : palette.accent;
+            const int row = control.accentRow ? control.accentRow() : inspectorRow;
+            const auto accent = row >= 0 ? palette.rows[static_cast<size_t> (row)] : palette.accent;
             const auto track = Rect (3, b.getCentreY() - 3, trackWidth - 6, 6);
             g.setColour (palette.field);
             g.fillRoundedRectangle (track, 3);
@@ -1018,6 +1044,7 @@ namespace phrases::ui
                 }
                 targets[static_cast<size_t> (r)] = 1 - targets[static_cast<size_t> (r)];
                 p.setPatternSeedModeState (p.getPatternSeedingRhythmStep (slot()), settings, targets);
+                syncSeedTarget();
             });
             target.accentRow = [r] { return r; };
             target.accentWhenIdle = true;
@@ -1245,13 +1272,8 @@ namespace phrases::ui
     }
     void NativeEditor::showInspector (int row, int step)
     {
-        if (inspectorRow == row && inspectorStep == step)
-            inspectorRow = inspectorStep = -1;
-        else
-        {
-            inspectorRow = row;
-            inspectorStep = step;
-        }
+        inspectorRow = row;
+        inspectorStep = step;
         grid.setVelocityRow (-1);
         keyboard.scrolling = inspectorRow >= 0;
         keyboard.rowAccent = row;
@@ -1285,8 +1307,22 @@ namespace phrases::ui
             targets[static_cast<size_t> (row)] = 1;
             controller.p.setPatternSeedModeState (controller.p.getPatternSeedingRhythmStep (slot()), settings, targets);
         }
+        if (seedOpen)
+            syncSeedTarget();
         resized();
         repaint();
+    }
+    void NativeEditor::syncSeedTarget()
+    {
+        const auto& p = controller.p;
+        if (p.isPatternSeedingRowTargeted (slot(), seedTarget))
+            return;
+        for (int row = 0; row < 4; ++row)
+            if (p.isPatternSeedingRowTargeted (slot(), row))
+            {
+                seedTarget = row;
+                return;
+            }
     }
     void NativeEditor::updateMetadata()
     {
@@ -1322,6 +1358,8 @@ namespace phrases::ui
     }
     void NativeEditor::mouseDown (const juce::MouseEvent& e)
     {
+        if (e.eventComponent == this && inspectorRow >= 0 && e.mods.isLeftButtonDown() && !e.mods.isPopupMenu())
+            showInspector (-1, -1);
         if (clearPattern < 0 || e.eventComponent == nullptr)
             return;
         if (e.eventComponent->getName() == "Clear selected slot")
@@ -1439,7 +1477,8 @@ namespace phrases::ui
         const int gridX = 0;
         const auto operations = stepOperationsBounds();
         const int processing = operations.getBottom();
-        const int pianoRollTop = processing + processingHeight + sectionGap;
+        const int stripTop = processing + sectionGap;
+        const int pianoRollTop = stripTop + processingHeight + sectionGap;
         const bool recording = controller.p.getPhraseRowRecording() >= 0;
         const bool showPreview = inspectorRow < 0 && !recording;
         if (preview.isVisible() != showPreview)
@@ -1450,7 +1489,7 @@ namespace phrases::ui
         cycleEditor.setInspectedStep (inspectorRow, inspectorStep);
         grid.setBounds (gridX, operations.getY(), std::max (0, operations.getX() - gridX), operations.getHeight());
         const int contentBottom = getHeight() - footerHeight - 8;
-        footerHelp.setBounds (24, getHeight() - footerHeight, std::max (0, getWidth() + static_cast<int> (rowCountFooterOffset) - 36), footerHeight);
+        footerHelp.setBounds (24, getHeight() - footerHeight, std::max (0, getWidth() + static_cast<int> (drumFooterOffset) - 36), footerHeight);
         preview.setBounds (24, pianoRollTop + 39, getWidth() - 48, std::max (20, contentBottom - (pianoRollTop + 39)));
         preview.setVisible (showPreview);
         keyboard.setVisible (!showPreview);
@@ -1465,7 +1504,7 @@ namespace phrases::ui
             }
             if (placement.region == 1)
             {
-                b = b.translated (0, static_cast<float> (processing));
+                b = b.translated (0, static_cast<float> (stripTop));
                 visible = showPreview;
             }
             if (placement.region == footerRegion)
@@ -1478,9 +1517,11 @@ namespace phrases::ui
             }
             if (placement.region == 4)
             {
-                b = b.translated (extraWidth, 0);
+                b = b.translated (0, header + 2);
                 visible = controller.p.hasStandaloneTransport();
             }
+            if (placement.region == rowOverlayRegion)
+                b = b.translated (static_cast<float> (grid.getRight()), static_cast<float> (grid.getY()));
             if (placement.region == 5)
             {
                 b = b.translated (24, static_cast<float> (processing + 4));
@@ -1516,9 +1557,10 @@ namespace phrases::ui
         const float header = static_cast<float> (top());
         const auto operations = stepOperationsBounds().toFloat();
         const float processing = operations.getBottom();
+        const float stripTop = processing + sectionGap;
         rail (g, { 0, header, static_cast<float> (getWidth()), headerHeight }, palette);
         if (preview.isVisible())
-            rail (g, { 0, processing, static_cast<float> (getWidth()), processingHeight }, palette);
+            rail (g, { processingInset, stripTop, static_cast<float> (getWidth()) - 2 * processingInset, processingHeight }, palette);
         rail (g, { 0, static_cast<float> (getHeight() - footerHeight), static_cast<float> (getWidth()), static_cast<float> (footerHeight) }, palette);
         juce::Path patternPath;
         for (const auto& control : controls)
@@ -1550,7 +1592,7 @@ namespace phrases::ui
             if (placement.region == 1)
                 b = b.withY (b.getBottom() + 2).withHeight (12);
             else if (placement.region == 4)
-                b = b.withX (b.getX() - 35).withWidth (31);
+                b = b.withY (b.getY() - 18).withHeight (16);
             else if (placement.region == adjustmentsRegion)
                 b = b.withY (b.getY() - 26).withHeight (16);
             else
@@ -1577,7 +1619,7 @@ namespace phrases::ui
         }
         text (g, dateLabel, { 1149, header + 10, 95, 30 }, palette.muted, 10.4f, true, juce::Justification::centredRight, 0.14f);
         if (preview.isVisible())
-            text (g, "loop " + number (controller.p.getLoopBraceStartQuarters()) + juce::String::fromUTF8 ("–") + number (controller.p.getLoopBraceEndQuarters()) + " (" + number (controller.p.getLoopBraceEndQuarters() - controller.p.getLoopBraceStartQuarters()) + " beats)", { getWidth() - 250.0f, processing + processingHeight + sectionGap + 8, 208, 21 }, palette.secondary, 12, true, juce::Justification::centredRight);
+            text (g, "loop " + number (controller.p.getLoopBraceStartQuarters()) + juce::String::fromUTF8 ("–") + number (controller.p.getLoopBraceEndQuarters()) + " (" + number (controller.p.getLoopBraceEndQuarters() - controller.p.getLoopBraceStartQuarters()) + " beats)", { getWidth() - 250.0f, stripTop + processingHeight + sectionGap + 8, 208, 21 }, palette.secondary, 12, true, juce::Justification::centredRight);
         if (controller.p.getPhraseRowRecording() >= 0)
             text (g, "Recording row " + juce::String (controller.p.getPhraseRowRecording() + 1) + juce::String::fromUTF8 (" · Play MIDI or the computer keyboard"), { 24, processing + 70, 800, 30 }, palette.danger, 18, true, juce::Justification::centredLeft);
     }
@@ -1622,11 +1664,13 @@ namespace phrases::ui
             grid.updateLayout();
             previewDirty = true;
         }
-        if (previewDirty && !controller.gestureActive())
+        const bool gestureActive = controller.gestureActive();
+        if (previewDirty && (!gestureActive || (grid.isDraggingDuration() && preview.isVisible())))
         {
             previewDirty = false;
             preview.refresh();
-            synchronise();
+            if (!gestureActive)
+                synchronise();
         }
         if (copyPattern >= 0 || clearPattern >= 0)
             repaintPatternSlots();
@@ -1801,7 +1845,8 @@ namespace phrases::ui
             }
             void resized() override
             {
-                panel = { anchorPosition.x, anchorPosition.y, 620, 386 };
+                constexpr float panelWidth = 620;
+                panel = { std::max (0.0f, anchorPosition.x - panelWidth), anchorPosition.y, panelWidth, 386 };
                 scaleKeyboard.setBounds (panel.reduced (16).withTop (panel.getY() + 284).toNearestInt());
                 updateKeyboard();
                 for (int i = 0; i < 12; ++i)
@@ -1868,7 +1913,7 @@ namespace phrases::ui
         controller.commit();
         controller.begin();
         const juce::Component::SafePointer<NativeEditor> safe (this);
-        const auto anchor = scaleButtonBounds.translated (0, static_cast<float> (top()) + 2).getBottomLeft().translated (0, 4);
+        const auto anchor = scaleButtonBounds.translated (static_cast<float> (grid.getRight()), static_cast<float> (grid.getY())).getBottomRight().translated (0, 4);
         scalePicker = std::make_unique<ScalePicker> (palette, controller.p, anchor, [safe] {
             if (safe != nullptr)
                 safe->closeScale();

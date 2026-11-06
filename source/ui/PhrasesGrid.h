@@ -15,6 +15,7 @@ namespace phrases::ui
         std::function<void (bool)> changeCompactMode;
         bool compact = false;
         int inspectedRow = -1, inspectedStep = -1;
+        bool isDraggingDuration() const { return dragging && down.part == Part::duration; }
         void paint (juce::Graphics&) override;
         void resized() override;
         void mouseDown (const juce::MouseEvent&) override;
@@ -40,8 +41,8 @@ namespace phrases::ui
         std::array<std::vector<Rect>, 4> cells;
         std::array<Rect, 4> addBounds;
         std::array<float, 4> scroll {};
-        std::array<std::unique_ptr<juce::Drawable>, 6> icons;
-        std::array<juce::Colour, 6> iconInks {juce::Colours::white, juce::Colours::white, juce::Colours::white, juce::Colours::white, juce::Colours::white, juce::Colours::white};
+        std::array<std::unique_ptr<juce::Drawable>, 5> icons;
+        std::array<juce::Colour, 5> iconInks {juce::Colours::white, juce::Colours::white, juce::Colours::white, juce::Colours::white, juce::Colours::white};
         enum class Part { none,
             header,
             power,
@@ -57,7 +58,6 @@ namespace phrases::ui
             velocity,
             skip,
             mute,
-            gear,
             remove,
             resize };
         struct Hit
@@ -83,15 +83,16 @@ namespace phrases::ui
         bool changedViewOnClick = false;
         int velocityRow = -1;
         int visibleRowCount = 4;
-        static constexpr float rowsTop = 24;
+        static constexpr float compactLabelInset = 10;
+        float rowsTop() const { return 24 + (compact ? compactLabelInset : 0); }
         float rowStride() const { return 456.0f / static_cast<float> (visibleRowCount); }
-        float rowTop (size_t row) const { return rowsTop + static_cast<float> (row) * rowStride(); }
+        float rowTop (size_t row) const { return rowsTop() + static_cast<float> (row) * rowStride(); }
         float rowHeight() const { return rowStride() - 10.0f; }
-        float unit = 76.5f;
+        static constexpr float unit = 76.5f;
         Hit hover;
         std::array<melatonin::DropShadow, 4> selectionGlows;
         void drawIcon (juce::Graphics&, size_t, Rect, juce::Colour);
-        void drawStepBar (juce::Graphics&, Rect, const Step&, juce::Colour, bool durationHot, bool playing);
+        void drawStepBar (juce::Graphics&, Rect, const Step&, juce::Colour, bool durationHot, bool playing, float flash);
         void drawVelocityStroke (juce::Point<float>);
         void updateHover (juce::Point<float>, juce::ModifierKeys);
         void finish();

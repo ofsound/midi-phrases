@@ -276,9 +276,14 @@ TEST_CASE ("Standalone tempo arrows step in both directions", "[native]")
     auto* up = findControl (editor, "Increase tempo by 1 BPM");
     auto* down = findControl (editor, "Decrease tempo by 1 BPM");
     auto* tempo = findControl (editor, "Tempo");
+    auto* play = findControl (editor, "Play or stop (Space)");
     REQUIRE (up != nullptr);
     REQUIRE (down != nullptr);
     REQUIRE (tempo != nullptr);
+    REQUIRE (play != nullptr);
+    CHECK (play->getY() == tempo->getY());
+    CHECK (tempo->getY() >= 48);
+    CHECK (tempo->getBottom() < editor.grid.getY());
     CHECK (up->isVisible());
     CHECK (down->isVisible());
     CHECK_FALSE (up->getBounds().intersects (down->getBounds()));
@@ -294,6 +299,35 @@ TEST_CASE ("Standalone tempo arrows step in both directions", "[native]")
     CHECK (processor.getStandaloneTempoBpm() == Catch::Approx (121));
     click (*down);
     CHECK (processor.getStandaloneTempoBpm() == Catch::Approx (120));
+}
+
+TEST_CASE ("Seed slider accents follow the targeted row", "[native][interaction]")
+{
+    PluginProcessor processor;
+    NativeEditor editor (processor);
+    editor.setSize (PluginEditor::designWidth, PluginEditor::designHeight);
+    editor.showSeed (1);
+    auto* steps = findControl (editor, "Seed Steps");
+    auto* target = findControl (editor, "Target seed row 3");
+    REQUIRE (steps != nullptr);
+    REQUIRE (target != nullptr);
+    const auto trackColour = [&] {
+        juce::Image image (juce::Image::RGB, steps->getWidth(), steps->getHeight(), true);
+        juce::Graphics graphics (image);
+        steps->paint (graphics);
+        return image.getPixelAt (12, steps->getHeight() / 2);
+    };
+    CHECK (trackColour() == editor.palette.rows[1]);
+    const auto clickTarget = [&] {
+        const auto centre = target->getLocalBounds().getCentre().toFloat();
+        const auto event = pointerEvent (*target, centre, centre);
+        target->mouseDown (event);
+        target->mouseUp (event);
+    };
+    clickTarget();
+    CHECK (trackColour() == editor.palette.rows[2]);
+    clickTarget();
+    CHECK (trackColour() == editor.palette.rows[1]);
 }
 
 TEST_CASE ("Legacy light projects open in dark and the theme toggle has two positions", "[native]")
@@ -407,7 +441,7 @@ TEST_CASE ("Compact cards show pitch and let duration move independently of timi
     CHECK (offset.getWidth() == Catch::Approx (detailedOffset.getWidth()));
     CHECK (card.getHeight() < 96.0f);
     CHECK (second.getY() < card.getY());
-    CHECK (card.getBottom() <= 124.0f);
+    CHECK (card.getBottom() <= 134.0f);
     const int timing = controller.rows[0].steps[0].timing;
     const auto edge = card.getCentre();
     const auto target = edge.translated ((card.getWidth() - 20.0f) * .25f, 0);
@@ -436,6 +470,57 @@ TEST_CASE ("Compact cards show pitch and let duration move independently of timi
     grid.mouseUp (pointerEvent (grid, wider, rightEdge, true));
     CHECK (controller.rows[0].steps[0].duration == Catch::Approx (.75));
     CHECK (controller.rows[0].steps[0].timing > timing);
+}
+
+TEST_CASE ("A compact duration drag updates the preview and MIDI before release", "[native][interaction]")
+{
+    PluginProcessor processor;
+    processor.setStandaloneTransportAvailableForTests (true);
+    processor.setStandaloneTempoBpm (120);
+    processor.insertPhraseStep (0, 0);
+    processor.setPhraseStepDurationFraction (0, 0, .5);
+    constexpr int sampleRate = 8000, blockSize = 128;
+    processor.prepareToPlay (sampleRate, blockSize);
+    NativeEditor editor (processor);
+    editor.setSize (PluginEditor::designWidth, PluginEditor::designHeight);
+    REQUIRE (editor.grid.compact);
+    const auto card = editor.grid.stepBounds (0, 0);
+    const auto grip = card.getCentre();
+    const auto target = grip.translated ((card.getWidth() - 20.0f) * .25f, 0);
+    editor.grid.mouseDown (pointerEvent (editor.grid, grip, grip));
+    editor.grid.mouseDrag (pointerEvent (editor.grid, target, grip, true));
+    REQUIRE (editor.controller.gestureActive());
+    CHECK (processor.getPhraseStepDurationFraction (0, 0) == Catch::Approx (.75));
+
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (100);
+    REQUIRE (editor.controller.gestureActive());
+    REQUIRE_FALSE (editor.preview.events().empty());
+    const auto& note = editor.preview.events().front();
+    const double duration = .75 * (processor.getPhraseStepTimingMultiplier (0, 0) + 1) * .25
+        * PluginProcessor::pulseQuartersForIndex (processor.getPulseIndex());
+    CHECK (note.end - note.start == Catch::Approx (duration).margin (2.0 / sampleRate));
+
+    processor.setStandaloneTransportPlaying (true);
+    juce::AudioBuffer<float> audio (2, blockSize);
+    juce::MidiBuffer midi;
+    int noteOn = -1, noteOff = -1;
+    for (int start = 0; start < sampleRate && noteOff < 0; start += blockSize)
+    {
+        midi.clear();
+        processor.processBlock (audio, midi);
+        for (const auto event : midi)
+        {
+            if (event.getMessage().isNoteOn() && noteOn < 0)
+                noteOn = start + event.samplePosition;
+            if (event.getMessage().isNoteOff() && noteOn >= 0 && noteOff < 0)
+                noteOff = start + event.samplePosition;
+        }
+    }
+    REQUIRE (noteOn >= 0);
+    REQUIRE (noteOff > noteOn);
+    CHECK ((noteOff - noteOn) * 2.0 / sampleRate == Catch::Approx (duration).margin (2.0 / sampleRate));
+    editor.grid.mouseUp (pointerEvent (editor.grid, target, grip, true));
+    processor.releaseResources();
 }
 
 TEST_CASE ("The detailed step bar uses the same duration drag as compact mode", "[native][interaction]")
@@ -667,6 +752,43 @@ TEST_CASE ("Native undo preserves independent recording and metadata", "[native]
     CHECK (p.getPhraseNote (1, 0) == 44);
 }
 
+TEST_CASE ("The full gap between compact steps is a single resize boundary", "[native][interaction]")
+{
+    PluginProcessor processor;
+    processor.insertPhraseStep (0, 0);
+    processor.insertPhraseStep (0, 1);
+    processor.setPhraseNote (0, 0, 48);
+    processor.setPhraseNote (0, 1, 72);
+    Controller controller (processor);
+    Palette palette;
+    Grid grid (controller, palette);
+    grid.compact = true;
+    grid.setSize (900, 500);
+    const auto first = grid.stepBounds (0, 0);
+    const auto second = grid.stepBounds (0, 1);
+    REQUIRE (second.getBottom() < first.getY());
+    REQUIRE (second.getX() - first.getRight() > 8.0f);
+    const juce::Point<float> gap { (first.getRight() + second.getX()) * .5f,
+                                  (second.getBottom() + first.getY()) * .5f };
+    const int timing = processor.getPhraseStepTimingMultiplier (0, 0);
+    const int nextTiming = processor.getPhraseStepTimingMultiplier (0, 1);
+    const float quarterStepWidth = (second.getCentreX() - first.getCentreX()) / static_cast<float> (timing + 1);
+    const auto target = gap.translated (quarterStepWidth, 0);
+    grid.mouseDown (pointerEvent (grid, gap, gap));
+    grid.mouseDrag (pointerEvent (grid, target, gap, true));
+    grid.mouseUp (pointerEvent (grid, target, gap, true));
+    CHECK (processor.getPhraseStepTimingMultiplier (0, 0) == timing + 1);
+    CHECK (processor.getPhraseStepTimingMultiplier (0, 1) == nextTiming);
+    CHECK (grid.stepBounds (0, 1).getWidth() == Catch::Approx (second.getWidth()));
+    CHECK (grid.stepBounds (0, 1).getX() - second.getX() == Catch::Approx (quarterStepWidth));
+    grid.setSize (760, 500);
+    CHECK (grid.stepBounds (0, 1).getWidth() == Catch::Approx (second.getWidth()));
+    REQUIRE (controller.undo());
+    grid.updateLayout();
+    grid.mouseDoubleClick (pointerEvent (grid, gap, gap));
+    CHECK (processor.getPhraseRowStepCount (0) == 3);
+}
+
 TEST_CASE ("Native boundary duplication and compact pitch drags preserve step data", "[native][interaction]")
 {
     PluginProcessor p;
@@ -681,7 +803,7 @@ TEST_CASE ("Native boundary duplication and compact pitch drags preserve step da
     editor.grid.mouseUp (pointerEvent (editor.grid, body, body));
     CHECK_FALSE (editor.grid.compact);
     CHECK_FALSE (p.getProjectStretchStepsToFit());
-    CHECK (editor.preview.isVisible());
+    CHECK_FALSE (editor.preview.isVisible());
     auto edge = editor.grid.stepBounds (0, 0).getTopRight() + juce::Point<float> (0, 50);
     editor.grid.mouseDoubleClick (pointerEvent (editor.grid, edge, edge, false, juce::ModifierKeys::altModifier));
     REQUIRE (p.getPhraseRowStepCount (0) == 2);
@@ -774,10 +896,14 @@ TEST_CASE ("Clicking the detailed grid background clears selection and returns t
 TEST_CASE ("Native scale dialog commits one undoable edit", "[native][interaction]")
 {
     PluginProcessor p;
+    p.insertPhraseStep (0, 0);
     NativeEditor editor (p);
     editor.setSize (1690, 980);
     auto* scale = findControl (editor, "Scale mode");
     REQUIRE (scale != nullptr);
+    CHECK (scale->getY() == editor.grid.getY());
+    CHECK (scale->getRight() == editor.grid.getRight() - 16);
+    CHECK (scale->getBottom() <= editor.grid.getY() + editor.grid.stepBounds (0, 0).getY());
     scale->begin();
     scale->action ({});
     scale->end();
@@ -794,7 +920,8 @@ TEST_CASE ("Native scale dialog commits one undoable edit", "[native][interactio
     REQUIRE (root != nullptr);
     REQUIRE (done != nullptr);
     CHECK (done->getY() > scale->getBottom());
-    CHECK (root->getX() >= scale->getX());
+    CHECK (root->getX() < scale->getX());
+    CHECK (done->getRight() < scale->getRight());
     root->action ({});
     CHECK (p.getPatternScaleRoot (0) == 2);
     done->action ({});
@@ -877,11 +1004,16 @@ TEST_CASE ("The footer row count expands the visible rows without editing the pa
     editor.grid.compact = false;
     editor.grid.updateLayout();
     auto* count = findControl (editor, "Visible phrase rows");
+    auto* drum = findControl (editor, "Drum row pitch lock");
     REQUIRE (count != nullptr);
+    REQUIRE (drum != nullptr);
+    CHECK (drum->getY() == count->getY());
+    CHECK (drum->getRight() < count->getX());
     const auto first = editor.grid.stepBounds (0, 0);
     const auto last = editor.grid.stepBounds (3, 0);
     const auto before = readRows (processor);
     editor.showInspector (3, 0);
+    CHECK (drum->isVisible());
     editor.grid.selectVisibleSteps();
 
     const auto drag = [&] (float distance) {
@@ -921,7 +1053,7 @@ TEST_CASE ("The processing strip appears only with the piano roll", "[native][in
     NativeEditor editor (processor);
     editor.setSize (PluginEditor::designWidth, PluginEditor::designHeight);
     auto* mode = findControl (editor, "Cross-Mod");
-    auto* octave = findControl (editor, "Up one octave");
+    auto* octave = findControl (editor, "Up octave mix");
     auto* filter = findControl (editor, "Bandpass range");
     auto* fit = findControl (editor, "Fit notes");
     auto* close = findControl (editor, "Close inspector");
@@ -957,11 +1089,17 @@ TEST_CASE ("The processing strip appears only with the piano roll", "[native][in
     };
 
     expectPianoRoll();
-    editor.showInspector (0, 0);
+    const auto clickGrid = [&] (juce::Point<float> position) {
+        editor.grid.mouseDown (pointerEvent (editor.grid, position, position));
+        editor.grid.mouseUp (pointerEvent (editor.grid, position, position));
+    };
+    clickGrid (editor.grid.stepBounds (0, 0).getCentre());
     expectExpandedPanel();
     CHECK (close->isVisible());
     CHECK (close->getY() == stripTop + 8);
-    editor.showInspector (0, 0);
+    clickGrid (editor.grid.stepBounds (0, 0).getCentre());
+    CHECK (close->isVisible());
+    clickGrid ({ 200, 10 });
     expectPianoRoll();
 
     processor.setPhraseRowRecording (0, 16);
