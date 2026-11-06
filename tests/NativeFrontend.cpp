@@ -793,6 +793,8 @@ TEST_CASE ("Native scale dialog commits one undoable edit", "[native][interactio
         }
     REQUIRE (root != nullptr);
     REQUIRE (done != nullptr);
+    CHECK (done->getY() > scale->getBottom());
+    CHECK (root->getX() >= scale->getX());
     root->action ({});
     CHECK (p.getPatternScaleRoot (0) == 2);
     done->action ({});
@@ -832,6 +834,143 @@ TEST_CASE ("Native playback highlights match the original JavaScript timing fixt
             CHECK (stepActive (row, static_cast<size_t> (static_cast<int> (example[0])), example[1], fixture["pulse"], fixture["swing"], 1) == static_cast<bool> (example[2]));
         }
     }
+}
+
+TEST_CASE ("Step actions use the accent of a single selected row", "[native][interaction]")
+{
+    PluginProcessor processor;
+    processor.setRowColorsEnabled (true);
+    processor.insertPhraseStep (0, 0);
+    processor.insertPhraseStep (1, 0);
+    NativeEditor editor (processor);
+    auto* input = findControl (editor, "Bulk Pitch");
+    auto* action = findControl (editor, "Skip selected steps");
+    REQUIRE (input != nullptr);
+    REQUIRE (action != nullptr);
+    REQUIRE (input->accentRow);
+    REQUIRE (action->accentRow);
+
+    editor.controller.selection[0].set (0);
+    editor.synchronise();
+    CHECK (input->accentRow() == 0);
+    editor.controller.selection[0].reset();
+    editor.controller.selection[1].set (0);
+    editor.synchronise();
+    CHECK (input->accentRow() == 1);
+    CHECK (input->accentWhenIdle);
+    CHECK (action->accentRow() == 1);
+
+    editor.controller.selection[0].set (0);
+    editor.synchronise();
+    CHECK (input->accentRow() == -1);
+    CHECK_FALSE (input->accentWhenIdle);
+    CHECK (action->accentRow() == -1);
+}
+
+TEST_CASE ("The footer row count expands the visible rows without editing the pattern", "[native][interaction]")
+{
+    PluginProcessor processor;
+    for (int row = 0; row < 4; ++row)
+        processor.insertPhraseStep (row, 0);
+    NativeEditor editor (processor);
+    editor.setSize (PluginEditor::designWidth, PluginEditor::designHeight);
+    editor.grid.compact = false;
+    editor.grid.updateLayout();
+    auto* count = findControl (editor, "Visible phrase rows");
+    REQUIRE (count != nullptr);
+    const auto first = editor.grid.stepBounds (0, 0);
+    const auto last = editor.grid.stepBounds (3, 0);
+    const auto before = readRows (processor);
+    editor.showInspector (3, 0);
+    editor.grid.selectVisibleSteps();
+
+    const auto drag = [&] (float distance) {
+        const auto start = count->getLocalBounds().getCentre().toFloat();
+        const auto end = start.translated (0, distance);
+        count->mouseDown (pointerEvent (*count, start, start));
+        count->mouseDrag (pointerEvent (*count, end, start, true));
+        count->mouseUp (pointerEvent (*count, end, start, true));
+    };
+    drag (24);
+    CHECK (editor.grid.getVisibleRowCount() == 2);
+    CHECK (editor.grid.stepBounds (0, 0).getY() == Catch::Approx (first.getY()));
+    CHECK (editor.grid.stepBounds (0, 0).getHeight() == Catch::Approx (editor.grid.stepBounds (1, 0).getHeight()));
+    CHECK (editor.grid.stepBounds (1, 0).getBottom() == Catch::Approx (last.getBottom()));
+    CHECK (editor.grid.stepBounds (2, 0).isEmpty());
+    CHECK (editor.grid.stepBounds (3, 0).isEmpty());
+    CHECK (editor.preview.isVisible());
+    editor.grid.selectVisibleSteps();
+    CHECK (editor.controller.selection[0][0]);
+    CHECK_FALSE (editor.controller.selection[3][0]);
+
+    drag (36);
+    CHECK (editor.grid.getVisibleRowCount() == 1);
+    CHECK (editor.grid.stepBounds (0, 0).getBottom() == Catch::Approx (last.getBottom()));
+    drag (-60);
+    CHECK (editor.grid.getVisibleRowCount() == 4);
+    CHECK (editor.grid.stepBounds (0, 0) == first);
+    CHECK (editor.grid.stepBounds (3, 0) == last);
+    CHECK (readRows (processor) == before);
+    CHECK_FALSE (editor.controller.canUndo());
+}
+
+TEST_CASE ("The processing strip appears only with the piano roll", "[native][interaction]")
+{
+    PluginProcessor processor;
+    processor.insertPhraseStep (0, 0);
+    NativeEditor editor (processor);
+    editor.setSize (PluginEditor::designWidth, PluginEditor::designHeight);
+    auto* mode = findControl (editor, "Cross-Mod");
+    auto* octave = findControl (editor, "Up one octave");
+    auto* filter = findControl (editor, "Bandpass range");
+    auto* fit = findControl (editor, "Fit notes");
+    auto* close = findControl (editor, "Close inspector");
+    REQUIRE (mode != nullptr);
+    REQUIRE (octave != nullptr);
+    REQUIRE (filter != nullptr);
+    REQUIRE (fit != nullptr);
+    REQUIRE (close != nullptr);
+    const auto previewBounds = editor.preview.getBounds();
+    const int stripTop = editor.grid.getBottom();
+    const auto expectPianoRoll = [&] {
+        CHECK (editor.preview.isVisible());
+        CHECK (editor.preview.getBounds() == previewBounds);
+        CHECK (mode->isVisible());
+        CHECK (octave->isVisible());
+        CHECK (filter->isVisible());
+        CHECK (fit->isVisible());
+    };
+    const auto expectExpandedPanel = [&] {
+        CHECK_FALSE (editor.preview.isVisible());
+        CHECK_FALSE (mode->isVisible());
+        CHECK_FALSE (octave->isVisible());
+        CHECK_FALSE (filter->isVisible());
+        CHECK_FALSE (fit->isVisible());
+        for (auto* child : editor.getChildren())
+            if (auto* keyboard = dynamic_cast<Keyboard*> (child))
+            {
+                CHECK (keyboard->isVisible());
+                CHECK (keyboard->getY() == stripTop + 98);
+                return;
+            }
+        FAIL ("Missing panel keyboard");
+    };
+
+    expectPianoRoll();
+    editor.showInspector (0, 0);
+    expectExpandedPanel();
+    CHECK (close->isVisible());
+    CHECK (close->getY() == stripTop + 8);
+    editor.showInspector (0, 0);
+    expectPianoRoll();
+
+    processor.setPhraseRowRecording (0, 16);
+    editor.resized();
+    expectExpandedPanel();
+    CHECK_FALSE (close->isVisible());
+    processor.setPhraseRowRecording (-1);
+    editor.resized();
+    expectPianoRoll();
 }
 
 TEST_CASE ("The step cycle extends, moves a beat on release, and resizes as one edit", "[native][interaction]")
@@ -984,6 +1123,84 @@ TEST_CASE ("Playback display advances and stops with and without the loop brace"
         CHECK (processor.getPlaybackBeat() < 0);
         processor.releaseResources();
     }
+}
+
+TEST_CASE ("Shift-click toggles note bodies in both grid views", "[native][interaction]")
+{
+    PluginProcessor processor;
+    processor.insertPhraseStep (0, 0);
+    processor.insertPhraseStep (1, 0);
+    Controller controller (processor);
+    Palette palette;
+    Grid grid (controller, palette);
+    for (const bool compact : { false, true })
+    {
+        CAPTURE (compact);
+        grid.compact = compact;
+        grid.setSize (900, 500);
+        grid.updateLayout();
+        controller.selection[0].set (0);
+        const auto point = grid.stepBounds (1, 0).withHeight (36).getCentre();
+        const int shift = juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::shiftModifier;
+        const auto event = pointerEvent (grid, point, point, false, shift);
+        grid.mouseDown (event);
+        grid.mouseUp (event);
+        CHECK (controller.selection[0][0]);
+        CHECK (controller.selection[1][0]);
+        grid.mouseDown (event);
+        grid.mouseUp (event);
+        CHECK (controller.selection[0][0]);
+        CHECK_FALSE (controller.selection[1][0]);
+    }
+}
+
+TEST_CASE ("Compact pitch drags anchor the grabbed note while the row adjusts", "[native][interaction]")
+{
+    PluginProcessor processor;
+    processor.setPatternScale (0, 0);
+    for (int step = 0; step < 3; ++step)
+        processor.insertPhraseStep (0, step);
+    processor.setPhraseNote (0, 0, 60);
+    processor.setPhraseNote (0, 1, 64);
+    processor.setPhraseNote (0, 2, 67);
+    Controller controller (processor);
+    Palette palette;
+    Grid grid (controller, palette);
+    grid.compact = true;
+    grid.setSize (900, 500);
+    const auto start = grid.stepBounds (0, 1).getCentre();
+    const auto top = grid.stepBounds (0, 2).getY();
+    const auto bottom = grid.stepBounds (0, 0).getBottom();
+    grid.mouseDown (pointerEvent (grid, start, start));
+
+    grid.mouseDrag (pointerEvent (grid, start.translated (0, -10), start, true));
+    const float neighborBefore = grid.stepBounds (0, 2).getY();
+    CHECK (processor.getPhraseNote (0, 1) == 65);
+    grid.mouseDrag (pointerEvent (grid, start.translated (0, -11), start, true));
+    const float neighborBetween = grid.stepBounds (0, 2).getY();
+    CHECK (processor.getPhraseNote (0, 1) == 65);
+    CHECK (std::abs (neighborBetween - neighborBefore) > .01f);
+    grid.mouseDrag (pointerEvent (grid, start.translated (0, -12), start, true));
+    CHECK (processor.getPhraseNote (0, 1) == 66);
+    CHECK (std::abs (grid.stepBounds (0, 2).getY() - neighborBetween) < 1.0f);
+
+    const auto higher = start.translated (0, -16);
+    grid.mouseDrag (pointerEvent (grid, higher, start, true));
+    CHECK (grid.stepBounds (0, 1).getCentreY() == Catch::Approx (higher.y));
+    CHECK (processor.getPhraseNote (0, 1) == 66);
+    CHECK (grid.stepBounds (0, 2).getY() < grid.stepBounds (0, 1).getY());
+    CHECK (grid.stepBounds (0, 2).getY() >= top - .01f);
+    CHECK (grid.stepBounds (0, 0).getBottom() <= bottom + .01f);
+
+    const auto outside = start.translated (80, -48);
+    grid.mouseDrag (pointerEvent (grid, outside, start, true));
+    CHECK (grid.stepBounds (0, 1).getY() == Catch::Approx (top));
+    CHECK (processor.getPhraseNote (0, 1) == 70);
+    grid.mouseUp (pointerEvent (grid, outside, start, true));
+    CHECK (processor.getPhraseNote (0, 0) == 60);
+    CHECK (processor.getPhraseNote (0, 2) == 67);
+    REQUIRE (controller.undo());
+    CHECK (processor.getPhraseNote (0, 1) == 64);
 }
 
 TEST_CASE ("Shift drag on a detailed pitch changes octaves without deselecting the step", "[native][interaction]")

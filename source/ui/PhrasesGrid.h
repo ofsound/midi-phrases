@@ -29,6 +29,9 @@ namespace phrases::ui
         Rect stepBounds (int row, int step) const;
         void updateLayout();
         void cancelGesture();
+        int getVisibleRowCount() const { return visibleRowCount; }
+        void setVisibleRowCount (int count);
+        void selectVisibleSteps();
         int getVelocityRow() const { return velocityRow; }
         void setVelocityRow (int row);
     private:
@@ -71,14 +74,24 @@ namespace phrases::ui
         uint64_t downGeneration = 0;
         int downPattern = -1;
         bool dragging = false, marquee = false, compactEdited = false;
+        bool compactPitchDrag = false;
+        bool compactPitchOctaves = false;
+        float compactPitchSteps = 0;
+        float grabbedNoteTop = 0;
         bool additiveMarquee = false;
+        bool shiftOctaveGesture = false;
         bool changedViewOnClick = false;
         int velocityRow = -1;
+        int visibleRowCount = 4;
+        static constexpr float rowsTop = 24;
+        float rowStride() const { return 456.0f / static_cast<float> (visibleRowCount); }
+        float rowTop (size_t row) const { return rowsTop + static_cast<float> (row) * rowStride(); }
+        float rowHeight() const { return rowStride() - 10.0f; }
         float unit = 76.5f;
         Hit hover;
         std::array<melatonin::DropShadow, 4> selectionGlows;
         void drawIcon (juce::Graphics&, size_t, Rect, juce::Colour);
-        void drawStepBar (juce::Graphics&, Rect, const Step&, juce::Colour, bool durationHot);
+        void drawStepBar (juce::Graphics&, Rect, const Step&, juce::Colour, bool durationHot, bool playing);
         void drawVelocityStroke (juce::Point<float>);
         void updateHover (juce::Point<float>, juce::ModifierKeys);
         void finish();

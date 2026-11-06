@@ -16,7 +16,7 @@ namespace phrases::ui
     public:
         Preview (Controller& controller, Palette& palette) : c (controller), p (palette) { setWantsKeyboardFocus (true); }
         std::function<void()> changed;
-        double visibleQuarters = 8, firstQuarter = 0, pixelsPerQuarter = 28;
+        double visibleQuarters = 8, firstQuarter = 0;
         int lowNote = 48, highNote = 72;
         void refresh();
         void fit();
@@ -32,9 +32,14 @@ namespace phrases::ui
         Controller& c;
         Palette& p;
         std::vector<PreviewNote> notes;
+        static constexpr float pitchGutterWidth = 44.0f;
+        std::optional<double> manualPixelsPerQuarter;
         int dragKind = 0;
         double initialStart = 0, initialEnd = 8;
         juce::Point<float> origin;
+        void fitPitch();
+        double fittedPixelsPerQuarter() const;
+        double pixelsPerQuarter() const;
         float beatX (double) const;
         double xBeat (float) const;
         float pitchLaneHeight() const;

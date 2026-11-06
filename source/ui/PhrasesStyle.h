@@ -297,11 +297,11 @@ namespace phrases::ui
         void paint (juce::Graphics& g) override
         {
             auto controlPalette = p;
-            if (accentRow)
+            if (const int row = accentRow ? accentRow() : -1; row >= 0)
             {
-                const auto row = static_cast<size_t> (juce::jlimit (0, 3, accentRow()));
-                controlPalette.accent = p.rows[row];
-                controlPalette.strong = p.rowStrong[row];
+                const auto index = static_cast<size_t> (juce::jmin (row, 3));
+                controlPalette.accent = p.rows[index];
+                controlPalette.strong = p.rowStrong[index];
             }
             auto b = getLocalBounds().toFloat();
             if (customPaint)

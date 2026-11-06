@@ -66,8 +66,16 @@ namespace phrases::ui
         renderer->setPlayHead (nullptr);
         return output;
     }
-    float Preview::beatX (double beat) const { return 44 + static_cast<float> ((beat - firstQuarter) * pixelsPerQuarter); }
-    double Preview::xBeat (float x) const { return firstQuarter + (x - 44) / pixelsPerQuarter; }
+    double Preview::fittedPixelsPerQuarter() const
+    {
+        return std::max (28.0, (getWidth() - static_cast<double> (pitchGutterWidth)) / visibleQuarters);
+    }
+    double Preview::pixelsPerQuarter() const
+    {
+        return manualPixelsPerQuarter.value_or (fittedPixelsPerQuarter());
+    }
+    float Preview::beatX (double beat) const { return pitchGutterWidth + static_cast<float> ((beat - firstQuarter) * pixelsPerQuarter()); }
+    double Preview::xBeat (float x) const { return firstQuarter + (x - pitchGutterWidth) / pixelsPerQuarter(); }
     float Preview::pitchLaneHeight() const
     {
         return std::max (1.0f, getHeight() - 30.0f) / static_cast<float> (highNote - lowNote + 1);
@@ -96,9 +104,17 @@ namespace phrases::ui
             visibleQuarters = std::max (32.0, visibleQuarters * 4);
         visibleQuarters = std::min (128.0, visibleQuarters);
         notes = renderPreview (c.p, visibleQuarters);
-        fit();
+        fitPitch();
+        repaint();
     }
     void Preview::fit()
+    {
+        firstQuarter = 0;
+        manualPixelsPerQuarter.reset();
+        fitPitch();
+        repaint();
+    }
+    void Preview::fitPitch()
     {
         int low = 128, high = -1;
         for (const auto& event : notes)
@@ -121,7 +137,6 @@ namespace phrases::ui
                     ++highNote;
             }
         }
-        repaint();
     }
     void Preview::paint (juce::Graphics& g)
     {
@@ -229,7 +244,10 @@ namespace phrases::ui
     void Preview::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
     {
         if (e.mods.isCommandDown())
-            pixelsPerQuarter = juce::jlimit (7.0, 224.0, pixelsPerQuarter * (wheel.deltaY > 0 ? 1.1 : .9));
+        {
+            const auto maxScale = std::max (224.0, fittedPixelsPerQuarter());
+            manualPixelsPerQuarter = juce::jlimit (7.0, maxScale, pixelsPerQuarter() * (wheel.deltaY > 0 ? 1.1 : .9));
+        }
         else if (e.mods.isShiftDown() || std::abs (wheel.deltaX) > std::abs (wheel.deltaY))
             firstQuarter = std::max (0.0, firstQuarter - (wheel.deltaX + wheel.deltaY) * visibleQuarters);
         else

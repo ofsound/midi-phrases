@@ -10,6 +10,11 @@ namespace phrases::ui
         constexpr float adjustmentBottomInset = 24;
         constexpr int footerRegion = 2;
         constexpr int footerHeight = 32;
+        constexpr float rowCountFooterOffset = -214;
+        constexpr int headerHeight = 98;
+        constexpr int sectionGap = 16;
+        constexpr int processingHeight = 60;
+        const Rect scaleButtonBounds { 666, 22, 100, 50 };
     }
 
     namespace
@@ -575,7 +580,7 @@ namespace phrases::ui
         parameter ("Swing subdivision", "Sub", 0, { 522, 40, 31, 32 }, 0, 2, 1, [&p] { return p.getSwingSubdivisionIndex(); }, [&p] (double v) { p.setSwingSubdivisionIndex (static_cast<int> (v)); }, [&p] { return number (PluginProcessor::swingSubdivisionForIndex (p.getSwingSubdivisionIndex())); });
         parameter ("Velocity humanize percent", "Vel %", 0, { 560, 40, 36, 32 }, 0, 99, 0, [&p] { return p.getVelocityHumanizePercent(); }, [&p] (double v) { p.setVelocityHumanizePercent (static_cast<int> (v)); });
         parameter ("Timing humanize percent", "Time %", 0, { 600, 40, 36, 32 }, 0, 99, 0, [&p] { return p.getTimingHumanizePercent(); }, [&p] (double v) { p.setTimingHumanizePercent (static_cast<int> (v)); });
-        auto& scale = button ("Scale mode", {}, 0, { 666, 22, 100, 50 }, [this] (auto) { openScale(); });
+        auto& scale = button ("Scale mode", {}, 0, scaleButtonBounds, [this] (auto) { openScale(); });
         scale.display = [this, &p] { return noteName (p.getPatternScaleRoot (slot()) + 60).dropLastCharacters (1) + " " + scaleNames[p.getPatternScaleModeIndex (slot())]; };
         scale.customPaint = [this, &p] (juce::Graphics& g, Rect b) {
             g.setColour (palette.app.withAlpha (.55f));
@@ -585,24 +590,18 @@ namespace phrases::ui
             text (g, noteName (p.getPatternScaleRoot (slot()) + 60).dropLastCharacters (1), b.withHeight (32), palette.text, 22, true);
             text (g, scaleNames[p.getPatternScaleModeIndex (slot())], b.withY (31).withHeight (16), palette.accent, 12, true);
         };
-        auto& seed = button ("Seed mode", {}, 0, { 774, 22, 48, 50 }, [this] (auto) { showSeed(); }, SaplingIcon);
-        seed.active = [this] { return seedOpen; };
-        seed.iconInset = 12;
-        seed.translucent = true;
-        seed.accentWhenIdle = true;
-        seed.glow = true;
         const char* art[] { StepSkipIcon, StepMuteIcon, RowShiftOrderIcon, RowReverseOrderIcon, RowRandomizeOrderIcon, RowRandomizeOctaveIcon, RowRandomizeLengthIcon };
         const char* names[] { "Skip selected steps", "Mute selected steps", "Shift selected steps left by row", "Reverse selected steps by row", "Shuffle selected steps", "Randomize selected step octaves", "Randomize selected step lengths" };
         const char* captions[] { "Skip", "Mute", "Shift left", "Reverse", "Shuffle", "Randomize octave", "Randomize length" };
         for (int i = 0; i < 7; ++i)
         {
-            const float y = i < 2 ? 70.0f : 126.0f + static_cast<float> ((i - 2) / 2) * 46.0f;
-            auto& operation = button (names[i], captions[i], operationsRegion, { 24 + static_cast<float> (i % 2) * 192, y, 182, 38 }, [this, i] (auto) { bulkOrder (i); }, art[i]);
+            const float y = i < 2 ? 126.0f : 188.0f + static_cast<float> ((i - 2) / 2) * 54.0f;
+            auto& operation = button (names[i], captions[i], operationsRegion, { 24 + static_cast<float> (i % 2) * 192, y, 182, 46 }, [this, i] (auto) { bulkOrder (i); }, art[i]);
             operation.iconWithCaption = true;
             operation.iconInset = 10;
         }
-        button ("Select all steps", "Select all", selectionToolsRegion, { 24, 24, 96, 30 }, [this] (auto) { controller.selectAll(); });
-        button ("Clear step selection", "Clear selection", selectionToolsRegion, { 128, 24, 116, 30 }, [this] (auto) { controller.clearSelection(); });
+        button ("Select all steps", "Select all", selectionToolsRegion, { 24, 24, 116, adjustmentSize }, [this] (auto) { grid.selectVisibleSteps(); });
+        button ("Clear step selection", "Clear selection", selectionToolsRegion, { 150, 24, 116, adjustmentSize }, [this] (auto) { controller.clearSelection(); });
         const char* labels[] { "Len", "Dur %", "Vel %", "Pitch" };
         const char* fieldLabels[] { "Length", "Duration %", "Velocity %", "Pitch" };
         for (int i = 0; i < 4; ++i)
@@ -627,6 +626,9 @@ namespace phrases::ui
             field.artwork = icon (R"svg(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 20"><path d="M4 7L8 3L12 7M8 3V8M4 13L8 17L12 13M8 12V17" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>)svg");
             field.iconInset = (adjustmentSize - 24) * .5f;
         }
+        for (auto& placement : placements)
+            if (placement.region == operationsRegion || placement.region == selectionToolsRegion || placement.region == adjustmentsRegion)
+                placement.control->accentRow = [this] { return operationAccentRow; };
         for (int i = 0; i < PluginProcessor::slotCount; ++i)
         {
             const auto numberLabel = juce::String (i + 1);
@@ -660,7 +662,7 @@ namespace phrases::ui
             control.radius = 3;
             control.setTooltip ("Select this slot. Shift-click to choose it as the copy source.");
         }
-        auto& clear = button ("Clear selected slot", juce::String::fromUTF8 ("×"), 0, { 1614, 12, 24, 32 }, [this, &p] (auto) {
+        auto& clear = button ("Clear selected slot", juce::String::fromUTF8 ("×"), 0, { 1614, 12, 22, 32 }, [this, &p] (auto) {
             if (clearPattern != slot())
             {
                 clearPattern = slot();
@@ -680,7 +682,17 @@ namespace phrases::ui
                 g.setOpacity (1.0f - 0.7f * pulseAmount());
             text (g, juce::String::fromUTF8 ("×"), b, palette.danger, 20, true);
         };
-        button ("Mute output", "M", 0, { 1640, 26, 44, 44 }, [&p] (auto) { p.deactivatePatternOutput(); }).active = [&p] { return !p.isPatternOutputArmed(); };
+        button ("Mute output", "M", 0, { 1614, 49, 22, 32 }, [&p] (auto) { p.deactivatePatternOutput(); }).active = [&p] { return !p.isPatternOutputArmed(); };
+        constexpr auto seedPanelIcon = R"svg(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 32" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 21v-8 M12 13c0-4 2.5-7 7-8 0 4.5-2.5 7-7 8Z M12 13c0-3.5-2.5-6-7-6 0 4 2.5 6 7 6Z M5 21h14 M9 26l3 3 3-3"/>
+        </svg>)svg";
+        auto& seed = button ("Seed mode", {}, 0, { 1640, 22, 44, 50 }, [this] (auto) { showSeed(); }, seedPanelIcon);
+        seed.active = [this] { return seedOpen; };
+        seed.iconInset = 7;
+        seed.translucent = true;
+        seed.accentWhenIdle = true;
+        seed.glow = true;
+        seed.setTooltip ("Show or hide the Seed panel below.");
         constexpr int modes[] { 0, 7, 8, 1, 6, 3, 4 };
         const char* modesArt[] { crossMod, canon, retroInv, tendril, hocket, echo, weave };
         const char* modeNames[] { "Cross-Mod", "Canon", "Retro-Inv", "Tendril", "Hocket", "Echo", "Weave" };
@@ -807,6 +819,32 @@ namespace phrases::ui
             };
         }
         constexpr auto helpIcon = R"svg(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.5 8.5C6.5 2.5 17.5 2.5 17.5 8.5C17.5 12.5 12 11.5 12 15.5" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="19.2" r="1.2" fill="#ffffff"/></svg>)svg";
+        auto& rowCount = button ("Visible phrase rows", {}, footerRegion, { rowCountFooterOffset, 3, 86, 26 }, {});
+        rowCount.minimum = 1;
+        rowCount.maximum = 4;
+        rowCount.reset = 4;
+        rowCount.pixelsPerUnit = 12;
+        rowCount.size = 12;
+        rowCount.value = [this] { return grid.getVisibleRowCount(); };
+        rowCount.display = [this] {
+            const auto count = grid.getVisibleRowCount();
+            return juce::String (count) + (count == 1 ? " row" : " rows");
+        };
+        rowCount.begin = {};
+        rowCount.end = {};
+        rowCount.change = [this] (double value) {
+            const int count = static_cast<int> (value);
+            grid.setVisibleRowCount (count);
+            if (inspectorRow >= count)
+            {
+                inspectorRow = inspectorStep = -1;
+                keyboard.scrolling = false;
+                resized();
+            }
+            refreshStepOperations();
+        };
+        rowCount.setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
+        rowCount.setTooltip ("Drag up or down to show one to four phrase rows.");
         auto& help = button ("Toggle footer tips", {}, footerRegion, { -118, 3, 26, 26 }, [this] (auto) {
             footerHelpEnabled = !footerHelpEnabled;
             uiPreferences->setValue ("footerTooltips", footerHelpEnabled);
@@ -1277,7 +1315,7 @@ namespace phrases::ui
     }
     void NativeEditor::repaintPatternSlots()
     {
-        repaint (1248, static_cast<int> (top()), getWidth() - 1248, 98);
+        repaint (1248, static_cast<int> (top()), getWidth() - 1248, headerHeight);
         for (const auto& control : controls)
             if (control->getName().startsWith ("Select slot") || control->getName() == "Clear selected slot")
                 control->repaint();
@@ -1350,20 +1388,35 @@ namespace phrases::ui
     juce::Rectangle<int> NativeEditor::stepOperationsBounds() const
     {
         const int left = getWidth() * 3 / 4;
-        return { left, static_cast<int> (top()) + 98, getWidth() - left, 496 };
+        return { left, static_cast<int> (top()) + headerHeight + sectionGap, getWidth() - left, 496 };
     }
     void NativeEditor::refreshStepOperations()
     {
         int count = 0;
-        for (const auto& row : controller.selection)
-            count += static_cast<int> (row.count());
-        if (count == operationSelectionCount)
+        int selectedRows = 0;
+        int lastSelectedRow = 0;
+        for (size_t row = 0; row < controller.selection.size(); ++row)
+        {
+            const auto selectedSteps = controller.selection[row].count();
+            if (selectedSteps == 0)
+                continue;
+            count += static_cast<int> (selectedSteps);
+            ++selectedRows;
+            lastSelectedRow = static_cast<int> (row);
+        }
+        const int accentRow = selectedRows == 1 ? (controller.p.isRowColorsEnabled() ? lastSelectedRow : 0) : -1;
+        if (count == operationSelectionCount && accentRow == operationAccentRow)
             return;
 
         operationSelectionCount = count;
+        operationAccentRow = accentRow;
         for (const auto& placement : placements)
+        {
             if (placement.region == operationsRegion || placement.region == adjustmentsRegion || placement.control->getName() == "Clear step selection")
                 placement.control->setEnabled (count > 0);
+            if (placement.region == adjustmentsRegion)
+                placement.control->accentWhenIdle = accentRow >= 0;
+        }
         repaint (stepOperationsBounds());
     }
     void NativeEditor::refreshFooterHelp()
@@ -1381,22 +1434,27 @@ namespace phrases::ui
     }
     void NativeEditor::resized()
     {
-        const float header = static_cast<float> (top()), processing = header + 98 + 496, bottom = processing + 60;
+        const float header = static_cast<float> (top());
         const float extraWidth = std::max (0.0f, getWidth() - 1690.0f);
         const int gridX = 0;
         const auto operations = stepOperationsBounds();
+        const int processing = operations.getBottom();
+        const int pianoRollTop = processing + processingHeight + sectionGap;
+        const bool recording = controller.p.getPhraseRowRecording() >= 0;
+        const bool showPreview = inspectorRow < 0 && !recording;
+        if (preview.isVisible() != showPreview)
+            repaint (getLocalBounds().withTop (processing));
         grid.inspectedRow = inspectorRow;
         grid.inspectedStep = inspectorStep;
-        cycleEditor.setBounds (686, static_cast<int> (bottom) + 24, 324, 72);
+        cycleEditor.setBounds (686, processing + 24, 324, 72);
         cycleEditor.setInspectedStep (inspectorRow, inspectorStep);
         grid.setBounds (gridX, operations.getY(), std::max (0, operations.getX() - gridX), operations.getHeight());
         const int contentBottom = getHeight() - footerHeight - 8;
-        footerHelp.setBounds (24, getHeight() - footerHeight, std::max (0, getWidth() - 154), footerHeight);
-        preview.setBounds (24, static_cast<int> (bottom + 39), getWidth() - 48, std::max (20, contentBottom - static_cast<int> (bottom + 39)));
-        const bool recording = controller.p.getPhraseRowRecording() >= 0;
-        preview.setVisible (inspectorRow < 0 && !recording);
-        keyboard.setVisible (inspectorRow >= 0 || recording);
-        keyboard.setBounds (232, static_cast<int> (bottom + 98), getWidth() - 256, std::max (80, contentBottom - static_cast<int> (bottom + 98)));
+        footerHelp.setBounds (24, getHeight() - footerHeight, std::max (0, getWidth() + static_cast<int> (rowCountFooterOffset) - 36), footerHeight);
+        preview.setBounds (24, pianoRollTop + 39, getWidth() - 48, std::max (20, contentBottom - (pianoRollTop + 39)));
+        preview.setVisible (showPreview);
+        keyboard.setVisible (!showPreview);
+        keyboard.setBounds (232, processing + 98, getWidth() - 256, std::max (80, contentBottom - (processing + 98)));
         for (auto& placement : placements)
         {
             auto b = placement.bounds;
@@ -1407,14 +1465,16 @@ namespace phrases::ui
             }
             if (placement.region == 1)
             {
-                b = b.translated (0, processing);
+                b = b.translated (0, static_cast<float> (processing));
+                visible = showPreview;
             }
             if (placement.region == footerRegion)
                 b = b.translated (static_cast<float> (getWidth()), static_cast<float> (getHeight() - footerHeight));
             if (placement.region == 3)
             {
-                b = b.translated (b.getX() > 1600 ? extraWidth : 0, bottom);
-                visible = placement.bounds.getX() > 1600 ? (inspectorRow >= 0) : (inspectorRow < 0 && ! recording);
+                const bool closeInspector = b.getX() > 1600;
+                b = b.translated (closeInspector ? extraWidth : 0, static_cast<float> (closeInspector ? processing : pianoRollTop));
+                visible = closeInspector ? inspectorRow >= 0 : showPreview;
             }
             if (placement.region == 4)
             {
@@ -1423,17 +1483,17 @@ namespace phrases::ui
             }
             if (placement.region == 5)
             {
-                b = b.translated (24, bottom + 4);
+                b = b.translated (24, static_cast<float> (processing + 4));
                 visible = inspectorRow >= 0;
             }
             if (placement.region == 6)
             {
-                b = b.translated (static_cast<float> (operations.getX()) + 24, header + 98);
+                b = b.translated (static_cast<float> (operations.getX()) + 24, static_cast<float> (operations.getY()));
                 visible = seedOpen;
             }
             if (placement.region == 7)
             {
-                b = b.translated (24, bottom + 4);
+                b = b.translated (24, static_cast<float> (processing + 4));
                 visible = recording;
             }
             if (placement.region == operationsRegion || placement.region == selectionToolsRegion)
@@ -1453,9 +1513,12 @@ namespace phrases::ui
     void NativeEditor::paint (juce::Graphics& g)
     {
         g.fillAll (palette.app);
-        const float header = static_cast<float> (top()), processing = header + 594, bottom = processing + 60;
-        rail (g, { 0, header, static_cast<float> (getWidth()), 98 }, palette);
-        rail (g, { 0, processing, static_cast<float> (getWidth()), 60 }, palette);
+        const float header = static_cast<float> (top());
+        const auto operations = stepOperationsBounds().toFloat();
+        const float processing = operations.getBottom();
+        rail (g, { 0, header, static_cast<float> (getWidth()), headerHeight }, palette);
+        if (preview.isVisible())
+            rail (g, { 0, processing, static_cast<float> (getWidth()), processingHeight }, palette);
         rail (g, { 0, static_cast<float> (getHeight() - footerHeight), static_cast<float> (getWidth()), static_cast<float> (footerHeight) }, palette);
         juce::Path patternPath;
         for (const auto& control : controls)
@@ -1469,14 +1532,13 @@ namespace phrases::ui
         }
         text (g, "OFSOUND", { 24, header + 22, 150, 14 }, palette.accent, 14, Weight::bold, juce::Justification::centredLeft, 0.1f);
         logo (g, { 24, header + 42 }, palette);
-        const auto operations = stepOperationsBounds().toFloat();
         g.setColour (palette.surface.interpolatedWith (palette.app, 0.25f));
         g.fillRect (operations);
         g.setColour (palette.border);
         g.drawVerticalLine (juce::roundToInt (operations.getX()), operations.getY(), operations.getBottom());
         g.setColour (palette.borderSubtle);
         if (!seedOpen)
-        for (float y : { 62.0f, 117.0f, operations.getHeight() - adjustmentSize - adjustmentBottomInset - 38.0f })
+        for (float y : { 118.0f, 180.0f, operations.getHeight() - adjustmentSize - adjustmentBottomInset - 38.0f })
             g.drawHorizontalLine (juce::roundToInt (operations.getY() + y), operations.getX() + 24, operations.getRight() - 24);
         const float extra = std::max (0.0f, getWidth() - 1690.0f);
         text (g, "Slots:", { 1254 + extra, header + 14, 58, 32 }, palette.text, 12, true, juce::Justification::centredRight);
@@ -1514,12 +1576,10 @@ namespace phrases::ui
                 dateLabel = when.formatted ("%b %e, %Y").toUpperCase().replace ("  ", " ");
         }
         text (g, dateLabel, { 1149, header + 10, 95, 30 }, palette.muted, 10.4f, true, juce::Justification::centredRight, 0.14f);
-        if (inspectorRow < 0)
-            text (g, "loop " + number (controller.p.getLoopBraceStartQuarters()) + juce::String::fromUTF8 ("–") + number (controller.p.getLoopBraceEndQuarters()) + " (" + number (controller.p.getLoopBraceEndQuarters() - controller.p.getLoopBraceStartQuarters()) + " beats)", { getWidth() - 250.0f, bottom + 8, 208, 21 }, palette.secondary, 12, true, juce::Justification::centredRight);
+        if (preview.isVisible())
+            text (g, "loop " + number (controller.p.getLoopBraceStartQuarters()) + juce::String::fromUTF8 ("–") + number (controller.p.getLoopBraceEndQuarters()) + " (" + number (controller.p.getLoopBraceEndQuarters() - controller.p.getLoopBraceStartQuarters()) + " beats)", { getWidth() - 250.0f, processing + processingHeight + sectionGap + 8, 208, 21 }, palette.secondary, 12, true, juce::Justification::centredRight);
         if (controller.p.getPhraseRowRecording() >= 0)
-            text (g, "Recording row " + juce::String (controller.p.getPhraseRowRecording() + 1) + juce::String::fromUTF8 (" · Play MIDI or the computer keyboard"), { 24, bottom + 70, 800, 30 }, palette.danger, 18, true, juce::Justification::centredLeft);
-        if (copyPattern >= 0)
-            text (g, "Copy slot " + juce::String (copyPattern + 1) + ": choose destination", { 832, header + 78, 412, 16 }, palette.accent, 12);
+            text (g, "Recording row " + juce::String (controller.p.getPhraseRowRecording() + 1) + juce::String::fromUTF8 (" · Play MIDI or the computer keyboard"), { 24, processing + 70, 800, 30 }, palette.danger, 18, true, juce::Justification::centredLeft);
     }
     void NativeEditor::timerCallback()
     {
@@ -1621,8 +1681,12 @@ namespace phrases::ui
         }
         if (key == juce::KeyPress::escapeKey)
         {
+            if (scalePicker)
+            {
+                closeScale();
+                return true;
+            }
             grid.cancelGesture();
-            scalePicker.reset();
             inspectorRow = inspectorStep = -1;
             grid.setVelocityRow (-1);
             copyPattern = -1;
@@ -1686,10 +1750,9 @@ namespace phrases::ui
         class ScalePicker : public juce::Component
         {
         public:
-            ScalePicker (Palette& palette, PluginProcessor& processor, juce::Image background, std::function<void()> complete) : p (palette), engine (processor), done (std::move (complete)), backdrop (std::move (background)), scaleKeyboard (palette)
+            ScalePicker (Palette& palette, PluginProcessor& processor, juce::Point<float> anchor, std::function<void()> complete) : p (palette), engine (processor), done (std::move (complete)), anchorPosition (anchor), scaleKeyboard (palette)
             {
-                if (backdrop.isValid())
-                    backdrop.getPixelData()->applyGaussianBlurEffect (14);
+                setWantsKeyboardFocus (true);
                 addAndMakeVisible (scaleKeyboard);
                 scaleKeyboard.setInterceptsMouseClicks (false, false);
                 scaleKeyboard.showScale = true;
@@ -1709,8 +1772,7 @@ namespace phrases::ui
                             return;
                         if (i == 28)
                         {
-                            if (done)
-                                juce::MessageManager::callAsync (done);
+                            dismiss();
                             return;
                         }
                         if (i < 12)
@@ -1725,7 +1787,7 @@ namespace phrases::ui
                     };
                     item->customPaint = [this, i] (juce::Graphics& g, Rect b) {
                         const bool selected = i < 12 ? root == i : i < 28 && mode == i - 12;
-                        g.setColour (selected ? p.accent : p.surface);
+                        g.setColour (selected ? p.accent : controls[static_cast<size_t> (i)]->isMouseOver() ? p.raised : p.surface);
                         g.fillRect (b);
                         g.setColour (selected ? p.accent : p.border);
                         g.drawRect (b, 1);
@@ -1739,41 +1801,57 @@ namespace phrases::ui
             }
             void resized() override
             {
-                panel = getLocalBounds().toFloat().withSizeKeepingCentre (928, 660);
-                scaleKeyboard.setBounds (panel.reduced (24).withTop (panel.getY() + 476).toNearestInt());
+                panel = { anchorPosition.x, anchorPosition.y, 620, 386 };
+                scaleKeyboard.setBounds (panel.reduced (16).withTop (panel.getY() + 284).toNearestInt());
                 updateKeyboard();
                 for (int i = 0; i < 12; ++i)
-                    controls[static_cast<size_t> (i)]->setBounds (juce::Rectangle<float> (panel.getX() + 24 + static_cast<float> (i) * 74, panel.getY() + 112, 66, 44).toNearestInt());
+                    controls[static_cast<size_t> (i)]->setBounds (juce::Rectangle<float> (panel.getX() + 16 + static_cast<float> (i) * 49, panel.getY() + 54, 46, 34).toNearestInt());
                 for (int i = 0; i < 16; ++i)
-                    controls[static_cast<size_t> (i + 12)]->setBounds (juce::Rectangle<float> (panel.getX() + 24 + static_cast<float> (i % 4) * 222, panel.getY() + 240 + static_cast<float> (i / 4) * 56, 214, 48).toNearestInt());
-                controls.back()->setBounds (juce::Rectangle<float> (panel.getRight() - 56, panel.getY() + 16, 32, 32).toNearestInt());
+                    controls[static_cast<size_t> (i + 12)]->setBounds (juce::Rectangle<float> (panel.getX() + 16 + static_cast<float> (i % 4) * 148, panel.getY() + 124 + static_cast<float> (i / 4) * 38, 144, 34).toNearestInt());
+                controls.back()->setBounds (juce::Rectangle<float> (panel.getRight() - 48, panel.getY() + 10, 32, 32).toNearestInt());
             }
             void paint (juce::Graphics& g) override
             {
-                if (backdrop.isValid())
-                    g.drawImage (backdrop, getLocalBounds().toFloat());
-                g.fillAll (p.app.withAlpha (.45f));
-                g.setColour (p.app.withAlpha (.88f));
-                g.fillRect (panel);
+                g.setColour (p.app);
+                g.fillRoundedRectangle (panel, 6);
                 g.setColour (p.border);
-                g.drawRect (panel, 1);
-                text (g, "PATTERN " + juce::String (engine.getViewPatternSlot() + 1), panel.reduced (24).withHeight (16), p.muted, 12, true, juce::Justification::centredLeft);
-                text (g, "Scale Mode", panel.reduced (24).withY (panel.getY() + 44).withHeight (32), p.text, 24, true, juce::Justification::centredLeft);
-                g.setColour (p.border);
-                g.drawHorizontalLine (juce::roundToInt (panel.getY() + 88), panel.getX(), panel.getRight());
-                text (g, "MODE", panel.reduced (24).withY (panel.getY() + 180).withHeight (16), p.muted, 12, true, juce::Justification::centredLeft);
-                text (g, scaleNames[mode], panel.reduced (24).withY (panel.getY() + 200).withHeight (24), p.text, 18, true, juce::Justification::centredLeft);
+                g.drawRoundedRectangle (panel.reduced (.5f), 6, 1);
+                text (g, "Scale Mode", panel.reduced (16).withHeight (24), p.text, 18, true, juce::Justification::centredLeft);
+                text (g, "MODE", panel.reduced (16).withY (panel.getY() + 100).withHeight (16), p.muted, 12, true, juce::Justification::centredLeft);
+            }
+            void mouseDown (const juce::MouseEvent& e) override
+            {
+                if (!panel.contains (e.position))
+                    dismiss();
+            }
+            bool keyPressed (const juce::KeyPress& key) override
+            {
+                if (key != juce::KeyPress::escapeKey)
+                    return false;
+                dismiss();
+                return true;
             }
 
         private:
             Palette& p;
             PluginProcessor& engine;
             std::function<void()> done;
+            juce::Point<float> anchorPosition;
             int root = 0, mode = 0;
             Rect panel;
             uint64_t generation = 0;
-            juce::Image backdrop;
             Keyboard scaleKeyboard;
+            void dismiss()
+            {
+                const juce::Component::SafePointer<ScalePicker> safe (this);
+                juce::MessageManager::callAsync ([safe] {
+                    if (safe != nullptr)
+                    {
+                        const auto complete = safe->done;
+                        complete();
+                    }
+                });
+            }
             void updateKeyboard()
             {
                 scaleKeyboard.low = 60 + root;
@@ -1790,15 +1868,21 @@ namespace phrases::ui
         controller.commit();
         controller.begin();
         const juce::Component::SafePointer<NativeEditor> safe (this);
-        scalePicker = std::make_unique<ScalePicker> (palette, controller.p, createComponentSnapshot (getLocalBounds()), [safe] {
-            if (safe == nullptr)
-                return;
-            safe->controller.commit();
-            safe->scalePicker.reset();
-            safe->edited();
+        const auto anchor = scaleButtonBounds.translated (0, static_cast<float> (top()) + 2).getBottomLeft().translated (0, 4);
+        scalePicker = std::make_unique<ScalePicker> (palette, controller.p, anchor, [safe] {
+            if (safe != nullptr)
+                safe->closeScale();
         });
         addAndMakeVisible (*scalePicker);
         scalePicker->setBounds (getLocalBounds());
-        scalePicker->toFront (true);
+        scalePicker->toFront (false);
+        if (scalePicker->isShowing())
+            scalePicker->grabKeyboardFocus();
+    }
+    void NativeEditor::closeScale()
+    {
+        controller.commit();
+        scalePicker.reset();
+        edited();
     }
 }

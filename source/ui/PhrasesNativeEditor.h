@@ -106,6 +106,7 @@ namespace phrases::ui
         bool wasPlaying = false;
         bool seedOpen = false, previewDirty = true;
         int operationSelectionCount = -1;
+        int operationAccentRow = -1;
         std::array<int, 17> heldKeys {};
         juce::String theme;
         double top() const { return controller.p.hasStandaloneTransport() ? 48.0 : 0.0; }
@@ -119,6 +120,7 @@ namespace phrases::ui
         void buildInspector();
         void buildSeed();
         void openScale();
+        void closeScale();
         void updateMetadata();
         void edited();
         void record (int);

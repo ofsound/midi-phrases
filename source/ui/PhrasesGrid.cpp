@@ -1,9 +1,15 @@
 #include "PhrasesGrid.h"
+#include <span>
 namespace phrases::ui
 {
     namespace
     {
         constexpr float stepBarHeight = 36.0f;
+
+        int draggedPitch (int note, int steps, bool octaves, int root, int mode)
+        {
+            return octaves ? juce::jlimit (0, 127, note + steps * 12) : scaleNote (note, steps, root, mode);
+        }
 
         Rect durationArea (Rect card)
         {
@@ -56,12 +62,17 @@ namespace phrases::ui
             d->drawWithin (g, b, juce::RectanglePlacement::centred, 1);
         }
     }
-    void Grid::drawStepBar (juce::Graphics& g, Rect bar, const Step& step, juce::Colour accent, bool durationHot)
+    void Grid::drawStepBar (juce::Graphics& g, Rect bar, const Step& step, juce::Colour accent, bool durationHot, bool playing)
     {
         g.setColour (p.surface.interpolatedWith (p.app, .12f));
         g.fillRoundedRectangle (bar, 8);
         g.setColour (accent.withAlpha (step.skipped ? .12f : .22f + .78f * step.velocity / 127.0f));
         g.fillRoundedRectangle (bar.reduced (1), 6);
+        if (playing)
+        {
+            g.setColour (accent.withAlpha (.72f));
+            g.fillRoundedRectangle (bar, 8);
+        }
         if (!step.muted)
         {
             const auto area = durationArea (bar);
@@ -91,13 +102,35 @@ namespace phrases::ui
         velocityRow = row;
         updateLayout();
     }
+    void Grid::setVisibleRowCount (int count)
+    {
+        if (count == visibleRowCount)
+            return;
+        visibleRowCount = juce::jlimit (1, static_cast<int> (cells.size()), count);
+        for (size_t row = static_cast<size_t> (visibleRowCount); row < cells.size(); ++row)
+        {
+            cells[row].clear();
+            c.selection[row].reset();
+        }
+        if (velocityRow >= visibleRowCount)
+            velocityRow = -1;
+        hover = {};
+        updateLayout();
+    }
+    void Grid::selectVisibleSteps()
+    {
+        for (int row = 0; row < visibleRowCount; ++row)
+            c.selectAll (row);
+        repaint();
+    }
     void Grid::updateLayout()
     {
         int minimumOffset = 8;
         float widest = 0;
-        for (const auto& row : c.rows)
+        const auto visibleRows = std::span (c.rows).first (static_cast<size_t> (visibleRowCount));
+        for (const auto& row : visibleRows)
             minimumOffset = std::min (minimumOffset, row.offset);
-        for (const auto& row : c.rows)
+        for (const auto& row : visibleRows)
         {
             float columns = static_cast<float> (row.offset - minimumOffset);
             for (const auto& step : row.steps)
@@ -106,11 +139,12 @@ namespace phrases::ui
         }
         const float fit = widest > 0 ? (getWidth() - 48.0f - 127.0f - 8.0f - 4.0f - 70.0f) / (widest * 76.5f - 8.0f + 16.0f / 3.0f) : 1;
         unit = std::max (1.0f, 76.5f * fit);
-        for (size_t r = 0; r < 4; ++r)
+        const float extraHeight = rowHeight() - 104.0f;
+        for (size_t r = 0; r < visibleRows.size(); ++r)
         {
             cells[r].clear();
             float x = 135 + static_cast<float> (c.rows[r].offset - minimumOffset) * unit - scroll[r];
-            const float y = 28 + static_cast<float> (r) * 114;
+            const float y = rowTop (r) + 4;
             const auto& steps = c.rows[r].steps;
             int low = 127, high = 0;
             if (compact)
@@ -120,17 +154,61 @@ namespace phrases::ui
                     high = std::max (high, step.note);
                 }
             const float pitchCentre = (low + high) * .5f;
-            const float pitchScale = 60.0f / std::max (6, high - low);
-            for (const auto& step : steps)
+            const float pitchTravel = 60.0f + extraHeight;
+            const float pitchScale = pitchTravel / std::max (6, high - low);
+            const bool pitchCards = compact && static_cast<int> (r) != velocityRow;
+            const bool anchored = pitchCards && compactPitchDrag && c.gestureActive() && static_cast<int> (r) == down.row
+                && down.step >= 0 && static_cast<size_t> (down.step) < steps.size() && steps.size() == baseline[r].steps.size();
+            float anchorTop = 0, aboveScale = 0, belowScale = 0;
+            float anchorNote = 0;
+            std::array<float, PluginProcessor::maxPhraseStepsPerRow> displayPitches;
+            if (anchored)
             {
+                anchorTop = juce::jlimit (y, y + pitchTravel, grabbedNoteTop + pointer.y - origin.y);
+                const auto& originalSteps = baseline[r].steps;
+                const int slot = c.p.getViewPatternSlot();
+                const int root = c.p.getPatternScaleRoot (slot), mode = c.p.getPatternScaleModeIndex (slot);
+                const int lowerStep = static_cast<int> (std::floor (compactPitchSteps));
+                const float fraction = compactPitchSteps - static_cast<float> (lowerStep);
+                float lowest = 127, highest = 0;
+                // Interpolate the layout between scale steps while playback uses the snapped pitch.
+                for (size_t s = 0; s < steps.size(); ++s)
+                {
+                    float pitch = static_cast<float> (steps[s].note);
+                    if (c.selection[r][s])
+                    {
+                        const int note = originalSteps[s].note;
+                        const auto from = draggedPitch (note, lowerStep, compactPitchOctaves, root, mode);
+                        const auto to = draggedPitch (note, lowerStep + 1, compactPitchOctaves, root, mode);
+                        pitch = std::lerp (static_cast<float> (from), static_cast<float> (to), fraction);
+                    }
+                    displayPitches[s] = pitch;
+                    lowest = std::min (lowest, pitch);
+                    highest = std::max (highest, pitch);
+                }
+                anchorNote = displayPitches[static_cast<size_t> (down.step)];
+                const auto extremes = std::ranges::minmax_element (originalSteps, {}, &Step::note);
+                const float originalScale = pitchTravel / std::max (6, extremes.max->note - extremes.min->note);
+                aboveScale = std::min (originalScale, (anchorTop - y) / std::max (1.0f, highest - anchorNote));
+                belowScale = std::min (originalScale, (y + pitchTravel - anchorTop) / std::max (1.0f, anchorNote - lowest));
+            }
+            for (size_t s = 0; s < steps.size(); ++s)
+            {
+                const auto& step = steps[s];
                 const float width = static_cast<float> (step.timing + 1) * unit;
                 const float gap = std::min (16.0f, width * .3f);
-                const bool pitchCard = compact && static_cast<int> (r) != velocityRow;
-                const float top = pitchCard ? y + 30.0f + (pitchCentre - step.note) * pitchScale : y;
-                cells[r].push_back ({ x + gap * .5f, top, std::max (2.0f, width - gap), pitchCard ? stepBarHeight : 96.0f });
+                float top = y;
+                if (anchored)
+                {
+                    const float pitch = displayPitches[s];
+                    top = anchorTop + (anchorNote - pitch) * (pitch > anchorNote ? aboveScale : belowScale);
+                }
+                else if (pitchCards)
+                    top += pitchTravel * .5f + (pitchCentre - step.note) * pitchScale;
+                cells[r].push_back ({ x + gap * .5f, top, std::max (2.0f, width - gap), pitchCards ? stepBarHeight : rowHeight() - 8.0f });
                 x += width;
             }
-            addBounds[r] = { x + 4, y + 20, 54, 54 };
+            addBounds[r] = { x + 4, y + 20 + extraHeight * .5f, 54, 54 };
         }
         repaint();
     }
@@ -143,20 +221,21 @@ namespace phrases::ui
     void Grid::paint (juce::Graphics& g)
     {
         g.fillAll (p.workspace);
-        for (size_t r = 0; r < 4; ++r)
+        for (size_t r = 0; r < static_cast<size_t> (visibleRowCount); ++r)
         {
             const auto& row = c.rows[r];
-            const float y = 24 + static_cast<float> (r) * 114;
+            const float top = rowTop (r);
+            const float y = top + (rowHeight() - 104.0f) * .5f;
             const auto accent = c.p.isRowColorsEnabled() ? p.rows[r] : p.rows[0];
             g.setColour (p.app.interpolatedWith (p.surface, .55f));
-            g.fillRect (Rect (0, y, 123, 104));
+            g.fillRect (Rect (0, top, 123, rowHeight()));
             if (hover.row == static_cast<int> (r) && hover.step < 0 && hover.part != Part::none && hover.part != Part::add)
             {
                 g.setColour (accent.withAlpha (0.07f));
-                g.fillRect (Rect (0, y, 123, 104));
+                g.fillRect (Rect (0, top, 123, rowHeight()));
             }
             g.setColour (p.border.withAlpha (.5f));
-            g.drawLine (123, y, 123, y + 104);
+            g.drawLine (123, top, 123, top + rowHeight());
             const auto headerHot = [&] (Part part) { return hover.row == static_cast<int> (r) && hover.part == part; };
             drawIcon (g, 0, { 23, y + 22, 35, 35 }, headerHot (Part::power) ? accent.brighter (0.15f) : (row.muted ? p.faint : accent));
             const auto badge = Rect (66, y + 24, 28, 28);
@@ -189,7 +268,7 @@ namespace phrases::ui
             text (g, "V", velocityButton, velocityInk.withMultipliedAlpha (row.steps.empty() ? .45f : 1.0f), 15, true);
             drawIcon (g, 2, { 80, y + 74, 14, 14 }, headerHot (Part::seed) ? accent : p.faint);
             juce::Graphics::ScopedSaveState clip (g);
-            g.reduceClipRegion (juce::Rectangle<int> (128, static_cast<int> (y), getWidth() - 128, 104));
+            g.reduceClipRegion (Rect (128, top, static_cast<float> (getWidth() - 128), rowHeight()).toNearestInt());
             const bool hasSelection = std::any_of (c.selection.begin(), c.selection.end(), [] (const auto& selectedSteps) { return selectedSteps.any(); });
             juce::Path selectedPath;
             for (size_t s = 0; s < cells[r].size(); ++s)
@@ -210,8 +289,14 @@ namespace phrases::ui
                 const auto bar = b.withHeight (stepBarHeight);
                 const auto body = b.withTop (bar.getBottom() - 4);
                 const bool detailed = !compact && !drawingVelocity;
+                const bool playing = stepActive (row, s, c.p.getPlaybackBeat(), c.p.getPulseIndex(), c.p.getSwingPercent(), c.p.getSwingSubdivisionIndex());
                 g.setColour (selected ? p.surface.interpolatedWith (accent, .40f) : p.surface.interpolatedWith (p.app, .12f));
                 g.fillRoundedRectangle (detailed ? body : b, 8);
+                if (playing && (detailed || drawingVelocity))
+                {
+                    g.setColour (accent.withAlpha (.72f));
+                    g.fillRoundedRectangle (detailed ? body : b, 8);
+                }
                 if (drawingVelocity)
                 {
                     const auto area = b.reduced (2);
@@ -263,19 +348,13 @@ namespace phrases::ui
 
                     const bool durationHot = (hover.part == Part::duration && hover.row == static_cast<int> (r) && hover.step == static_cast<int> (s))
                         || (dragging && down.part == Part::duration && down.row == static_cast<int> (r) && down.step == static_cast<int> (s));
-                    drawStepBar (g, bar, step, accent, durationHot);
+                    drawStepBar (g, bar, step, accent, durationHot, playing);
                 }
-                const bool playing = stepActive (row, s, c.p.getPlaybackBeat(), c.p.getPulseIndex(), c.p.getSwingPercent(), c.p.getSwingSubdivisionIndex());
                 const bool inspected = inspectedRow == static_cast<int> (r) && inspectedStep == static_cast<int> (s);
                 const auto decorate = [&] (Rect bounds, bool outline = true) {
                     if (row.muted || step.skipped)
                     {
                         g.setColour (p.app.withAlpha (.5f));
-                        g.fillRoundedRectangle (bounds, 8);
-                    }
-                    if (playing)
-                    {
-                        g.setColour (accent.withAlpha (.72f));
                         g.fillRoundedRectangle (bounds, 8);
                     }
                     if (inspectedRow >= 0 && !inspected)
@@ -285,7 +364,7 @@ namespace phrases::ui
                     }
                     if (!outline)
                         return;
-                    g.setColour (inspected || selected || playing ? accent : p.border);
+                    g.setColour (inspected || selected ? accent : p.border);
                     g.drawRoundedRectangle (bounds.reduced (1), 8, inspected ? 2.5f : 2);
                     if (inspected)
                     {
@@ -305,8 +384,6 @@ namespace phrases::ui
                 {
                     g.setColour (p.text.withAlpha (.95f));
                     g.drawRoundedRectangle (face.reduced (1.5f), 7, 2.5f);
-                    g.setColour (accent.brighter (.4f));
-                    g.fillRoundedRectangle (b.getX() + 4, b.getBottom() - 5, std::max (2.0f, b.getWidth() - 8), 3, 1.5f);
                 }
                 if (hasSelection && !selected)
                 {
@@ -348,7 +425,7 @@ namespace phrases::ui
             g.setColour (p.accent);
             g.drawRect (box, 1);
         }
-        if (dragging && down.part == Part::move)
+        if (dragging && down.part == Part::move && !compactEdited)
         {
             g.setColour (p.accent);
             g.drawVerticalLine (juce::roundToInt (pointer.x), pointer.y - 30, pointer.y + 30);
@@ -356,14 +433,15 @@ namespace phrases::ui
     }
     Grid::Hit Grid::hit (juce::Point<float> point, bool selecting)
     {
-        for (int r = 0; r < 4; ++r)
+        for (int r = 0; r < visibleRowCount; ++r)
         {
-            const float y = 24 + static_cast<float> (r) * 114;
-            if (point.y < y || point.y >= y + 104)
+            const float top = rowTop (static_cast<size_t> (r));
+            if (point.y < top || point.y >= top + rowHeight())
                 continue;
             if (point.x < 123)
             {
-                if (point.y < y + 16 || point.x < 15 || point.x > 110)
+                const float y = top + (rowHeight() - 104.0f) * .5f;
+                if (point.y < y + 16 || point.y >= y + 104 || point.x < 15 || point.x > 110)
                     return { Part::header, r, -1 };
                 if (point.y >= y + 68)
                     return { point.x < 47 ? Part::record : point.x < 75 ? Part::rowVelocity
@@ -416,7 +494,7 @@ namespace phrases::ui
                     return { Part::skip, r, step };
                 if (detailActionBounds (b, 1).contains (point))
                     return { Part::mute, r, step };
-                if (detailActionBounds (b, 2).contains (point) || (point.y >= b.getY() + 62 && point.y < b.getBottom() - 20))
+                if (detailActionBounds (b, 2).contains (point) || (point.y >= b.getY() + 62 && point.y < b.getY() + 76))
                     return { Part::gear, r, step };
                 if (deleteBounds (b).contains (point))
                     return { Part::remove, r, step };
@@ -440,16 +518,18 @@ namespace phrases::ui
             grabKeyboardFocus();
         const auto directHit = hit (e.position);
         const bool octaveDrag = directHit.part == Part::note || (compact && directHit.part == Part::move);
+        shiftOctaveGesture = e.mods.isShiftDown() && octaveDrag;
         additiveMarquee = e.mods.isShiftDown() && e.position.x >= 123 && !octaveDrag;
         down = hit (e.position, additiveMarquee);
         origin = pointer = e.position;
-        dragging = compactEdited = false;
+        dragging = compactEdited = compactPitchDrag = false;
+        grabbedNoteTop = stepBounds (down.row, down.step).getY();
         lastVelocityPoint.reset();
         baseline = readRows (c.p);
         c.rows = baseline;
         selectionBefore = c.selection;
         marquee = down.part == Part::none;
-        if (down.step >= 0 && down.part != Part::add)
+        if (down.step >= 0 && down.part != Part::add && !shiftOctaveGesture)
         {
             const auto r = static_cast<size_t> (down.row), s = static_cast<size_t> (down.step);
             if (additiveMarquee || e.mods.isCommandDown())
@@ -507,7 +587,19 @@ namespace phrases::ui
             drawVelocityStroke (pointer);
             return;
         }
-        dragging = dragging || e.getDistanceFromDragStart() > 3;
+        if (!dragging && e.getDistanceFromDragStart() > 3)
+        {
+            dragging = true;
+            if (shiftOctaveGesture && down.step >= 0)
+            {
+                const auto row = static_cast<size_t> (down.row), step = static_cast<size_t> (down.step);
+                if (!c.selection[row][step])
+                {
+                    c.clearSelection();
+                    c.selection[row].set (step);
+                }
+            }
+        }
         if (!dragging)
             return;
         if (marquee)
@@ -528,10 +620,15 @@ namespace phrases::ui
                 const float dx = pointer.x - origin.x, dy = origin.y - pointer.y;
                 compactEdited = false;
                 c.rows = baseline;
-                if (std::abs (dy) >= std::abs (dx))
+                if (compactPitchDrag || std::abs (dy) >= std::abs (dx))
                 {
-                    const int degrees = juce::roundToInt (dy / (e.mods.isShiftDown() ? 24.0f : 8.0f));
-                    c.editSelected ([&] (Step& s) { s.note = e.mods.isShiftDown() ? juce::jlimit (0, 127, s.note + degrees * 12) : scaleNote (s.note, degrees, c.p.getPatternScaleRoot (c.p.getViewPatternSlot()), c.p.getPatternScaleModeIndex (c.p.getViewPatternSlot())); });
+                    compactPitchDrag = true;
+                    compactPitchOctaves = e.mods.isShiftDown();
+                    compactPitchSteps = dy / (compactPitchOctaves ? 24.0f : 8.0f);
+                    const int degrees = juce::roundToInt (compactPitchSteps);
+                    const int slot = c.p.getViewPatternSlot();
+                    const int root = c.p.getPatternScaleRoot (slot), mode = c.p.getPatternScaleModeIndex (slot);
+                    c.editSelected ([&] (Step& s) { s.note = draggedPitch (s.note, degrees, compactPitchOctaves, root, mode); });
                     compactEdited = true;
                 }
                 else if (down.step > 0 && !e.mods.isAltDown() && std::abs (dy) < 80)
@@ -599,6 +696,7 @@ namespace phrases::ui
     {
         const auto h = down;
         down = {};
+        compactPitchDrag = false;
         if (downGeneration != c.p.getDocumentGeneration() || downPattern != c.p.getViewPatternSlot()
             || (!marquee && !c.gestureActive()))
         {
@@ -607,7 +705,9 @@ namespace phrases::ui
             updateLayout();
             return;
         }
-        if (h.part == Part::drawVelocity)
+        if (shiftOctaveGesture && !dragging)
+            c.selection[static_cast<size_t> (h.row)].flip (static_cast<size_t> (h.step));
+        else if (h.part == Part::drawVelocity)
         {
             if (!lastVelocityPoint)
                 return;
@@ -625,7 +725,7 @@ namespace phrases::ui
         }
         else if (dragging && h.part == Part::move && !compactEdited)
         {
-            const int target = juce::jlimit (0, 3, static_cast<int> ((e.position.y - 24) / 114));
+            const int target = juce::jlimit (0, visibleRowCount - 1, static_cast<int> ((e.position.y - rowsTop) / rowStride()));
             int insertion = 0;
             for (const auto& b : cells[static_cast<size_t> (target)])
                 if (e.position.x > b.getCentreX())
@@ -743,7 +843,7 @@ namespace phrases::ui
         else if (h.part == Part::offset)
             c.p.setPhraseRowTimingOffset (h.row, 8);
         else if (h.part == Part::none)
-            c.selectAll();
+            selectVisibleSteps();
         finish();
     }
     void Grid::mouseMove (const juce::MouseEvent& e)
@@ -813,6 +913,8 @@ namespace phrases::ui
         down = {};
         lastVelocityPoint.reset();
         marquee = dragging = false;
+        shiftOctaveGesture = false;
+        compactPitchDrag = false;
         updateLayout();
         if (changed)
             changed();
@@ -834,8 +936,7 @@ namespace phrases::ui
         }
         if (key.getModifiers().isCommandDown() && key.getKeyCode() == 'A')
         {
-            c.selectAll();
-            repaint();
+            selectVisibleSteps();
             return true;
         }
         return false;
