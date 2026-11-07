@@ -199,7 +199,7 @@ TEST_CASE ("Native editor reference renders with shared layout at supported scal
         editor.preview.fit();
         const auto first = editor.grid.stepBounds (0, 0);
         const auto second = editor.grid.stepBounds (0, 1);
-        CHECK (first.getHeight() == Catch::Approx (96));
+        CHECK (first.getHeight() == Catch::Approx (108));
         CHECK (second.getX() > first.getRight());
         CHECK (second.getRight() < PluginEditor::designWidth);
         const float scale = pass == 0 ? 1.0f : pass == 1 ? .7f
@@ -233,9 +233,9 @@ TEST_CASE ("Native editor reference renders with shared layout at supported scal
             editor.showInspector (0, 0);
             capture ("inspector");
             editor.showInspector (0, 0);
-            editor.toggleRowVelocity (2);
+            editor.toggleVelocityMode();
             capture ("row-velocity");
-            editor.toggleRowVelocity (2);
+            editor.toggleVelocityMode();
             editor.showSeed();
             capture ("seed");
             editor.showSeed();
@@ -282,7 +282,7 @@ TEST_CASE ("Standalone tempo arrows step in both directions", "[native]")
     REQUIRE (tempo != nullptr);
     REQUIRE (play != nullptr);
     CHECK (play->getY() == tempo->getY());
-    CHECK (tempo->getY() >= 48);
+    CHECK (tempo->getY() == 42);
     CHECK (tempo->getBottom() < editor.grid.getY());
     CHECK (up->isVisible());
     CHECK (down->isVisible());
@@ -299,6 +299,25 @@ TEST_CASE ("Standalone tempo arrows step in both directions", "[native]")
     CHECK (processor.getStandaloneTempoBpm() == Catch::Approx (121));
     click (*down);
     CHECK (processor.getStandaloneTempoBpm() == Catch::Approx (120));
+}
+
+TEST_CASE ("Desktop standalone starts smaller and gives the removed header space to the rows", "[native][scale]")
+{
+   #if ! JUCE_IOS
+    PluginProcessor processor;
+    PluginEditor plugin (processor);
+    const int pluginWidth = plugin.getWidth();
+    processor.setStandaloneTransportAvailableForTests (true);
+    PluginEditor standalone (processor);
+    CHECK (standalone.getWidth() == Catch::Approx (std::max (400.0, pluginWidth * .75)).margin (4));
+    CHECK (standalone.getWidth() * 3 == standalone.getHeight() * 4);
+    const auto* pluginView = dynamic_cast<NativeEditor*> (plugin.getChildComponent (0));
+    const auto* standaloneView = dynamic_cast<NativeEditor*> (standalone.getChildComponent (0));
+    REQUIRE (pluginView != nullptr);
+    REQUIRE (standaloneView != nullptr);
+    CHECK (standaloneView->grid.getY() == pluginView->grid.getY());
+    CHECK (standaloneView->grid.getHeight() == pluginView->grid.getHeight() + 48);
+   #endif
 }
 
 TEST_CASE ("Seed slider accents follow the targeted row", "[native][interaction]")
@@ -426,6 +445,8 @@ TEST_CASE ("Compact cards show pitch and let duration move independently of timi
     const auto second = grid.stepBounds (0, 1);
     const auto offset = grid.stepBounds (1, 0);
     const auto compactImage = render();
+    for (int y = 0; y < grid.getHeight(); ++y)
+        CHECK (compactImage.getPixelAt (10, y) == detailedImage.getPixelAt (10, y));
     for (const float fraction : { .25f, .5f, .75f })
     {
         const int x = juce::roundToInt (card.getX() + card.getWidth() * fraction);
@@ -441,7 +462,7 @@ TEST_CASE ("Compact cards show pitch and let duration move independently of timi
     CHECK (offset.getWidth() == Catch::Approx (detailedOffset.getWidth()));
     CHECK (card.getHeight() < 96.0f);
     CHECK (second.getY() < card.getY());
-    CHECK (card.getBottom() <= 134.0f);
+    CHECK (card.getBottom() <= 135.0f);
     const int timing = controller.rows[0].steps[0].timing;
     const auto edge = card.getCentre();
     const auto target = edge.translated ((card.getWidth() - 20.0f) * .25f, 0);
@@ -542,7 +563,7 @@ TEST_CASE ("The detailed step bar uses the same duration drag as compact mode", 
     CHECK (processor.getPhraseStepTimingMultiplier (0, 0) == 3);
 }
 
-TEST_CASE ("The top row V draws a velocity stroke without opening another panel", "[native][interaction]")
+TEST_CASE ("Any row V toggles velocity drawing across the grid", "[native][interaction]")
 {
     PluginProcessor processor;
     for (int step = 0; step < 3; ++step)
@@ -558,7 +579,7 @@ TEST_CASE ("The top row V draws a velocity stroke without opening another panel"
     const juce::Point<float> v { 62, 106 };
     grid.mouseDown (pointerEvent (grid, v, v));
     grid.mouseUp (pointerEvent (grid, v, v));
-    REQUIRE (grid.getVelocityRow() == 0);
+    REQUIRE (grid.isVelocityMode());
     CHECK (editor.preview.isVisible());
     CHECK (editor.preview.getBounds() == previewBounds);
     CHECK (grid.stepBounds (0, 0).getX() == Catch::Approx (originalFirst.getX()));
@@ -579,6 +600,18 @@ TEST_CASE ("The top row V draws a velocity stroke without opening another panel"
     CHECK (processor.getLoopBraceEndQuarters() == Catch::Approx (6));
     REQUIRE (editor.controller.undo());
     CHECK (processor.getPhraseStepVelocity (0, 2) == 100);
+
+    const auto secondRowStep = grid.stepBounds (1, 0).reduced (2);
+    const juce::Point<float> bottom { secondRowStep.getCentreX(), secondRowStep.getBottom() };
+    grid.mouseDown (pointerEvent (grid, bottom, bottom));
+    grid.mouseUp (pointerEvent (grid, bottom, bottom));
+    CHECK (processor.getPhraseStepVelocity (1, 0) == 0);
+
+    const auto rowStride = grid.stepBounds (1, 0).getY() - grid.stepBounds (0, 0).getY();
+    const auto emptyRowV = v.translated (0, 2 * rowStride);
+    grid.mouseDown (pointerEvent (grid, emptyRowV, emptyRowV));
+    grid.mouseUp (pointerEvent (grid, emptyRowV, emptyRowV));
+    CHECK_FALSE (grid.isVelocityMode());
 }
 
 TEST_CASE ("Save and Save As dispatch separate project actions", "[native][interaction]")
@@ -678,7 +711,7 @@ TEST_CASE ("Native repeated relative drags stay anchored and undo together", "[n
     editor.setSize (PluginEditor::designWidth, PluginEditor::designHeight);
     auto* field = findControl (editor, "Bulk Len");
     REQUIRE (field != nullptr);
-    CHECK (editor.grid.getRight() == editor.getWidth() * 3 / 4);
+    CHECK (editor.grid.getRight() == editor.getWidth() * 4 / 5);
     CHECK (field->getX() >= editor.grid.getRight());
     CHECK (field->getWidth() == field->getHeight());
     CHECK (editor.grid.getBottom() - field->getBottom() == 24);
@@ -752,6 +785,32 @@ TEST_CASE ("Native undo preserves independent recording and metadata", "[native]
     CHECK (p.getPhraseNote (1, 0) == 44);
 }
 
+TEST_CASE ("Horizontal scrolling pans the whole grid from gaps and shorter rows", "[native][interaction]")
+{
+    PluginProcessor processor;
+    for (int step = 0; step < 4; ++step)
+        processor.insertPhraseStep (0, step);
+    processor.insertPhraseStep (1, 0);
+    Controller controller (processor);
+    Palette palette;
+    Grid grid (controller, palette);
+    grid.compact = true;
+    grid.setSize (900, 500);
+    const auto first = grid.stepBounds (0, 0);
+    const auto shortRow = grid.stepBounds (1, 0);
+    const juce::Point<float> gap { 400, 10 };
+    grid.mouseWheelMove (pointerEvent (grid, gap, gap), { -.25f, 0, false, true, false });
+    const float distance = first.getX() - grid.stepBounds (0, 0).getX();
+    CHECK (distance > 0);
+    CHECK (shortRow.getX() - grid.stepBounds (1, 0).getX() == Catch::Approx (distance));
+    const auto lowerRow = grid.stepBounds (1, 0).getCentre();
+    grid.mouseWheelMove (pointerEvent (grid, lowerRow, lowerRow), { 0, -.25f, false, false, false });
+    CHECK (first.getX() - grid.stepBounds (0, 0).getX() > distance);
+    grid.mouseWheelMove (pointerEvent (grid, gap, gap), { 10, 0, false, true, false });
+    CHECK (grid.stepBounds (0, 0) == first);
+    CHECK (grid.stepBounds (1, 0) == shortRow);
+}
+
 TEST_CASE ("The full gap between compact steps is a single resize boundary", "[native][interaction]")
 {
     PluginProcessor processor;
@@ -820,6 +879,37 @@ TEST_CASE ("Native boundary duplication and compact pitch drags preserve step da
     REQUIRE (editor.controller.undo());
     CHECK (p.getPhraseNote (0, 0) == 64);
 }
+TEST_CASE ("Detailed step actions share one vertical column", "[native][interaction]")
+{
+    PluginProcessor processor;
+    processor.insertPhraseStep (0, 0);
+    SECTION ("Standard card") { processor.setPhraseStepTimingMultiplier (0, 0, 3); }
+    SECTION ("Shortest card") { processor.setPhraseStepTimingMultiplier (0, 0, 0); }
+    Controller controller (processor);
+    Palette palette;
+    Grid grid (controller, palette);
+    grid.setSize (900, 500);
+    grid.setVisibleRowCount (1);
+    const auto card = grid.stepBounds (0, 0);
+    const auto corner = card.getTopLeft();
+    constexpr float barHeight = 36.0f;
+    const float buttonHeight = (card.getHeight() - barHeight) / 3.0f;
+    const auto click = [&](float y) {
+        const auto point = corner.translated (14, y);
+        const auto event = pointerEvent (grid, point, point);
+        grid.mouseDown (event);
+        grid.mouseUp (event);
+    };
+    click (barHeight + buttonHeight * 1.5f);
+    CHECK (processor.isPhraseStepSkipped (0, 0));
+    click (barHeight + buttonHeight * 1.5f);
+    CHECK_FALSE (processor.isPhraseStepSkipped (0, 0));
+    click (card.getHeight() - 2.0f);
+    CHECK (processor.isPhraseStepMuted (0, 0));
+    click (barHeight + buttonHeight * .5f);
+    CHECK (processor.getPhraseRowStepCount (0) == 0);
+}
+
 TEST_CASE ("Shift takes priority over step editing and adds to the marquee selection", "[native][interaction]")
 {
     PluginProcessor processor;
@@ -852,7 +942,7 @@ TEST_CASE ("Shift takes priority over step editing and adds to the marquee selec
     }
     SECTION ("Velocity drawing")
     {
-        grid.setVelocityRow (0);
+        grid.setVelocityMode (true);
         start = grid.stepBounds (0, 0).getCentre();
     }
 
@@ -943,23 +1033,270 @@ TEST_CASE ("Native copy respects fixed row capacity", "[native]")
     CHECK_FALSE (c.canUndo());
 }
 
-TEST_CASE ("Native playback highlights match the original JavaScript timing fixtures", "[native][schedule]")
+TEST_CASE ("The piano roll follows the live timeline beyond its first window", "[native][schedule]")
 {
-    const auto file = juce::File (__FILE__).getParentDirectory().getParentDirectory().getChildFile ("docs/native-ui-reference/active-step-fixtures.json");
-    const auto fixtures = juce::JSON::parse (file);
-    REQUIRE (fixtures.isArray());
-    for (const auto& fixture : *fixtures.getArray())
+    PluginProcessor processor;
+    processor.setStandaloneTransportAvailableForTests (true);
+    processor.setStandaloneTempoBpm (120);
+    const int timing[] { 3, 1, 2, 3, 3 };
+    for (int step = 0; step < 5; ++step)
     {
-        Row row;
-        row.offset = fixture["row"]["offset"];
-        row.muted = false;
-        for (const auto& step : *fixture["row"]["steps"].getArray())
-            row.steps.push_back ({ step["note"], step["timing"], step["velocity"], step["probability"], step["cycle"], step["mask"], step["duration"], step["muted"], step["skipped"] });
-        for (const auto& example : *fixture["cases"].getArray())
+        processor.insertPhraseStep (0, step);
+        processor.setPhraseStepTimingMultiplier (0, step, timing[step]);
+        processor.setPhraseNote (0, step, 55 + step);
+    }
+    processor.insertPhraseStep (1, 0);
+    processor.setPhraseRowMuted (1, false);
+    processor.setPhraseRowTimingOffset (1, 10);
+    processor.setPhraseStepTimingMultiplier (1, 0, 2);
+    Controller controller (processor);
+    Palette palette;
+    palette.set ("dark");
+    Preview preview (controller, palette);
+    preview.setSize (900, 300);
+    preview.refresh();
+    const auto upcomingPixel = [&] {
+        juce::Image image (juce::Image::RGB, preview.getWidth(), preview.getHeight(), true);
+        juce::Graphics graphics (image);
+        preview.paint (graphics);
+        const double lane = 270.0 / (preview.highNote - preview.lowNote + 1);
+        return image.getPixelAt (178, juce::roundToInt (30 + (preview.highNote - 56 + .5) * lane));
+    };
+    const auto forecastInk = upcomingPixel();
+    REQUIRE (forecastInk != palette.app);
+
+    constexpr int sampleRate = 8000, blockSize = 128;
+    processor.prepareToPlay (sampleRate, blockSize);
+    processor.setStandaloneTransportPlaying (true);
+    juce::AudioBuffer<float> audio (2, blockSize);
+    juce::MidiBuffer midi;
+    int liveOns = 0;
+    for (int start = 0; start < 34600; start += blockSize)
+    {
+        midi.clear();
+        processor.processBlock (audio, midi);
+        preview.updatePlayback();
+        if (start == 0)
+            CHECK (upcomingPixel() == forecastInk);
+        for (const auto event : midi)
         {
-            INFO ("pulse " << static_cast<int> (fixture["pulse"]) << " offset " << row.offset << " swing " << static_cast<int> (fixture["swing"]) << " step " << static_cast<int> (example[0]) << " beat " << static_cast<double> (example[1]));
-            CHECK (stepActive (row, static_cast<size_t> (static_cast<int> (example[0])), example[1], fixture["pulse"], fixture["swing"], 1) == static_cast<bool> (example[2]));
+            const auto message = event.getMessage();
+            if (!message.isNoteOn())
+                continue;
+            ++liveOns;
+            const double onset = (start + event.samplePosition) * 2.0 / sampleRate;
+            CHECK (std::ranges::any_of (preview.playbackNotes(), [&](const auto& note) {
+                return std::abs (note.start - onset) < 1.0e-8 && note.note == message.getNoteNumber()
+                    && note.channel == message.getChannel() && note.velocity == message.getVelocity();
+            }));
         }
+    }
+    CHECK (preview.playheadBeat() > 8.5);
+    CHECK (std::ranges::any_of (preview.upcomingNotes(), [](const auto& note) {
+        return std::abs (note.start - 9.5) < .001 && note.row == 0 && note.step == 1;
+    }));
+    CHECK (preview.playbackNotes().size() == static_cast<size_t> (liveOns));
+    CHECK (std::ranges::any_of (preview.playbackNotes(), [](const auto& note) {
+        return std::abs (note.start - 8.5) < 1.0e-8 && note.row == 0 && note.step == 0;
+    }));
+    CHECK (preview.stepPlayback()[0][0].sounding);
+    processor.setStandaloneTransportPlaying (false);
+    processor.processBlock (audio, midi);
+    preview.updatePlayback();
+    CHECK (preview.playheadBeat() < 0);
+    CHECK_FALSE (preview.stepPlayback()[0][0].sounding);
+
+    const auto later = renderPreview (processor, 40, 32);
+    CHECK (std::ranges::any_of (later, [](const auto& note) {
+        return std::abs (note.start - 34.0) < .001 && note.row == 0 && note.step == 0;
+    }));
+}
+
+TEST_CASE ("The stopped piano roll honors a loop brace offset and clips its boundary", "[native][schedule]")
+{
+    PluginProcessor processor;
+    processor.setPhraseRowMuted (0, false);
+    for (int i = 0; i < 4; ++i)
+    {
+        processor.insertPhraseStep (0, i);
+        processor.setPhraseNote (0, i, 60 + i);
+    }
+    processor.setLoopBraceEndQuarters (2.5);
+    processor.setLoopBraceStartQuarters (.5);
+    processor.setLoopBraceEnabled (true);
+    const auto notes = renderPreview (processor, 8);
+    REQUIRE (notes.size() == 2);
+    CHECK (notes.front().start == Catch::Approx (1));
+    CHECK (notes.back().start == Catch::Approx (2));
+    CHECK (notes.back().end == Catch::Approx (2.5));
+}
+
+TEST_CASE ("Grid flashes follow emitted MIDI including unisons on independent channels", "[native][schedule]")
+{
+    for (const bool sameChannel : { false, true })
+    {
+        CAPTURE (sameChannel);
+        PluginProcessor processor;
+        processor.setStandaloneTransportAvailableForTests (true);
+        processor.setStandaloneTempoBpm (120);
+        for (int row = 0; row < 2; ++row)
+        {
+            processor.insertPhraseStep (row, 0);
+            processor.setPhraseRowMuted (row, false);
+            processor.setPhraseRowMidiChannel (row, sameChannel ? 1 : row + 1);
+            processor.setPhraseNote (row, 0, 60);
+        }
+        processor.setPhraseRowTimingOffset (1, 10);
+        Controller controller (processor);
+        Palette palette;
+        Preview preview (controller, palette);
+        constexpr int sampleRate = 8000, blockSize = 128;
+        processor.prepareToPlay (sampleRate, blockSize);
+        processor.setStandaloneTransportPlaying (true);
+        juce::AudioBuffer<float> audio (2, blockSize);
+        juce::MidiBuffer midi;
+        for (int start = 0; start < 2048; start += blockSize)
+        {
+            midi.clear();
+            processor.processBlock (audio, midi);
+            preview.updatePlayback();
+        }
+        CHECK (preview.stepPlayback()[0][0].sounding);
+        CHECK (preview.stepPlayback()[1][0].sounding == !sameChannel);
+        CHECK (preview.playbackNotes().size() == (sameChannel ? 1u : 2u));
+    }
+}
+
+TEST_CASE ("Held unisons and loop cutoffs are independent of audio block boundaries", "[native][schedule]")
+{
+    for (const bool loop : { false, true })
+    for (const int blockSize : { 32, 128, 512 })
+    {
+        CAPTURE (loop, blockSize);
+        PluginProcessor processor;
+        processor.setStandaloneTransportAvailableForTests (true);
+        processor.setStandaloneTempoBpm (120);
+        if (!loop)
+        {
+            processor.insertPhraseStep (0, 0);
+            processor.setPhraseNote (0, 0, 60);
+            processor.setPhraseStepDurationFraction (0, 0, .751);
+            processor.insertPhraseStep (0, 1);
+            processor.setPhraseNote (0, 1, 62);
+            processor.insertPhraseStep (1, 0);
+            processor.setPhraseRowMuted (1, false);
+            processor.setPhraseRowMidiChannel (1, 1);
+            processor.setPhraseNote (1, 0, 60);
+            processor.setPhraseRowTimingOffset (1, 11);
+            processor.setPhraseStepDurationFraction (1, 0, .5);
+        }
+        else
+        {
+            processor.insertPhraseStep (0, 0);
+            processor.setPhraseNote (0, 0, 62);
+            processor.insertPhraseStep (0, 1);
+            processor.setPhraseNote (0, 1, 60);
+            processor.setPhraseStepDurationFraction (0, 1, .51);
+            processor.setLoopBraceEndQuarters (1.5);
+            processor.setLoopBraceEnabled (true);
+        }
+
+        constexpr int sampleRate = 8000;
+        processor.prepareToPlay (sampleRate, blockSize);
+        processor.setStandaloneTransportPlaying (true);
+        juce::AudioBuffer<float> audio (2, blockSize);
+        juce::MidiBuffer midi;
+        int noteOns = 0;
+        double firstOff = -1;
+        for (int start = 0; start < 6400 && firstOff < 0; start += blockSize)
+        {
+            midi.clear();
+            processor.processBlock (audio, midi);
+            for (const auto event : midi)
+            {
+                const auto msg = event.getMessage();
+                if (!msg.isNoteOnOrOff() || msg.getNoteNumber() != 60)
+                    continue;
+                if (msg.isNoteOff())
+                {
+                    firstOff = (start + event.samplePosition) * 2.0 / sampleRate;
+                    break;
+                }
+                if (msg.isNoteOn())
+                    ++noteOns;
+            }
+        }
+        CHECK (noteOns == 1);
+        CHECK (firstOff == Catch::Approx (loop ? 1.5 : 1.25).margin (2.0 / sampleRate));
+    }
+}
+
+TEST_CASE ("Forecast and DAW MIDI agree with swing, cycles, probability and humanization", "[native][schedule]")
+{
+    for (const int blockSize : { 64, 333, 512 })
+    {
+        CAPTURE (blockSize);
+        PluginProcessor processor;
+        processor.setSwingPercent (67);
+        processor.setSwingSubdivisionIndex (1);
+        processor.setVelocityHumanizePercent (30);
+        processor.setTimingHumanizePercent (70);
+        for (int step = 0; step < 3; ++step)
+        {
+            processor.insertPhraseStep (0, step);
+            processor.setPhraseNote (0, step, 60 + step);
+            processor.setPhraseStepTimingMultiplier (0, step, step + 1);
+            processor.setPhraseStepDurationFraction (0, step, .65);
+        }
+        processor.setPhraseStepCycle (0, 0, 3);
+        processor.setPhraseStepCycleOffset (0, 0, 5);
+        processor.setPhraseStepProbability (0, 1, 70);
+        const auto forecast = renderPreview (processor, 8);
+        REQUIRE_FALSE (forecast.empty());
+        struct Clock : juce::AudioPlayHead
+        {
+            PositionInfo info;
+            juce::Optional<PositionInfo> getPosition() const override { return info; }
+        } clock;
+        clock.info.setBpm (120);
+        clock.info.setIsPlaying (true);
+        processor.setPlayHead (&clock);
+        constexpr int sampleRate = 48000;
+        processor.prepareToPlay (sampleRate, blockSize);
+        juce::AudioBuffer<float> audio (2, blockSize);
+        juce::MidiBuffer midi;
+        size_t noteOns = 0, noteOffs = 0;
+        for (int start = 0; start < sampleRate * 4; start += blockSize)
+        {
+            midi.clear();
+            clock.info.setPpqPosition (start * 2.0 / sampleRate);
+            processor.processBlock (audio, midi);
+            for (const auto event : midi)
+            {
+                const auto msg = event.getMessage();
+                const double beat = (start + event.samplePosition) * 2.0 / sampleRate;
+                if (!msg.isNoteOnOrOff() || beat >= 8)
+                    continue;
+                if (msg.isNoteOn())
+                {
+                    ++noteOns;
+                    CHECK (std::ranges::any_of (forecast, [&](const auto& note) {
+                        return note.note == msg.getNoteNumber() && note.velocity == msg.getVelocity()
+                            && std::abs (note.start - beat) < .001;
+                    }));
+                }
+                else
+                {
+                    ++noteOffs;
+                    CHECK (std::ranges::any_of (forecast, [&](const auto& note) {
+                        return note.note == msg.getNoteNumber() && std::abs (note.end - beat) < .001;
+                    }));
+                }
+            }
+        }
+        CHECK (noteOns == forecast.size());
+        CHECK (noteOffs == static_cast<size_t> (std::ranges::count_if (forecast, [](const auto& note) { return note.end < 8; })));
+        processor.setPlayHead (nullptr);
     }
 }
 
@@ -1005,8 +1342,14 @@ TEST_CASE ("The footer row count expands the visible rows without editing the pa
     editor.grid.updateLayout();
     auto* count = findControl (editor, "Visible phrase rows");
     auto* drum = findControl (editor, "Drum row pitch lock");
+    auto* modeSwitch = findControl (editor, "Mode switch timing");
+    REQUIRE (modeSwitch != nullptr);
     REQUIRE (count != nullptr);
     REQUIRE (drum != nullptr);
+    CHECK (modeSwitch->getY() == drum->getY());
+    CHECK (modeSwitch->getRight() < drum->getX());
+    CHECK (modeSwitch->display().endsWith ("Every pulse"));
+    CHECK (processor.isCombinationChangePhaseContinue());
     CHECK (drum->getY() == count->getY());
     CHECK (drum->getRight() < count->getX());
     const auto first = editor.grid.stepBounds (0, 0);
@@ -1014,6 +1357,7 @@ TEST_CASE ("The footer row count expands the visible rows without editing the pa
     const auto before = readRows (processor);
     editor.showInspector (3, 0);
     CHECK (drum->isVisible());
+    CHECK (modeSwitch->isVisible());
     editor.grid.selectVisibleSteps();
 
     const auto drag = [&] (float distance) {
@@ -1082,7 +1426,15 @@ TEST_CASE ("The processing strip appears only with the piano roll", "[native][in
             if (auto* keyboard = dynamic_cast<Keyboard*> (child))
             {
                 CHECK (keyboard->isVisible());
-                CHECK (keyboard->getY() == stripTop + 98);
+                if (close->isVisible())
+                {
+                    CHECK (keyboard->getY() > stripTop + 104);
+                    CHECK (keyboard->getX() > 270);
+                    CHECK (keyboard->getRight() < editor.getWidth() - 24);
+                    CHECK (keyboard->getBottom() < editor.getHeight() - 40);
+                }
+                else
+                    CHECK (keyboard->getY() == stripTop + 98);
                 return;
             }
         FAIL ("Missing panel keyboard");
@@ -1098,7 +1450,7 @@ TEST_CASE ("The processing strip appears only with the piano roll", "[native][in
     CHECK (close->isVisible());
     CHECK (close->getY() == stripTop + 8);
     clickGrid (editor.grid.stepBounds (0, 0).getCentre());
-    CHECK (close->isVisible());
+    CHECK_FALSE (close->isVisible());
     clickGrid ({ 200, 10 });
     expectPianoRoll();
 
@@ -1126,7 +1478,7 @@ TEST_CASE ("The step cycle extends, moves a beat on release, and resizes as one 
     }();
     REQUIRE (cycle != nullptr);
     REQUIRE (cycle->isVisible());
-    const juce::Point<float> first { 25.5f, 45 }, third { 103.5f, 45 };
+    const juce::Point<float> first { 29, 49 }, third { 121, 49 };
     cycle->mouseDown (pointerEvent (*cycle, third, third));
     cycle->mouseUp (pointerEvent (*cycle, third, third));
     CHECK (processor.getPhraseStepCycle (0, 0) == 3);
@@ -1138,7 +1490,7 @@ TEST_CASE ("The step cycle extends, moves a beat on release, and resizes as one 
     cycle->mouseUp (pointerEvent (*cycle, third, first, true));
     CHECK (processor.getPhraseStepCycleOffset (0, 0) == 4);
 
-    const juce::Point<float> handle { 122, 45 }, fifthEdge { 199, 45 };
+    const juce::Point<float> handle { 143, 49 }, fifthEdge { 233, 49 };
     cycle->mouseDown (pointerEvent (*cycle, handle, handle));
     cycle->mouseDrag (pointerEvent (*cycle, fifthEdge, handle, true));
     CHECK (processor.getPhraseStepCycle (0, 0) == 5);
@@ -1146,6 +1498,56 @@ TEST_CASE ("The step cycle extends, moves a beat on release, and resizes as one 
     REQUIRE (editor.controller.undo());
     CHECK (processor.getPhraseStepCycle (0, 0) == 3);
     CHECK (processor.getPhraseStepCycleOffset (0, 0) == 4);
+}
+
+TEST_CASE ("Clicking the inspected step again closes the inspector and restores compact view", "[native][interaction]")
+{
+    PluginProcessor processor;
+    processor.setProjectMetadata ("", "", "", "", "dark", 100, true);
+    processor.insertPhraseStep (0, 0);
+    NativeEditor editor (processor);
+    editor.setSize (PluginEditor::designWidth, PluginEditor::designHeight);
+    auto& grid = editor.grid;
+    REQUIRE (editor.preview.isVisible());
+    const auto point = grid.stepBounds (0, 0).getCentre();
+    grid.mouseDown (pointerEvent (grid, point, point));
+    grid.mouseUp (pointerEvent (grid, point, point));
+    REQUIRE (grid.inspectedStep == 0);
+    CHECK_FALSE (editor.preview.isVisible());
+    CHECK_FALSE (grid.compact);
+
+    grid.mouseDown (pointerEvent (grid, point, point));
+    grid.mouseUp (pointerEvent (grid, point, point));
+    CHECK (grid.inspectedStep == -1);
+    CHECK (grid.compact);
+    CHECK (editor.preview.isVisible());
+    CHECK (editor.controller.selection[0][0]);
+}
+
+TEST_CASE ("The group delete button removes selected steps in one undoable edit", "[native][interaction]")
+{
+    PluginProcessor processor;
+    processor.insertPhraseStep (0, 0);
+    processor.insertPhraseStep (0, 1);
+    processor.insertPhraseStep (1, 0);
+    NativeEditor editor (processor);
+    auto* remove = findControl (editor, "Delete selected steps");
+    REQUIRE (remove != nullptr);
+    CHECK_FALSE (remove->isEnabled());
+
+    editor.controller.selection[0].set (1);
+    editor.controller.selection[1].set (0);
+    editor.synchronise();
+    REQUIRE (remove->isEnabled());
+    const auto point = remove->getLocalBounds().getCentre().toFloat();
+    remove->mouseDown (pointerEvent (*remove, point, point));
+    remove->mouseUp (pointerEvent (*remove, point, point));
+    CHECK (processor.getPhraseRowStepCount (0) == 1);
+    CHECK (processor.getPhraseRowStepCount (1) == 0);
+    CHECK_FALSE (remove->isEnabled());
+    REQUIRE (editor.controller.undo());
+    CHECK (processor.getPhraseRowStepCount (0) == 2);
+    CHECK (processor.getPhraseRowStepCount (1) == 1);
 }
 
 TEST_CASE ("Clicking another step retargets the open inspector and clears the previous selection", "[native][interaction]")
@@ -1176,10 +1578,25 @@ TEST_CASE ("Clicking another step retargets the open inspector and clears the pr
     CHECK (note->isVisible());
     CHECK (note->display() == "D3");
     auto* skip = findControl (editor, "Skip inspected step");
+    auto* mute = findControl (editor, "Mute inspected step");
+    auto* remove = findControl (editor, "Delete inspected steps");
+    auto* velocity = findControl (editor, "Step velocity");
     REQUIRE (skip != nullptr);
+    REQUIRE (mute != nullptr);
+    REQUIRE (remove != nullptr);
+    REQUIRE (velocity != nullptr);
+    CHECK (remove->getWidth() == 226);
+    CHECK (remove->getBottom() < skip->getY());
+    CHECK (skip->getBottom() < mute->getY());
+    CHECK (note->getRight() < velocity->getX());
+    CHECK (findControl (editor, "Step duration") == nullptr);
+    CHECK (findControl (editor, "Step multiplier") == nullptr);
     click (*skip, skip->getLocalBounds().getCentre().toFloat());
     CHECK_FALSE (p.isPhraseStepSkipped (0, 0));
     CHECK (p.isPhraseStepSkipped (1, 0));
+    click (*remove, remove->getLocalBounds().getCentre().toFloat());
+    CHECK (p.getPhraseRowStepCount (1) == 0);
+    CHECK (editor.preview.isVisible());
 }
 
 TEST_CASE ("Inspector keyboard scrolls the full piano and blocks out-of-scale keys", "[native][keyboard]")
@@ -1289,6 +1706,13 @@ TEST_CASE ("Shift-click toggles note bodies in both grid views", "[native][inter
         grid.mouseUp (event);
         CHECK (controller.selection[0][0]);
         CHECK_FALSE (controller.selection[1][0]);
+        const int command = juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::commandModifier;
+        const auto commandClick = pointerEvent (grid, point, point, false, command);
+        grid.mouseDown (commandClick);
+        grid.mouseUp (commandClick);
+        CHECK_FALSE (controller.selection[0][0]);
+        CHECK (controller.selection[1][0]);
+        controller.clearSelection();
     }
 }
 

@@ -70,7 +70,7 @@ namespace phrases::ui
         void applyTheme (const juce::String& mode);
         void documentChanged();
         void showInspector (int row, int step);
-        void toggleRowVelocity (int row);
+        void toggleVelocityMode();
         void showSeed (int row = -1);
         bool keyPressed (const juce::KeyPress&) override;
         bool keyStateChanged (bool) override;
@@ -109,7 +109,6 @@ namespace phrases::ui
         int operationAccentRow = -1;
         std::array<int, 17> heldKeys {};
         juce::String theme;
-        double top() const { return controller.p.hasStandaloneTransport() ? 48.0 : 0.0; }
         int slot() const { return controller.p.getViewPatternSlot(); }
         juce::Rectangle<int> stepOperationsBounds() const;
         void refreshStepOperations();
@@ -127,7 +126,7 @@ namespace phrases::ui
         void record (int);
         void bulkOrder (int operation);
         void seedGenerate (bool allRhythm = false);
-        void sliderAppearance (Control&);
+        void sliderAppearance (Control&, float valueSize = 14, float valueWidth = 41);
         void reshuffleSeed (int aspect);
         void editStep (const std::function<void (Step&)>&);
         Step currentStep() const;

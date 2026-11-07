@@ -28,7 +28,12 @@ namespace phrases::ui
     using Selection = std::array<std::bitset<64>, 4>;
     Rows readRows (const PluginProcessor&);
     void writeRow (PluginProcessor&, int row, const Row&);
-    bool stepActive (const Row&, size_t step, double beat, int pulse, int swing, int subdivision, double* beatsSinceOnset = nullptr);
+    struct StepPlayback
+    {
+        bool sounding = false;
+        float flash = 0;
+    };
+    using PlaybackSteps = std::array<std::array<StepPlayback, PluginProcessor::maxPhraseStepsPerRow>, PluginProcessor::phraseRowCount>;
     int scaleNote (int note, int degrees, int root, int mode);
     int snapNote (int note, int root, int mode);
     juce::String noteName (int note);

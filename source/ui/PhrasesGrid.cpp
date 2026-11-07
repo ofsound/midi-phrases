@@ -24,28 +24,43 @@ namespace phrases::ui
             return card.withHeight (stepBarHeight).reduced (std::min (10.0f, card.getWidth() * .25f), 5.0f);
         }
 
-        Rect detailSummary (Rect card)
+        struct StepDetails
         {
-            return card.withTrimmedTop (stepBarHeight).withHeight (26);
-        }
+            Rect remove, skip, mute, velocity, length, probability, cycle;
+        };
 
-        Rect deleteBounds (Rect card)
+        StepDetails stepDetails (Rect card)
         {
-            const auto summary = detailSummary (card);
-            return summary.withTrimmedLeft (4).withWidth (std::min (20.0f, summary.getWidth() * .25f));
-        }
+            auto body = card.withTrimmedTop (stepBarHeight).reduced (4, 0);
+            auto actions = body.removeFromLeft (std::min (20.0f, body.getWidth() * .38f));
+            body = body.withHeight (std::min (60.0f, body.getHeight()));
+            const float actionHeight = actions.getHeight() / 3;
+            StepDetails detail;
+            detail.remove = actions.removeFromTop (actionHeight);
+            detail.skip = actions.removeFromTop (actionHeight);
+            detail.mute = actions;
 
-        Rect velocityBounds (Rect card)
-        {
-            const auto summary = detailSummary (card).withTrimmedLeft (deleteBounds (card).getWidth() + 8);
-            return summary.withWidth (std::min (68.0f, summary.getWidth() * .65f));
-        }
-
-        Rect detailActionBounds (Rect card, int index)
-        {
-            const auto actions = card.removeFromBottom (20).reduced (2, 0);
-            const float width = std::min (22.0f, actions.getWidth() / 2.0f);
-            return actions.withWidth (width).translated (static_cast<float> (index) * width, 0);
+            body.removeFromLeft (4);
+            if (body.getWidth() >= 76)
+            {
+                body = body.reduced (5, 3);
+                const float summaryHeight = body.getHeight() / 3;
+                auto summary = body.removeFromTop (summaryHeight);
+                detail.length = summary.removeFromRight (28);
+                detail.velocity = summary;
+                auto rhythm = body.removeFromBottom (summaryHeight);
+                detail.probability = rhythm.removeFromLeft (32);
+                detail.cycle = rhythm.removeFromRight (74.5f);
+            }
+            else
+            {
+                const float lineHeight = body.getHeight() / 4;
+                detail.velocity = body.removeFromTop (lineHeight);
+                detail.length = body.removeFromTop (lineHeight);
+                detail.probability = body.removeFromTop (lineHeight);
+                detail.cycle = body;
+            }
+            return detail;
         }
 
         float durationEdge (Rect area, const Step& step)
@@ -100,13 +115,11 @@ namespace phrases::ui
             text (g, noteName (step.note), bar.reduced (3), p.text, 14, true);
     }
     void Grid::resized() { updateLayout(); }
-    void Grid::setVelocityRow (int row)
+    void Grid::setVelocityMode (bool enabled)
     {
-        if (row >= 0 && (row >= static_cast<int> (c.rows.size()) || c.rows[static_cast<size_t> (row)].steps.empty()))
-            row = -1;
-        if (velocityRow == row)
+        if (velocityMode == enabled)
             return;
-        velocityRow = row;
+        velocityMode = enabled;
         updateLayout();
     }
     void Grid::setVisibleRowCount (int count)
@@ -119,8 +132,6 @@ namespace phrases::ui
             cells[row].clear();
             c.selection[row].reset();
         }
-        if (velocityRow >= visibleRowCount)
-            velocityRow = -1;
         hover = {};
         updateLayout();
     }
@@ -136,18 +147,24 @@ namespace phrases::ui
         const auto visibleRows = std::span (c.rows).first (static_cast<size_t> (visibleRowCount));
         for (const auto& row : visibleRows)
             minimumOffset = std::min (minimumOffset, row.offset);
+        constexpr float stepsLeft = 135;
+        constexpr float addButtonSpace = 74;
+        float contentRight = 0;
+        for (const auto& row : visibleRows)
+        {
+            int columns = row.offset - minimumOffset;
+            for (const auto& step : row.steps)
+                columns += step.timing + 1;
+            contentRight = std::max (contentRight, stepsLeft + static_cast<float> (columns) * unit + addButtonSpace);
+        }
+        maxScrollX = std::max (0.0f, contentRight - static_cast<float> (getWidth()));
+        scrollX = juce::jlimit (0.0f, maxScrollX, scrollX);
         const float extraHeight = rowHeight() - 104.0f;
         for (size_t r = 0; r < visibleRows.size(); ++r)
         {
             cells[r].clear();
-            const float firstX = 135 + static_cast<float> (c.rows[r].offset - minimumOffset) * unit;
+            float x = stepsLeft + static_cast<float> (c.rows[r].offset - minimumOffset) * unit - scrollX;
             const auto& steps = c.rows[r].steps;
-            float rowEnd = firstX;
-            for (const auto& step : steps)
-                rowEnd += static_cast<float> (step.timing + 1) * unit;
-            constexpr float addButtonSpace = 74;
-            scroll[r] = juce::jlimit (0.0f, std::max (0.0f, rowEnd + addButtonSpace - static_cast<float> (getWidth())), scroll[r]);
-            float x = firstX - scroll[r];
             const float y = rowTop (r) + 4;
             int low = 127, high = 0;
             if (compact)
@@ -159,7 +176,7 @@ namespace phrases::ui
             const float pitchCentre = (low + high) * .5f;
             const float pitchTravel = 60.0f + extraHeight;
             const float pitchScale = pitchTravel / std::max (6, high - low);
-            const bool pitchCards = compact && static_cast<int> (r) != velocityRow;
+            const bool pitchCards = compact && !velocityMode;
             const bool anchored = pitchCards && compactPitchDrag && c.gestureActive() && static_cast<int> (r) == down.row
                 && down.step >= 0 && static_cast<size_t> (down.step) < steps.size() && steps.size() == baseline[r].steps.size();
             float anchorTop = 0, aboveScale = 0, belowScale = 0;
@@ -199,7 +216,7 @@ namespace phrases::ui
             {
                 const auto& step = steps[s];
                 const float width = static_cast<float> (step.timing + 1) * unit;
-                const float gap = std::min (16.0f, width * .3f);
+                const float gap = std::min (16.0f, width * .14f);
                 float top = y;
                 if (anchored)
                 {
@@ -224,10 +241,7 @@ namespace phrases::ui
     void Grid::paint (juce::Graphics& g)
     {
         g.fillAll (p.workspace);
-        const double beat = c.p.getPlaybackBeat();
-        const int pulse = c.p.getPulseIndex();
-        const int swing = c.p.getSwingPercent();
-        const int subdivision = c.p.getSwingSubdivisionIndex();
+        const bool hasSelection = std::any_of (c.selection.begin(), c.selection.end(), [] (const auto& selectedSteps) { return selectedSteps.any(); });
         for (size_t r = 0; r < static_cast<size_t> (visibleRowCount); ++r)
         {
             const auto& row = c.rows[r];
@@ -264,7 +278,7 @@ namespace phrases::ui
             }
             g.setColour (c.p.getPhraseRowRecording() == static_cast<int> (r) || headerHot (Part::record) ? p.danger : p.faint);
             g.fillEllipse (26, y + 74, 15, 15);
-            const bool drawingVelocity = static_cast<int> (r) == velocityRow;
+            const bool drawingVelocity = velocityMode;
             const Rect velocityButton (49, y + 69, 26, 26);
             if (drawingVelocity)
             {
@@ -272,12 +286,11 @@ namespace phrases::ui
                 g.fillRoundedRectangle (velocityButton, 4);
             }
             const auto velocityInk = drawingVelocity || headerHot (Part::rowVelocity) ? accent : p.faint;
-            text (g, "V", velocityButton, velocityInk.withMultipliedAlpha (row.steps.empty() ? .45f : 1.0f), 15, true);
+            text (g, "V", velocityButton, velocityInk, 15, true);
             drawIcon (g, 2, { 80, y + 74, 14, 14 }, headerHot (Part::seed) ? accent : p.faint);
             juce::Graphics::ScopedSaveState clip (g);
             const float labelInset = compact && !drawingVelocity ? compactLabelInset : 0.0f;
             g.reduceClipRegion (Rect (128, top - labelInset, static_cast<float> (getWidth() - 128), rowHeight() + labelInset).toNearestInt());
-            const bool hasSelection = std::any_of (c.selection.begin(), c.selection.end(), [] (const auto& selectedSteps) { return selectedSteps.any(); });
             juce::Path selectedPath;
             for (size_t s = 0; s < cells[r].size(); ++s)
                 if (c.selection[r][s])
@@ -297,9 +310,19 @@ namespace phrases::ui
                 const auto bar = b.withHeight (stepBarHeight);
                 const auto body = b.withTop (bar.getBottom() - 4);
                 const bool detailed = !compact && !drawingVelocity;
-                double beatsSinceOnset = 0;
-                const bool playing = stepActive (row, s, beat, pulse, swing, subdivision, &beatsSinceOnset);
-                const float flash = playing ? static_cast<float> (juce::jlimit (0.0, 1.0, 1.0 - beatsSinceOnset / .22)) : 0.0f;
+                const auto face = drawingVelocity ? b : bar;
+                const auto activity = playbackSteps[r][s];
+                const float flash = activity.flash;
+                const bool playing = activity.sounding || flash > 0;
+                if (playing && g.clipRegionIntersects (face.expanded (14).getSmallestIntegerContainer()))
+                {
+                    juce::Path path;
+                    path.addRoundedRectangle (face.reduced (1), 8);
+                    auto& glow = playbackGlows[r];
+                    glow.setRadius (12);
+                    glow.setColor (accent.withAlpha (.34f + .56f * flash));
+                    glow.render (g, path);
+                }
                 g.setColour (selected ? p.surface.interpolatedWith (accent, .40f) : p.surface.interpolatedWith (p.app, .12f));
                 g.fillRoundedRectangle (detailed ? body : b, 8);
                 if (playing && (detailed || drawingVelocity))
@@ -325,36 +348,37 @@ namespace phrases::ui
                     {
                         juce::Graphics::ScopedSaveState detailClip (g);
                         g.reduceClipRegion (b.getSmallestIntegerContainer());
-                        const auto remove = deleteBounds (b);
-                        const auto velocity = velocityBounds (b);
-                        const bool removeHot = hover.row == static_cast<int> (r) && hover.step == static_cast<int> (s) && hover.part == Part::remove;
-                        text (g, juce::String::fromUTF8 ("×"), remove, removeHot ? p.danger : p.secondary, 19, true);
-                        text (g, "Vel " + juce::String (step.velocity), velocity, p.text, 11, true, juce::Justification::centredLeft);
-                        text (g, lengthRatio (step.timing), detailSummary (b).withLeft (velocity.getRight()).withTrimmedRight (6),
-                              p.muted, 12, true, juce::Justification::centredRight);
-                        if (b.getWidth() >= 28)
-                        {
-                            const float chanceWidth = std::min (32.0f, b.getWidth() - 12);
-                            text (g, juce::String (step.probability) + "%", { b.getX() + 6, b.getY() + 63, chanceWidth, 13 },
-                                  accent, 10, true, juce::Justification::centredLeft);
-                            const float pipWidth = std::min (8.0f, (b.getWidth() - chanceWidth - 24.0f) / 8.0f);
-                            if (pipWidth >= 1.0f)
-                                for (int i = 0; i < 8; ++i)
-                                {
-                                    const bool inside = i < step.cycle;
-                                    const bool on = inside && ((step.mask == 0 ? 1 : step.mask) & (1 << i)) != 0;
-                                    g.setColour (on ? accent : inside ? p.subtle : p.app);
-                                    g.fillRect (Rect (b.getX() + chanceWidth + 10.0f + static_cast<float> (i) * (pipWidth + 1.0f),
-                                                      b.getY() + 67, pipWidth, 6));
-                                }
-                        }
-                        drawIcon (g, 4, detailActionBounds (b, 0).reduced (2), step.skipped ? accent : p.muted);
-                        drawIcon (g, 3, detailActionBounds (b, 1).reduced (2), step.muted ? accent : p.muted);
+                        const auto detail = stepDetails (b);
+                        const auto hot = [&](Part part) {
+                            return hover.row == static_cast<int> (r) && hover.step == static_cast<int> (s) && hover.part == part;
+                        };
+                        g.setColour (p.text.withAlpha (.15f));
+                        g.drawVerticalLine (juce::roundToInt (detail.remove.getRight()), detail.remove.getY(), detail.mute.getBottom());
+                        for (const auto button : { detail.skip, detail.mute })
+                            g.drawHorizontalLine (juce::roundToInt (button.getY()), button.getX(), button.getRight());
+                        text (g, juce::String::fromUTF8 ("×"), detail.remove, hot (Part::remove) ? p.danger : p.secondary, 24, true);
+                        drawIcon (g, 4, detail.skip.reduced (2), step.skipped || hot (Part::skip) ? p.text : p.muted);
+                        drawIcon (g, 3, detail.mute.reduced (2), step.muted || hot (Part::mute) ? p.text : p.muted);
+                        text (g, juce::String (step.velocity), detail.velocity, p.text, 11, true, juce::Justification::centredLeft);
+                        const auto lengthAlign = detail.length.getX() > detail.velocity.getX() ? juce::Justification::centredRight : juce::Justification::centredLeft;
+                        text (g, lengthRatio (step.timing), detail.length, p.text, 12, true, lengthAlign);
+                        text (g, juce::String (step.probability) + "%", detail.probability, p.text, 10, true, juce::Justification::centredLeft);
+                        constexpr float pipGap = 1.5f;
+                        const float pipWidth = std::min (8.0f, (detail.cycle.getWidth() - 7 * pipGap) / 8);
+                        if (pipWidth >= 1.0f)
+                            for (int i = 0; i < 8; ++i)
+                            {
+                                const bool inside = i < step.cycle;
+                                const bool on = inside && ((step.mask == 0 ? 1 : step.mask) & (1 << i)) != 0;
+                                g.setColour (on ? p.text : inside ? p.subtle : p.app);
+                                g.fillRoundedRectangle (detail.cycle.getX() + static_cast<float> (i) * (pipWidth + pipGap),
+                                                        detail.cycle.getCentreY() - 3, pipWidth, 6, 1);
+                            }
                     }
                     else
                     {
                         const auto label = bar.withY (bar.getY() - lengthLabelHeight - lengthLabelGap).withHeight (lengthLabelHeight);
-                        text (g, lengthRatio (step.timing), label, p.muted, 11, true, juce::Justification::centredRight);
+                        text (g, lengthRatio (step.timing), label, p.text, 11, true, juce::Justification::centredRight);
                     }
 
                     const bool durationHot = (hover.part == Part::duration && hover.row == static_cast<int> (r) && hover.step == static_cast<int> (s))
@@ -366,11 +390,6 @@ namespace phrases::ui
                     if (row.muted || step.skipped)
                     {
                         g.setColour (p.app.withAlpha (.5f));
-                        g.fillRoundedRectangle (bounds, 8);
-                    }
-                    if (inspectedRow >= 0 && !inspected)
-                    {
-                        g.setColour (p.app.withAlpha (0.45f));
                         g.fillRoundedRectangle (bounds, 8);
                     }
                     if (!outline)
@@ -389,16 +408,15 @@ namespace phrases::ui
                     g.reduceClipRegion (b.expanded (5).withTop (bar.getBottom()).getSmallestIntegerContainer());
                     decorate (body, false);
                 }
-                const auto face = drawingVelocity ? b : bar;
                 decorate (face);
                 if (selected)
                 {
                     g.setColour (p.text.withAlpha (.95f));
                     g.drawRoundedRectangle (face.reduced (1.5f), 7, 2.5f);
                 }
-                if (hasSelection && !selected && !playing)
+                if ((hasSelection || inspectedRow >= 0) && !selected && !inspected && !playing)
                 {
-                    g.setColour (juce::Colours::black.withAlpha (.58f));
+                    g.setColour (p.app.withAlpha (.22f));
                     g.fillRoundedRectangle (b, 8);
                 }
                 if (step.muted)
@@ -408,8 +426,6 @@ namespace phrases::ui
                 }
                 if (playing)
                 {
-                    g.setColour (accent.withAlpha (.14f + .25f * flash));
-                    g.drawRoundedRectangle (face.expanded (2), 10, 6);
                     g.setColour (accent.interpolatedWith (juce::Colours::white, .40f + .50f * flash));
                     g.drawRoundedRectangle (face.reduced (1), 8, 2.0f + flash);
                 }
@@ -478,7 +494,7 @@ namespace phrases::ui
             }
             if (addBounds[index].contains (point))
                 return { Part::add, r, static_cast<int> (cells[index].size()) };
-            if (r == velocityRow && !cells[index].empty())
+            if (velocityMode && !cells[index].empty())
             {
                 if (point.x >= 128 && cells[index].front().getUnion (cells[index].back()).contains (point))
                     return { Part::drawVelocity, r, -1 };
@@ -516,13 +532,16 @@ namespace phrases::ui
                         return { Part::note, r, step };
                     return { Part::move, r, step };
                 }
-                if (detailActionBounds (b, 0).contains (point))
-                    return { Part::skip, r, step };
-                if (detailActionBounds (b, 1).contains (point))
-                    return { Part::mute, r, step };
-                if (deleteBounds (b).contains (point))
+                if (compact)
+                    return { Part::move, r, step };
+                const auto detail = stepDetails (b);
+                if (detail.remove.contains (point))
                     return { Part::remove, r, step };
-                if (velocityBounds (b).contains (point))
+                if (detail.skip.contains (point))
+                    return { Part::skip, r, step };
+                if (detail.mute.contains (point))
+                    return { Part::mute, r, step };
+                if (detail.velocity.contains (point))
                     return { Part::velocity, r, step };
                 return { Part::move, r, step };
             }
@@ -556,7 +575,7 @@ namespace phrases::ui
         if (down.step >= 0 && down.part != Part::add && !shiftOctaveGesture)
         {
             const auto r = static_cast<size_t> (down.row), s = static_cast<size_t> (down.step);
-            if (additiveMarquee || e.mods.isCommandDown())
+            if (additiveMarquee)
                 c.selection[r].flip (s);
             else if (!c.selection[r][s])
             {
@@ -575,7 +594,7 @@ namespace phrases::ui
     }
     void Grid::drawVelocityStroke (juce::Point<float> point)
     {
-        if (!lastVelocityPoint || !c.gestureActive() || down.row != velocityRow)
+        if (!lastVelocityPoint || !c.gestureActive() || !velocityMode || down.row >= visibleRowCount)
             return;
 
         const auto previous = *lastVelocityPoint;
@@ -761,7 +780,7 @@ namespace phrases::ui
             lastVelocityPoint.reset();
         }
         else if (h.part == Part::none && !dragging
-            && !additiveMarquee && !e.mods.isShiftDown() && !e.mods.isCommandDown() && !e.mods.isPopupMenu())
+            && !additiveMarquee && !e.mods.isShiftDown() && !e.mods.isPopupMenu())
         {
             c.clearSelection();
             if (inspectedRow >= 0 && inspect)
@@ -793,15 +812,24 @@ namespace phrases::ui
                 || h.part == Part::note || h.part == Part::velocity || h.part == Part::resize;
             const auto target = h.part == Part::resize ? hit (origin, true) : h;
             if (inspect && inspectorTarget && target.step >= 0
-                && !e.mods.isShiftDown() && !e.mods.isCommandDown() && !e.mods.isPopupMenu())
+                && !e.mods.isShiftDown() && !e.mods.isPopupMenu())
             {
-                if (compact && changeCompactMode)
+                if (target.row == inspectedRow && target.step == inspectedStep)
                 {
-                    changedViewOnClick = true;
-                    changeCompactMode (false);
+                    inspect (-1, -1);
+                    if (!compact && changeCompactMode)
+                    {
+                        changedViewOnClick = true;
+                        changeCompactMode (true);
+                    }
                 }
-                if (target.row != inspectedRow || target.step != inspectedStep)
+                else
                 {
+                    if (compact && changeCompactMode)
+                    {
+                        changedViewOnClick = true;
+                        changeCompactMode (false);
+                    }
                     c.clearSelection();
                     c.selection[static_cast<size_t> (target.row)].set (static_cast<size_t> (target.step));
                     inspect (target.row, target.step);
@@ -828,7 +856,7 @@ namespace phrases::ui
                     break;
                 case Part::rowVelocity:
                     if (toggleVelocity)
-                        toggleVelocity (h.row);
+                        toggleVelocity();
                     break;
                 case Part::seed:
                     if (seedRow)
@@ -923,11 +951,17 @@ namespace phrases::ui
                                                                                      : h.part == Part::move                                                      ? juce::MouseCursor::DraggingHandCursor
                                                                                                                                                                  : juce::MouseCursor::PointingHandCursor);
         if (h.part == Part::rowVelocity)
-            setTooltip ("Toggle velocity drawing in this row.");
+            setTooltip ("Toggle velocity drawing for all rows.");
         else if (h.part == Part::drawVelocity)
             setTooltip ("Drag across the row to draw velocities.");
         else if (h.part == Part::duration)
             setTooltip ("Click to inspect the step. Drag horizontally to adjust note duration.");
+        else if (h.part == Part::remove)
+            setTooltip ("Delete this step.");
+        else if (h.part == Part::skip)
+            setTooltip ("Toggle skip for the selected steps.");
+        else if (h.part == Part::mute)
+            setTooltip ("Toggle mute for the selected steps.");
         else if (h.part == Part::move && compact)
             setTooltip ("Click to inspect the step. Drag vertically to change pitch; Shift-drag changes octaves.");
         else
@@ -944,12 +978,13 @@ namespace phrases::ui
     }
     void Grid::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
     {
-        const auto h = hit (e.position);
-        if (h.row < 0)
+        const float delta = std::abs (wheel.deltaX) >= std::abs (wheel.deltaY) ? wheel.deltaX : wheel.deltaY;
+        const float next = juce::jlimit (0.0f, maxScrollX, scrollX - delta * (wheel.isSmooth ? 512.0f : 320.0f));
+        if (juce::approximatelyEqual (next, scrollX))
             return;
-        auto& position = scroll[static_cast<size_t> (h.row)];
-        position = std::max (0.0f, position - (std::abs (wheel.deltaX) > .0001f ? wheel.deltaX : wheel.deltaY) * 100);
+        scrollX = next;
         updateLayout();
+        updateHover (e.position, e.mods);
     }
     void Grid::cancelGesture()
     {

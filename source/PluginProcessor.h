@@ -411,6 +411,19 @@ public:
     /** Beat used for UI playhead and step highlighting; -1 when not playing. */
     double getPlaybackBeat() const;
 
+    // A block starts with a position record (channel == 0), followed by the
+    // generated MIDI edges in that block. Only the editor drains this queue.
+    struct PlaybackEvent
+    {
+        double transportBeat = 0, scheduleBeat = -1;
+        int pattern = -1, row = -1, step = -1, channel = 0, note = -1, velocity = 0;
+        bool reset = false;
+    };
+    void setPlaybackMonitoring (bool);
+    void drainPlaybackEvents (std::vector<PlaybackEvent>&);
+    // Set only on the isolated preview processor before its first block.
+    void setOfflinePreviewStartBeat (double beat) { offlinePreviewStartBeat = beat; }
+
     bool hasStandaloneTransport() const;
     void setStandaloneTransportPlaying (bool shouldPlay);
     bool isStandaloneTransportPlaying() const;
@@ -617,7 +630,7 @@ private:
                                int sampleOffset,
                                juce::MidiBuffer& midiMessages);
     void flushPendingGeneratedNoteOffs (int sampleOffset, juce::MidiBuffer& midiMessages);
-    void flushPendingCombinedNoteOffs (int bufferSamples, juce::MidiBuffer& midiMessages);
+    void flushPendingCombinedNoteOffsBefore (int sample, juce::MidiBuffer& midiMessages);
     void flushActiveGeneratedNotes (int sampleOffset, juce::MidiBuffer& midiMessages);
     void flushActiveWeaveNotes (int sampleOffset, juce::MidiBuffer& midiMessages);
     void resetPlaybackMidiState();
@@ -632,11 +645,7 @@ private:
                               int bufferSamples,
                               juce::MidiBuffer& midiMessages);
     void processPhraseRowNoteAuditions (int bufferSamples, juce::MidiBuffer& midiMessages);
-    void emitLayeredGeneratedNote (int midiChannel,
-                                   int note,
-                                   int velocity,
-                                   int sampleOffset,
-                                   int gateSamples,
+    void emitLayeredGeneratedNote (const PendingNoteOn&,
                                    int bufferSamples,
                                    juce::MidiBuffer& midiMessages);
     void flushPendingNoteOns (int bufferSamples, juce::MidiBuffer& midiMessages);
@@ -775,9 +784,9 @@ private:
                                           double gateQuarters,
                                           double mappedScheduleEnd) const;
     bool shouldPreservePendingNoteAcrossLoopWrap (int row, int midiNote) const;
-    void flushPendingCombinedNoteOffsForChannel (int midiChannel,
-                                                 int sampleOffset,
-                                                 juce::MidiBuffer& midiMessages);
+    void flushPendingCombinedNoteOffsForRow (int row,
+                                            int sampleOffset,
+                                            juce::MidiBuffer& midiMessages);
 
     void processScheduledRange (double schedulePpqStart,
                                 double schedulePpqEnd,
@@ -821,6 +830,8 @@ private:
         int samplesRemaining = 0;
         int gateSamples = 0;
         int layered = 0;
+        int sourceRow = -1;
+        bool flushWeave = false;
     };
 
     struct PendingCombinedNoteOff
@@ -828,6 +839,7 @@ private:
         int channel = 1;
         int note = -1;
         int samplesRemaining = 0;
+        int row = -1;
     };
 
     struct CombinedNoteEvent
@@ -841,6 +853,7 @@ private:
         int velocity = defaultStepVelocity;
         bool extendedByHeldOverlap = false;
         bool carrierOnlyForCombinationFollowers = false;
+        int sourceRow = -1;
     };
 
     static constexpr size_t sequencerCommandQueueCapacity = 1024;
@@ -872,6 +885,18 @@ private:
     std::uint32_t playbackRandomState = 0xA5C3F17Du;
     std::atomic<double> currentPlaybackPpq { -1.0 };
     std::atomic<double> currentSchedulePpqForUi { -1.0 };
+    static constexpr int playbackEventCapacity = 8192;
+    static constexpr int playbackBlockCapacity = 2048;
+    std::atomic<bool> playbackMonitoring { false };
+    juce::AbstractFifo playbackEventFifo { playbackEventCapacity };
+    std::unique_ptr<PlaybackEvent[]> playbackEvents = std::make_unique<PlaybackEvent[]> (playbackEventCapacity);
+    std::unique_ptr<PlaybackEvent[]> playbackBlock = std::make_unique<PlaybackEvent[]> (playbackBlockCapacity);
+    int playbackBlockCount = 0;
+    bool capturePlaybackBlock = false, playbackBlockOverflow = false, resetPlaybackMonitor = true;
+    double playbackBlockStart = 0, playbackBlockPpqPerSample = 0;
+    std::optional<double> offlinePreviewStartBeat;
+    void capturePlaybackEdge (int sample, int channel, int note, int velocity, int row = -1, int step = -1);
+    void publishPlaybackBlock (double transportBeat, double scheduleBeat);
     std::array<juce::AudioParameterInt*, 2> patternSlotParameters {};
     std::array<std::atomic<int>, 2> observedPatternParameters { 1, 9 };
     std::atomic<int> currentModelPatternSlot { 0 };
@@ -892,7 +917,7 @@ private:
     double pendingAudioLoopBraceEndQuarters = defaultLoopBraceEndQuarters;
     std::atomic<int> pulseIndex { defaultPulseIndex };
     std::atomic<int> combinationSyncDivisionIndex { defaultCombinationSyncDivisionIndex };
-    std::atomic<int> combinationChangePhaseContinue { 0 };
+    std::atomic<int> combinationChangePhaseContinue { 1 };
     std::atomic<int> swingPercent { defaultSwingPercent };
     std::atomic<int> velocityHumanizePercent { defaultVelocityHumanizePercent };
     std::atomic<int> timingHumanizePercent { defaultTimingHumanizePercent };

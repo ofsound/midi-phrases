@@ -23,18 +23,7 @@ namespace phrases::ui
     stroke-linecap="round"
   />
 </svg>)svg";
-    inline constexpr const char* StepSkipIcon = R"svg(<svg 
-  xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 24 24"
-  aria-hidden="true"
->
-  <g transform="translate(12 12) scale(0.68) translate(-12 -12)">
-    <path
-      fill="#ffffff"
-      d="M3 9 10 9 10 4 21 12 10 20 10 15 3 15Z"
-    />
-  </g>
-</svg>)svg";
+    inline constexpr const char* StepSkipIcon = R"svg(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#ffffff" d="M2 9H10V4L22 12L10 20V15H2Z"/></svg>)svg";
     inline constexpr const char* RowReverseOrderIcon = R"svg(<svg 
   xmlns="http://www.w3.org/2000/svg"
   viewBox="0 0 24 24"

@@ -5004,7 +5004,10 @@ TEST_CASE ("Plugin instance", "[instance]")
         testPlugin.setStandaloneTempoBpm (148.0);
         testPlugin.setProjectMetadata ("Old Project", "Old description", "created", "modified", "alt", 70, true);
 
+        testPlugin.setCombinationChangePhaseContinue (false);
         testPlugin.resetProject();
+
+        CHECK (testPlugin.isCombinationChangePhaseContinue());
 
         CHECK (testPlugin.getCurrentPatternSlot() == 0);
         CHECK (testPlugin.getViewPatternSlot() == 0);
@@ -5970,6 +5973,7 @@ TEST_CASE ("Plugin instance", "[instance]")
 
     SECTION ("combination mode enable restarts schedule phase from beat zero")
     {
+        testPlugin.setCombinationChangePhaseContinue (false);
         testPlugin.prepareToPlay (1000.0, 100);
         testPlugin.setCurrentPatternSlot (0);
         ensurePhraseRowStepCount (testPlugin, 0, 4);
@@ -6120,6 +6124,7 @@ TEST_CASE ("Plugin instance", "[instance]")
 
     SECTION ("combination mode disable restarts schedule phase from beat zero")
     {
+        testPlugin.setCombinationChangePhaseContinue (false);
         testPlugin.prepareToPlay (1000.0, 100);
         testPlugin.setCurrentPatternSlot (0);
         testPlugin.setCombinationModeEnabled (PluginProcessor::combinationModeMultiplyEcho, true);

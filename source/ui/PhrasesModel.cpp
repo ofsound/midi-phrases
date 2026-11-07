@@ -43,45 +43,6 @@ namespace phrases::ui
             p.setPhraseRowMidiChannel (r, row.channel);
     }
 
-    bool stepActive (const Row& row, size_t index, double beat, int pulse, int swing, int subdivision, double* beatsSinceOnset)
-    {
-        constexpr double epsilon = 1.0e-8;
-        if (beat < 0 || row.muted || index >= row.steps.size())
-            return false;
-        const auto& step = row.steps[index];
-        if (step.skipped || step.muted || step.velocity <= 0 || step.duration <= 0 || step.probability <= 0)
-            return false;
-        const double unit = .25 * PluginProcessor::pulseQuartersForIndex (pulse);
-        double start = 0, cycle = 0;
-        for (size_t s = 0; s < row.steps.size(); ++s)
-        {
-            if (s == index)
-                start = cycle;
-            if (!row.steps[s].skipped)
-                cycle += (row.steps[s].timing + 1) * unit;
-        }
-        if (cycle <= 0)
-            return false;
-        start += (row.offset - 8) * unit;
-        if (beat - start < -epsilon)
-            return false;
-        const double iteration = std::floor ((beat - start + epsilon) / cycle);
-        const auto count = static_cast<int64_t> (iteration - std::ceil ((-start - epsilon) / cycle));
-        const int phase = static_cast<int> ((count % step.cycle + step.cycle) % step.cycle);
-        if (step.cycle > 1 && (phase >= 30 || ((step.mask == 0 ? 1 : step.mask) & (1 << phase)) == 0))
-            return false;
-        const uint32_t hash = static_cast<uint32_t> (index) * 2654435761u + static_cast<uint32_t> (count) * 1597334677u;
-        if (step.probability < 100 && hash % 100 >= static_cast<uint32_t> (step.probability))
-            return false;
-        double onset = iteration * cycle + start;
-        const double swingUnit = PluginProcessor::pulseQuartersForIndex (pulse) * PluginProcessor::swingSubdivisionForIndex (subdivision);
-        if (static_cast<int64_t> (std::floor ((onset + epsilon) / swingUnit)) % 2 != 0)
-            onset += swingUnit * .5 * swing / 100;
-        if (beatsSinceOnset != nullptr)
-            *beatsSinceOnset = beat - onset;
-        return beat >= onset - epsilon && beat < onset + (step.timing + 1) * unit * step.duration - epsilon;
-    }
-
     namespace
     {
         const std::array<std::vector<int>, 16> intervals { { { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 }, { 0, 2, 4, 5, 7, 9, 11 }, { 0, 2, 3, 5, 7, 8, 10 }, { 0, 2, 3, 5, 7, 9, 10 }, { 0, 1, 3, 5, 7, 8, 10 }, { 0, 2, 4, 6, 7, 9, 11 }, { 0, 2, 4, 5, 7, 9, 10 }, { 0, 1, 3, 5, 6, 8, 10 }, { 0, 2, 3, 5, 7, 8, 11 }, { 0, 2, 3, 5, 7, 9, 11 }, { 0, 2, 4, 7, 9 }, { 0, 3, 5, 7, 10 }, { 0, 3, 5, 6, 7, 10 }, { 0, 2, 4, 6, 8, 10 }, { 0, 2, 3, 5, 6, 8, 9, 11 }, { 0, 1, 3, 4, 6, 7, 9, 10 } } };

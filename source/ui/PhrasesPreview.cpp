@@ -1,70 +1,215 @@
 #include "PhrasesPreview.h"
 namespace phrases::ui
 {
-    std::vector<PreviewNote> renderPreview (PluginProcessor& source, double quarters)
+    namespace
     {
+        constexpr double openNoteEnd = std::numeric_limits<double>::infinity();
+
+        void applyNoteEdge (std::vector<PreviewNote>& notes, std::vector<size_t>& openNotes,
+                            const PluginProcessor::PlaybackEvent& event)
+        {
+            if (event.velocity > 0)
+            {
+                if (event.row >= 0 && event.row < PluginProcessor::phraseRowCount)
+                {
+                    openNotes.push_back (notes.size());
+                    notes.push_back ({ event.transportBeat, openNoteEnd, event.note, event.velocity, event.row, event.channel, event.step });
+                }
+                return;
+            }
+
+            const auto held = std::find_if (openNotes.begin(), openNotes.end(), [&](size_t index) {
+                const auto& note = notes[index];
+                return note.channel == event.channel && note.note == event.note;
+            });
+            if (held != openNotes.end())
+            {
+                notes[*held].end = event.transportBeat;
+                openNotes.erase (held);
+            }
+        }
+
+        // The scheduler can enqueue a future note-off before an earlier note-on
+        // in the same block. Match the order in which the MIDI buffer plays them.
+        template <typename Position, typename Edge>
+        void visitPlaybackBlocks (std::vector<PluginProcessor::PlaybackEvent>& events, Position position, Edge edge)
+        {
+            for (auto block = events.begin(); block != events.end();)
+            {
+                jassert (block->channel == 0);
+                position (*block);
+                const auto first = std::next (block);
+                const auto end = std::find_if (first, events.end(), [](const auto& event) { return event.channel == 0; });
+                std::stable_sort (first, end, [](const auto& a, const auto& b) { return a.transportBeat < b.transportBeat; });
+                for (auto event = first; event != end; ++event)
+                    edge (*event);
+                block = end;
+            }
+        }
+    }
+
+    std::vector<PreviewNote> renderPreview (PluginProcessor& source, double endQuarter, double firstQuarter)
+    {
+        const bool looping = source.isLoopBraceEnabled();
+        const double loopStart = looping ? source.getLoopBraceStartQuarters() : 0;
+        const double startBeat = std::max (loopStart, firstQuarter - 16.0);
+        const double endBeat = std::min ({ endQuarter, std::max (loopStart, firstQuarter) + 256.0,
+                                          looping ? source.getLoopBraceEndQuarters() : endQuarter });
+        if (endBeat <= startBeat)
+            return {};
+
         juce::MemoryBlock state;
         source.getStateInformation (state);
         auto renderer = std::make_unique<PluginProcessor>();
         renderer->setStateInformation (state.getData(), static_cast<int> (state.getSize()));
-        renderer->setCurrentPatternSlot (source.getViewPatternSlot());
-        renderer->setLoopBraceEnabled (false);
-        renderer->setStandaloneTransportPlaying (false);
+        const int pattern = source.getViewPatternSlot();
+        renderer->setCurrentPatternSlot (pattern);
+        renderer->setPlaybackMonitoring (true);
         struct Clock : juce::AudioPlayHead
         {
             PositionInfo info;
             juce::Optional<PositionInfo> getPosition() const override { return info; }
         } clock;
-        clock.info.setBpm (120);
+        const double bpm = source.hasStandaloneTransport() ? source.getStandaloneTempoBpm() : 120.0;
+        clock.info.setBpm (bpm);
         clock.info.setIsPlaying (true);
-        clock.info.setPpqPosition (0);
         renderer->setPlayHead (&clock);
         constexpr int block = 128;
         constexpr double rate = 8000;
+        const double ppqPerSample = bpm / (60.0 * rate);
         renderer->prepareToPlay (rate, block);
+        renderer->setOfflinePreviewStartBeat (startBeat);
         juce::AudioBuffer<float> audio (2, block);
         juce::MidiBuffer midi;
         std::vector<PreviewNote> output;
+        std::vector<size_t> openNotes;
         output.reserve (2048);
-        std::array<std::array<std::vector<size_t>, 128>, 16> active;
-        const int samples = static_cast<int> (juce::jlimit (1.0, 128.0, quarters) * rate * .5);
+        std::vector<PluginProcessor::PlaybackEvent> events;
+        const int samples = static_cast<int> (std::ceil ((endBeat - startBeat) / ppqPerSample));
         for (int start = 0; start < samples; start += block)
         {
             midi.clear();
-            audio.clear();
-            clock.info.setPpqPosition (start * 2.0 / rate);
+            clock.info.setPpqPosition (startBeat + start * ppqPerSample);
             renderer->processBlock (audio, midi);
-            for (const auto event : midi)
-            {
-                const auto message = event.getMessage();
-                if (!message.isNoteOnOrOff())
-                    continue;
-                auto& held = active[static_cast<size_t> (message.getChannel() - 1)][static_cast<size_t> (message.getNoteNumber())];
-                const double beat = (start + event.samplePosition) * 2.0 / rate;
-                if (beat >= quarters)
-                    continue;
-                if (message.isNoteOn())
-                {
-                    int row = 0;
-                    for (int r = 0; r < 4; ++r)
-                        if (source.getPhraseRowMidiChannel (r) == message.getChannel())
-                        {
-                            row = r;
-                            break;
-                        }
-                    held.push_back (output.size());
-                    output.push_back ({ beat, quarters, message.getNoteNumber(), message.getVelocity(), row });
-                }
-                else if (!held.empty())
-                {
-                    output[held.front()].end = beat;
-                    held.erase (held.begin());
-                }
-            }
+            renderer->drainPlaybackEvents (events);
+            visitPlaybackBlocks (events, [](const auto&) {}, [&](const auto& event) {
+                if (event.transportBeat < endBeat && (event.velocity == 0 || event.pattern == pattern))
+                    applyNoteEdge (output, openNotes, event);
+            });
         }
         renderer->releaseResources();
         renderer->setPlayHead (nullptr);
+        for (auto& note : output)
+            note.end = std::min (note.end, endBeat);
+        std::erase_if (output, [firstQuarter](const auto& note) { return note.end <= firstQuarter; });
         return output;
+    }
+
+    Preview::Preview (Controller& controller, Palette& palette) : c (controller), p (palette)
+    {
+        setWantsKeyboardFocus (true);
+        c.p.drainPlaybackEvents (playbackEvents);
+        c.p.setPlaybackMonitoring (true);
+    }
+
+    Preview::~Preview()
+    {
+        c.p.setPlaybackMonitoring (false);
+    }
+
+    bool Preview::isLive() const
+    {
+        return playbackPosition.scheduleBeat >= 0 && playbackPosition.pattern == c.p.getViewPatternSlot();
+    }
+
+    double Preview::playheadBeat() const
+    {
+        return isLive() ? playbackPosition.scheduleBeat : -1;
+    }
+
+    double Preview::viewStart() const
+    {
+        return isLive() ? liveFirstQuarter : firstQuarter;
+    }
+
+    void Preview::updatePlayback()
+    {
+        playingSteps = {};
+        c.p.drainPlaybackEvents (playbackEvents);
+        if (c.p.getPlaybackBeat() < 0)
+        {
+            playbackPosition = {};
+            liveNotes.clear();
+            openLiveNotes.clear();
+            if (useExtraForecast)
+                updateForecast();
+            return;
+        }
+
+        const bool wasLive = isLive();
+        const bool looping = c.p.isLoopBraceEnabled();
+        visitPlaybackBlocks (playbackEvents, [&](const auto& position) {
+            const double originChange = (position.transportBeat - position.scheduleBeat)
+                - (playbackPosition.transportBeat - playbackPosition.scheduleBeat);
+            if (position.reset || position.pattern != playbackPosition.pattern
+                || (!looping && std::abs (originChange) > .001))
+            {
+                liveNotes.clear();
+                openLiveNotes.clear();
+            }
+            playbackPosition = position;
+        }, [&](const auto& event) {
+            if (event.velocity == 0 || event.pattern == playbackPosition.pattern)
+            {
+                applyNoteEdge (liveNotes, openLiveNotes, event);
+                if (event.velocity > 0)
+                {
+                    lowNote = std::min (lowNote, event.note);
+                    highNote = std::max (highNote, event.note);
+                }
+            }
+        });
+
+        if (!isLive())
+            return;
+        if (!wasLive)
+        {
+            liveFirstQuarter = firstQuarter;
+            followPlayback = true;
+        }
+
+        const double beat = playbackPosition.scheduleBeat;
+        const double pageWidth = std::max (1.0, (getWidth() - pitchGutterWidth) / pixelsPerQuarter());
+        if (followPlayback && (beat < liveFirstQuarter || beat >= liveFirstQuarter + pageWidth))
+        {
+            const double start = looping ? c.p.getLoopBraceStartQuarters() : 0;
+            liveFirstQuarter = start + std::floor (std::max (0.0, beat - start) / pageWidth) * pageWidth;
+        }
+
+        updateForecast();
+
+        const double now = playbackPosition.transportBeat;
+        constexpr double flashLength = .22;
+        constexpr size_t maxLiveNotes = 8192;
+        const auto previousSize = liveNotes.size();
+        std::erase_if (liveNotes, [oldest = now - std::max (16.0, 2 * pageWidth)](const auto& note) { return note.end < oldest; });
+        if (liveNotes.size() > maxLiveNotes)
+            liveNotes.erase (liveNotes.begin(), liveNotes.end() - static_cast<std::ptrdiff_t> (maxLiveNotes));
+        if (previousSize != liveNotes.size())
+        {
+            openLiveNotes.clear();
+            for (size_t i = 0; i < liveNotes.size(); ++i)
+                if (std::isinf (liveNotes[i].end))
+                    openLiveNotes.push_back (i);
+        }
+        for (const auto& note : liveNotes)
+        {
+            if (note.step < 0 || note.step >= PluginProcessor::maxPhraseStepsPerRow || note.start > now)
+                continue;
+            auto& activity = playingSteps[static_cast<size_t> (note.row)][static_cast<size_t> (note.step)];
+            activity.sounding |= now < note.end;
+            activity.flash = std::max (activity.flash, static_cast<float> (1 - (now - note.start) / flashLength));
+        }
     }
     double Preview::fittedPixelsPerQuarter() const
     {
@@ -74,8 +219,8 @@ namespace phrases::ui
     {
         return manualPixelsPerQuarter.value_or (fittedPixelsPerQuarter());
     }
-    float Preview::beatX (double beat) const { return pitchGutterWidth + static_cast<float> ((beat - firstQuarter) * pixelsPerQuarter()); }
-    double Preview::xBeat (float x) const { return firstQuarter + (x - pitchGutterWidth) / pixelsPerQuarter(); }
+    float Preview::beatX (double beat) const { return pitchGutterWidth + static_cast<float> ((beat - viewStart()) * pixelsPerQuarter()); }
+    double Preview::xBeat (float x) const { return viewStart() + (x - pitchGutterWidth) / pixelsPerQuarter(); }
     float Preview::pitchLaneHeight() const
     {
         return std::max (1.0f, getHeight() - 30.0f) / static_cast<float> (highNote - lowNote + 1);
@@ -102,16 +247,49 @@ namespace phrases::ui
         visibleQuarters = std::max (8.0, std::ceil (longest / 4) * 4);
         if (c.p.isCombinationModeEnabled (PluginProcessor::combinationModeHocket))
             visibleQuarters = std::max (32.0, visibleQuarters * 4);
+        const bool looping = c.p.isLoopBraceEnabled();
+        const double start = looping ? c.p.getLoopBraceStartQuarters() : 0;
+        if (looping)
+            visibleQuarters = std::max (visibleQuarters, c.p.getLoopBraceEndQuarters() - start);
         visibleQuarters = std::min (128.0, visibleQuarters);
-        notes = renderPreview (c.p, visibleQuarters);
+        notes = renderPreview (c.p, start + visibleQuarters);
+        forecastStart = forecastEnd = 0;
+        if (firstQuarter + visibleQuarters <= start)
+            firstQuarter = start;
         fitPitch();
+        updateForecast();
         repaint();
     }
+
+    void Preview::updateForecast()
+    {
+        const bool looping = c.p.isLoopBraceEnabled();
+        const double start = looping ? c.p.getLoopBraceStartQuarters() : 0;
+        const double left = std::max (start, viewStart());
+        const double right = looping ? std::min (c.p.getLoopBraceEndQuarters(), xBeat (static_cast<float> (getWidth())))
+                                     : xBeat (static_cast<float> (getWidth()));
+        useExtraForecast = right > start + visibleQuarters + .001 && right > left;
+        if (!useExtraForecast || (left >= forecastStart && right <= forecastEnd))
+            return;
+
+        forecastStart = left;
+        forecastEnd = right + visibleQuarters;
+        extraForecast = renderPreview (c.p, forecastEnd, forecastStart);
+        for (const auto& note : extraForecast)
+        {
+            lowNote = std::min (lowNote, note.note);
+            highNote = std::max (highNote, note.note);
+        }
+    }
+
     void Preview::fit()
     {
-        firstQuarter = 0;
+        firstQuarter = c.p.isLoopBraceEnabled() ? c.p.getLoopBraceStartQuarters() : 0;
+        liveFirstQuarter = firstQuarter;
+        followPlayback = true;
         manualPixelsPerQuarter.reset();
         fitPitch();
+        updateForecast();
         repaint();
     }
     void Preview::fitPitch()
@@ -153,7 +331,7 @@ namespace phrases::ui
             const auto pitch = n % 12;
             const bool black = pitch == 1 || pitch == 3 || pitch == 6 || pitch == 8 || pitch == 10;
             const auto y = 30 + static_cast<float> (highNote - n) * h;
-            const float rollRight = std::min (static_cast<float> (getWidth()), beatX (visibleQuarters));
+            const float rollRight = static_cast<float> (getWidth());
             g.setColour (black ? p.app : p.raised.withAlpha (.7f));
             g.fillRect (Rect (0, y, rollRight, h));
             g.setColour (p.border.withAlpha (.35f));
@@ -161,7 +339,8 @@ namespace phrases::ui
             if (pitch == 0)
                 text (g, noteName (n), { 0, y, 40, h }, p.muted, 10, false, juce::Justification::centredRight);
         }
-        for (int beat = static_cast<int> (std::floor (firstQuarter)); beat <= firstQuarter + visibleQuarters; ++beat)
+        g.reduceClipRegion (juce::Rectangle<int> (juce::roundToInt (pitchGutterWidth), 0, getWidth(), getHeight()));
+        for (int beat = static_cast<int> (std::ceil (viewStart())); beat <= xBeat (static_cast<float> (getWidth())); ++beat)
         {
             const float x = beatX (beat);
             g.setColour ((beat % 4 == 0 ? p.muted : p.border).withAlpha (.45f));
@@ -176,23 +355,50 @@ namespace phrases::ui
         g.setColour (loopColour);
         g.fillRoundedRectangle (Rect (start, 1, 9, 16), 3);
         g.fillRoundedRectangle (Rect (end - 9, 1, 9, 16), 3);
-        const double playback = c.p.getPlaybackBeat();
-        // The overview shows one repeating window of the composition.
-        const double displayBeat = playback < 0 ? -1.0 : std::fmod (playback, visibleQuarters);
-        for (const auto& event : notes)
-        {
-            const bool active = displayBeat >= event.start && displayBeat < event.end;
-            const auto b = noteBounds (event.start, event.end, event.note);
+        const double beat = playheadBeat();
+        const bool live = beat >= 0;
+        const double originBeat = live ? playbackPosition.transportBeat - beat : 0;
+        const double left = viewStart();
+        const double right = xBeat (static_cast<float> (getWidth()));
+        const double loopStart = c.p.isLoopBraceEnabled() ? c.p.getLoopBraceStartQuarters() : 0;
+        const auto drawNote = [&](const PreviewNote& event, double startBeat, double endBeat, bool active) {
+            startBeat = std::max (startBeat, loopStart);
+            if (endBeat <= left || startBeat >= right || startBeat > endBeat)
+                return;
+            const auto b = noteBounds (std::max (left, startBeat), std::min (right, endBeat), event.note);
             const auto accent = p.rows[static_cast<size_t> (event.row)];
             g.setColour (active ? accent.brighter (.35f) : accent.withAlpha (.25f + .6f * event.velocity / 127.0f));
             g.fillRoundedRectangle (b, 2);
             g.setColour (accent.brighter (.25f).withAlpha (.55f));
             g.drawRoundedRectangle (b, 2, 1);
-        }
-        if (playback >= 0)
+        };
+        const auto& forecast = upcomingNotes();
+        constexpr double matchingTolerance = .002;
+        for (const auto& note : forecast)
+            if (!live || note.start > beat + matchingTolerance)
+                drawNote (note, note.start, note.end, false);
+
+        if (live)
+            for (const auto& note : liveNotes)
+            {
+                const double onset = note.start - originBeat;
+                const bool active = playbackPosition.transportBeat < note.end;
+                double endBeat = active ? beat : note.end - originBeat;
+                if (active)
+                {
+                    const auto prediction = std::find_if (forecast.begin(), forecast.end(), [&](const auto& next) {
+                        return next.channel == note.channel && next.note == note.note && next.row == note.row
+                            && std::abs (next.start - onset) < matchingTolerance;
+                    });
+                    if (prediction != forecast.end())
+                        endBeat = std::max (endBeat, prediction->end);
+                }
+                drawNote (note, onset, endBeat, active);
+            }
+        if (live && beat >= left && beat <= right)
         {
             g.setColour (p.accent);
-            g.drawVerticalLine (juce::roundToInt (beatX (displayBeat)), 0, static_cast<float> (getHeight()));
+            g.drawVerticalLine (juce::roundToInt (beatX (beat)), 0, static_cast<float> (getHeight()));
         }
         g.setColour (p.border);
         g.drawRoundedRectangle (bounds.reduced (.5f), 12, 1);
@@ -249,7 +455,11 @@ namespace phrases::ui
             manualPixelsPerQuarter = juce::jlimit (7.0, maxScale, pixelsPerQuarter() * (wheel.deltaY > 0 ? 1.1 : .9));
         }
         else if (e.mods.isShiftDown() || std::abs (wheel.deltaX) > std::abs (wheel.deltaY))
-            firstQuarter = std::max (0.0, firstQuarter - (wheel.deltaX + wheel.deltaY) * visibleQuarters);
+        {
+            auto& start = isLive() ? liveFirstQuarter : firstQuarter;
+            start = std::max (0.0, start - (wheel.deltaX + wheel.deltaY) * visibleQuarters);
+            followPlayback = false;
+        }
         else
         {
             const int delta = wheel.deltaY > 0 ? 1 : -1;
@@ -259,6 +469,7 @@ namespace phrases::ui
                 highNote += delta;
             }
         }
+        updateForecast();
         repaint();
     }
 }

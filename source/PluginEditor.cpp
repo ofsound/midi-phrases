@@ -19,8 +19,10 @@ PluginEditor::PluginEditor (PluginProcessor& owner)
     setSize (designWidth, designHeight);
    #else
     setResizable (true, true);
-    const auto initialSize = canvasSizeFor (getDisplayUserBounds().reduced (24).withZeroOrigin()
-                                               .getIntersection ({ designWidth, designHeight }));
+    auto available = getDisplayUserBounds().reduced (24).withZeroOrigin().getIntersection ({ designWidth, designHeight });
+    if (owner.hasStandaloneTransport())
+        available.setSize (std::max (400, available.getWidth() * 3 / 4), std::max (300, available.getHeight() * 3 / 4));
+    const auto initialSize = canvasSizeFor (available);
     setSize (initialSize.getWidth(), initialSize.getHeight());
    #endif
     applyNormalResizeLimits();
@@ -123,16 +125,6 @@ juce::Array<juce::File> PluginEditor::getSiblingProjectFiles() const
     return files;
 }
 
-bool PluginEditor::hasPreviousProject() const
-{
-    return getSiblingProjectFiles().size() > 1;
-}
-
-bool PluginEditor::hasNextProject() const
-{
-    return getSiblingProjectFiles().size() > 1;
-}
-
 juce::String PluginEditor::getCurrentProjectFileName() const
 {
     return currentProjectFile.existsAsFile() ? currentProjectFile.getFileName() : juce::String();
@@ -152,8 +144,6 @@ juce::var PluginEditor::projectOperationResult (const bool success,
         object->setProperty ("projectCreatedAt", processorRef.getProjectCreatedAt());
         object->setProperty ("projectModifiedAt", processorRef.getProjectModifiedAt());
         object->setProperty ("projectFileName", getCurrentProjectFileName());
-        object->setProperty ("hasPreviousProject", hasPreviousProject() ? 1 : 0);
-        object->setProperty ("hasNextProject", hasNextProject() ? 1 : 0);
     }
 
     return juce::var (object.release());

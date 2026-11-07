@@ -34,7 +34,7 @@ namespace phrases::ui
     {
         constexpr float gap = 4.0f, inset = 8.0f;
         const float width = std::max (1.0f, (getWidth() - 2 * inset - (beatCount - 1) * gap) / beatCount);
-        return { inset + static_cast<float> (index) * (width + gap), 28, width, 34 };
+        return { inset + static_cast<float> (index) * (width + gap), 28, width, 42 };
     }
 
     Rect CycleEditor::handleBounds (int cycle) const

@@ -34,8 +34,6 @@ public:
     void showLoadProjectDialog (Completion);
     void createNewProject (Completion);
     void cycleProject (int direction, Completion);
-    bool hasPreviousProject() const;
-    bool hasNextProject() const;
     juce::String getCurrentProjectFileName() const;
     juce::var handleEditorFullscreenRequest (int mode);
 
